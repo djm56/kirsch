@@ -1,0 +1,6 @@
+.DS_Store
+
+# NOTE for Milestones 0–1: when ignore rules for build output are added here,
+# write them ROOT-ANCHORED (/node_modules/, /vendor/) — an unanchored rule also
+# matches testdata/repo-node/node_modules/, and Git cannot re-include a file
+# whose parent directory is excluded. See plan/milestone-1.md Task 1.1.
