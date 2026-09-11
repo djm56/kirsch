@@ -27,7 +27,7 @@ Stream(ctx context.Context, req Request, onEvent func(StreamEvent)) error
 with provider-neutral `StreamEvent` types: `TextDelta`, `ToolCallStart`,
 `ToolCallDelta`, `ToolCallEnd`, `MessageDone`, `Error`. All provider-specific
 accumulation/normalization lives inside the Anthropic adapter.
-`internal/agent` depends on the interface only (hard rule in layout.md).
+`internal/agent` depends on the interface only (hard rule in architecture.md §3).
 A **`provider.Fake`** with scripted turns provides deterministic agent-loop
 tests: approval gating, cancellation, hallucinated tools, max-turn guard.
 

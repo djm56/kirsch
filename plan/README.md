@@ -15,8 +15,8 @@ someone using it?* Building → `plan/`. Using → `doc/`.
 | Document | Purpose |
 |---|---|
 | [`kirsch-plan.md`](kirsch-plan.md) | The locked v0.1 spec: contract, architecture, tool contracts, policy, config, context, events, milestones, testing |
-| [`layout.md`](layout.md) | Package layout and hard dependency rules (becomes `architecture.md` in M0) |
-| [`ui-spec-v0.1.md`](ui-spec-v0.1.md) | Full TUI spec: layout, cards, modals, key bindings, edge cases |
+| [`architecture.md`](architecture.md) | Why the codebase is shaped this way — dependency rules and their enforcement, the four interfaces that matter, concurrency and cancellation, the three representations of a conversation, error model, anti-goals |
+| [`ui-spec-v0.1.md`](ui-spec-v0.1.md) | Full TUI spec — layout and breakpoints, transcript elements, mode state machine, bindings per mode, slash commands, text sanitisation, palette, timing, accessibility, golden-test surface |
 | [`adr/`](adr/) | Architecture decision records 0001–0007 |
 | [`milestone-0.md`](milestone-0.md) | Instruction set — repo bootstrap + static TUI prototype |
 | [`milestone-1.md`](milestone-1.md) | Instruction set — workspace engine + read-only tools |

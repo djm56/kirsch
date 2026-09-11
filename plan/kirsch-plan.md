@@ -366,7 +366,7 @@ Rules: single writer goroutine; buffered flush with `fsync` every ~500ms and on 
 Tasks:
 
 - `go mod init`, MIT `LICENSE`, `README.md`, `AGENTS.md`, `CHANGELOG.md`.
-- `plan/architecture.md` — promoted from the drafted `plan/layout.md`; ADRs and UI spec already drafted in `plan/adr/` and `plan/ui-spec-v0.1.md`. Note the folder split: `plan/` is build instructions, `doc/` is reserved for end-user documentation written in M5.
+- Design docs are already settled, not drafts: `plan/architecture.md`, `plan/ui-spec-v0.1.md`, and `plan/adr/` (0001–0007). M0 builds against them and corrects any drift it discovers, rather than writing them. Note the folder split: `plan/` is build instructions, `doc/` is reserved for end-user documentation written in M5.
 - CI: `gofmt` check, `go vet`, `golangci-lint`, `go test ./...` on GitHub Actions.
 - Bubble Tea prototype at `cmd/kirsch` with: header, scrollable transcript with fake user/assistant/tool entries, multiline composer, status bar, fake approval modal, fake diff modal, resize-safe layout, `Ctrl+C` handling.
 - Use `bubbles` (textarea, viewport, spinner) + `lipgloss`; rune-aware width math (`go-runewidth`).
@@ -529,8 +529,34 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 20. **Extended thinking** (§6.5) — plumbing present from M3, default `off`.
 21. **Project context injection** (§6.2) — `AGENTS.md` / `CLAUDE.md` / `.kirsch/context.md`, capped and fenced as untrusted. Lands M3.
 
+**Design docs completed (2026-09-11)**
+
+22. **`plan/layout.md` → `plan/architecture.md`, promoted from draft to
+    settled.** The draft was a package list and four rules. It now states the
+    forces the architecture has to survive, the rationale and enforcement for
+    each dependency rule, why `internal/app` exists, the four interfaces that
+    are abstracted and why nothing else is, the goroutine inventory and the
+    approval deadlock it avoids, the context hierarchy and its cancellation
+    obligations, the **three representations of one conversation** (transcript
+    / conversation / session log) and what follows from keeping them distinct,
+    an end-to-end turn walkthrough, the two-class error model, anti-goals, and
+    testing seams. M0 no longer writes this document; it builds against it.
+23. **`plan/ui-spec-v0.1.md` promoted from draft to settled.** Added: the mode
+    state machine and key precedence (§5.1), bindings per mode, responsive
+    breakpoints, the scroll/pin contract, card lifecycle and the 200-line
+    inline expansion cap, the palette and glyph tables with ASCII fallbacks
+    (§10), timing constants (§11), accessibility rules (§12), the golden-test
+    surface (§13), and known design risks (§14). Three draft behaviours were
+    corrected as bugs: `?` is a literal character in the composer rather than a
+    global help key; typing no longer re-pins a scrolled-up transcript; and
+    **all ANSI escape sequences are stripped from tool output** before
+    rendering — `git` and most test runners emit colour on a TTY, and passing
+    those through hands arbitrary terminal control to command output.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.
 - Whether `/approvals` needs its own key binding or only the slash command.
+- The ui-spec §14 design risks: Shift+Enter detection across terminals, braille
+  spinner glyph rendering, whether 200 lines is the right inline cap.
 - Session file rotation for very long sessions (ADR 0002 flagged this; still deferred).

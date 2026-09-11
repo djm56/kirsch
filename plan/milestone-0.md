@@ -11,9 +11,11 @@
    In particular: **no** file-reading tools, **no** subprocess execution,
    **no** provider/agent/session/policy/config/telemetry packages.
 2. **The UI spec is law.** [`plan/ui-spec-v0.1.md`](ui-spec-v0.1.md) defines
-   layout, cards, modals, keys, and edge cases. Where this instruction set
-   and the spec seem to conflict, the spec wins — flag the conflict, don't
-   guess.
+   layout, breakpoints, cards, modals, the mode state machine, keys per mode,
+   text sanitisation, palette, timing constants, and accessibility rules.
+   Where this instruction set and the spec seem to conflict, the spec wins —
+   flag the conflict, don't guess. Read §5.1 (mode state machine) and §10
+   (palette and glyphs) before writing any code.
 3. **Locked decisions** (do not re-litigate):
    - Module path: `github.com/djm56/kirsch`
    - License: MIT (already in repo)
@@ -45,7 +47,7 @@ empty (or placeholder) full-screen TUI without panic.
 
 1. `AGENTS.md` — short guide for coding agents working on this repo: point to
    `plan/kirsch-plan.md` (spec), `plan/README.md` (progress + builder rules),
-   the hard dependency rules in `plan/layout.md`, and the
+   the hard dependency rules in `plan/architecture.md`, and the
    one-milestone-at-a-time rule. State that `doc/` is for end users and must
    not be used for build notes.
 2. `CHANGELOG.md` — Keep a Changelog format, `## [Unreleased]` section with
@@ -54,14 +56,16 @@ empty (or placeholder) full-screen TUI without panic.
 3. `README.md` — already exists; update the planning-phase banner to reflect
    Milestone 0 status when it starts, and remove the "no code exists" line
    once the prototype lands.
-4. Promote `plan/layout.md` → `plan/architecture.md` (rename + expand with a
-   short prose write-up; the package table and dependency rules carry over,
-   plus the package **build order** table from plan §2).
-   Update links in `README.md`, `plan/README.md`, and the ADRs.
+4. `plan/architecture.md` already exists and is settled — **do not rewrite
+   it.** Read it before Task 4; it defines the dependency rules, the mode the
+   TUI must implement, and the concurrency constraints. At the end of the
+   milestone, review it against what you actually built and correct any drift
+   in a separate commit, flagging anything that contradicts it rather than
+   silently diverging.
 
-**Check:** all markdown links resolve; no stale references to
-`plan/layout.md` (except in git history); `doc/` still contains only its
-placeholder.
+**Check:** all markdown links resolve; `doc/` still contains only its
+placeholder; any architecture drift is either fixed in code or recorded in
+`plan/architecture.md`.
 
 ## Task 3 — CI (GitHub Actions)
 
@@ -112,43 +116,73 @@ spec behavior.
 
 ## Task 5 — Interaction wiring (per ui-spec)
 
-Implement and verify each behavior:
+Build the **mode state machine of ui-spec §5.1 first**, then hang behaviour off
+it. Modes bolted onto ad-hoc key handling is how TUIs end up with keys that
+work in some states and silently vanish in others.
 
-1. Composer focus; `Enter` sends (appends a user message to transcript,
-   starts a fake streaming turn); `Shift+Enter`/`Alt+Enter` newline.
-2. Focus transfer: `↑` at composer top / `↓` at transcript bottom moves
-   focus; visible selection cursor on cards; `↑`/`↓` move selection;
-   `PgUp`/`PgDn` scroll; `Enter` expands/collapses the selected card.
-3. Approval card: `y` → resolves to approved (card collapses to `✓ approved`);
-   `a` → approved for session (only rendered on the fake `run_command` card,
-   never on the fake `apply_patch` card — plan §4); `n` → rejected; `d` →
-   diff modal. Exclusive input capture while pending.
-4. Diff modal: canned unified diff, colour-coded (`+`/`-`/`@@`), no-color
-   fallback, `j`/`k`/arrows scroll, `Esc` closes.
-5. Help overlay `?` (bindings + slash commands), `Esc` closes.
-6. Quit semantics: idle `q` with empty composer quits; `Ctrl+C` cancels the
-   in-flight fake turn (spinner stops, composer re-enables); double `Ctrl+C`
-   within 1s force-quits.
-7. Auto-scroll with `↓ new content` indicator when scrolled up (ui-spec §2).
-8. Slash commands: `/help` and `/quit` functional; others render as system
-   notices (fake content is fine — behavior shape must match ui-spec §6);
-   unknown `/command` → dim inline hint.
+1. Modes `Composing` / `Browsing` / `ApprovalPending` / `Modal` / `Confirm`,
+   with `Busy` as an orthogonal flag, and the precedence order
+   `Modal > ApprovalPending > Confirm > Browsing/Composing`.
+2. Composer: `Enter` sends (appends a user message, starts a fake streaming
+   turn); `Shift+Enter`/`Alt+Enter` newline; `Tab` completes a unique slash
+   prefix. **`?` is a literal character here, not the help key** (ui-spec
+   §5.1) — get this right in M0 or it is a bug report later.
+3. Focus transfer: `↑` at composer top / `↓` past the last card; accent `┃`
+   gutter on the selected card; `↑`/`↓` move selection; `PgUp`/`PgDn` scroll
+   **without** moving selection; `Enter` expands/collapses.
+4. Card expansion honours the **200-line inline cap** with the
+   `‹200 of N lines — press d for full output›` marker; `d` opens the content
+   modal with everything (ui-spec §3.3, §4.1).
+5. Approval cards: `y` approve; `a` approve-for-session — rendered on the fake
+   `run_command` card only, never on the fake `apply_patch` card (plan §4);
+   `n` reject; `d` detail modal. Exclusive capture while pending, **except**
+   that an approval arriving while a modal is open defers capture until the
+   modal closes (ui-spec §5.1).
+6. Content/diff modal: canned unified diff, colour-coded, no-color fallback,
+   `j`/`k`/arrows scroll, `g`/`G`, `Esc` closes **to the previous mode** — from
+   an approval card that means back to the pending approval, not the composer.
+7. Help overlay via `?` (Browsing/ApprovalPending) and `/help` (anywhere).
+8. Confirm prompt (ui-spec §4.3) wired for `/new` mid-turn. Quitting never
+   confirms.
+9. Scroll and pin per ui-spec §2.4: pinned by default; scrolling up unpins and
+   shows `↓ n new`; re-pin on `End`, `Esc`, bottom, or send. **Typing must not
+   re-pin.**
+10. Quit semantics: idle `q` with empty composer quits; `Ctrl+C` cancels the
+    in-flight fake turn (spinner stops, composer re-enables); double `Ctrl+C`
+    within 1s force-quits.
+11. Slash commands: `/help` and `/quit` functional; others render as system
+    notices (fake content fine — the *shape* must match ui-spec §6); unknown
+    `/command` → dim inline hint, never an error card.
+12. Text sanitisation (ui-spec §7.1) on the fake tool output: strip ANSI, keep
+    only the last `\r` segment, expand tabs to 4, cap lines at 2,000 columns.
+    Seed one fake tool card with escape sequences and a `\r` progress bar so
+    this path is actually exercised.
+13. ASCII glyph fallback (ui-spec §10.2) when the locale is not UTF-8.
 
-**Check:** each numbered item demonstrated by a test or manual script (see
-Task 6).
+**Check:** each numbered item demonstrated by a test or manual script (Task 6).
+Every §10 colour is referenced through a semantic name in `styles.go` — no raw
+colour numbers anywhere else.
 
 ## Task 6 — Tests
 
-1. **Golden-file snapshots of `View()`**: at least — initial screen, mid-turn
-   (spinner + partial assistant text), approval pending, diff modal open,
-   help overlay open, narrow width (40 cols), NO_COLOR mode.
+1. **Golden-file snapshots of `View()`** — all fourteen states enumerated in
+   ui-spec §13. Do not invent a shorter list; that appendix exists so the
+   coverage question is already answered.
 2. **Synthetic key tests**: drive `Update()` with `tea.KeyMsg` sequences —
-   send a message; expand a card; approve (`y`); reject (`n`); open/close
-   modal; cancel turn; force-quit path.
-3. **Resize test**: `tea.WindowSizeMsg` down to 0×0 and back — no panic,
-   no corruption.
-4. Paste handling: bracketed-paste `tea.PasteMsg` inserts literal multiline
-   text (ui-spec §7).
+   send a message; expand a card past the 200-line cap; approve (`y`);
+   approve-for-session (`a`); reject (`n`); open/close modal and confirm it
+   returns to the *previous* mode; cancel turn; force-quit path; `?` typed in
+   the composer inserts a literal `?`.
+3. **Resize test**: `tea.WindowSizeMsg` down to 0×0 and back, plus each §2.2
+   breakpoint boundary — no panic, no corruption.
+4. **Paste handling**: bracketed-paste `tea.PasteMsg` inserts literal multiline
+   text; an 8KB+ paste warns first (ui-spec §7.2).
+5. **Sanitisation**: a fake tool result containing ANSI escapes, a `\r`
+   progress bar, tabs, a NUL byte, and a 5,000-column line renders correctly
+   and leaves no escape sequence in `View()` output — assert on the rendered
+   string, since this is the test that catches terminal corruption.
+6. **Scroll/pin**: scrolling up unpins and shows the indicator; typing does
+   not re-pin; `End` does.
 
 **Check:** `go test ./...` green; golden files reviewed by a human once.
 
@@ -159,13 +193,25 @@ Run the full checklist:
 - [ ] `go run ./cmd/kirsch` opens full-screen with header/transcript/status/
       composer per ui-spec §2
 - [ ] Typing, sending, fake streaming all render correctly
-- [ ] Card selection, expand/collapse work
+- [ ] Mode state machine implemented with ui-spec §5.1 precedence; an approval
+      arriving during an open modal defers capture
+- [ ] `?` in the composer inserts a literal `?`; `/help` opens help from
+      anywhere
+- [ ] Card selection (`┃` gutter), expand/collapse, and the 200-line inline cap
+      with `d` → full content modal
+- [ ] `PgUp`/`PgDn` scroll without moving selection
 - [ ] Approval `y`/`a`/`n`/`d` flow works end to end, with `a` absent on the
       patch card
-- [ ] Diff modal + help overlay open/close cleanly
-- [ ] Resize (large ↔ small ↔ 0×0) never panics or corrupts
+- [ ] Modal `Esc` returns to the *previous* mode, not always the composer
+- [ ] Confirm prompt wired for `/new` mid-turn; quit never confirms
+- [ ] Scroll/pin per §2.4 — typing does not re-pin
+- [ ] Text sanitisation (§7.1) proven: no ANSI escape survives into `View()`
+- [ ] Resize (large ↔ small ↔ 0×0, plus every §2.2 breakpoint) never panics
+      or corrupts
 - [ ] Quit paths (`q`, double `Ctrl+C`) work
-- [ ] NO_COLOR fallback renders sensibly
+- [ ] NO_COLOR and ASCII-glyph fallbacks both render sensibly
+- [ ] All fourteen ui-spec §13 golden states captured and human-reviewed
+- [ ] No raw colour numbers outside `styles.go`
 - [ ] `gofmt`/`go vet`/`golangci-lint`/`go test ./...` all clean; CI green
 - [ ] **No LLM, file, or shell code exists anywhere in the repo**
 

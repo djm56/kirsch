@@ -1,21 +1,30 @@
-# Kirsch — TUI Spec v0.1 (Draft)
+# Kirsch — TUI Spec v0.1
 
-> **Status: Planning-phase draft.** This spec defines the UI that Milestone 0
-> must prototype (with fake data) and that later milestones will wire to real
-> agent events. It is the source of truth for "the feel of the UI."
+> **Status: Settled for v0.1.** This is the source of truth for "the feel of the
+> UI". Milestone 0 prototypes all of it with fake data; later milestones wire it
+> to real events without changing the shape. Where an instruction set and this
+> spec conflict, this spec wins — flag the conflict rather than guessing.
+>
+> Sections 1–9 keep their original numbering because the build plan and
+> milestone docs reference them. Sections 10–14 are reference appendices:
+> palette, glyphs, timing constants, accessibility rules, and the golden-test
+> surface. Read §10 before writing any styling code.
 
 ## 1. Design Goals
 
 1. **Readable transcript first.** The conversation viewport is the star; every
    other element yields space to it.
-2. **No surprises.** Consequential actions (patches, commands) are visible as
-   cards *before* they happen; nothing applies silently.
-3. **Keyboard-only, vi-adjacent feel.** No mouse required; everything
-   reachable in one or two keystrokes.
+2. **No surprises.** Consequential actions are visible as cards *before* they
+   happen; nothing applies silently.
+3. **Keyboard-only, vi-adjacent feel.** No mouse required; nothing needs more
+   than two keystrokes.
 4. **Never frozen.** Spinner for any in-flight work; every turn cancellable;
-   stuck tools don't stick the UI.
-5. **Terminal-agnostic.** Works from 60×20 to huge; safe with no-color, soft
-   wrap, and zero-width resize.
+   a stuck tool never sticks the UI.
+5. **Terminal-agnostic.** Works from 40×10 to huge; correct with no-color, no
+   Unicode, soft wrap, and zero-width resize.
+6. **The terminal's own background shows through.** Kirsch paints foreground
+   colors and accents, never a full-screen background fill. A TUI that repaints
+   the background looks foreign in every theme but the one it was built in.
 
 ## 2. Full-Screen Layout
 
@@ -24,10 +33,10 @@
 │                                                │
 │  [transcript viewport — scrolls]               │  ② transcript (fills)
 │                                                │
-│  ── user ──────────────────────                │
+│  ── you ───────────────────────                │
 │  Fix the Divide validation                     │
 │                                                │
-│  ▸ read_file calc/divide.go            4ms ✓   │  tool card (collapsed)
+│  ▸ read_file calc/divide.go · 4ms · ok         │  tool card (collapsed)
 │                                                │
 │  I found the issue in... ▌                     │  streaming assistant
 │                                                │
@@ -38,48 +47,96 @@
 └────────────────────────────────────────────────┘
 ```
 
-- **① Header** — `Kirsch ─ <project name> ─ <branch>[ ● if dirty]`. When the
-  session is compacted, append ` (compacted)`.
-- **② Transcript viewport** — all conversation history (user messages,
-  assistant text, tool cards, approval cards, error cards, system notices).
-  Auto-scrolls to bottom on new content unless the user has scrolled up
-  (then shows a `↓ new content` indicator; any key returns to bottom).
-- **③ Status bar** — left: model name, state (`idle` / spinner + word:
-  `thinking` / `running go test` / `applying patch`), cumulative token count.
-  Right: warning/error glyphs (e.g. `⚠ recovered session`).
-- **④ Composer** — multiline text area. Grows to 5 lines, then scrolls
-  internally. Placeholder `Ask anything (Enter to send, ? for help)` when
-  empty. Disabled (dimmed) while a turn is in flight; Esc/Ctrl+C cancels the
-  turn and re-enables it.
+- **① Header** — `Kirsch ─ <project name> ─ <branch>[ ● if dirty]`. Append
+  ` (compacted)` when the session has been compacted. Project name is the
+  workspace directory's base name.
+- **② Transcript viewport** — all conversation history. Scroll and pin rules
+  in §2.4.
+- **③ Status bar** — §2.3.
+- **④ Composer** — multiline text area, 1–5 lines then internal scroll.
+  Placeholder `Ask anything (Enter to send, /help for help)` when empty.
+  Dimmed and input-disabled while a turn is in flight; `Esc`/`Ctrl+C` cancels
+  the turn and re-enables it.
 
-### Sizing rules
+### 2.1 Sizing rules
 
-- Transcript gets all leftover height; header/status are fixed at 1 line each.
-- Composer height = current content, clamped 1–5 lines.
-- On resize, reflow; on **zero-width/zero-height**, render nothing and do not
-  panic (guard in `View()`).
-- All width math is rune-aware (`go-runewidth`); East-Asian text never
-  corrupts borders.
+- Header and status bar are fixed at 1 line each. Composer is its content
+  height clamped to 1–5. Transcript takes everything left over.
+- All width math is rune-aware (`go-runewidth`). A rune is not a cell: CJK and
+  emoji are width 2, combining marks are width 0. Assuming otherwise corrupts
+  every border on the screen.
+- `View()` guards zero and negative dimensions and renders nothing rather than
+  panicking.
+
+### 2.2 Responsive breakpoints
+
+| Width | Behaviour |
+|---|---|
+| ≥ 80 | Full layout. Modals at 80% of viewport. |
+| 60–79 | Status bar drops the token count. Modals at 90%. |
+| 40–59 | Header shows project name only (no branch). Tool cards drop duration. Modals full-screen. |
+| < 40 | Transcript hidden. Status bar + composer only, with a dim `terminal too narrow` notice. No panic. |
+
+| Height | Behaviour |
+|---|---|
+| ≥ 10 | Full layout. |
+| 5–9 | Header hidden; transcript shrinks to at least 2 lines. |
+| < 5 | Status bar + composer only. |
+| ≤ 0 either axis | Render empty string. |
+
+### 2.3 Status bar
+
+```
+left   <model> · <state> · <tokens> [· <n grants>]
+right  [⚠ warnings]
+```
+
+- **State** is `idle`, or a spinner plus a verb: `thinking`, `running go test`,
+  `applying patch`, `compacting`, `cancelling`.
+- **Tokens** use 1 decimal and k/M units (`12.4k tok`).
+- **Warnings** are persistent conditions, not transient errors:
+  `⚠ recovered session`, `⚠ another Kirsch is running here`,
+  `⚠ no rg — using fallback search`.
+
+**Truncation priority.** When the left segment does not fit, drop in this
+order: token count → grants indicator → model name shortened to its family
+(`sonnet-5`) → state verb reduced to the bare spinner. **Warnings are never
+dropped**; at narrow widths they are the entire reason the bar exists.
+
+### 2.4 Scroll and pinning
+
+- The transcript is **pinned to the bottom** by default. New content while
+  pinned keeps it pinned.
+- Scrolling up **unpins**. A `↓ 3 new` indicator appears bottom-right of the
+  viewport and counts blocks arrived since unpinning.
+- Re-pin on any of: scrolling back to the bottom, `End`, `Esc` in Browsing
+  mode, or sending a message.
+- **Typing does not re-pin.** Composing a message while reading scrollback must
+  not yank the view to the bottom — the user is reading it deliberately.
+- `PgUp`/`PgDn` scroll without moving the card selection. `↑`/`↓` move the
+  selection and scroll only as far as needed to keep it visible. Scrolling and
+  selection are separate concerns and must not be collapsed into one.
 
 ## 3. Transcript Elements
 
 ### 3.1 User message
 
 ```
-── you ──────────────────────
+── you ─────────────────────────
 Fix the Divide validation
 ```
-Verbatim; soft-wrapped at viewport width. Slash-command invocations render
-the same way (the command's result appears as a system notice or tool card).
+
+Verbatim, soft-wrapped. Slash-command invocations render the same way; their
+result appears as a system notice or a card.
 
 ### 3.2 Assistant message
 
-Streams token-by-token with a `▌` caret. Once complete, caret removed and the
-block stays. Soft-wrapped. Code spans (triple backticks) render with a
-distinct background if color is available; otherwise plain indentation is
-preserved exactly.
+Streams with a `▌` caret; caret removed on completion. Soft-wrapped. Triple-
+backtick regions render with the code background (§10) and preserve indentation
+exactly. **No syntax highlighting in v0.1** — it is a large dependency and an
+open-ended rabbit hole; explicitly out of scope.
 
-### 3.3 Tool card (core UI element)
+### 3.3 Tool card
 
 **Collapsed (default):**
 
@@ -87,161 +144,458 @@ preserved exactly.
 ▸ read_file calc/divide.go · 4ms · ok
 ```
 
-- `▸` glyph; name in bold; path/description dimmed; result summary
-  (`ok` / `error` / `truncated`); duration.
-- Tool-specific summary line, e.g.:
-  - `read_file` → path + line range
-  - `list_files` → path + `n files`
-  - `search_code` → query + `n matches`
-  - `apply_patch` → files changed count + status
-  - `run_command` → command + exit status
+Glyph, bold name, dimmed target, result summary, duration. Tool-specific
+summaries:
 
-**Expanded (`Enter` on card):** full `content` / `display_summary` output in a
-scrollable region, with `‹truncated — 200KB cap›` / `‹truncated — 4000 tok›`
-markers where caps hit. `Esc`/`Enter` collapses.
+| Tool | Summary |
+|---|---|
+| `read_file` | path + line range |
+| `list_files` | path + `n files` |
+| `search_code` | query + `n matches` |
+| `apply_patch` | `n files changed` + status |
+| `run_command` | command + exit status |
+| `git_status` / `git_diff` | changed-file count |
 
-**State badges:** running (`◐` spinner on the card itself), ok (`✓` green),
-error (`✗` red), cancelled (`⊘` dim), truncated (`⋯`).
+**Expanded (`Enter`):** full output inline, **capped at 200 rendered lines**
+with a `‹200 of 4,181 lines — press d for full output›` marker. `d` opens the
+content modal (§4.1) for everything. An unbounded inline expansion makes the
+scrollback unusable, which is a worse failure than truncating it.
 
-### 3.4 Approval card (before an action runs)
+Truncation markers where caps were hit upstream: `‹truncated — 200KB cap›`,
+`‹truncated — 4000 tok›`.
+
+### 3.4 Approval card
 
 ```
-┌─ approval required ────────────────────────────┐
+┌─ approval required ─────────────────────────────┐
 │ apply_patch — add input validation              │
 │                                                 │
 │ files: 2 changed (calc/divide.go,               │
 │        calc/divide_test.go)                     │
 │                                                 │
-│ [y] approve   [n] reject   [d] view diff       │
+│ [y] approve   [n] reject   [d] view diff        │
 └─────────────────────────────────────────────────┘
 ```
 
-- For `run_command`: shows command, args, cwd, timeout, and why it needs
-  approval ("not on allowlist"), and offers a fourth action:
+- For `run_command`: shows command, args, cwd, timeout, and why approval is
+  needed ("not on allowlist"), and offers a fourth action:
 
   ```
   [y] approve   [a] approve for session   [n] reject   [d] detail
   ```
 
-- `y` → `approval granted` recorded, card collapses to resolved state
-  (`✓ approved` / `✗ rejected`), action proceeds.
-- `a` → approved **and** a session-scoped grant is recorded for the argv
-  prefix shown on the card (plan §4). Card collapses to
-  `✓ approved · session grant: go test`. **Never offered for `apply_patch`**,
-  and never for `sh -c`.
-- `n` → rejection is sent back to the model as a tool result so it can adapt.
-- Only one approval pending at a time; input is captured exclusively.
+- `y` → approved; card collapses to `✓ approved`.
+- `a` → approved **and** a session grant recorded for the argv prefix shown on
+  the card (plan §4). Collapses to `✓ approved · session grant: go test`.
+  **Never offered for `apply_patch`**, never for `sh -c`.
+- `n` → rejected; returned to the model as a tool result so it can adapt.
+- Only one approval is pending at a time; input capture is exclusive (§5.1).
 
 ### 3.5 Thinking card
-
-When extended thinking is enabled (plan §6.5), thinking blocks render as a
-collapsed, dimmed card:
 
 ```
 ▸ thinking · 412 tok
 ```
 
-Expand/collapse exactly like a tool card. Dimmed styling throughout so it
-never competes with assistant text. Default is off in v0.1, but the render
-path exists from Milestone 3.
+Collapsed and dimmed throughout so it never competes with assistant text.
+Expands like a tool card. Default off in v0.1; render path exists from M3.
 
 ### 3.6 Error card
 
-Distinct red-bordered card for `error` events: kind (`command_timeout`,
-`patch_conflict`, …) + one-line detail; `Enter` expands full detail.
+Red-bordered, with the error kind and a one-line detail; `Enter` expands.
+Reserved for **infrastructure** errors (provider unreachable, config invalid,
+session unwritable) and for tool errors the model could not recover from.
+A tool error the model handles and works around stays a tool card with an `✗`
+badge — promoting every recovered failure to an error card trains the user to
+ignore error cards.
+
+### 3.7 System notice
+
+Single dim line, no border, for `/status`, `/files`, `/approvals`, `/compact`
+output, session recovery points, and unknown-command hints.
+
+```
+· session recovered — 3 events after a torn line were discarded
+```
+
+### 3.8 Card lifecycle
+
+Every card moves through: `pending` → `running` → one terminal state.
+
+| State | Badge | Notes |
+|---|---|---|
+| pending | `◌` dim | Awaiting approval or queued |
+| running | `◐` spinner | Spinner lives on the card, not only in the status bar |
+| ok | `✓` success | |
+| error | `✗` error | |
+| cancelled | `⊘` dim | Turn cancelled mid-tool |
+| truncated | `⋯` warning | Suffix on `ok`, not a state of its own |
+
+A card never disappears or is rewritten in place once terminal. Partial
+assistant text from a cancelled turn **stays** in the transcript, marked
+cancelled — erasing what the user watched arrive is worse than leaving it.
+
+### 3.9 Selection
+
+Only **cards** are selectable: tool, approval, thinking, error, system notice.
+User and assistant text blocks are skipped by `↑`/`↓`, because `Enter` does
+nothing on them and stopping there is pure friction.
+
+The selected card shows an accent-colored `┃` in the left gutter. Selection
+survives new content arriving; it does not jump to the newest card.
 
 ## 4. Modals
 
-### 4.1 Diff modal (`d`, or from approval card)
+Modals overlay the transcript, clamp to the §2.2 breakpoint sizes, and trap all
+input. `Esc` closes and returns to the **previous mode** — closing a diff modal
+opened from an approval card returns to the pending approval, not to the
+composer (§5.1).
 
-- Centered box, 80% width/height, scrollable.
-- Colour-coded unified diff: `+` green, `-` red, `@@` cyan, context dimmed.
-  No-color fallback: prefix characters only.
-- Header: files changed + per-file stats (`+12 −4`).
-- `Esc` closes; `j`/`k` or arrows scroll.
+### 4.1 Content / diff modal (`d`)
+
+One modal serves both jobs. Opened with `d` on any card, or from an approval
+card.
+
+- Centered, scrollable, header names the source.
+- **Diff content** is colour-coded: `+` green, `-` red, `@@` cyan, context
+  dimmed; header shows per-file stats (`+12 −4`). No-color fallback uses the
+  prefix characters alone.
+- **Plain content** renders with line numbers.
+- `j`/`k`/arrows scroll, `PgUp`/`PgDn` page, `g`/`G` top/bottom, `Esc` closes.
 
 ### 4.2 Help overlay (`?`)
 
-Single-screen cheat sheet: key bindings + slash commands (below), `Esc` to
-close.
+Single screen: key bindings grouped by mode (§5.2), then slash commands (§6),
+then a footer with version and the docs path. `Esc` or `?` closes.
+
+### 4.3 Confirm prompt
+
+A one-line modal for destructive-ish actions: `/new` while a turn is in flight,
+and clearing session grants from `/approvals`. `y`/`n` only, `Esc` cancels.
+Quitting does **not** confirm — the session log is durable, so there is nothing
+to lose and a confirm-on-quit is a tax on every exit.
 
 ## 5. Key Bindings
 
-| Key | Context | Action |
-|---|---|---|
-| `Enter` | composer | Send message (turn starts) |
-| `Shift+Enter` | composer | Newline (primary binding) |
-| `Alt+Enter` | composer | Newline (compatibility fallback — some terminals don't send Shift+Enter distinctly) |
-| `Enter` | transcript | Expand/collapse selected tool card |
-| `↑` / `↓` | transcript | Move card selection |
-| `PgUp` / `PgDn` | transcript | Page scroll |
-| `y` / `n` | approval pending | Approve / reject |
-| `a` | approval pending (`run_command` only) | Approve + grant for this session |
-| `d` | approval pending / card | Open diff modal |
-| `Esc` / `Ctrl+C` | turn in flight | Cancel turn (model call + tools) |
-| `Esc` | modal open | Close modal |
-| `?` | anywhere | Help overlay |
-| `q` | idle, empty composer | Quit |
-| `Ctrl+C` twice fast | anywhere | Force quit (no prompt) |
+### 5.1 Mode state machine
 
-Composer has focus by default; `↑`/`↓` at composer top/bottom transfers focus
-to the transcript (with a visible selection cursor on cards).
+```
+                 ┌──────────────────────────────────────┐
+                 │              Modal                    │  traps all input
+                 └───────▲──────────────────────┬────────┘
+                    d/?  │                 Esc  │ returns to previous
+                 ┌───────┴──────────┐           │
+                 │ ApprovalPending  │◄──────────┘  exclusive capture
+                 └───────▲──────────┘
+      approval requested │ │ y/a/n resolves
+                 ┌───────┴─▼────────┐   ↑ at top      ┌──────────┐
+                 │    Composing     │────────────────►│ Browsing │
+                 │ (composer focus) │◄────────────────│(card sel)│
+                 └──────────────────┘   ↓ at bottom   └──────────┘
+                          │                                │
+                          └────────► Confirm ◄─────────────┘
+```
+
+`Busy` is an orthogonal flag, not a mode: it dims and disables the composer and
+drives the status-bar spinner, but does not change which mode is active.
+
+**Precedence when states overlap:** `Modal` > `ApprovalPending` > `Confirm` >
+`Browsing` / `Composing`.
+
+Two consequences worth stating because they are easy to get wrong:
+
+- An approval that arrives **while a modal is open** appends its card and
+  renders it, but exclusive capture begins only when the modal closes.
+  Otherwise the user's modal keystrokes get silently eaten by an approval they
+  have not seen.
+- `?` opens help only in `Browsing` and `ApprovalPending`. **In `Composing`,
+  `?` is a literal character** — a help overlay that fires mid-sentence makes
+  the composer unusable. `/help` is the route while composing.
+
+### 5.2 Bindings by mode
+
+**Composing**
+
+| Key | Action |
+|---|---|
+| `Enter` | Send (turn starts) |
+| `Shift+Enter` | Newline (primary) |
+| `Alt+Enter` | Newline (compatibility fallback) |
+| `Tab` | Complete a unique slash-command prefix |
+| `↑` at first line | Focus transcript (→ Browsing) |
+| `Esc` / `Ctrl+C` | Cancel the in-flight turn if busy; otherwise clear composer |
+| `q` | Quit — **only** when idle and the composer is empty |
+| `Ctrl+C` ×2 within 1s | Force quit |
+
+**Browsing**
+
+| Key | Action |
+|---|---|
+| `↑` / `↓` | Move card selection |
+| `PgUp` / `PgDn` | Scroll without moving selection |
+| `Home` / `End` | Top / bottom (`End` re-pins) |
+| `Enter` | Expand / collapse selected card |
+| `d` | Open content or diff modal for selected card |
+| `?` | Help overlay |
+| `Esc` | Return to Composing and re-pin |
+| `↓` at last card | Return to Composing |
+
+**ApprovalPending**
+
+| Key | Action |
+|---|---|
+| `y` | Approve once |
+| `a` | Approve + session grant (`run_command` only) |
+| `n` | Reject |
+| `d` | Open detail / diff modal |
+| `?` | Help overlay |
+| `Esc` / `Ctrl+C` | Cancel the turn (counts as rejection) |
+
+All other keys are swallowed with no effect — never forwarded to the composer.
+
+**Modal**
+
+| Key | Action |
+|---|---|
+| `j` / `k` / `↑` / `↓` | Scroll |
+| `PgUp` / `PgDn` | Page |
+| `g` / `G` | Top / bottom |
+| `Esc` (or `?` in help) | Close, return to previous mode |
+
+### 5.3 Global
+
+`Ctrl+C` is context-dependent by design: cancel a turn if one is running,
+otherwise arm force-quit. Two presses within 1s always force-quit, from any
+mode. The session log stays intact because of the flush-on-turn rule
+(plan §7).
 
 ## 6. Slash Commands
 
-| Command | Behavior |
+**Grammar.** The composer content must be a **single line beginning with `/`**.
+Multi-line content starting with `/` is an ordinary message — pasting a path or
+a diff must not be mistaken for a command. Arguments are the rest of the line,
+trimmed, unparsed.
+
+| Command | Behaviour |
 |---|---|
 | `/help` | Help overlay |
-| `/status` | System notice: model, branch, dirty files, session id, tokens, compaction % |
-| `/diff` | Diff modal on current working tree (git diff) |
-| `/files` | System notice listing touched files this session |
-| `/approvals` | System notice listing active session-scoped grants; offers to clear them |
-| `/new` | New session (confirm if mid-task) |
-| `/compact` | Manual compaction per plan §6; system notice confirms |
-| `/quit` | Quit (same as idle `q`) |
+| `/status` | Notice: model, branch, dirty file count, session id, tokens (in/out/cache), compaction %, project-context file loaded, active grants |
+| `/diff` | Content modal on the working tree (`git diff`) |
+| `/files` | Notice listing files touched this session |
+| `/approvals` | Notice listing active session grants; offers to clear (confirm prompt) |
+| `/new` | New session; confirm if a turn is in flight |
+| `/compact` | Manual compaction (plan §6.4); notice confirms, status bar shows `compacting` |
+| `/quit` | Quit |
 
-Unknown `/command` → inline dim hint, not an error card.
+Unknown `/command` → a dim inline hint under the composer, not an error card,
+and **never sent to the model**. `Tab` completes a unique prefix.
 
-## 7. Edge Cases (binding Milestones 0 and 5)
+Milestone 1 adds temporary debug commands — `/read`, `/ls`, `/search`,
+`/gitstatus`, `/gitdiff` — labelled `(debug)` in `/help` and removed in M3.
 
-- **Bracketed paste:** pasted text is literal (never interpreted as keys);
-  multiline paste keeps newlines; paste of > 8KB warns before insert.
+## 7. Edge Cases
+
+### 7.1 Text sanitisation (do this before rendering anything)
+
+- **Strip every ANSI escape sequence** from tool output before it reaches the
+  renderer — SGR colours, cursor movement, and OSC sequences alike. `git` and
+  many test runners emit colour when they detect a TTY, and an unstripped
+  sequence does not merely look wrong: it hands arbitrary terminal control to
+  command output. Kirsch colours diffs itself, from parsed structure, never by
+  passing escapes through.
+- **Carriage returns**: a `\r`-separated run (progress bars from `npm`, `go
+  test`, `curl`) renders as its final segment only — that is what the writer
+  intended the user to see.
+- **Tabs** expand to 4 spaces, consistently everywhere, so code indentation
+  lines up.
+- **Other C0 control characters** are replaced with a dim `·`.
+- **Very long lines**: any single rendered line is capped at 2,000 columns with
+  a `⋯` marker. A minified bundle on one line must not be able to hang the
+  wrapper.
+
+### 7.2 Input
+
+- **Bracketed paste**: pasted text is literal, never interpreted as keys;
+  newlines preserved. Paste over 8KB warns before inserting.
+- **Paste debounce** (§11) so a large paste is one update, not thousands.
+
+### 7.3 Rendering
+
 - **Soft wrap** everywhere; no horizontal scrolling in v0.1.
-- **No-color fallback:** `NO_COLOR` env or non-TTY → all styling degrades to
-  plain prefixes (`+`/`-`, `[ok]`, `[error]`); layout identical.
-- **Zero/narrow width:** minimum useful width 40 cols; below that render only
-  status bar + composer, no panic.
-- **Resize:** reflow at any size; modals clamp to 80% of new size.
-- **Spammy streaming:** delta rendering coalesced (batch repaints) so huge
-  fast streams don't thrash the terminal. The same coalescing path carries
-  incremental `run_command` output (plan §3.2), so a long `go test` shows
-  progress inside its tool card rather than a frozen spinner.
-- **Force quit:** two `Ctrl+C` within 1s kills everything without confirmation
-  (session JSONL still intact due to flush-on-turn rules).
+- **No-color fallback**: `NO_COLOR` set, `TERM=dumb`, or not a TTY → styling
+  degrades to plain prefixes (`+`/`-`, `[ok]`, `[error]`); layout identical.
+- **No-Unicode fallback**: when the locale is not UTF-8, every glyph falls back
+  per the §10.2 table.
+- **Resize**: reflow at any size; modals re-clamp; selection and scroll position
+  preserved where the content still exists.
+- **Spammy streaming**: repaints coalesced (§11) so a fast stream does not
+  thrash the terminal. The same path carries incremental `run_command` output.
+
+### 7.4 Session and process
+
+- **Force quit**: two `Ctrl+C` within 1s exits immediately, no confirm.
+- **Recovered session**: `⚠ recovered session` in the status bar plus a system
+  notice at the truncation point in the transcript.
+- **Second instance**: `⚠ another Kirsch is running here`; session grants
+  disabled (plan §7).
+
+### 7.5 Empty and first-run states
+
+These are onboarding screens, not error cards — a new user's first experience
+must not be a red border.
+
+| Condition | Screen |
+|---|---|
+| No API key | Which env vars are read, in precedence order, and that keys are never read from config files |
+| Not in a Git repo | Run inside a repository, or use `--workspace <dir>` |
+| Empty session | Placeholder plus three example prompts |
+| Model unknown to the model table | Dim notice: cost display unavailable, conservative budget in use |
 
 ## 8. Milestone 0 Prototype Scope
 
 The prototype implements everything above with **fake data**:
 
-- Fake transcript: 2 user messages, streaming-simulated assistant text
-  (timer-driven), 3 tool cards (one truncated, one errored), **two** approval
-  cards (one `apply_patch` without `[a]`, one `run_command` with `[a]`), and
-  1 error card.
-- Working: composer typing, card selection/expand, approval `y`/`a`/`n` flow,
-  diff modal with a canned diff, help overlay, resize, quit paths.
-- **No** LLM, file, shell, or session code. No real policy. Spinner states
-  are simulated.
+- Fake transcript: 2 user messages, timer-driven streaming assistant text,
+  3 tool cards (one truncated, one errored), **two** approval cards (one
+  `apply_patch` without `[a]`, one `run_command` with `[a]`), 1 error card,
+  1 system notice.
+- Working: composer typing, the full mode state machine (§5.1), card selection
+  and expansion including the 200-line inline cap, approval `y`/`a`/`n` flow,
+  content/diff modal, help overlay, confirm prompt, resize, quit paths,
+  scroll/pin behaviour, all §10 styling with both fallbacks.
+- **No** LLM, file, shell, or session code. No real policy. Spinner states and
+  streaming are simulated.
 
-**Acceptance:** `go run ./cmd/kirsch` opens; typing, scrolling, modal
-open/close, resize, and quit all work with no panic or visual corruption.
+**Acceptance:** `go run ./cmd/kirsch` opens; typing, scrolling, selection,
+modals, resize, and quit all work with no panic or visual corruption.
 
 ## 9. Resolved Decisions
 
-- **Newline binding:** `Shift+Enter` is the primary binding (user
-  preference); `Alt+Enter` remains mapped as a compatibility fallback because
-  terminal support for distinct Shift+Enter varies. Milestone 0 tests both.
-- **Palette:** dark theme only for v0.1. No light palette switch — deferred
-  beyond v0.1.
-- **Token display:** 1 decimal, k/M units, exactly as mocked in §2
-  (`12.4k tok`).
-- **Transcript search:** deferred to v0.2 — not in v0.1 scope.
+- **Newline binding:** `Shift+Enter` primary (user preference); `Alt+Enter`
+  mapped as fallback because terminal support for a distinct Shift+Enter
+  varies. M0 tests both.
+- **Palette:** dark only for v0.1. No light theme. See §10.
+- **Background:** never painted; the terminal's own background shows through.
+- **Token display:** 1 decimal, k/M units (`12.4k tok`).
+- **Syntax highlighting:** out of scope for v0.1.
+- **Mouse support:** out of scope for v0.1.
+- **Transcript search:** deferred to v0.2.
+- **Inline expansion cap:** 200 lines, full content via the modal.
+- **`?` in the composer is a literal character**, not a help key.
+- **Typing never re-pins** a scrolled-up transcript.
+
+**Open questions (not blocking Milestone 0):**
+
+- Whether `/approvals` deserves a direct key binding.
+- Whether the 200-line inline cap should be configurable.
+- Whether `g`/`G` in modals is worth the vi-ism for a non-vi audience.
+
+---
+
+## 10. Appendix — Visual Language
+
+### 10.1 Palette (dark, 256-colour)
+
+Semantic roles only. Never reference a raw colour number outside `styles.go`.
+
+| Role | Colour | Used for |
+|---|---|---|
+| `fg` | 252 | Default text |
+| `dim` | 244 | Secondary text, paths, durations |
+| `faint` | 240 | Disabled composer, decoration |
+| `accent` | 111 | Header, card glyphs, selection gutter, focus |
+| `success` | 114 | `✓`, diff additions |
+| `error` | 203 | `✗`, diff deletions, error borders |
+| `warning` | 179 | `⋯` truncation, status-bar warnings |
+| `border` | 238 | Card and modal borders |
+| `borderFocus` | 111 | Focused modal border |
+| `hunk` | 116 | Diff `@@` headers |
+| `codeBg` | 235 | Fenced code block background |
+| `selectionBg` | 236 | Selected card background |
+
+Background is never set on `body`. Contrast rule: `faint` and `dim` carry no
+information that is not also available elsewhere.
+
+### 10.2 Glyphs and fallbacks
+
+| Meaning | Unicode | ASCII fallback |
+|---|---|---|
+| Collapsed card | `▸` | `>` |
+| Expanded card | `▾` | `v` |
+| Running | `⠋` (braille cycle) | `-\|/` cycle |
+| Pending | `◌` | `.` |
+| OK | `✓` | `[ok]` |
+| Error | `✗` | `[err]` |
+| Cancelled | `⊘` | `[canc]` |
+| Truncated | `⋯` | `...` |
+| Dirty repo | `●` | `*` |
+| Warning | `⚠` | `!` |
+| New content | `↓` | `v` |
+| Stream caret | `▌` | `_` |
+| Selection gutter | `┃` | `\|` |
+| Box drawing | `┌─┐│└┘` | `+-+\|+ +` |
+
+Fallback triggers when the locale is not UTF-8. **Every state is identified by
+its glyph, not only by its colour** (§12).
+
+## 11. Appendix — Timing Constants
+
+Collected here so they are not scattered magic numbers.
+
+| Constant | Value | Rationale |
+|---|---|---|
+| Spinner frame | 100ms | 10fps reads as smooth, costs little |
+| Stream repaint coalescing | 50ms, or on newline | Below perceptible lag, above thrash |
+| Command output coalescing | 100ms | Output is chunkier than tokens |
+| Paste debounce | 20ms | One update per paste |
+| Double `Ctrl+C` window | 1000ms | Long enough to be deliberate |
+| Cancel → composer usable | < 1000ms (target) | Tested, not eyeballed (plan §8 M3) |
+| Approval card appearance | immediate | Never debounced |
+
+## 12. Appendix — Accessibility
+
+1. **Never signal state by colour alone.** Every state carries a glyph; colour
+   reinforces. This is what makes the no-color fallback a downgrade rather than
+   a loss of information.
+2. `NO_COLOR`, `TERM=dumb`, and non-TTY output are all honoured.
+3. No blinking, no flashing, no animation other than the spinner.
+4. No binding requires more than two keys; no mouse, ever.
+5. Dim and faint text never carry unique information.
+6. Layout is identical with and without colour — only styling degrades, so a
+   screen reader or a piped capture sees the same structure.
+
+## 13. Appendix — Golden Test Surface
+
+`View()` snapshots required (milestone-0 Task 6, extended in later milestones):
+
+1. Initial empty session
+2. Mid-turn: spinner, partial assistant text, one running tool card
+3. Approval pending — `apply_patch` variant (no `[a]`)
+4. Approval pending — `run_command` variant (with `[a]`)
+5. Content modal open over a pending approval
+6. Help overlay open
+7. Card expanded at the 200-line cap
+8. Error card and system notice
+9. Narrow width (40 cols) and very narrow (38 cols, transcript hidden)
+10. Short height (6 rows)
+11. `NO_COLOR` mode
+12. ASCII-fallback mode
+13. Scrolled up with `↓ n new` indicator
+14. Onboarding: no API key; not a Git repo
+
+Golden files are regenerated with `-update` and reviewed by a human in the
+diff. CI never auto-accepts them.
+
+## 14. Appendix — Open Design Risks
+
+Named so they are watched, not discovered:
+
+- **`Shift+Enter` detection** varies by terminal; `Alt+Enter` is the fallback,
+  but some terminals send neither distinctly. If M0 finds a common terminal
+  where both fail, a config-selectable binding becomes necessary.
+- **Braille spinner glyphs** render inconsistently in a few fonts. If the M0
+  prototype shows gaps, fall back to the ASCII cycle by default.
+- **200-line inline cap** is a guess at the right number. M0 is the moment to
+  find out whether it feels right with real-shaped content.
+- **Exclusive approval capture** is correct but can feel abrupt when an
+  approval interrupts scrollback reading. Watch for it during M2.

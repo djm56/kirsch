@@ -71,8 +71,8 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 |---|---|---|
 | [`plan/README.md`](plan/README.md) | Live | Build index, progress tracker, rules for the builder |
 | [`plan/kirsch-plan.md`](plan/kirsch-plan.md) | Locked (amended) | Complete v0.1 build spec with milestones |
-| [`plan/layout.md`](plan/layout.md) | Draft | Package layout, hard dependency rules, build order |
-| [`plan/ui-spec-v0.1.md`](plan/ui-spec-v0.1.md) | Draft | Full TUI spec: layout, cards, modals, key bindings |
+| [`plan/architecture.md`](plan/architecture.md) | Settled | Why the codebase is shaped this way: dependency rules, interfaces, concurrency, cancellation, error model |
+| [`plan/ui-spec-v0.1.md`](plan/ui-spec-v0.1.md) | Settled | Full TUI spec: layout, cards, modals, mode state machine, palette, timing, accessibility |
 | [`plan/adr/`](plan/adr/) | Accepted | Seven architecture decision records |
 | [`plan/milestone-0.md`](plan/milestone-0.md) | Ready | Instruction set — repo bootstrap + static TUI prototype |
 | [`plan/milestone-1.md`](plan/milestone-1.md) | Ready | Instruction set — workspace engine + read-only tools |
