@@ -213,17 +213,29 @@ file.
 2. **Absolute paths are rejected outright** — tools accept workspace-relative
    paths only.
 3. `filepath.Clean(filepath.Join(root, rel))`.
-4. `EvalSymlinks` fails on a path that does not exist, but `read_file` of a
-   missing file must return `file_not_found`, not a containment error. So: walk
-   up to the deepest **existing** ancestor, canonicalise that, then re-append
-   the non-existent tail and check the result.
+4. **Resolve one component at a time, following symlinks by hand.** The
+   obvious approach — `EvalSymlinks` the whole path, then prefix-check the
+   result — is unsafe, and unsafe in a way that hides on the machine you test
+   on. See plan §11 amendment 45: a symlink pointing outside the workspace at a
+   *non-existent* target makes `EvalSymlinks` return `ErrNotExist`, which reads
+   as an ordinary missing file, so the escape passes silently here and is caught
+   only on a machine where that target happens to exist.
+
+   Walk the path segment by segment from the canonical root. `Lstat` each
+   component; when one is a symlink, read its target and splice the target's
+   components into the remaining work, checking containment after every hop.
+   A component that does not exist ends the walk — a non-existent tail cannot
+   hide a symlink, so appending it is safe and lets `read_file` report
+   `file_not_found`. Bound link-following at 40 hops, which handles cycles
+   without depending on the OS to return `ELOOP`.
 5. Containment test:
    `resolved == canonicalRoot || strings.HasPrefix(resolved, canonicalRoot + string(filepath.Separator))`.
    **The trailing separator is load-bearing** — without it
    `/home/me/project-evil` passes a prefix check against `/home/me/project`.
    Write the test for that case explicitly.
-6. Symlink cycles surface as `ELOOP` from `EvalSymlinks` → `workspace_violation`.
-   Never loop, never hang.
+6. Symlink cycles exhaust the hop budget → `workspace_violation`. Never loop,
+   never hang — and assert that with a timeout in the test, since "must not
+   hang" is a claim about time, not about eventually returning.
 
 ### 4.3 Path denylist
 

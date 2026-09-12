@@ -761,6 +761,28 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     config is the right end state; it is not v0.1 scope, and the built-in
     ignore list is deliberately not overridable by a `.gitignore` negation.
 
+**Milestone 1 findings (2026-09-12, during execution)**
+
+45. **Containment cannot be built on `EvalSymlinks` over a whole path.** The
+    approach milestone-1 §4.2 describes — canonicalise the deepest existing
+    ancestor, re-append the missing tail, then prefix-check — has a hole that is
+    both serious and machine-dependent, and it was caught by the
+    `repo-symlink-escape` fixture rather than by review. A symlink pointing
+    *outside* the workspace at a target that happens not to exist makes
+    `EvalSymlinks` return `ErrNotExist`, which is indistinguishable from an
+    ordinary missing file. The path is then treated as an in-workspace file that
+    simply is not there, and the escape is never noticed. The identical link on
+    a machine where that target does exist is correctly refused. **A containment
+    check whose answer depends on whether the attacker's target is present is
+    not a containment check.**
+
+    `internal/workspace` therefore resolves a path one component at a time,
+    following symlinks itself and checking containment at every hop, so a
+    link's target is validated whether or not it exists. Link chains are
+    followed to a 40-hop budget, which also handles cycles without relying on
+    the OS returning `ELOOP`. §4.2 of milestone-1 is amended to describe this
+    algorithm; the fixture table it specifies is unchanged and all rows pass.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.
