@@ -1,8 +1,13 @@
 # Kirsch
 
-> **Status: Planning phase.** No code exists yet — the plan is complete and
-> Milestone 0 is ready to start. The authoritative build spec is
-> [`plan/kirsch-plan.md`](plan/kirsch-plan.md).
+> **Status: Milestone 0 in progress.** The TUI prototype renders against fake
+> data — no LLM, filesystem or subprocess code exists yet. The authoritative
+> build spec is [`plan/kirsch-plan.md`](plan/kirsch-plan.md); progress is
+> tracked in [`plan/README.md`](plan/README.md).
+>
+> ```
+> go run ./cmd/kirsch
+> ```
 
 Kirsch is an open-source, **terminal-native coding agent written in Go**. Its
 primary interface is a simple full-screen Bubble Tea TUI, in the spirit of
