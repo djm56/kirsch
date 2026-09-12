@@ -91,6 +91,8 @@ Key bindings: `Enter` send · `Shift+Enter` newline · `Esc`/`Ctrl+C` cancel tur
 
 Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit`.
 
+The sketch above is indicative only. [`plan/ui-spec-v0.1.md`](ui-spec-v0.1.md) is normative for everything visual, and [`plan/kirsch-ui-screens.md`](kirsch-ui-screens.md) draws every state it describes as a literal 80-column character grid with a per-region colour map — the render target for M0 and the source for the §9.6 golden files.
+
 ---
 
 ## 3. Tool Contracts (v0.1 set)
@@ -366,12 +368,12 @@ Rules: single writer goroutine; buffered flush with `fsync` every ~500ms and on 
 Tasks:
 
 - `go mod init`, MIT `LICENSE`, `README.md`, `AGENTS.md`, `CHANGELOG.md`.
-- Design docs are already settled, not drafts: `plan/architecture.md`, `plan/ui-spec-v0.1.md`, and `plan/adr/` (0001–0007). M0 builds against them and corrects any drift it discovers, rather than writing them. Note the folder split: `plan/` is build instructions, `doc/` is reserved for end-user documentation written in M5.
+- Design docs are already settled, not drafts: `plan/architecture.md`, `plan/ui-spec-v0.1.md`, `plan/kirsch-ui-screens.md`, and `plan/adr/` (0001–0007). M0 builds against them and corrects any drift it discovers, rather than writing them. Note the folder split: `plan/` is build instructions, `doc/` is reserved for end-user documentation written in M5.
 - CI: `gofmt` check, `go vet`, `golangci-lint`, `go test ./...` on GitHub Actions.
 - Bubble Tea prototype at `cmd/kirsch` with: header, scrollable transcript with fake user/assistant/tool entries, multiline composer, status bar, fake approval modal, fake diff modal, resize-safe layout, `Ctrl+C` handling.
 - Use `bubbles` (textarea, viewport, spinner) + `lipgloss`; rune-aware width math (`go-runewidth`).
 
-**Acceptance:** `go run ./cmd/kirsch` opens; typing, scrolling, modal open/close, resize, and quit all work with no panic or visual corruption. No LLM, file, or shell code exists yet.
+**Acceptance:** `go run ./cmd/kirsch` opens; typing, scrolling, modal open/close, resize, and quit all work with no panic or visual corruption. Rendered output matches the grids in `plan/kirsch-ui-screens.md` for every state this milestone can reach, and the golden files are captured against them. No LLM, file, or shell code exists yet.
 
 ### Milestone 1 — Workspace engine + read-only tools
 
@@ -473,7 +475,7 @@ Tasks:
 3. **Agent loop:** `provider.Fake` scripted turns — approval gating, cancellation, hallucinated tools, max-turn guard — deterministic, no API spend.
 4. **TUI:** drive Bubble Tea `Update` with synthetic `tea.KeyMsg` and agent events; golden-file snapshots of `View()` output.
 5. **Smoke:** `scripts/smoke-test.sh` runs fixed real-model tasks against fixture repos before any release; human reviews transcript.
-6. **Golden files:** regenerated with `go test ./internal/tui -update`, reviewed by a human in the diff. CI never auto-accepts golden changes.
+6. **Golden files:** the expected output is [`plan/kirsch-ui-screens.md`](kirsch-ui-screens.md) — each ui-spec §13 state is drawn there as a literal character grid whose structure is the contract, with colour applied on top per that document's colour maps. Screen 11 is the `NO_COLOR` fixture and compares directly against stripped output. Golden files are regenerated with `go test ./internal/tui -update` and reviewed by a human in the diff; CI never auto-accepts golden changes. A golden diff that turns out to be *correct* means the screen reference is stale — update it in the same commit.
 7. **Adversarial:** `testdata/repo-prompt-injection` holds a file whose contents instruct the agent to break its own rules. A fake-provider test asserts the instruction is surfaced to the user, not acted on. Tool results are attacker-controllable input and are tested as such.
 8. **Architecture:** an import-rule test (or CI step) fails if `internal/agent` imports an implementation package, or `internal/tui` imports `provider`/`tool`/`workspace` (§2).
 
@@ -553,6 +555,31 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     rendering — `git` and most test runners emit colour on a TTY, and passing
     those through hands arbitrary terminal control to command output.
 
+**Design docs completed (2026-09-12)**
+
+24. **`plan/kirsch-ui-screens.md` added — the TUI screen reference.** The
+    ui-spec described every state in prose and enumerated fourteen golden
+    snapshots (§13), but nothing said what those snapshots should *contain*, so
+    M0 would have invented the layout and the golden files would have recorded
+    whatever it invented. The new document draws twelve screens (00–11) as
+    literal 80-column character grids — wordmark, empty session, mid-turn,
+    both approval variants, diff modal, help overlay, the 200-line cap,
+    error/notice cards, scrolled-up, narrow (40/38 col) and short (6 row)
+    terminals, and `NO_COLOR` + ASCII — each with a per-region colour map
+    naming the token, 256 index and hex for every span. Three consequences:
+    - **Structure is the contract, colour is applied on top.** Line counts and
+      box positions are identical with and without colour, which is what makes
+      screen 11 comparable byte-for-byte against stripped output.
+    - **The ui-spec stays normative.** Where a screen and the spec disagree,
+      the spec wins and the screen is the bug. The palette and glyph tables at
+      the end of the screen reference are a *copy* of ui-spec §10.1/§10.2 for
+      reading convenience — §10 is the source of truth, and the two must be
+      changed together.
+    - **Golden state 14 (onboarding — no API key, not a Git repo) has no screen
+      yet.** It is the only §13 state uncovered, and it is not reachable until
+      M3 wires provider onboarding. Draw it in M3, before its golden file is
+      captured, rather than back-filling from whatever M3 happens to render.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.
@@ -560,3 +587,5 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 - The ui-spec §14 design risks: Shift+Enter detection across terminals, braille
   spinner glyph rendering, whether 200 lines is the right inline cap.
 - Session file rotation for very long sessions (ADR 0002 flagged this; still deferred).
+- Screen 14 (onboarding) in `plan/kirsch-ui-screens.md` — drawn at M3 with the
+  provider onboarding path, per amendment 24.

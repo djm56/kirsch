@@ -73,6 +73,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 | [`plan/kirsch-plan.md`](plan/kirsch-plan.md) | Locked (amended) | Complete v0.1 build spec with milestones |
 | [`plan/architecture.md`](plan/architecture.md) | Settled | Why the codebase is shaped this way: dependency rules, interfaces, concurrency, cancellation, error model |
 | [`plan/ui-spec-v0.1.md`](plan/ui-spec-v0.1.md) | Settled | Full TUI spec: layout, cards, modals, mode state machine, palette, timing, accessibility |
+| [`plan/kirsch-ui-screens.md`](plan/kirsch-ui-screens.md) | Settled | Screen reference: every UI state as an 80-column character grid with per-region colour maps — the render target and golden-test source |
 | [`plan/adr/`](plan/adr/) | Accepted | Seven architecture decision records |
 | [`plan/milestone-0.md`](plan/milestone-0.md) | Ready | Instruction set — repo bootstrap + static TUI prototype |
 | [`plan/milestone-1.md`](plan/milestone-1.md) | Ready | Instruction set — workspace engine + read-only tools |

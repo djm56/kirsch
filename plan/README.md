@@ -17,6 +17,7 @@ someone using it?* Building → `plan/`. Using → `doc/`.
 | [`kirsch-plan.md`](kirsch-plan.md) | The locked v0.1 spec: contract, architecture, tool contracts, policy, config, context, events, milestones, testing |
 | [`architecture.md`](architecture.md) | Why the codebase is shaped this way — dependency rules and their enforcement, the four interfaces that matter, concurrency and cancellation, the three representations of a conversation, error model, anti-goals |
 | [`ui-spec-v0.1.md`](ui-spec-v0.1.md) | Full TUI spec — layout and breakpoints, transcript elements, mode state machine, bindings per mode, slash commands, text sanitisation, palette, timing, accessibility, golden-test surface |
+| [`kirsch-ui-screens.md`](kirsch-ui-screens.md) | Screen reference — every ui-spec §13 golden state drawn as a literal 80-column character grid, each with a per-region colour map. What the spec describes in prose, this draws |
 | [`adr/`](adr/) | Architecture decision records 0001–0007 |
 | [`milestone-0.md`](milestone-0.md) | Instruction set — repo bootstrap + static TUI prototype |
 | [`milestone-1.md`](milestone-1.md) | Instruction set — workspace engine + read-only tools |
@@ -58,6 +59,10 @@ before. A milestone that is "basically done except for tests" is in progress.
 3. **The plan is the spec; the UI spec is law for anything visual.** Where an
    instruction set and [`ui-spec-v0.1.md`](ui-spec-v0.1.md) appear
    to conflict, the spec wins — flag the conflict rather than guessing.
+   [`kirsch-ui-screens.md`](kirsch-ui-screens.md) is the render target for
+   that law: build the TUI to match those grids, and capture golden files
+   against them. A screen that disagrees with the spec is the screen's bug —
+   fix the screen, never the spec, and never split the difference in code.
 4. **If a task seems to need a package from a later milestone, stop.** Check
    the package build order table in plan §2. Either the dependency is real
    (and the plan needs amending) or the task is out of scope.

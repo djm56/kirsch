@@ -16,7 +16,17 @@
    Where this instruction set and the spec seem to conflict, the spec wins —
    flag the conflict, don't guess. Read §5.1 (mode state machine) and §10
    (palette and glyphs) before writing any code.
-3. **Locked decisions** (do not re-litigate):
+3. **The screens are the render target.**
+   [`plan/kirsch-ui-screens.md`](kirsch-ui-screens.md) draws twelve states
+   (00–11) as literal 80-column character grids, each with a colour map naming
+   the token, 256 index and hex for every span. Do not design the layout — it
+   is already designed. Build to those grids, and capture the Task 6 golden
+   files against them rather than against whatever your first pass renders; a
+   golden file recorded from an unreviewed render just freezes the bug.
+   Structure is the contract, colour is applied on top: line counts and box
+   positions must be identical with and without colour. If a screen and the
+   ui-spec disagree, the spec wins and the screen is the bug — flag it.
+4. **Locked decisions** (do not re-litigate):
    - Module path: `github.com/djm56/kirsch`
    - License: MIT (already in repo)
    - UI stack: Bubble Tea + bubbles + lipgloss + `go-runewidth` (ADR 0001)
@@ -24,7 +34,7 @@
      is reserved for end-user documentation and stays empty until Milestone 5
    - Dark theme only; `Shift+Enter` newline with `Alt+Enter` fallback
    - Token display: 1 decimal, k/M units (`12.4k tok`)
-4. Every task below has a checkable result. Do not move to the next task with
+5. Every task below has a checkable result. Do not move to the next task with
    the previous one failing.
 
 ---
@@ -97,8 +107,12 @@ internal/tui/
   composer.go     textarea wrapper: growth clamp 1–5 lines, placeholder,
                   Shift+Enter/Alt+Enter newline, disabled-while-busy dim
   fake.go         fake transcript data per ui-spec §8 (2 user msgs, streaming
-                  simulation, 3 tool cards incl. truncated+errored, 1
-                  approval card, 1 error card), timer-driven stream ticks
+                  simulation, 3 tool cards incl. truncated+errored, two
+                  approval cards — apply_patch without [a], run_command with
+                  it — 1 error card, 1 system notice), timer-driven stream
+                  ticks. Use the literal strings from kirsch-ui-screens.md
+                  (calc/divide.go, `go test ./...`, the same timings and
+                  token counts) so the golden files match the screens
 ```
 
 Notes:
@@ -167,7 +181,16 @@ colour numbers anywhere else.
 
 1. **Golden-file snapshots of `View()`** — all fourteen states enumerated in
    ui-spec §13. Do not invent a shorter list; that appendix exists so the
-   coverage question is already answered.
+   coverage question is already answered. Thirteen of the fourteen are drawn
+   as character grids in
+   [`kirsch-ui-screens.md`](kirsch-ui-screens.md) (the §13 table maps state →
+   screen); compare against those grids before recording a golden file.
+   **State 14 (onboarding — no API key, not a Git repo) has no screen and is
+   not reachable in M0** — there is no provider until M3. Capture the other
+   thirteen now and leave 14 to M3, which draws its screen first. Screen 11 is
+   the `NO_COLOR` fixture: strip SGR sequences from `View()` and it must match
+   byte-for-byte, which is also the test that line counts do not change
+   between the coloured and uncoloured paths.
 2. **Synthetic key tests**: drive `Update()` with `tea.KeyMsg` sequences —
    send a message; expand a card past the 200-line cap; approve (`y`);
    approve-for-session (`a`); reject (`n`); open/close modal and confirm it
@@ -210,7 +233,14 @@ Run the full checklist:
       or corrupts
 - [ ] Quit paths (`q`, double `Ctrl+C`) work
 - [ ] NO_COLOR and ASCII-glyph fallbacks both render sensibly
-- [ ] All fourteen ui-spec §13 golden states captured and human-reviewed
+- [ ] Rendered output matches every reachable grid in
+      [`kirsch-ui-screens.md`](kirsch-ui-screens.md) (screens 00–11), colour
+      maps included — spot-checked at 80 cols against each screen
+- [ ] Thirteen of the fourteen ui-spec §13 golden states captured from those
+      screens and human-reviewed; state 14 (onboarding) deferred to M3 with
+      its screen, and the deferral noted in the PR rather than silently skipped
+- [ ] Stripped (`NO_COLOR`) output matches screen 11 byte-for-byte, proving
+      line counts are identical with and without colour
 - [ ] No raw colour numbers outside `styles.go`
 - [ ] `gofmt`/`go vet`/`golangci-lint`/`go test ./...` all clean; CI green
 - [ ] **No LLM, file, or shell code exists anywhere in the repo**

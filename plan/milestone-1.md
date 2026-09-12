@@ -370,7 +370,14 @@ within 1s and the card renders `⊘ cancelled`; no goroutine leak (`go test
    mistakes them for product surface.
 4. `fake.go` stays, but only as fixture data for golden tests — the live path
    now runs on app messages.
-5. Golden tests updated for real card content.
+5. Golden tests updated for real card content. Real envelopes must render in
+   the **same shape** as the M0 grids in
+   [`kirsch-ui-screens.md`](kirsch-ui-screens.md) — screen 02 for a running
+   and a completed card, 07 for the 200-line cap, 08 for error cards and
+   system notices. Real data changes the strings inside a card, never its
+   structure; if a real envelope will not fit that shape, the screen reference
+   is wrong and gets updated in this milestone's commit, not worked around in
+   the renderer.
 
 **Check:** from a real repository, `/search` and `/read` return correct results
 rendered as tool cards; a denylisted path renders an error card reading

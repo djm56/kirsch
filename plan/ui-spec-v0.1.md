@@ -9,6 +9,12 @@
 > milestone docs reference them. Sections 10–14 are reference appendices:
 > palette, glyphs, timing constants, accessibility rules, and the golden-test
 > surface. Read §10 before writing any styling code.
+>
+> **Companion:** [`kirsch-ui-screens.md`](kirsch-ui-screens.md) draws every
+> state described here as a literal 80-column character grid with a per-region
+> colour map. This document says what the rules are; that one shows what they
+> produce. Read both before rendering anything — and if they disagree, this
+> document wins and the screen is the bug.
 
 ## 1. Design Goals
 
@@ -497,6 +503,10 @@ modals, resize, and quit all work with no panic or visual corruption.
 ### 10.1 Palette (dark, 256-colour)
 
 Semantic roles only. Never reference a raw colour number outside `styles.go`.
+The palette and glyph tables are repeated at the end of
+[`kirsch-ui-screens.md`](kirsch-ui-screens.md) so the screens can be read
+without flipping back here. §10 is the source of truth; change the two
+together or they drift.
 
 | Role | Colour | Used for |
 |---|---|---|
@@ -566,25 +576,40 @@ Collected here so they are not scattered magic numbers.
 
 ## 13. Appendix — Golden Test Surface
 
-`View()` snapshots required (milestone-0 Task 6, extended in later milestones):
+`View()` snapshots required (milestone-0 Task 6, extended in later milestones).
+Each is drawn as a literal character grid in
+[`kirsch-ui-screens.md`](kirsch-ui-screens.md) — build to that grid and capture
+the golden file from it, rather than capturing whatever the first
+implementation renders:
 
-1. Initial empty session
-2. Mid-turn: spinner, partial assistant text, one running tool card
-3. Approval pending — `apply_patch` variant (no `[a]`)
-4. Approval pending — `run_command` variant (with `[a]`)
-5. Content modal open over a pending approval
-6. Help overlay open
-7. Card expanded at the 200-line cap
-8. Error card and system notice
-9. Narrow width (40 cols) and very narrow (38 cols, transcript hidden)
-10. Short height (6 rows)
-11. `NO_COLOR` mode
-12. ASCII-fallback mode
-13. Scrolled up with `↓ n new` indicator
-14. Onboarding: no API key; not a Git repo
+| # | State | Screen |
+|---|---|---|
+| 1 | Initial empty session | [01](kirsch-ui-screens.md#01--empty-session-first-run) (with the [00](kirsch-ui-screens.md#00--startup-wordmark) wordmark) |
+| 2 | Mid-turn: spinner, partial assistant text, one running tool card | [02](kirsch-ui-screens.md#02--mid-turn-streaming--running-tool) |
+| 3 | Approval pending — `apply_patch` variant (no `[a]`) | [03](kirsch-ui-screens.md#03--approval--apply_patch-no-a) |
+| 4 | Approval pending — `run_command` variant (with `[a]`) | [04](kirsch-ui-screens.md#04--approval--run_command-with-a) |
+| 5 | Content modal open over a pending approval | [05](kirsch-ui-screens.md#05--diff-modal-over-a-pending-approval) |
+| 6 | Help overlay open | [06](kirsch-ui-screens.md#06--help-overlay) |
+| 7 | Card expanded at the 200-line cap | [07](kirsch-ui-screens.md#07--tool-card-expanded-at-the-200-line-cap) |
+| 8 | Error card and system notice | [08](kirsch-ui-screens.md#08--error-card--system-notices) |
+| 9 | Narrow width (40 cols) and very narrow (38 cols, transcript hidden) | [10](kirsch-ui-screens.md#10--narrow-and-short-terminals) — first two grids |
+| 10 | Short height (6 rows) | [10](kirsch-ui-screens.md#10--narrow-and-short-terminals) — third grid |
+| 11 | `NO_COLOR` mode | [11](kirsch-ui-screens.md#11--no_color--ascii-fallback) |
+| 12 | ASCII-fallback mode | [11](kirsch-ui-screens.md#11--no_color--ascii-fallback) |
+| 13 | Scrolled up with `↓ n new` indicator | [09](kirsch-ui-screens.md#09--scrolled-up-unpinned) |
+| 14 | Onboarding: no API key; not a Git repo | **not yet drawn** — see below |
+
+State 14 is the one gap. Onboarding is not reachable until the provider lands
+in M3, so its screen is drawn then, *before* the golden file is captured
+(plan §11, amendment 24). Every other state has a grid to build against today.
+
+Structure is the contract and colour is applied on top: line counts and box
+positions are identical with and without colour, which is what lets screen 11
+be compared byte-for-byte against `NO_COLOR` output.
 
 Golden files are regenerated with `-update` and reviewed by a human in the
-diff. CI never auto-accepts them.
+diff. CI never auto-accepts them. When a golden diff is reviewed and found
+*correct*, the screen reference has gone stale — update it in the same commit.
 
 ## 14. Appendix — Open Design Risks
 
