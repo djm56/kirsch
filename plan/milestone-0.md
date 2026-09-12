@@ -32,7 +32,8 @@
    - UI stack: Bubble Tea + bubbles + lipgloss + `go-runewidth` (ADR 0001)
    - Everything needed to build Kirsch lives in `plan/`. `doc/` (not `docs/`)
      is reserved for end-user documentation and stays empty until Milestone 5
-   - Dark theme only; `Shift+Enter` newline with `Alt+Enter` fallback
+   - Dark theme only; `Alt+Enter` newline with `Ctrl+J` fallback (`Shift+Enter`
+     is not representable on Bubble Tea v1 — see ui-spec §5.2)
    - Token display: 1 decimal, k/M units (`12.4k tok`)
 5. Every task below has a checkable result. Do not move to the next task with
    the previous one failing.
@@ -105,7 +106,7 @@ internal/tui/
   modal.go        diff modal + help overlay per ui-spec §4
   statusbar.go    status bar: model, state+spinner, tokens, warnings
   composer.go     textarea wrapper: growth clamp 1–5 lines, placeholder,
-                  Shift+Enter/Alt+Enter newline, disabled-while-busy dim
+                  Alt+Enter / Ctrl+J newline, disabled-while-busy dim
   fake.go         fake transcript data per ui-spec §8 (2 user msgs, streaming
                   simulation, 3 tool cards incl. truncated+errored, two
                   approval cards — apply_patch without [a], run_command with
@@ -118,8 +119,8 @@ internal/tui/
 Notes:
 
 - `main.go` runs the TUI directly. `internal/app` is **not** created in this
-  milestone (nothing to wire yet); it arrives with agent integration in
-  Milestone 3.
+  milestone (nothing to wire yet); it arrives in **Milestone 1**, the moment the
+  TUI drives a real tool — see the plan §2 build-order table and amendment 2.
 - Streaming simulation: a `tea.Tick` appends text to the assistant message,
   exercising the same render path real deltas will use.
 - Spinner states (`thinking`, `running go test`, `applying patch`) cycle on a
@@ -138,7 +139,7 @@ work in some states and silently vanish in others.
    with `Busy` as an orthogonal flag, and the precedence order
    `Modal > ApprovalPending > Confirm > Browsing/Composing`.
 2. Composer: `Enter` sends (appends a user message, starts a fake streaming
-   turn); `Shift+Enter`/`Alt+Enter` newline; `Tab` completes a unique slash
+   turn); `Alt+Enter`/`Ctrl+J` newline; `Tab` completes a unique slash
    prefix. **`?` is a literal character here, not the help key** (ui-spec
    §5.1) — get this right in M0 or it is a bug report later.
 3. Focus transfer: `↑` at composer top / `↓` past the last card; accent `┃`
@@ -198,12 +199,19 @@ colour numbers anywhere else.
    the composer inserts a literal `?`.
 3. **Resize test**: `tea.WindowSizeMsg` down to 0×0 and back, plus each §2.2
    breakpoint boundary — no panic, no corruption.
-4. **Paste handling**: bracketed-paste `tea.PasteMsg` inserts literal multiline
-   text; an 8KB+ paste warns first (ui-spec §7.2).
+4. **Paste handling**: bracketed paste inserts literal multiline text, never
+   interpreted as keys; an 8KB+ paste warns first (ui-spec §7.2). On Bubble Tea
+   v1 this arrives as `tea.KeyMsg{Type: KeyRunes, Paste: true}` — there is no
+   `tea.PasteMsg`, which is a v2 type.
 5. **Sanitisation**: a fake tool result containing ANSI escapes, a `\r`
-   progress bar, tabs, a NUL byte, and a 5,000-column line renders correctly
-   and leaves no escape sequence in `View()` output — assert on the rendered
-   string, since this is the test that catches terminal corruption.
+   progress bar, tabs, a NUL byte, and a 5,000-column line renders correctly.
+   Assert on the *rendered* string, since this is the test that catches terminal
+   corruption — but assert the right thing. "No escape sequence in `View()`" is
+   false whenever colour is on, because Kirsch emits its own SGR. The two
+   checkable claims (ui-spec §13) are: **zero** `0x1b` bytes under `NO_COLOR`,
+   and under colour, every escape is an SGR drawn from the §10.1 palette. The
+   second doubles as the automated form of "no raw colour numbers outside
+   `styles.go`".
 6. **Scroll/pin**: scrolling up unpins and shows the indicator; typing does
    not re-pin; `End` does.
 
@@ -228,7 +236,8 @@ Run the full checklist:
 - [ ] Modal `Esc` returns to the *previous* mode, not always the composer
 - [ ] Confirm prompt wired for `/new` mid-turn; quit never confirms
 - [ ] Scroll/pin per §2.4 — typing does not re-pin
-- [ ] Text sanitisation (§7.1) proven: no ANSI escape survives into `View()`
+- [ ] Text sanitisation (§7.1) proven: zero `0x1b` bytes under `NO_COLOR`, and
+      under colour only §10.1 palette SGR reaches `View()` (ui-spec §13)
 - [ ] Resize (large ↔ small ↔ 0×0, plus every §2.2 breakpoint) never panics
       or corrupts
 - [ ] Quit paths (`q`, double `Ctrl+C`) work

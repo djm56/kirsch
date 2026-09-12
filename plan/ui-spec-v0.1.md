@@ -86,9 +86,17 @@
 | Height | Behaviour |
 |---|---|
 | ≥ 10 | Full layout. |
-| 5–9 | Header hidden; transcript shrinks to at least 2 lines. |
-| < 5 | Status bar + composer only. |
+| 6–9 | Header hidden; transcript shrinks to at least 2 lines. |
+| 5 | Header hidden; transcript 1 line. |
+| < 5 | Status bar + composer only; both separator rules dropped. |
 | ≤ 0 either axis | Render empty string. |
+
+The bands follow from the chrome budget, so change them together. Chrome is header (1) +
+separator (1) + status (1) + separator (1) + composer (1) = **5 rows with a header, 4
+without**. So h=10 leaves 5 transcript rows, h=6 leaves 2, and h=5 leaves 1 — which is why
+the "at least 2 lines" band starts at 6, not 5. Degrade in this order, never another:
+composer (never dropped, minimum 1) → status bar (never dropped) → the two separator rules
+(dropped **as a pair**, so the bar is never half-framed) → header → transcript remainder.
 
 ### 2.3 Status bar
 
@@ -325,13 +333,24 @@ Two consequences worth stating because they are easy to get wrong:
 | Key | Action |
 |---|---|
 | `Enter` | Send (turn starts) |
-| `Shift+Enter` | Newline (primary) |
-| `Alt+Enter` | Newline (compatibility fallback) |
+| `Alt+Enter` | Newline (primary) |
+| `Ctrl+J` | Newline (fallback) |
+| `Shift+Enter` | Newline **where the terminal and toolkit can distinguish it** — see below |
 | `Tab` | Complete a unique slash-command prefix |
 | `↑` at first line | Focus transcript (→ Browsing) |
 | `Esc` / `Ctrl+C` | Cancel the in-flight turn if busy; otherwise clear composer |
 | `q` | Quit — **only** when idle and the composer is empty |
 | `Ctrl+C` ×2 within 1s | Force quit |
+
+**On the newline binding.** `Shift+Enter` was the primary binding in the original draft. It
+cannot be, on the toolkit this project is pinned to: Bubble Tea v1's `tea.Key` is
+`{Type, Runes, Alt, Paste}` — it carries **no shift modifier**, and the terminal sends
+Shift+Enter as a bare CR on most emulators anyway, making it indistinguishable from `Enter`.
+A binding the toolkit cannot report is not a binding. `Alt+Enter` is therefore primary and
+`Ctrl+J` the fallback; both are representable and both are synthetically testable. If the
+project later moves to a toolkit that decodes the Kitty keyboard protocol, `Shift+Enter`
+becomes available as an *additional* binding on terminals that support it — never as the
+only route to a newline.
 
 **Browsing**
 
@@ -429,7 +448,7 @@ Milestone 1 adds temporary debug commands — `/read`, `/ls`, `/search`,
 
 - **Soft wrap** everywhere; no horizontal scrolling in v0.1.
 - **No-color fallback**: `NO_COLOR` set, `TERM=dumb`, or not a TTY → styling
-  degrades to plain prefixes (`+`/`-`, `[ok]`, `[error]`); layout identical.
+  degrades to plain prefixes (`+`/`-`, `[ok]`, `[err]`); layout identical.
 - **No-Unicode fallback**: when the locale is not UTF-8, every glyph falls back
   per the §10.2 table.
 - **Resize**: reflow at any size; modals re-clamp; selection and scroll position
@@ -477,9 +496,11 @@ modals, resize, and quit all work with no panic or visual corruption.
 
 ## 9. Resolved Decisions
 
-- **Newline binding:** `Shift+Enter` primary (user preference); `Alt+Enter`
-  mapped as fallback because terminal support for a distinct Shift+Enter
-  varies. M0 tests both.
+- **Newline binding:** `Alt+Enter` primary, `Ctrl+J` fallback. `Shift+Enter` was
+  the original preference but is not representable on Bubble Tea v1, which
+  carries no shift modifier — and most terminals send it as a bare CR anyway.
+  M0 tests both bindings it can actually construct. See §5.2 and plan
+  amendment 29.
 - **Palette:** dark only for v0.1. No light theme. See §10.
 - **Background:** never painted; the terminal's own background shows through.
 - **Token display:** 1 decimal, k/M units (`12.4k tok`).
@@ -532,7 +553,8 @@ information that is not also available elsewhere.
 |---|---|---|
 | Collapsed card | `▸` | `>` |
 | Expanded card | `▾` | `v` |
-| Running | `⠋` (braille cycle) | `-\|/` cycle |
+| Tool running (card badge) | `◐` | `*` |
+| Spinner (status bar, animated) | `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` | `- \ \| /` cycle |
 | Pending | `◌` | `.` |
 | OK | `✓` | `[ok]` |
 | Error | `✗` | `[err]` |
@@ -547,6 +569,12 @@ information that is not also available elsewhere.
 
 Fallback triggers when the locale is not UTF-8. **Every state is identified by
 its glyph, not only by its colour** (§12).
+
+**Two distinct running indicators, one clock.** The card badge (`◐`) is a static glyph
+marking a tool's lifecycle state (§3.8); the status-bar spinner is animated, advancing one
+frame per §11's 100 ms tick. They appear together — screen 02 shows `◐` on the running tool
+card while the status bar reads `⠋ running go test` — and both are driven by the same frame
+counter, so they never drift apart. Do not collapse them into one glyph.
 
 ## 11. Appendix — Timing Constants
 
@@ -604,8 +632,30 @@ in M3, so its screen is drawn then, *before* the golden file is captured
 (plan §11, amendment 24). Every other state has a grid to build against today.
 
 Structure is the contract and colour is applied on top: line counts and box
-positions are identical with and without colour, which is what lets screen 11
-be compared byte-for-byte against `NO_COLOR` output.
+positions are identical with and without colour. Screen 11 is a
+character-for-character transliteration of screen 03 through the §10.2 fallback
+table — every substitution is width-preserving — so the pair is what makes the
+property testable rather than merely asserted.
+
+**Four properties hold for every state, and are worth more than the snapshots.**
+They are what the snapshots exist to protect:
+
+1. `strip(styled) == plain`, byte for byte. This is the real form of "identical
+   with and without colour", and it holds for all thirteen states, not only the
+   two drawn as a pair.
+2. Zero `0x1b` bytes are emitted under `NO_COLOR`. Not "no visible colour" —
+   *no escape bytes at all*.
+3. Every escape in styled output is an SGR sequence drawn from the §10.1
+   palette. Anything else — cursor movement, an OSC sequence, a colour index
+   that is not in the table — means either tool output reached the terminal
+   unfiltered (§7.1) or a raw colour number escaped `styles.go`.
+4. Row count equals the terminal height and no row exceeds the terminal width,
+   at every size in §2.2.
+
+Property 3 supersedes the looser instruction to assert that "no escape sequence
+survives into `View()`". That is false as stated: Kirsch emits its own SGR
+sequences whenever colour is on. The checkable claims are 2 and 3 — no escapes
+at all in the no-colour path, and only palette SGR in the coloured one.
 
 Golden files are regenerated with `-update` and reviewed by a human in the
 diff. CI never auto-accepts them. When a golden diff is reviewed and found
@@ -615,9 +665,13 @@ diff. CI never auto-accepts them. When a golden diff is reviewed and found
 
 Named so they are watched, not discovered:
 
-- **`Shift+Enter` detection** varies by terminal; `Alt+Enter` is the fallback,
-  but some terminals send neither distinctly. If M0 finds a common terminal
-  where both fail, a config-selectable binding becomes necessary.
+- **~~`Shift+Enter` detection~~ — settled, see plan amendment 29.** The risk was
+  real but landed one layer lower than expected: Bubble Tea v1 carries no shift
+  modifier at all, so the binding is unrepresentable regardless of terminal.
+  `Alt+Enter` is primary and `Ctrl+J` the fallback. What remains to be checked in
+  M0 is whether `Alt+Enter` actually reaches the program in each target terminal —
+  if a common one swallows it, the `Ctrl+J` fallback becomes primary there and a
+  config-selectable binding becomes necessary after all.
 - **Braille spinner glyphs** render inconsistently in a few fonts. If the M0
   prototype shows gaps, fall back to the ASCII cycle by default.
 - **200-line inline cap** is a guess at the right number. M0 is the moment to

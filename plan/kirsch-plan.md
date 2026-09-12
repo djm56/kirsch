@@ -87,7 +87,7 @@ cmd/kirsch/main.go
 └───────────────────────────────────────────────┘
 ```
 
-Key bindings: `Enter` send · `Shift+Enter` newline · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit (idle `q` quits).
+Key bindings: `Enter` send · `Alt+Enter` newline (`Ctrl+J` fallback) · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit (idle `q` quits).
 
 Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit`.
 
@@ -580,12 +580,86 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
       M3 wires provider onboarding. Draw it in M3, before its golden file is
       captured, rather than back-filling from whatever M3 happens to render.
 
+**Milestone 0 pre-flight corrections (2026-09-12)**
+
+25. **The screen reference was measurably unbuildable; corrected before any code.**
+    Amendment 24 added `plan/kirsch-ui-screens.md` as M0's render target. Measuring
+    the grids — rather than reading them — found five defects that no correct
+    80-column renderer could reproduce, which would have meant capturing golden
+    files from an unreviewed render: exactly the failure amendment 24 exists to
+    prevent. Fixed:
+    - **Screen 02** had an 82-column row on an 80-column grid (the
+      `(input disabled, Esc cancels)` hint); now right-aligned to 80.
+    - **Screens 05, 06 and 07** had ragged box borders — right edges wandering
+      across columns 73/74/75 in 07, 78 vs 79 in 05 and 06. All squared.
+    - **Screen 06 was missing its status-bar row entirely**, contradicting layout
+      invariant 3 (a modal overwrites the transcript region only; the status bar
+      and composer stay visible). Restored.
+    - **Screen 11 claimed to match screen 03 "exactly"** while being 22 rows to
+      03's 17, with different content. It is now a character-for-character
+      transliteration of screen 03 through the §10.2 fallback table — every
+      substitution width-preserving, `✓ ok` → `[ok]` included — so the claim is
+      true and the pair is testable as `strip(03 rendered) == 11`.
+    - **Every grid now carries its exact size in the fence** (`text 80×18`), so the
+      golden harness reads dimensions rather than inferring them, and the
+      right-trim normalisation rule is stated rather than implied.
+    A grid lint (over-width rows, unclosed boxes) runs in CI so these cannot recur.
+
+26. **§2.2's height bands were arithmetically impossible; `5–9` is now `6–9`.**
+    Chrome without a header is 4 rows (transcript, rule, status, rule, composer),
+    so at h=5 the transcript gets 1 row — not the "at least 2" the band demanded.
+    h=5 is now defined explicitly, and §2.2 states the chrome budget and the
+    degradation ladder (composer → status → both rules as a pair → header →
+    transcript) so the bands can be re-derived rather than memorised.
+
+27. **§10.2's single "Running" row conflated two different indicators.** It gave
+    running as `⠋` (braille cycle) while §3.8 gave the card badge as `◐`, and both
+    screens show the two together. Split into "Tool running (card badge)" `◐`/`*`
+    and "Spinner (status bar, animated)" `⠋⠙⠹…`/`- \ | /`, with a note that both
+    run off the same 100 ms frame counter so they cannot drift apart.
+
+28. **§7.3's no-colour error prefix `[error]` corrected to `[err]`**, matching
+    §10.2 and the screens.
+
+29. **`Shift+Enter` demoted from primary newline binding — it is not
+    representable.** Bubble Tea v1 (the pinned toolkit) exposes
+    `tea.Key{Type, Runes, Alt, Paste}` with **no shift modifier**, and most
+    terminals send Shift+Enter as a bare CR, indistinguishable from `Enter`. A
+    binding the toolkit cannot report is not a binding, and §9's "M0 tests both"
+    was untestable as written. **`Alt+Enter` is now primary, `Ctrl+J` the
+    fallback**; both are representable and synthetically testable. This partly
+    resolves the first §14 design risk — the failure is in the toolkit, not the
+    terminal. Should the project later adopt a toolkit that decodes the Kitty
+    keyboard protocol, `Shift+Enter` returns as an *additional* binding, never as
+    the only route to a newline.
+
+30. **"No escape sequence survives into `View()`" was false and is now four
+    properties.** Kirsch emits its own SGR whenever colour is on, so the original
+    assertion could never pass. ui-spec §13 now states what is actually checkable
+    and is strictly stronger: `strip(styled) == plain` byte-for-byte for every
+    state; zero `0x1b` bytes under `NO_COLOR`; every escape under colour an SGR
+    drawn from the §10.1 palette (which also mechanises the "no raw colour numbers
+    outside `styles.go`" checklist item); and row count equal to terminal height
+    with no row over-wide, at every size.
+
+31. **Bubble Tea major version pinned to v1** (owner decision). v2's key
+    disambiguation was weighed and declined in favour of API stability across the
+    remaining five milestones; amendment 29 is the cost of that choice. Also
+    corrected: milestone-0 Task 6.4 cited `tea.PasteMsg`, a v2 type — v1 delivers
+    bracketed paste as `tea.KeyMsg{Paste: true}`.
+
+32. **Stale sentence in milestone-0 Task 4 corrected.** It said `internal/app`
+    "arrives with agent integration in Milestone 3"; the plan §2 build-order table
+    and amendment 2 both put it in M1. M0 is unaffected — `app` is out of scope
+    either way — but the sentence contradicted the table.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.
 - Whether `/approvals` needs its own key binding or only the slash command.
-- The ui-spec §14 design risks: Shift+Enter detection across terminals, braille
-  spinner glyph rendering, whether 200 lines is the right inline cap.
+- The ui-spec §14 design risks: braille spinner glyph rendering, and whether 200
+  lines is the right inline cap. (Shift+Enter detection is settled by amendment 29
+  — it is unrepresentable on the pinned toolkit, so `Alt+Enter` is primary.)
 - Session file rotation for very long sessions (ADR 0002 flagged this; still deferred).
 - Screen 14 (onboarding) in `plan/kirsch-ui-screens.md` — drawn at M3 with the
   provider onboarding path, per amendment 24.

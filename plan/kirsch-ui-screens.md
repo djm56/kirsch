@@ -19,6 +19,12 @@ before its golden file is captured.
 
 Reading notes:
 
+- Each grid's fence carries its exact terminal size — a fence reading `text 80×18` means
+  80 columns by 18 rows. The row count **is** the terminal height, so the golden harness
+  reads the size from the fence rather than inferring it. Screen 00 carries none: it is a
+  component, not a full-screen render.
+- Trailing whitespace cannot survive in a markdown source file, so every grid is stored
+  right-trimmed and the golden comparison right-trims both sides before diffing.
 - Blank first/last transcript lines are padding inside the transcript viewport, not
   literal blank output — the transcript region flexes to the terminal height.
 - Full-width `─` runs are the header, status-bar and composer separators.
@@ -92,7 +98,7 @@ tagline             "v0.1.0 · terminal-native coding agent"  dim       240  #58
 
 ## 01 · Empty session (first run)
 
-```text
+```text 80×18
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
 
 █▄▀ █ █▀█ █▀▀ █▀▀ █ █
@@ -137,7 +143,7 @@ separators          both full-width "─" rules                border    238  #4
 
 ## 02 · Mid-turn (streaming + running tool)
 
-```text
+```text 80×15
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
 
 ── you ─────────────────────────────────────────────────────────────────────────
@@ -152,7 +158,7 @@ so the panic fires before validation can return an error. ▌
 ────────────────────────────────────────────────────────────────────────────────
 claude-sonnet-5 · ⠋ running go test · 12.4k tok
 ────────────────────────────────────────────────────────────────────────────────
->                                                    (input disabled, Esc cancels)
+>                                                  (input disabled, Esc cancels)
 ```
 
 **Colours**
@@ -185,7 +191,7 @@ composer.prompt     ">" (disabled state)                     dim       240  #585
 
 ## 03 · Approval — apply_patch (no `[a]`)
 
-```text
+```text 80×17
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
 
 ▸ search_code "Divide(" · 3 matches · ✓ ok
@@ -236,7 +242,7 @@ status.rest        "claude-sonnet-5 · awaiting approval · …" muted     244  
 
 ## 04 · Approval — run_command (with `[a]`)
 
-```text
+```text 80×17
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
 
 ▸ apply_patch 2 files changed · ✓ approved
@@ -279,7 +285,7 @@ status.grants       "1 grant"                                muted     244  #808
 
 ## 05 · Diff modal over a pending approval
 
-```text
+```text 80×20
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
 
 ── you ─────────────────────────────────────────────────────────────────────────
@@ -287,7 +293,7 @@ Fix t┌─ calc/divide.go ─────────────────�
      │ @@ -12,7 +12,15 @@ func Divide(a, b float64)                       │
 ▸ sea│  func Divide(a, b float64) (float64, error) {                      │
      │ -    return a / b, nil                                             │
-┃ ┌─ │ +    if b == 0 {                                                   │───┐
+┃ ┌─ │ +    if b == 0 {                                                   │─── ┐
 ┃ │ a│ +        return 0, ErrDivideByZero                                 │    │
 ┃ │  │ +    }                                                             │    │
 ┃ │ f│ +    return a / b, nil                                             │    │
@@ -330,28 +336,30 @@ status+composer     unchanged, still live                    muted     244  #808
 
 ## 06 · Help overlay
 
-```text
+```text 80×25
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
 
  ┌─ help ──────────────────────────────────────────────────────────────────────┐
- │ composing                           approval                               │
- │ Enter        send                   y  approve     n  reject               │
- │ Shift+Enter  newline                a  + session   d  detail               │
- │ Tab          complete /cmd                                                 │
- │ ↑ at line 1  browse                 modal                                  │
- │ Esc          cancel turn            j/k ↑/↓  scroll                        │
- │ q            quit (idle)            g/G      top / bottom                  │
- │                                     Esc      close                         │
- │ browsing                                                                   │
- │ ↑/↓          select card            commands                               │
- │ PgUp/PgDn    scroll                 /help   /status   /diff                │
- │ Enter        expand                 /files  /approvals                     │
- │ d            diff / content         /new    /compact  /quit                │
- │ End          bottom, re-pin                                                │
- ├────────────────────────────────────────────────────────────────────────────┤
- │ kirsch v0.1.0 · docs: doc/usage.md · Esc or ? closes                       │
- └────────────────────────────────────────────────────────────────────────────┘
+ │ composing                           approval                                │
+ │ Enter        send                   y  approve     n  reject                │
+ │ Alt+Enter    newline                a  + session   d  detail                │
+ │ Tab          complete /cmd                                                  │
+ │ ↑ at line 1  browse                 modal                                   │
+ │ Esc          cancel turn            j/k ↑/↓  scroll                         │
+ │ q            quit (idle)            g/G      top / bottom                   │
+ │                                     Esc      close                          │
+ │ browsing                                                                    │
+ │ ↑/↓          select card            commands                                │
+ │ PgUp/PgDn    scroll                 /help   /status   /diff                 │
+ │ Enter        expand                 /files  /approvals                      │
+ │ d            diff / content         /new    /compact  /quit                 │
+ │ End          bottom, re-pin                                                 │
+ ├─────────────────────────────────────────────────────────────────────────────┤
+ │ kirsch v0.1.0 · docs: doc/usage.md · Esc or ? closes                        │
+ └─────────────────────────────────────────────────────────────────────────────┘
 
+────────────────────────────────────────────────────────────────────────────────
+claude-sonnet-5 · idle · 12.4k tok
 ────────────────────────────────────────────────────────────────────────────────
 >
 ```
@@ -376,17 +384,17 @@ BACKGROUND CELLS    header row behind the overlay            dim       240  #585
 
 ## 07 · Tool card expanded at the 200-line cap
 
-```text
+```text 80×17
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
 
 ┃ ▾ run_command go test ./... · 2.4s · ✗ exit 1
 ┃   ┌──────────────────────────────────────────────────────────────────────┐
-┃   │ === RUN   TestDivide                                                │
-┃   │     divide_test.go:31: Divide(1, 0) = +Inf, want ErrDivideByZero   │
-┃   │ --- FAIL: TestDivide (0.00s)                                        │
-┃   │ === RUN   TestDivide_Table                                          │
-┃   │ --- PASS: TestDivide_Table (0.00s)                                 │
-┃   │ FAIL    example.com/calc    0.004s                                 │
+┃   │ === RUN   TestDivide                                                 │
+┃   │     divide_test.go:31: Divide(1, 0) = +Inf, want ErrDivideByZero     │
+┃   │ --- FAIL: TestDivide (0.00s)                                         │
+┃   │ === RUN   TestDivide_Table                                           │
+┃   │ --- PASS: TestDivide_Table (0.00s)                                   │
+┃   │ FAIL    example.com/calc    0.004s                                   │
 ┃   └──────────────────────────────────────────────────────────────────────┘
 ┃   ‹200 of 4,181 lines — press d for full output›
 
@@ -421,7 +429,7 @@ NOTE                captured output is NOT syntax-coloured; ANSI is stripped (§
 
 ## 08 · Error card + system notices
 
-```text
+```text 80×14
 Kirsch ─ my-project ─ main ● (compacted) ───────────────────────────────────────
 
 · session recovered — 3 events after a torn line were discarded
@@ -461,7 +469,7 @@ NOTE                the error card sets NO background — border and title only
 
 ## 09 · Scrolled up (unpinned)
 
-```text
+```text 80×14
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
 
 ┃ ▸ read_file internal/session/store.go:1-120 · 3ms · ✓ ok
@@ -505,7 +513,7 @@ cursor              "▌"                                      dim       240  #5
 
 **40 columns** — the minimum supported width:
 
-```text
+```text 40×11
 Kirsch ─ my-project ────────────────────
 
 ▸ read_file calc/divide.go · ✓
@@ -521,7 +529,7 @@ sonnet-5 · ⠋ thinking
 
 **38 columns** — below the transcript threshold:
 
-```text
+```text 38×6
 terminal too narrow
 
 ──────────────────────────────────────
@@ -532,7 +540,7 @@ terminal too narrow
 
 **6 rows** — below the header threshold:
 
-```text
+```text 40×6
 no header at 6 rows;
 transcript keeps 2 lines
 ────────────────────────────────────────
@@ -565,17 +573,12 @@ NOTE                no token changes at any width — only which SPANS are emitt
 
 ## 11 · NO_COLOR + ASCII fallback
 
-```text
+```text 80×17
 Kirsch - my-project - main * ---------------------------------------------------
 
--- you -------------------------------------------------------------------------
-Fix the Divide validation
+> search_code "Divide(" . 3 matches . [ok]
 
-> read_file calc/divide.go . 4ms . [ok]
-> run_command go test ./... . 2.4s . [err] exit 1
-  ...
-
-| +-- approval required -------------------------------------------------------+
+| +- approval required --------------------------------------------------------+
 | | apply_patch - add input validation                                         |
 | |                                                                            |
 | | files: 2 changed (calc/divide.go,                                          |
@@ -585,9 +588,9 @@ Fix the Divide validation
 | +----------------------------------------------------------------------------+
 
 --------------------------------------------------------------------------------
-claude-sonnet-5 . / awaiting approval . 14.1k tok            ! recovered session
+claude-sonnet-5 . \ awaiting approval . 14.1k tok
 --------------------------------------------------------------------------------
-> _
+>
 ```
 
 **Colours**
@@ -601,10 +604,17 @@ NOTE                this screen is the golden-test fixture. Compare Kirsch's str
                     with the token assignment above applied.
 ```
 
-- Both fallbacks shown together: `[ok]`/`[err]` status prefixes and ASCII box drawing.
-- Line count and box positions match screen 03 exactly — a piped capture sees identical
-  structure with or without colour. This is what the golden tests compare.
-- Selection reads as `|` in the gutter. Spinner cycles `- \ | /`.
+- This screen is a **character-for-character transliteration of screen 03** through the
+  §10.2 fallback table: every substitution is width-preserving (`✓ ok` → `[ok]` is 4 cells
+  either way), so the two grids have identical line counts and identical box columns.
+- That is what makes the pair testable. The golden assertion is
+  `strip(screen 03 rendered) == screen 11`, byte for byte — a piped capture sees the same
+  structure with or without colour, which is ui-spec §12's accessibility rule made checkable.
+- Both fallbacks are applied at once: no SGR at all (`NO_COLOR`) *and* ASCII glyphs
+  (non-UTF-8 locale). Each is independently switchable; this grid shows the floor.
+- Substitutions visible here: `-` rules, `*` dirty marker, `>` collapsed glyph, `|` selection
+  gutter and box verticals, `+` box corners, `.` metadata separator, `[ok]` status, `\`
+  spinner (frame 1 of the `- \ | /` cycle, matching screen 03's `⠙`).
 
 ---
 
@@ -648,7 +658,7 @@ Nothing sets a default background. `codeBg` and `selectionBg` apply only inside 
 
 1. Row order is always: header, transcript, status bar, composer. Only the transcript flexes.
 2. The header, status bar and composer are one row each. The composer grows to a maximum of
-   5 rows on `Shift+Enter`, taking rows from the transcript.
+   5 rows on `Alt+Enter`, taking rows from the transcript.
 3. Modals overwrite the transcript region only. The status bar and composer stay visible.
 4. Line counts are identical with and without colour. Only styling degrades.
 5. Selection and scroll position are user-owned: streaming content never moves either.
