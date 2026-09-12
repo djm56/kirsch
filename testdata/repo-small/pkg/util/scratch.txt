@@ -1,0 +1,1 @@
+scratch, ignored by the nested .gitignore

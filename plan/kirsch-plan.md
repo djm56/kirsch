@@ -742,6 +742,25 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     closing the second of the two §14 risks. The ASCII cycle stays as the
     non-UTF-8 fallback, not as a default.
 
+**Milestone 1 dependency decisions (2026-09-12, owner delegated)**
+
+43. **`.gitignore` matching: `github.com/go-git/go-git/v5/plumbing/format/gitignore`.**
+    milestone-1 flagged this for sign-off with `sabhiram/go-gitignore` as the
+    small alternative. Taking the recommendation, because this is a security
+    boundary rather than a convenience: the walker decides what reaches model
+    context, and the cases a hand-rolled or simplified matcher gets wrong —
+    nested ignore files, `!` negation, anchored vs floating patterns, `**` —
+    fail *open*, silently including a file rather than visibly erroring. The
+    cost is a large module in `go.mod`; only the imported subpackage compiles,
+    and it carries no transitive network or filesystem dependencies.
+
+44. **`vendor/` stays unconditionally ignored in v0.1.** Confirming the
+    proposal. It hides real source in a Go module that vendors its
+    dependencies, which is a genuine loss, but the common case is hundreds of
+    megabytes of third-party code crowding out the workspace. Overridable via
+    config is the right end state; it is not v0.1 scope, and the built-in
+    ignore list is deliberately not overridable by a `.gitignore` negation.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.

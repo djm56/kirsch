@@ -1,6 +1,6 @@
 # Milestone 1 — Instruction Set
 
-> **Status: Ready for execution — blocked on Milestone 0.** This is the
+> **Status: In progress.** Milestone 0 completed 2026-09-12. This is the
 > complete, ordered instruction set for Milestone 1 (workspace engine +
 > read-only tools). Execute tasks in order. Nothing in this milestone touches
 > an LLM, writes to a file, or executes a subprocess other than `git` and `rg`.
@@ -29,18 +29,14 @@
 
 ## Decisions Needing Owner Sign-off (before Task 5)
 
-Two dependency choices this milestone cannot avoid. Flag them, don't guess:
+**Both settled — owner delegated the call on 2026-09-12. See plan §11
+amendments 43 and 44.**
 
-- **`.gitignore` matching.** Recommended:
-  `github.com/go-git/go-git/v5/plumbing/format/gitignore` — correct handling of
-  nested ignore files, negation, anchoring and `**`, which a hand-rolled
-  matcher gets wrong in ways that silently leak files into model context. Cost:
-  a large module in `go.mod` (only the imported subpackage is compiled).
-  Alternative: `github.com/sabhiram/go-gitignore` (tiny, but no nested-file
-  semantics).
-- **`vendor/` in Go projects.** Plan §3 ignores `vendor/` unconditionally.
-  For a Go module that vendors deps this hides real, relevant source. Proposed:
-  keep ignoring it by default, make it overridable later. Confirm.
+- **`.gitignore` matching:** `github.com/go-git/go-git/v5/plumbing/format/gitignore`.
+  This is a security boundary, not a convenience: the walker decides what
+  reaches model context, and the cases a simplified matcher gets wrong fail
+  *open* — silently including a file rather than visibly erroring.
+- **`vendor/`:** stays unconditionally ignored in v0.1, overridable later.
 
 ---
 
@@ -66,6 +62,15 @@ committed directories under `testdata/`.
 3. **Symlinks must be relative** so they resolve identically on every machine,
    and the tests must skip with a clear message (not fail obscurely) if a
    checkout materialised them as plain files.
+4. **The fixtures' own `.gitignore` files exclude the fixture files.** Found
+   while building them, and the inverse of gotcha 2: `repo-small/.gitignore`
+   says `*.log` and `ignored/`, and its nested `pkg/util/.gitignore` says
+   `scratch.txt` — so Git refuses to track `app.log`, `ignored/secret.txt` and
+   `pkg/util/scratch.txt`, which are precisely the three files the walker tests
+   need in order to prove they are *skipped*. Add them once with `git add -f`;
+   ignore rules do not apply to already-tracked files, so it does not recur.
+   Verify with `git ls-files testdata | wc -l` against the fixture inventory
+   rather than assuming `git add testdata/` took everything.
 
 ### 1.2 `testdata/repo-small`
 

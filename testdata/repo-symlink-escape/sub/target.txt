@@ -1,0 +1,1 @@
+target of the ok symlink
