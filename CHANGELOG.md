@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against `View()` byte-for-byte on every test run, so a rendering change and a
   stale design document cannot drift apart.
 
+- **Instruction sets for Milestones 2, 3 and 4**, at deliberately decreasing
+  fidelity (plan §11 amendment 50): M2 executable as written, M3 settled in
+  shape but provisional in detail, M4 a scope statement identifying the hard
+  problems. M5 is left unwritten.
+
 ### Changed
 
 - Corrected the render targets before building against them: five geometry

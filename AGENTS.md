@@ -40,10 +40,17 @@ points at are the real thing.
 ## Layout
 
 ```
-cmd/kirsch/      entry point
-internal/tui/    Bubble Tea program (Milestone 0)
-plan/            build instructions — spec, architecture, ADRs, milestones
-doc/             end-user documentation (Milestone 5)
+cmd/kirsch/         entry point: flags, wiring, every environment read
+internal/tui/       Bubble Tea program — renders state, emits intents (M0)
+internal/app/       the wiring layer: root context, routing, adapters (M1)
+internal/workspace/ root detection, containment, denylist, ignore, detect (M1)
+internal/tool/      tool envelope, registry, and the read-only tools (M1)
+internal/config/    TOML config, four-layer precedence, secret refusal (M1)
+internal/telemetry/ structured debug log — never stdout or stderr (M1)
+internal/arch/      architecture tests only; no production code (M1)
+plan/               build instructions — spec, architecture, ADRs, milestones
+doc/                end-user documentation (Milestone 5)
+testdata/           six fixture repositories (M1)
 ```
 
 Each package is created by exactly one milestone; the table in
@@ -51,10 +58,27 @@ Each package is created by exactly one milestone; the table in
 need a package from a later milestone, stop and check that table — either the
 dependency is real and the plan needs amending, or the task is out of scope.
 
+## Three things that have already bitten
+
+Each cost real time; each is now a test. They are listed because the mistakes
+are easy to repeat, not because the code is fragile.
+
+1. **Never block the TUI's `Update`.** It is the deadlock architecture.md §5
+   warns about and Milestone 1 hit for real (plan §11 amendment 46):
+   `program.Send` waits for the event loop, and inside `Update` that loop cannot
+   run. Nothing renders, and no error appears anywhere.
+2. **A test double must not be more forgiving than the thing it replaces.** A
+   buffered channel standing in for `program.Send` cannot express blocking, so
+   the deadlock above existed only in the real program and every test passed.
+3. **Reach for `--debug` early.** Scraping a pseudo-terminal is misleading —
+   Bubble Tea redraws differentially, so a string genuinely on screen can be
+   missing from the byte stream. The debug log located that deadlock in one run.
+
 ## Before you commit
 
 ```
-gofmt -l .          # must be empty
+gofmt -l .                        # must be empty
 go vet ./...
-go test ./...
+go test -race ./...
+python3 scripts/lint-screens.py   # the character grids are executable
 ```

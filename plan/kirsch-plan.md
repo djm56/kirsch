@@ -829,6 +829,34 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     dependency graph it checks. The build-order table now lists it, since "every
     package has exactly one milestone that creates it" should stay true.
 
+**Milestone instruction sets drafted ahead (2026-09-12, owner decision)**
+
+50. **M2, M3 and M4 written together, against the builder's own rule.**
+    `plan/README.md` says instruction sets are authored one at a time because
+    detail written several milestones ahead is wrong by the time it is read.
+    The owner asked for three at once and delegated the judgement, so the trade
+    was made deliberately rather than by drift, and is recorded here so nobody
+    later mistakes it for the intended process.
+
+    The evidence against writing ahead is strong and recent: Milestone 1
+    produced **seven** amendments (43–49) correcting instructions written just
+    one milestone in advance, including a security hole in the containment
+    algorithm §4.2 specified. Two of those corrections could not have been
+    predicted from the plan alone — they were found by running the code.
+
+    So the three documents are written at deliberately different fidelities,
+    each with a status banner saying how far it can be trusted:
+
+    - **M2 is executable as written.** It is next, and it was drafted while the
+      surrounding code was fresh.
+    - **M3 is settled in shape, provisional in detail.** Re-read and amend
+      before starting.
+    - **M4 is a scope statement** that identifies the hard problems and expects
+      its task breakdown to be rewritten once the agent loop exists.
+
+    M5 is deliberately still unwritten. Four milestones of speculative detail is
+    already more than the evidence supports.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.

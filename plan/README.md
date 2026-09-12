@@ -21,14 +21,25 @@ someone using it?* Building → `plan/`. Using → `doc/`.
 | [`adr/`](adr/) | Architecture decision records 0001–0007 |
 | [`milestone-0.md`](milestone-0.md) | Instruction set — repo bootstrap + static TUI prototype |
 | [`milestone-1.md`](milestone-1.md) | Instruction set — workspace engine + read-only tools |
-| `milestone-2.md` | *Next to write — Milestone 1 is complete* |
-| `milestone-3.md` | *Written when Milestone 2 completes* |
-| `milestone-4.md` | *Written when Milestone 3 completes* |
+| [`milestone-2.md`](milestone-2.md) | Instruction set — patches, commands, approvals |
+| [`milestone-3.md`](milestone-3.md) | Instruction set — provider + agent loop *(drafted ahead; refine before executing)* |
+| [`milestone-4.md`](milestone-4.md) | Outline — real task loop + sessions *(drafted far ahead; expect to rewrite)* |
 | `milestone-5.md` | *Written when Milestone 4 completes* |
 
-Milestone instruction sets are written **one at a time**, each authored after
-the previous milestone lands. Writing all six up front produces detailed
-instructions for M4 that are already wrong by the time M3 finishes.
+Milestone instruction sets are normally written **one at a time**, each authored
+after the previous milestone lands, because detail written three milestones
+ahead is usually wrong by the time anyone reads it.
+
+M2, M3 and M4 were drafted together on 2026-09-12 at the owner's request, so
+that trade has been made deliberately and is recorded as plan §11 amendment 50.
+Each carries a status banner saying how far it can be trusted: **M2 is
+executable as written**, M3 is settled in shape but provisional in detail, and
+M4 is a scope statement whose task breakdown should be expected to need real
+work. The evidence for the caution is close to hand — Milestone 1 produced seven
+amendments correcting instructions written just *one* milestone ahead.
+
+Re-read the next milestone's document against the code before starting it, and
+amend rather than work around a mismatch.
 
 ## Progress
 
@@ -39,9 +50,9 @@ Update this table as milestones complete. It is the single place to look for
 |---|---|---|---|
 | 0 | Repo skeleton + static TUI prototype | ☑ Complete | [done](milestone-0.md) |
 | 1 | Workspace engine + read-only tools | ☑ Complete | [done](milestone-1.md) |
-| 2 | Patches, commands, approvals | ☐ Not started | not written |
-| 3 | Provider + agent loop | ☐ Not started | not written |
-| 4 | Real task loop + sessions | ☐ Not started | not written |
+| 2 | Patches, commands, approvals | ☐ Not started | [ready](milestone-2.md) |
+| 3 | Provider + agent loop | ☐ Not started | [draft](milestone-3.md) |
+| 4 | Real task loop + sessions | ☐ Not started | [outline](milestone-4.md) |
 | 5 | Polish + release (`v0.1.0`) | ☐ Not started | not written |
 
 Status values: `☐ Not started` · `◐ In progress` · `☑ Complete`.
