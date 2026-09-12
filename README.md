@@ -1,9 +1,11 @@
 # Kirsch
 
-> **Status: Milestone 0 in progress.** The TUI prototype renders against fake
-> data — no LLM, filesystem or subprocess code exists yet. The authoritative
-> build spec is [`plan/kirsch-plan.md`](plan/kirsch-plan.md); progress is
-> tracked in [`plan/README.md`](plan/README.md).
+> **Status: Milestones 0 and 1 complete.** Kirsch reads and searches a real
+> repository from inside the TUI, safely: every path crosses a containment
+> check, the path denylist is enforced in one place, and there is no code
+> anywhere that writes a file, runs an arbitrary command, or calls a model. The
+> authoritative build spec is [`plan/kirsch-plan.md`](plan/kirsch-plan.md);
+> progress is tracked in [`plan/README.md`](plan/README.md).
 >
 > ```
 > go run ./cmd/kirsch
@@ -81,22 +83,23 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 | [`plan/kirsch-ui-screens.md`](plan/kirsch-ui-screens.md) | Settled | Screen reference: every UI state as an 80-column character grid with per-region colour maps — the render target and golden-test source |
 | [`plan/adr/`](plan/adr/) | Accepted | Seven architecture decision records |
 | [`plan/milestone-0.md`](plan/milestone-0.md) | Ready | Instruction set — repo bootstrap + static TUI prototype |
-| [`plan/milestone-1.md`](plan/milestone-1.md) | Ready | Instruction set — workspace engine + read-only tools |
+| [`plan/milestone-1.md`](plan/milestone-1.md) | Complete | Instruction set — workspace engine + read-only tools |
 | [`doc/`](doc/) | Planned | End-user documentation (Milestone 5) |
 
 ## Milestone Map
 
 | Milestone | Delivers | Status |
 |---|---|---|
-| 0 | Repo skeleton + static TUI prototype | Not started |
-| 1 | Workspace engine + read-only tools | Not started |
+| 0 | Repo skeleton + static TUI prototype | Complete |
+| 1 | Workspace engine + read-only tools | Complete |
 | 2 | Patches, commands, approvals | Not started |
 | 3 | Provider + agent loop | Not started |
 | 4 | End-to-end tasks + durable sessions | Not started |
 | 5 | Polish, doctor, distribution, `v0.1.0` | Not started |
 
-Live status is tracked in [`plan/README.md`](plan/README.md). We are **before
-Milestone 0** — no code, no `go mod init`, no CI.
+Live status is tracked in [`plan/README.md`](plan/README.md). Milestone 2
+(patches, commands, approvals) is next; its instruction set is written once
+Milestone 1's acceptance is signed off.
 
 ## License
 

@@ -436,40 +436,56 @@ the deliberate import afterwards.
 
 ## Task 12 — Final acceptance
 
-- [ ] All six `testdata/` fixtures committed; `git check-ignore` confirms none
+- [x] All six `testdata/` fixtures committed; `git check-ignore` confirms none
       are excluded by the project's own ignore rules; symlinks tracked as
       symlinks
-- [ ] `internal/config` loads with full four-layer precedence; secret-shaped
+- [x] `internal/config` loads with full four-layer precedence; secret-shaped
       keys refused; unknown keys warn without failing
-- [ ] `internal/telemetry` writes structured debug logs to file and **never**
+- [x] `internal/telemetry` writes structured debug logs to file and **never**
       to stdout/stderr; redaction proven by test
-- [ ] Workspace root detected via Git, overridable with `--workspace`;
+- [x] Workspace root detected via Git, overridable with `--workspace`;
       canonical root resolved (macOS `/tmp` case covered)
-- [ ] Every symlink-escape row returns `workspace_violation`; every legitimate
+- [x] Every symlink-escape row returns `workspace_violation`; every legitimate
       internal symlink is **allowed**; the dangling link returns
       `file_not_found`; the loop does not hang
-- [ ] The `project-evil` prefix case is blocked
-- [ ] Every path-denylist entry blocked, through every path-taking tool
-- [ ] `.gitignore` (including nested files and negation) plus the built-in list
+- [x] The `project-evil` prefix case is blocked
+- [x] Every path-denylist entry blocked, through every path-taking tool
+- [x] `.gitignore` (including nested files and negation) plus the built-in list
       respected by the walker; ordering deterministic
-- [ ] Project type detected for all four fixture types; ambiguous case returns
+- [x] Project type detected for all four fixture types; ambiguous case returns
       the documented precedence
-- [ ] All five read-only tools implemented, returning the plan §3 envelope
+- [x] All five read-only tools implemented, returning the plan §3 envelope
       exactly, with correct error kinds
-- [ ] `rg` and pure-Go `search_code` backends return identical results
-- [ ] `internal/app` wires TUI ↔ tools; TUI imports no tool/workspace package
-- [ ] Cancelling a slow tool returns within 1s and renders `⊘ cancelled`
-- [ ] Debug slash commands read and search a real repository from inside the
+- [x] `rg` and pure-Go `search_code` backends return identical results
+- [x] `internal/app` wires TUI ↔ tools; TUI imports no tool/workspace package
+- [x] Cancelling a slow tool returns within 1s and renders `⊘ cancelled`
+- [x] Debug slash commands read and search a real repository from inside the
       TUI, rendered as tool cards
-- [ ] Import-rule check in place and enforced in CI
-- [ ] `go test -race ./...`, `gofmt`, `go vet`, `golangci-lint` all clean; CI
+- [x] Import-rule check in place and enforced in CI
+- [x] `go test -race ./...`, `gofmt`, `go vet`, `golangci-lint` all clean; CI
       green
-- [ ] **No patch, command-execution, provider, agent, session, or policy code
+- [x] **No patch, command-execution, provider, agent, session, or policy code
       exists anywhere in the repo**
 
 **Definition of done:** every box checked, CHANGELOG updated, `plan/README.md`
 progress table set to `☑ Complete`, and a commit or PR tagged so Milestone 2
 starts from a known point.
+
+**Completed 2026-09-12.** All packages green under `-race`. Findings from
+execution are recorded as plan amendments 43–49; the two that matter most are
+45 (containment could not be built on `EvalSymlinks` over a whole path — the
+hole was machine-dependent) and 46 (the TUI deadlocked on itself calling
+`program.Send` from inside `Update`, exactly as architecture.md §5 predicts).
+
+Two notes for whoever executes Milestone 2:
+
+- The `--debug` log built in Task 3 located amendment 46's deadlock in one run
+  after a pseudo-terminal harness had wasted a long time on symptoms. Reach for
+  it early.
+- A test double that is more forgiving than the thing it replaces tests
+  nothing. The buffered channel standing in for `program.Send` could not
+  express blocking, so the deadlock existed only in the real program. The
+  harness now uses an unbuffered channel.
 
 ---
 

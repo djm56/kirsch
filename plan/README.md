@@ -21,7 +21,7 @@ someone using it?* Building → `plan/`. Using → `doc/`.
 | [`adr/`](adr/) | Architecture decision records 0001–0007 |
 | [`milestone-0.md`](milestone-0.md) | Instruction set — repo bootstrap + static TUI prototype |
 | [`milestone-1.md`](milestone-1.md) | Instruction set — workspace engine + read-only tools |
-| `milestone-2.md` | *Written when Milestone 1 completes* |
+| `milestone-2.md` | *Next to write — Milestone 1 is complete* |
 | `milestone-3.md` | *Written when Milestone 2 completes* |
 | `milestone-4.md` | *Written when Milestone 3 completes* |
 | `milestone-5.md` | *Written when Milestone 4 completes* |
@@ -38,7 +38,7 @@ Update this table as milestones complete. It is the single place to look for
 | # | Milestone | Status | Instruction set |
 |---|---|---|---|
 | 0 | Repo skeleton + static TUI prototype | ☑ Complete | [done](milestone-0.md) |
-| 1 | Workspace engine + read-only tools | ☐ Not started | [ready](milestone-1.md) |
+| 1 | Workspace engine + read-only tools | ☑ Complete | [done](milestone-1.md) |
 | 2 | Patches, commands, approvals | ☐ Not started | not written |
 | 3 | Provider + agent loop | ☐ Not started | not written |
 | 4 | Real task loop + sessions | ☐ Not started | not written |

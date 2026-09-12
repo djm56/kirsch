@@ -822,6 +822,13 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     began, and each chain kept a pending command alive for the life of the
     program. There is now one chain, guarded by a flag.
 
+49. **`internal/arch` added, and it is not in the §2 build-order table.** The
+    import-rule check needs somewhere to live, and putting it inside a package
+    it polices would make that package import the thing it forbids. `arch`
+    contains no production code — only tests — so it does not affect the
+    dependency graph it checks. The build-order table now lists it, since "every
+    package has exactly one milestone that creates it" should stay true.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.

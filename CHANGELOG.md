@@ -18,6 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selection and expansion with the 200-line cap, approval flow, scroll/pin
   behaviour, text sanitisation, and both the no-colour and ASCII fallbacks. No
   LLM, filesystem or subprocess code exists in the binary.
+- **Milestone 1 — workspace engine and read-only tools.** Git root detection
+  with a `--workspace` override, canonical-path containment, the path denylist,
+  `.gitignore`-aware walking and project-type detection (`internal/workspace`);
+  TOML configuration with four-layer precedence and credential refusal
+  (`internal/config`); a structured debug log that never touches stdout or
+  stderr (`internal/telemetry`); the tool envelope and registry
+  (`internal/tool`) with `read_file`, `list_files`, `search_code`, `git_status`
+  and `git_diff`; and the wiring layer (`internal/app`) that lets the TUI drive
+  them without importing them. Six fixture repositories under `testdata/`.
+- **`search_code` has two backends that provably agree.** ripgrep when it is on
+  `PATH`, a pure-Go walk otherwise, with a differential test over nine queries
+  asserting byte-identical output.
+- **Plan §2's dependency rules are enforced by a test in CI**, not by review —
+  in place before the packages it guards exist.
 - **The screen reference is executable.** All thirteen character grids in
   `plan/kirsch-ui-screens.md` are parsed out of the markdown and compared
   against `View()` byte-for-byte on every test run, so a rendering change and a

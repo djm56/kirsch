@@ -144,3 +144,63 @@ func TestHeaderShowsRealWorkspace(t *testing.T) {
 		t.Errorf("header does not show the real project name:\n%s", out)
 	}
 }
+
+// TestCancelledToolRendersCancelledGlyph is the last of Task 8's checks:
+// cancelling returns control and the card shows ⊘ rather than hanging on the
+// spinner or vanishing.
+func TestCancelledToolRendersCancelledGlyph(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "repo-small"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.Detect(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := New(ws, config.Defaults(), telemetry.Disabled())
+	defer a.Close()
+
+	slow := &slowTool{started: make(chan struct{})}
+	a.reg.Register(slow)
+
+	m := tui.New(tui.Options{Version: "0.1.0", Caps: tui.Caps{Unicode: true}})
+	m.RunTool = a.RunTool
+	m.Cancel = a.CancelTurn
+
+	inbox := make(chan tea.Msg)
+	a.sendFn = func(msg any) { inbox <- msg.(tea.Msg) }
+
+	apply := func(msg tea.Msg) {
+		next, _ := m.Update(msg)
+		m = next.(tui.Model)
+	}
+	apply(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	m.RunTool("slow", map[string]any{})
+	apply(<-inbox) // ToolStartedMsg
+
+	select {
+	case <-slow.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("tool never started")
+	}
+	if !strings.Contains(m.View(), "◐") {
+		t.Errorf("running card does not show the running badge:\n%s", m.View())
+	}
+
+	begin := time.Now()
+	apply(tea.KeyMsg{Type: tea.KeyEsc}) // Esc cancels the turn
+	apply(<-inbox)                      // ToolCompletedMsg
+	elapsed := time.Since(begin)
+
+	if elapsed > time.Second {
+		t.Errorf("cancel took %v; ui-spec §11 targets under 1s", elapsed)
+	}
+	view := m.View()
+	if !strings.Contains(view, "⊘") {
+		t.Errorf("cancelled card does not show ⊘:\n%s", view)
+	}
+	if strings.Contains(view, "◐") {
+		t.Errorf("card still shows the running badge after cancellation:\n%s", view)
+	}
+}
