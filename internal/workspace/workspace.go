@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 )
 
 // Violation is returned when a path escapes the workspace or hits the
@@ -55,6 +57,9 @@ type Workspace struct {
 	dirty     bool
 	metaAt    time.Time
 	metaValid bool
+
+	ignore      gitignore.Matcher
+	ignoreValid bool
 }
 
 // ErrNoWorkspace is returned when neither --workspace nor a Git root is found.
