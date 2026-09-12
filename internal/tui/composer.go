@@ -157,16 +157,33 @@ var SlashCommands = []string{
 	"help", "status", "diff", "files", "approvals", "new", "compact", "quit",
 }
 
+// DebugCommands are Milestone 1 scaffolding: they exist so a real repository
+// can be read from inside the TUI before the model drives tools, and they are
+// removed in M3. Tab-completable alongside the real set, but labelled (debug)
+// in the help overlay.
+var DebugCommands = []string{
+	"/read", "/ls", "/search", "/gitstatus", "/gitdiff",
+}
+
 // completeSlash completes a unique prefix, returning the completion and whether
 // exactly one candidate matched.
 func completeSlash(prefix string) (string, bool) {
 	var match string
 	n := 0
-	for _, c := range SlashCommands {
+	candidates := append(append([]string{}, SlashCommands...), trimSlashes(DebugCommands)...)
+	for _, c := range candidates {
 		if strings.HasPrefix(c, prefix) {
 			match = c
 			n++
 		}
 	}
 	return match, n == 1
+}
+
+func trimSlashes(in []string) []string {
+	out := make([]string, len(in))
+	for i, s := range in {
+		out[i] = strings.TrimPrefix(s, "/")
+	}
+	return out
 }

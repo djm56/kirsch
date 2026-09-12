@@ -783,6 +783,45 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     the OS returning `ELOOP`. §4.2 of milestone-1 is amended to describe this
     algorithm; the fixture table it specifies is unchanged and all rows pass.
 
+46. **The TUI deadlocked on itself, exactly as architecture.md §5 predicts.**
+    `internal/app.RunTool` is called synchronously from the TUI's `Update`. It
+    sent `ToolStartedMsg` before spawning its goroutine, and `program.Send`
+    blocks until the Bubble Tea event loop reads the message — a loop that
+    cannot run until `Update` returns. So `Update` waited on itself: no tool
+    ever started, nothing appeared on screen, and there was no error anywhere
+    to notice. The offending line looked like ordinary sequencing.
+
+    Fixed by moving everything after the bookkeeping onto the goroutine,
+    including the started message. Two things about how it was found are worth
+    keeping:
+
+    - **The unit test could not see it.** The test double replaced
+      `program.Send` with a write to a *buffered* channel, which never blocks,
+      so the deadlock existed only in the real program. The harness now uses an
+      unbuffered channel, which reproduces the blocking discipline of the real
+      Send and turns a regression into a timeout instead of a pass. A test
+      double that is more forgiving than the thing it stands in for tests
+      nothing.
+    - **Scraping a pseudo-terminal was actively misleading.** Bubble Tea
+      redraws differentially, so a substring genuinely on screen can be absent
+      from the byte stream, and one that is present may belong to a stale
+      frame. Two hours went into chasing symptoms that way. The `--debug` log
+      settled it in one run: "tui requested tool" appeared and "tool started"
+      did not, which located the deadlock precisely. The debug log built in
+      Task 3 paid for itself inside the same milestone.
+
+47. **`App.Close` could hang the process on quit.** A tool finishing after the
+    program stopped blocked in `program.Send` — the loop is no longer draining
+    — so `inFlight.Wait()` never returned. Close now cancels first, waits a
+    bounded two seconds, and gives up: a straggler goroutine is a smaller
+    problem than a program that will not exit. `send` also abandons delivery
+    once the root context is cancelled.
+
+48. **The spinner ran at double speed after the first tool call.** Every
+    `ToolStartedMsg` started a second `tea.Tick` chain alongside the one `Init`
+    began, and each chain kept a pending command alive for the life of the
+    program. There is now one chain, guarded by a flag.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.

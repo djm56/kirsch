@@ -47,7 +47,12 @@ jobs:
           cache: true
 
       - name: go test
-        run: go test -race ./...
+        run: go test -race -timeout 5m ./...
+
+      # Plan §2's dependency rules are enforced by a test, not by review. Run
+      # explicitly as well as via ./... so a failure names itself in the log.
+      - name: architecture rules
+        run: go test -run TestImportRules ./internal/arch/
 
       # A test that writes golden files as a side effect is the only way CI
       # could silently accept a rendering change. Fail if the tree moved.

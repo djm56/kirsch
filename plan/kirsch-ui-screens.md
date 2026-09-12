@@ -344,7 +344,7 @@ status+composer     unchanged, still live                    muted     248  #a8a
 
 ## 06 · Help overlay
 
-```text 80×25
+```text 80×30
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
         ┌─ help ───────────────────────────────────────────────────────┐
 ▸ read_f│ composing                            approval                │
@@ -363,6 +363,11 @@ Kirsch ─ my-project ─ main ● ───────────────
         │ d             diff / content         /diff  /files           │
         │ End           bottom, re-pin         /approvals  /new        │
         │ ?             help                   /compact  /quit         │
+        │                                                              │
+        │                                      debug (M1 only)         │
+        │                                      /read  /ls              │
+        │                                      /search  /gitstatus     │
+        │                                      /gitdiff                │
         ├──────────────────────────────────────────────────────────────┤
         │ kirsch v0.1.0 · docs: doc/usage.md · Esc or ? closes         │
         └──────────────────────────────────────────────────────────────┘
@@ -388,7 +393,12 @@ BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8
 - One screen, no scrolling: bindings by mode, then slash commands, then the version footer.
 - Mode headings are `warning` (179); bindings are `muted` (244).
 - Two columns, both generated from the same binding table `update.go` dispatches on, so a
-  binding cannot change behaviour while keeping its old description here. The right-hand
+  binding cannot change behaviour while keeping its old description here.
+- **The overlay needs 30 rows.** §4.2 says one screen, no scrolling, and the content now
+  runs to 21 body lines plus four rows of modal chrome. Below that height it scrolls
+  rather than truncating silently, but the grid is drawn at the height where the rule
+  actually holds. The `debug (M1 only)` block is Milestone 1 scaffolding and leaves with
+  the debug commands in M3, which buys back three rows. The right-hand
   column uses a narrower key field than the left because its keys are single characters —
   a shared field pushes its descriptions past the modal's edge at §2.2's 80% width.
 

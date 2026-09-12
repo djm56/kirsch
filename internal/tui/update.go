@@ -52,12 +52,27 @@ var bindingGroups = []BindingGroup{
 // Messages driving time-based behaviour. Every one of them is an explicit
 // message rather than a clock read, which is what keeps View() deterministic.
 type (
-	spinnerTickMsg struct{}
-	streamTickMsg  struct{}
+	spinnerTickMsg  struct{}
+	spinnerStartMsg struct{}
+	streamTickMsg   struct{}
 )
 
 func tickSpinner() tea.Cmd {
 	return tea.Tick(SpinnerFrame, func(time.Time) tea.Msg { return spinnerTickMsg{} })
+}
+
+// tickSpinnerOnce starts a tick chain only if one is not already running.
+//
+// Without the guard every ToolStartedMsg started a second chain alongside the
+// one Init began, so the spinner ran at twice the rate after the first tool
+// call and faster still after the next — and each chain kept a pending Cmd
+// alive for the life of the program.
+func (m *Model) tickSpinnerOnce() tea.Cmd {
+	if m.spinnerAlive {
+		return nil
+	}
+	m.spinnerAlive = true
+	return tickSpinner()
 }
 
 func tickStream() tea.Cmd {
@@ -77,14 +92,93 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.frame++
 		return m, tickSpinner()
 
+	case spinnerStartMsg:
+		return m, m.tickSpinnerOnce()
+
 	case streamTickMsg:
 		return m.advanceFake()
+
+	case WorkspaceInfoMsg:
+		m.sess.Project, m.sess.Branch, m.sess.Dirty = msg.Project, msg.Branch, msg.Dirty
+		m.projectTypes = msg.Types
+		m.relayout(m.layout())
+		return m, nil
+
+	case ToolStartedMsg:
+		id := m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
+			Name: msg.Name, Target: msg.Target, State: StateRunning,
+		}})
+		m.toolCards[msg.ID] = id
+		m.busy = Busy{Active: true, Verb: msg.Name}
+		m.relayout(m.layout())
+		return m, m.tickSpinnerOnce()
+
+	case ToolCompletedMsg:
+		return m.applyToolResult(msg)
+
+	case ErrorMsg:
+		m.tr.Append(Item{Kind: KindError, Err: &ErrorCard{
+			Kind: msg.Kind, Message: msg.Message,
+			Hint:   "Enter to expand",
+			Detail: SanitizeLines(msg.Detail),
+		}})
+		m.busy = Busy{}
+		m.relayout(m.layout())
+		return m, nil
+
+	case NoticeMsg:
+		m.notice(msg.Text)
+		m.relayout(m.layout())
+		return m, nil
 
 	case tea.KeyMsg:
 		lay := m.layout()
 		m.relayout(lay)
 		return m.handleKey(msg, lay)
 	}
+	return m, nil
+}
+
+// applyToolResult folds a finished tool into its running card.
+//
+// The card is mutated in place through the transcript's terminal-state guard
+// rather than appended fresh, so the running card the user is already looking
+// at becomes the completed one — ui-spec §3.8's rule that a card is never
+// rewritten once *terminal* is about final states, not about this transition.
+func (m Model) applyToolResult(msg ToolCompletedMsg) (tea.Model, tea.Cmd) {
+	cardID, known := m.toolCards[msg.ID]
+	if !known {
+		cardID = m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
+			Name: msg.Name, Target: msg.Target, State: StateRunning,
+		}})
+	}
+	delete(m.toolCards, msg.ID)
+
+	m.tr.MutateTool(cardID, func(c *ToolCard) {
+		c.Elapsed = msg.Elapsed
+		c.Out = SanitizeLines(msg.Content)
+		switch {
+		case msg.OK:
+			c.State = StateOK
+			c.Summary = msg.Summary
+		case msg.ErrorKind == "cancelled":
+			c.State = StateCancelled
+			c.Summary = msg.ErrorMsg
+		default:
+			c.State = StateError
+			c.Summary = msg.ErrorMsg
+		}
+		if msg.Truncated {
+			c.Trunc = "truncated"
+		}
+	})
+
+	// A workspace violation is a tool error the model could handle, so it stays
+	// a tool card with ✗ rather than being promoted to a red error card.
+	// architecture.md §8; ui-spec §3.6.
+	m.busy = Busy{}
+	m.sel = cardID
+	m.relayout(m.layout())
 	return m, nil
 }
 
@@ -420,6 +514,9 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 }
 
 func (m Model) cancelTurn() Model {
+	if m.Cancel != nil {
+		m.Cancel()
+	}
 	m.busy = Busy{}
 	for _, it := range m.tr.Items() {
 		if it.Kind == KindTool && it.Tool.State == StateRunning {
@@ -439,9 +536,9 @@ func (m Model) submit(lay Layout) (tea.Model, tea.Cmd) {
 	if strings.TrimSpace(v) == "" {
 		return m, nil
 	}
-	if cmd, _, ok := parseSlash(v); ok {
+	if cmd, args, ok := parseSlash(v); ok {
 		m.comp.Reset()
-		return m.runSlash(cmd, lay)
+		return m.runSlash(cmd, args, lay)
 	}
 	m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{Lines: SanitizeLines(v)}})
 	m.comp.Reset()
@@ -452,7 +549,7 @@ func (m Model) submit(lay Layout) (tea.Model, tea.Cmd) {
 	return m, tickStream()
 }
 
-func (m Model) runSlash(cmd string, lay Layout) (tea.Model, tea.Cmd) {
+func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 	switch cmd {
 	case "help":
 		m.openModal(ModalState{Kind: ModalHelp, Title: "help", Lines: helpLines()})
@@ -480,6 +577,21 @@ func (m Model) runSlash(cmd string, lay Layout) (tea.Model, tea.Cmd) {
 		m.notice("files touched this session: calc/divide.go, calc/divide_test.go")
 	case "compact":
 		m.notice("nothing to compact yet")
+	case "read", "ls", "search", "gitstatus", "gitdiff":
+		// Temporary M1 scaffolding, removed in M3 when the model drives tools.
+		// Labelled (debug) in /help so nobody mistakes them for product surface.
+		if m.RunTool == nil {
+			m.notice("tools are not wired up in this build")
+			break
+		}
+		name, input := debugToolCall(cmd, args)
+		if name == "" {
+			m.comp.Hint = "usage: /" + cmd + " " + debugUsage(cmd)
+			return m, nil
+		}
+		m.RunTool(name, input)
+		return m, nil
+
 	default:
 		// Unknown commands get a dim inline hint, never an error card, and are
 		// never sent to the model. ui-spec §6.
@@ -492,4 +604,43 @@ func (m Model) runSlash(cmd string, lay Layout) (tea.Model, tea.Cmd) {
 
 func (m *Model) notice(text string) {
 	m.tr.Append(Item{Kind: KindNotice, Notice: &NoticeCard{Text: text}})
+}
+
+// debugToolCall maps an M1 debug command to a tool invocation.
+func debugToolCall(cmd, args string) (string, map[string]any) {
+	args = strings.TrimSpace(args)
+	switch cmd {
+	case "read":
+		if args == "" {
+			return "", nil
+		}
+		return "read_file", map[string]any{"path": args}
+	case "ls":
+		if args == "" {
+			args = "."
+		}
+		return "list_files", map[string]any{"path": args}
+	case "search":
+		if args == "" {
+			return "", nil
+		}
+		return "search_code", map[string]any{"query": args}
+	case "gitstatus":
+		return "git_status", map[string]any{}
+	case "gitdiff":
+		return "git_diff", map[string]any{}
+	}
+	return "", nil
+}
+
+func debugUsage(cmd string) string {
+	switch cmd {
+	case "read":
+		return "<path>"
+	case "search":
+		return "<query>"
+	case "ls":
+		return "[path]"
+	}
+	return ""
 }

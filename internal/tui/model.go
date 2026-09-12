@@ -108,9 +108,19 @@ type Model struct {
 
 	comp Composer
 
-	frame     int // spinner frame; advanced only by a tick message
-	now       func() time.Time
-	lastCtrlC time.Time
+	// Callbacks into internal/app. Function fields rather than an interface
+	// so the TUI depends on behaviour it names itself and cannot be handed a
+	// package it is forbidden to import.
+	RunTool func(name string, input map[string]any)
+	Cancel  func()
+
+	projectTypes []string
+	toolCards    map[int64]ItemID // app-side tool id → transcript card
+
+	frame        int  // spinner frame; advanced only by a tick message
+	spinnerAlive bool // a tick chain is in flight; see tickSpinnerOnce
+	now          func() time.Time
+	lastCtrlC    time.Time
 
 	fake fakeDriver
 }
@@ -138,16 +148,17 @@ func New(o Options) Model {
 
 	rend := NewRenderer(o.Caps.Colour)
 	m := Model{
-		caps:     o.Caps,
-		rend:     rend,
-		sty:      NewStyles(rend, o.Caps.Colour),
-		gly:      NewGlyphs(o.Caps.Unicode),
-		expanded: map[ItemID]bool{},
-		scroll:   Scroll{Pinned: true},
-		sess:     o.Session,
-		status:   o.Status,
-		comp:     newComposer(),
-		now:      o.Now,
+		caps:      o.Caps,
+		rend:      rend,
+		sty:       NewStyles(rend, o.Caps.Colour),
+		gly:       NewGlyphs(o.Caps.Unicode),
+		expanded:  map[ItemID]bool{},
+		toolCards: map[int64]ItemID{},
+		scroll:    Scroll{Pinned: true},
+		sess:      o.Session,
+		status:    o.Status,
+		comp:      newComposer(),
+		now:       o.Now,
 	}
 	return m
 }
@@ -162,9 +173,9 @@ func NewWithFixture(o Options) Model {
 	return m
 }
 
-// Init starts the spinner tick.
+// Init starts the single spinner tick chain.
 func (m Model) Init() tea.Cmd {
-	return tickSpinner()
+	return func() tea.Msg { return spinnerStartMsg{} }
 }
 
 // mode derives the effective input mode.
