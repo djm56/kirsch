@@ -653,6 +653,51 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     and amendment 2 both put it in M1. M0 is unaffected — `app` is out of scope
     either way — but the sentence contradicted the table.
 
+**Milestone 0 findings (2026-09-12, during execution)**
+
+33. **Screen 01 was never implemented and the gap was invisible.** The M0 fixture
+    preloaded a transcript, so the empty session — golden state 1, and the first
+    thing any user sees — could not render at all. Found by running the binary,
+    not by testing it, which is the argument for the checkpoint. The prototype
+    now launches empty; the §8 fixture moved behind `NewWithFixture` for the
+    golden tests, and the running prototype reaches the same states through a
+    scripted turn instead of by pre-baking a transcript nobody can navigate back
+    to.
+
+34. **The composer's empty state is three states, not one.** §2 says
+    "placeholder when empty", which contradicts screens 03–06 (bare `>`) and 07,
+    08, 10 (`> ▌`). Resolved: placeholder while the *session* is empty, cursor
+    when the composer has focus, nothing while an approval or modal holds
+    capture. A placeholder behind a pending approval invites typing into a
+    composer that is deliberately refusing input.
+
+35. **ASCII fallback now folds typography in content, not only glyphs.** §10.2
+    covers Kirsch's own glyphs; an em dash inside a card title went through
+    untouched and would render as mojibake on exactly the terminals the fallback
+    serves. Em dashes, smart quotes, ellipses and `·` fold to ASCII when the
+    locale is not UTF-8.
+
+36. **Inter-item spacing specified.** §3 never stated it. The rule every grid
+    follows: a blank line between items, except between adjacent one-line cards
+    of the same kind, which group visually (screen 02's tool cards, screen 08's
+    notices).
+
+37. **Card width is per item.** The selection gutter's two columns are reserved
+    only for items that draw one. Reserving them globally shortened every
+    speaker rule and separator by two cells.
+
+38. **Screen 07 was redrawn as the tail of the expansion.** A capped card is 204
+    rows, so its head is above the fold at any usable height; the previous
+    drawing showed a head, six output lines and a `‹200 of 4,181›` marker
+    together, which is two contradictory claims. Screens 02, 05, 06, 08 and 10
+    were also regenerated from the verified renderer.
+
+39. **The screen reference is now machine-verified.** `TestMatchesScreenReference`
+    parses all thirteen grids out of the markdown and compares them against
+    `View()` byte-for-byte on every run, so the render and the design document
+    cannot drift. This is the mechanism plan §9.6 asked for, and it is what
+    caught findings 34 through 37.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.

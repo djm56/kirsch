@@ -120,6 +120,7 @@ const (
 type ApprovalCard struct {
 	Kind       ApprovalKind
 	Title      string
+	Subject    string // the collapsed form's summary, e.g. "2 files changed"
 	Detail     []string
 	GrantScope string // argv prefix; must be empty for ApprovalPatch
 	Outcome    ApprovalOutcome

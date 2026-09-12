@@ -17,86 +17,81 @@ import (
 //
 // Nothing here reaches a filesystem, a shell or a model. It is data.
 
-// fakeDriver scripts the streaming simulation.
+// fakeDriver scripts one turn: tool calls land, text streams, an approval
+// arrives. It exists so the running prototype reaches every state the screens
+// document through interaction, rather than by pre-baking a transcript nobody
+// can get back to.
 type fakeDriver struct {
+	step      int
 	target    ItemID
+	toolCard  ItemID
 	remaining []string
 }
 
-// loadFixture builds the transcript described in ui-spec §8: two user messages,
-// streaming assistant text, three tool cards (one truncated, one errored), two
-// approval cards (apply_patch without [a], run_command with it), one error card
-// and one system notice.
+// loadFixture builds the transcript described in ui-spec §8: two user
+// messages, streaming assistant text, three tool cards (one truncated, one
+// errored), two approval cards (apply_patch without [a], run_command with it),
+// one error card and one system notice.
 func (m *Model) loadFixture() {
 	m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{
 		Lines: []string{"Fix the Divide validation"},
 	}})
-
 	m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
 		Name: "read_file", Target: "calc/divide.go",
 		State: StateOK, Elapsed: 4 * time.Millisecond,
 		Out: SanitizeLines(fakeDivideSource),
 	}})
-
 	m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
 		Name: "search_code", Target: `"Divide("`, Summary: "3 matches",
-		State: StateOK, // no duration: screen 03 shows summary in that slot
+		State: StateOK, // no duration: screen 03 shows the summary in that slot
 		Out:   SanitizeLines("calc/divide.go:12\ncalc/divide_test.go:8\ncalc/divide_test.go:31"),
 	}})
-
-	// A deliberately filthy result, so the §7.1 sanitisation path is exercised
-	// by the running prototype and not only by its tests: ANSI colour, a \r
-	// progress bar, tabs, a NUL byte and a 5,000-column line.
-	dirty := "\x1b[32mPASS\x1b[0m\n" +
-		"10%\r50%\r100% done\n" +
-		"\tindented by a tab\n" +
-		"nul\x00byte\n" +
-		strings.Repeat("m", 5000)
 	m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
 		Name: "run_command", Target: "go test ./...", Summary: "exit 1",
 		State: StateError, Elapsed: 2400 * time.Millisecond,
 		Trunc: "truncated — 200KB cap",
-		Out:   append(SanitizeLines(dirty), SanitizeLines(fakeTestOutput)...),
+		Out:   SanitizeLines(fakeDirtyOutput + "\n" + fakeTestOutput),
 	}})
-
 	m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{
 		Lines: []string{
 			"I found it in calc/divide.go — the zero check runs after the division, " +
 				"so the panic fires before validation can return an error.",
 		},
 	}})
+	m.queuePatchApproval()
+	m.tr.Append(Item{Kind: KindNotice, Notice: &NoticeCard{
+		Text: "session recovered — 3 events after a torn line were discarded",
+	}})
+	m.status.Tokens = 14100
+}
 
-	// apply_patch: never offers [a]. ADR 0006.
-	patch := m.tr.Append(Item{Kind: KindApproval, Approval: &ApprovalCard{
-		Kind:  ApprovalPatch,
-		Title: "apply_patch — add input validation",
+// queuePatchApproval appends the apply_patch variant, which never offers [a].
+// ADR 0006.
+func (m *Model) queuePatchApproval() {
+	id := m.tr.Append(Item{Kind: KindApproval, Approval: &ApprovalCard{
+		Kind:    ApprovalPatch,
+		Title:   "apply_patch — add input validation",
+		Subject: "2 files changed",
 		Detail: []string{
 			"files: 2 changed (calc/divide.go,",
 			"       calc/divide_test.go)",
 		},
 		Diff: fakeDiff(), Added: 12, Removed: 4,
 	}})
-	m.pendingApproval = patch
-	m.sel = patch
-
-	m.tr.Append(Item{Kind: KindNotice, Notice: &NoticeCard{
-		Text: "session recovered — 3 events after a torn line were discarded",
-	}})
-
-	m.status.Tokens = 14100
+	m.pendingApproval = id
+	m.sel = id
 }
 
-// queueCommandApproval appends the run_command approval variant — the one that
-// does offer [a]. Reached by sending a message in the prototype.
+// queueCommandApproval appends the run_command variant — the one that does
+// offer [a].
 func (m *Model) queueCommandApproval() {
 	id := m.tr.Append(Item{Kind: KindApproval, Approval: &ApprovalCard{
-		Kind:  ApprovalCommand,
-		Title: "run_command — verify the fix",
+		Kind:    ApprovalCommand,
+		Title:   "run_command — go test ./...",
+		Subject: "go test ./...",
 		Detail: []string{
-			"command: go test ./...",
-			"cwd:     /Users/you/my-project",
-			"timeout: 120s",
-			"reason:  not on the allowlist",
+			"cwd: .        timeout: 60s",
+			"reason: not on allowlist",
 		},
 		GrantScope: "go test",
 	}})
@@ -104,55 +99,91 @@ func (m *Model) queueCommandApproval() {
 	m.sel = id
 }
 
-// begin starts a scripted streaming reply.
+// begin starts the scripted turn.
 func (f *fakeDriver) begin(m *Model) {
-	id := m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{
-		Lines: []string{""}, Streaming: true,
-	}})
-	f.target = id
-	f.remaining = strings.Fields(
-		"Looking at the call site now — the validation needs to run before the " +
-			"division, and the test should cover the zero case explicitly.")
+	*f = fakeDriver{}
+	m.busy = Busy{Active: true, Verb: "thinking"}
 }
 
-// advanceFake appends one word per tick, exercising the same render path real
-// deltas will use in Milestone 3.
+// advanceFake walks one step of the scripted turn per tick, exercising the same
+// render path real events will drive from Milestone 3.
 func (m Model) advanceFake() (tea.Model, tea.Cmd) {
-	if len(m.fake.remaining) == 0 {
-		if m.fake.target != 0 {
-			if it, _, ok := m.tr.Find(m.fake.target); ok {
-				it.Text.Streaming = false
+	switch m.fake.step {
+	case 0: // a read lands
+		m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
+			Name: "read_file", Target: "calc/divide.go",
+			State: StateOK, Elapsed: 4 * time.Millisecond,
+			Out: SanitizeLines(fakeDivideSource),
+		}})
+		m.status.Tokens += 3200
+
+	case 1: // a command starts running
+		m.fake.toolCard = m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
+			Name: "run_command", Target: "go test ./...", State: StateRunning,
+		}})
+		m.busy.Verb = "running go test"
+
+	case 2: // and finishes, failing, with output long enough to hit the cap
+		m.tr.MutateTool(m.fake.toolCard, func(c *ToolCard) {
+			c.State = StateError
+			c.Summary = "exit 1"
+			c.Elapsed = 2400 * time.Millisecond
+			c.Trunc = "truncated — 200KB cap"
+			c.Out = SanitizeLines(fakeDirtyOutput + "\n" + fakeTestOutput)
+		})
+		m.busy.Verb = "thinking"
+		m.status.Tokens += 6100
+
+	case 3: // the assistant starts replying
+		m.fake.target = m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{
+			Lines: []string{""}, Streaming: true,
+		}})
+		m.fake.remaining = strings.Fields(
+			"I found it in calc/divide.go — the zero check runs after the division, " +
+				"so the panic fires before validation can return an error.")
+
+	case 4: // ...one word at a time
+		if len(m.fake.remaining) > 0 {
+			word := m.fake.remaining[0]
+			m.fake.remaining = m.fake.remaining[1:]
+			sep := " "
+			if it, _, ok := m.tr.Find(m.fake.target); ok && len(it.Text.Lines) > 0 && it.Text.Lines[0] == "" {
+				sep = ""
 			}
-			m.fake.target = 0
-			m.busy = Busy{}
-			m.status.Tokens += 1200
-			// Show the other approval variant once the reply lands, so both
-			// cards are reachable from the running prototype.
-			if m.pendingApproval == 0 {
-				m.queueCommandApproval()
-			}
+			m.tr.AppendText(m.fake.target, sep+word)
 			m.relayout(m.layout())
+			return m, tickStream() // stay on this step until the text runs out
 		}
+		if it, _, ok := m.tr.Find(m.fake.target); ok {
+			it.Text.Streaming = false
+		}
+		m.busy.Verb = "applying patch"
+		m.status.Tokens += 1800
+
+	case 5: // an approval blocks the turn
+		m.queuePatchApproval()
+		m.busy = Busy{}
+		m.relayout(m.layout())
+		return m, nil
+
+	default:
+		m.busy = Busy{}
 		return m, nil
 	}
-	word := m.fake.remaining[0]
-	m.fake.remaining = m.fake.remaining[1:]
-	sep := " "
-	if it, _, ok := m.tr.Find(m.fake.target); ok && len(it.Text.Lines) > 0 && it.Text.Lines[0] == "" {
-		sep = ""
-	}
-	m.tr.AppendText(m.fake.target, sep+word)
-	switch len(m.fake.remaining) % 3 {
-	case 0:
-		m.busy.Verb = "thinking"
-	case 1:
-		m.busy.Verb = "running go test"
-	default:
-		m.busy.Verb = "applying patch"
-	}
+
+	m.fake.step++
 	m.relayout(m.layout())
 	return m, tickStream()
 }
+
+// fakeDirtyOutput exercises the §7.1 sanitisation path from the running
+// prototype and not only from its tests: ANSI colour, a \r progress bar, tabs,
+// a NUL byte and a 5,000-column line.
+var fakeDirtyOutput = "\x1b[32mPASS\x1b[0m\n" +
+	"10%\r50%\r100% done\n" +
+	"\tindented by a tab\n" +
+	"nul\x00byte\n" +
+	strings.Repeat("m", 5000)
 
 func fakeDiff() []string {
 	return []string{

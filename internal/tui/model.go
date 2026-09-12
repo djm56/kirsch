@@ -149,7 +149,16 @@ func New(o Options) Model {
 		comp:     newComposer(),
 		now:      o.Now,
 	}
+	return m
+}
+
+// NewWithFixture is New plus the ui-spec §8 fake transcript preloaded. Used by
+// the golden tests and by `--demo`; the plain constructor starts empty so the
+// first thing anyone sees is the onboarding screen (§7.5, screen 01).
+func NewWithFixture(o Options) Model {
+	m := New(o)
 	m.loadFixture()
+	m.relayout(m.layout())
 	return m
 }
 
@@ -216,9 +225,12 @@ func (m *Model) relayout(lay Layout) {
 		m.lines, m.plainLines, m.rows = nil, nil, nil
 		return
 	}
-	w := lay.W - gutterWidth(m.gly)
-	if w < 8 {
-		w = 8
+	// Content width is per item: the gutter's two columns are only reserved
+	// for items that actually draw one. Reserving them everywhere shortens
+	// every speaker rule and separator by two cells.
+	fullW := lay.W
+	if fullW < 8 {
+		fullW = 8
 	}
 	sty := m.sty
 	if m.modal != nil || m.confirm != nil {
@@ -238,15 +250,23 @@ func (m *Model) relayout(lay Layout) {
 	lines = append(lines, "")
 	plain = append(plain, "")
 
+	// Inter-item spacing: a blank line between items, except between adjacent
+	// one-line cards of the same kind, which group visually. This is the rule
+	// every grid follows — screen 02's two tool cards sit together, screen 08's
+	// two notices sit together, but a collapsed card followed by a boxed one is
+	// always separated (screens 03, 04).
 	items := m.tr.Items()
+	prevKind := ItemKind(0)
+	prevLines := 0
 	for i, it := range items {
-		if i > 0 && items[i-1].Kind != it.Kind {
-			lines = append(lines, "")
-			plain = append(plain, "")
+		gutter := it.ID == m.sel || it.ID == m.pendingApproval
+		w := fullW
+		if gutter {
+			w = fullW - gutterWidth(m.gly)
 		}
 		ctx := renderCtx{
 			W:        w,
-			Gutter:   it.ID == m.sel || it.ID == m.pendingApproval,
+			Gutter:   gutter,
 			Expanded: m.expanded[it.ID],
 			Selected: it.ID == m.sel,
 			G:        m.gly,
@@ -258,9 +278,14 @@ func (m *Model) relayout(lay Layout) {
 		ctx.Sty = plainSty
 		plainBody := renderItem(it, ctx)
 
+		if i > 0 && !(prevLines == 1 && len(body) == 1 && prevKind == it.Kind) {
+			lines = append(lines, "")
+			plain = append(plain, "")
+		}
 		rows = append(rows, itemRow{ID: it.ID, Start: len(lines), N: len(body)})
 		lines = append(lines, body...)
 		plain = append(plain, plainBody...)
+		prevKind, prevLines = it.Kind, len(body)
 	}
 	lines = append(lines, "")
 	plain = append(plain, "")
@@ -314,6 +339,11 @@ func (m Model) transcriptRows(lay Layout) []string {
 			out[0] = m.sty.Dim("terminal too narrow")
 		}
 		return out
+	}
+
+	// Onboarding, while nothing has been said yet. §7.5, screen 01.
+	if m.tr.Len() == 0 {
+		return m.emptyStateRows(lay)
 	}
 
 	out := make([]string, 0, h)

@@ -22,7 +22,7 @@ var bindingGroups = []BindingGroup{
 	{"composing", []Binding{
 		{"Enter", "send"},
 		{"Alt+Enter", "newline"},
-		{"Ctrl+J", "newline (fallback)"},
+		{"Ctrl+J", "newline (alt)"},
 		{"Tab", "complete /cmd"},
 		{"↑ at line 1", "browse"},
 		{"Esc", "cancel turn"},
@@ -44,7 +44,7 @@ var bindingGroups = []BindingGroup{
 	}},
 	{"modal", []Binding{
 		{"j/k ↑/↓", "scroll"},
-		{"g/G", "top / bottom"},
+		{"g/G", "top/bottom"},
 		{"Esc", "close"},
 	}},
 }

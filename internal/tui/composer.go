@@ -11,9 +11,11 @@ const Placeholder = "Ask anything (Enter to send, /help for help)"
 
 // Composer wraps the textarea with Kirsch's own prompt and hint rows.
 type Composer struct {
-	ta       textarea.Model
-	Disabled bool   // mirrors Busy; the only thing Busy does here
-	Hint     string // dim inline hint for an unknown /command, §6
+	ta         textarea.Model
+	Disabled   bool   // mirrors Busy; the only thing Busy does here
+	Focused    bool   // the composer holds input capture
+	Onboarding bool   // nothing has been said yet: show the placeholder
+	Hint       string // dim inline hint for an unknown /command, §6
 }
 
 func newComposer() Composer {
@@ -57,6 +59,16 @@ func (c *Composer) contentLines() int {
 }
 
 // rows renders the composer to exactly lay.ComposerH lines.
+//
+// Three empty-composer states, which is what the screens show and what §2's
+// bare "placeholder when empty" does not distinguish:
+//
+//   - onboarding (nothing said yet): the placeholder      — screen 01
+//   - focused, with a transcript:    the cursor           — screens 07, 08, 10
+//   - not focused (an approval or modal holds capture): neither — screens 03-06
+//
+// A placeholder that persists behind a pending approval reads as an invitation
+// to type into a composer that is deliberately not accepting input.
 func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 	h := lay.ComposerH
 	out := make([]string, 0, h)
@@ -68,12 +80,20 @@ func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 
 	value := c.ta.Value()
 	var lines []string
-	if value == "" {
+	switch {
+	case value == "" && c.Onboarding:
 		lines = []string{sty.Dim(Placeholder)}
-	} else {
+	case value == "" && c.Focused:
+		lines = []string{sty.Dim(g.Caret)}
+	case value == "":
+		lines = []string{""}
+	default:
 		lines = strings.Split(value, "\n")
 		for i := range lines {
 			lines[i] = sty.Text(lines[i])
+		}
+		if c.Focused {
+			lines[len(lines)-1] += sty.Dim(g.Caret)
 		}
 	}
 

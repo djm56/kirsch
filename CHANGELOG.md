@@ -13,8 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   architecture rationale, the TUI spec, a screen-by-screen render reference,
   and ADRs 0001–0007.
 - **Milestone 0 — repo bootstrap and static TUI prototype.** Go module, CI, and
-  `internal/tui` rendering header, transcript, tool and approval cards, status
-  bar and composer against fake data. No LLM, filesystem or subprocess code.
+  `internal/tui` rendering header, transcript, tool and approval cards, modals,
+  status bar and composer against fake data. The full mode state machine, card
+  selection and expansion with the 200-line cap, approval flow, scroll/pin
+  behaviour, text sanitisation, and both the no-colour and ASCII fallbacks. No
+  LLM, filesystem or subprocess code exists in the binary.
+- **The screen reference is executable.** All thirteen character grids in
+  `plan/kirsch-ui-screens.md` are parsed out of the markdown and compared
+  against `View()` byte-for-byte on every test run, so a rendering change and a
+  stale design document cannot drift apart.
 
 ### Changed
 

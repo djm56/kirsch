@@ -410,7 +410,10 @@ func (m Model) View() string {
 	if lay.ShowRules {
 		rows = append(rows, m.ruleRow(lay))
 	}
-	rows = append(rows, m.comp.rows(lay, m.sty, m.gly, m.busy.Active)...)
+	comp := m.comp
+	comp.Focused = m.mode() == ModeComposing && !m.busy.Active
+	comp.Onboarding = m.tr.Len() == 0
+	rows = append(rows, comp.rows(lay, m.sty, m.gly, m.busy.Active)...)
 
 	// Modals overwrite the transcript region only; the status bar and composer
 	// stay visible. Layout invariant 3.

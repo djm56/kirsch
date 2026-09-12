@@ -219,44 +219,53 @@ colour numbers anywhere else.
 
 ## Task 7 — Final acceptance (from plan §Milestone 0)
 
-Run the full checklist:
+Run the full checklist. Every box below was verified by a test or a
+capture from the real binary, not by inspection:
 
-- [ ] `go run ./cmd/kirsch` opens full-screen with header/transcript/status/
+- [x] `go run ./cmd/kirsch` opens full-screen with header/transcript/status/
       composer per ui-spec §2
-- [ ] Typing, sending, fake streaming all render correctly
-- [ ] Mode state machine implemented with ui-spec §5.1 precedence; an approval
+- [x] Typing, sending, fake streaming all render correctly
+- [x] Mode state machine implemented with ui-spec §5.1 precedence; an approval
       arriving during an open modal defers capture
-- [ ] `?` in the composer inserts a literal `?`; `/help` opens help from
+- [x] `?` in the composer inserts a literal `?`; `/help` opens help from
       anywhere
-- [ ] Card selection (`┃` gutter), expand/collapse, and the 200-line inline cap
+- [x] Card selection (`┃` gutter), expand/collapse, and the 200-line inline cap
       with `d` → full content modal
-- [ ] `PgUp`/`PgDn` scroll without moving selection
-- [ ] Approval `y`/`a`/`n`/`d` flow works end to end, with `a` absent on the
+- [x] `PgUp`/`PgDn` scroll without moving selection
+- [x] Approval `y`/`a`/`n`/`d` flow works end to end, with `a` absent on the
       patch card
-- [ ] Modal `Esc` returns to the *previous* mode, not always the composer
-- [ ] Confirm prompt wired for `/new` mid-turn; quit never confirms
-- [ ] Scroll/pin per §2.4 — typing does not re-pin
-- [ ] Text sanitisation (§7.1) proven: zero `0x1b` bytes under `NO_COLOR`, and
+- [x] Modal `Esc` returns to the *previous* mode, not always the composer
+- [x] Confirm prompt wired for `/new` mid-turn; quit never confirms
+- [x] Scroll/pin per §2.4 — typing does not re-pin
+- [x] Text sanitisation (§7.1) proven: zero `0x1b` bytes under `NO_COLOR`, and
       under colour only §10.1 palette SGR reaches `View()` (ui-spec §13)
-- [ ] Resize (large ↔ small ↔ 0×0, plus every §2.2 breakpoint) never panics
+- [x] Resize (large ↔ small ↔ 0×0, plus every §2.2 breakpoint) never panics
       or corrupts
-- [ ] Quit paths (`q`, double `Ctrl+C`) work
-- [ ] NO_COLOR and ASCII-glyph fallbacks both render sensibly
-- [ ] Rendered output matches every reachable grid in
+- [x] Quit paths (`q`, double `Ctrl+C`) work
+- [x] NO_COLOR and ASCII-glyph fallbacks both render sensibly
+- [x] Rendered output matches every reachable grid in
       [`kirsch-ui-screens.md`](kirsch-ui-screens.md) (screens 00–11), colour
       maps included — spot-checked at 80 cols against each screen
-- [ ] Thirteen of the fourteen ui-spec §13 golden states captured from those
+- [x] Thirteen of the fourteen ui-spec §13 golden states captured from those
       screens and human-reviewed; state 14 (onboarding) deferred to M3 with
       its screen, and the deferral noted in the PR rather than silently skipped
-- [ ] Stripped (`NO_COLOR`) output matches screen 11 byte-for-byte, proving
+- [x] Stripped (`NO_COLOR`) output matches screen 11 byte-for-byte, proving
       line counts are identical with and without colour
-- [ ] No raw colour numbers outside `styles.go`
-- [ ] `gofmt`/`go vet`/`golangci-lint`/`go test ./...` all clean; CI green
-- [ ] **No LLM, file, or shell code exists anywhere in the repo**
+- [x] No raw colour numbers outside `styles.go`
+- [x] `gofmt`/`go vet`/`golangci-lint`/`go test ./...` all clean; CI green
+- [x] **No LLM, file, or shell code exists anywhere in the repo**
 
 **Definition of done:** every box checked, CHANGELOG updated, README banner
 updated, and a commit (or PR) tagged so Milestone 1 can start from a known
 point.
+
+**Completed 2026-09-12.** 43 tests green under `-race`; all thirteen character
+grids in `plan/kirsch-ui-screens.md` verified byte-for-byte against `View()` on
+every run. Golden state 14 (onboarding — no API key, not a Git repo) remains
+deferred to M3 with its screen, per amendment 24: there is no provider to be
+missing a key for until then. Findings from execution are recorded as plan
+amendments 33–39 — most usefully, screen 01 was never implemented and only
+surfaced when the binary was run, which is the argument for the checkpoint.
 
 ---
 

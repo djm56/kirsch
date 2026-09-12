@@ -26,6 +26,9 @@ type renderCtx struct {
 // with colour; here there is a single place to audit.
 func renderItem(it Item, ctx renderCtx) []string {
 	var body []string
+	// Content is folded to ASCII at the render boundary, not in the stored
+	// item: the transcript holds what actually happened, and the terminal's
+	// capabilities are a property of the frame, not of the data.
 	switch it.Kind {
 	case KindUser:
 		body = renderUser(it.Text, ctx)
@@ -97,7 +100,7 @@ func renderUser(t *TextBlock, ctx renderCtx) []string {
 	}
 	out := []string{head}
 	for _, ln := range t.Lines {
-		for _, w := range wrap(ln, ctx.W) {
+		for _, w := range wrap(ctx.G.Fold(ln), ctx.W) {
 			out = append(out, ctx.Sty.Text(w))
 		}
 	}
@@ -107,7 +110,7 @@ func renderUser(t *TextBlock, ctx renderCtx) []string {
 func renderAssistant(t *TextBlock, ctx renderCtx) []string {
 	var out []string
 	for i, ln := range t.Lines {
-		wrapped := wrap(ln, ctx.W)
+		wrapped := wrap(ctx.G.Fold(ln), ctx.W)
 		for j, w := range wrapped {
 			last := i == len(t.Lines)-1 && j == len(wrapped)-1
 			s := ctx.Sty.Text(w)
@@ -224,7 +227,7 @@ func renderApproval(a *ApprovalCard, ctx renderCtx) []string {
 	if a.Outcome != Unresolved {
 		dot := " " + ctx.G.Bullet + " "
 		line := ctx.Sty.Accent(ctx.G.Collapsed) + " " + ctx.Sty.Bold(ctx.Sty.Text(toolNameFor(a)))
-		line += " " + ctx.Sty.Muted(a.subject())
+		line += " " + ctx.Sty.Muted(a.Subject)
 		if ctx.ShowDur && a.Elapsed > 0 {
 			line += ctx.Sty.Muted(dot + formatDuration(a.Elapsed))
 		}
@@ -240,10 +243,10 @@ func renderApproval(a *ApprovalCard, ctx renderCtx) []string {
 		return []string{line}
 	}
 
-	body := append([]string{a.Title, ""}, a.Detail...)
+	body := append([]string{ctx.G.Fold(a.Title), ""}, a.Detail...)
 	body = append(body, "", a.actionRow(ctx))
 	for i, ln := range body {
-		body[i] = " " + styleActionRow(ln, ctx)
+		body[i] = " " + styleActionRow(ctx.G.Fold(ln), ctx)
 	}
 	return box(0, "approval required", body, ctx.W, ctx.Sty.Warning, ctx)
 }
@@ -262,13 +265,6 @@ func (a *ApprovalCard) actionRow(ctx renderCtx) string {
 		parts = append(parts, "[d] detail")
 	}
 	return strings.Join(parts, "   ")
-}
-
-func (a *ApprovalCard) subject() string {
-	if len(a.Detail) > 0 {
-		return strings.TrimSpace(strings.SplitN(a.Detail[0], ":", 2)[len(strings.SplitN(a.Detail[0], ":", 2))-1])
-	}
-	return ""
 }
 
 func toolNameFor(a *ApprovalCard) string {
@@ -298,20 +294,20 @@ func renderError(e *ErrorCard, ctx renderCtx) []string {
 	if inner < 12 {
 		inner = 12
 	}
-	lines := wrap(e.Message, inner)
+	lines := wrap(ctx.G.Fold(e.Message), inner)
 	if e.Hint != "" {
-		lines = append(lines, "", e.Hint)
+		lines = append(lines, e.Hint)
 	}
 	body := make([]string, 0, len(lines))
 	for _, ln := range lines {
-		body = append(body, " "+ctx.Sty.Text(ln))
+		body = append(body, " "+ctx.Sty.Text(ctx.G.Fold(ln)))
 	}
 	return box(0, e.Kind, body, ctx.W, ctx.Sty.Error, ctx)
 }
 
 func renderNotice(n *NoticeCard, ctx renderCtx) []string {
 	var out []string
-	for _, w := range wrap(ctx.G.Bullet+" "+n.Text, ctx.W) {
+	for _, w := range wrap(ctx.G.Bullet+" "+ctx.G.Fold(n.Text), ctx.W) {
 		out = append(out, ctx.Sty.Dim(w))
 	}
 	return out

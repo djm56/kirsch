@@ -15,6 +15,14 @@ import (
 
 func render(t *testing.T, caps Caps, w, h int) string {
 	t.Helper()
+	m := NewWithFixture(Options{Version: "0.1.0", Caps: caps})
+	mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+	return mm.(Model).View()
+}
+
+// renderEmpty is the onboarding state — golden state 1, screen 01.
+func renderEmpty(t *testing.T, caps Caps, w, h int) string {
+	t.Helper()
 	m := New(Options{Version: "0.1.0", Caps: caps})
 	mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	return mm.(Model).View()
@@ -115,7 +123,7 @@ func TestApplyPatchNeverOffersSessionGrant(t *testing.T) {
 // subtlety that an approval arriving during an open modal must not take capture
 // until the modal closes.
 func TestModeDerivationPrecedence(t *testing.T) {
-	m := New(Options{Caps: Caps{Unicode: true}})
+	m := NewWithFixture(Options{Caps: Caps{Unicode: true}})
 	m.pendingApproval = 0
 	if got := m.mode(); got != ModeComposing {
 		t.Errorf("mode = %v, want Composing", got)
@@ -228,7 +236,7 @@ func newDriven(t *testing.T) Model { return newDrivenSize(t, 80, 24) }
 
 func newDrivenSize(t *testing.T, w, h int) Model {
 	t.Helper()
-	m := New(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
+	m := NewWithFixture(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
 	return drive(m, tea.WindowSizeMsg{Width: w, Height: h})
 }
 

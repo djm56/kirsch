@@ -37,7 +37,7 @@ Update this table as milestones complete. It is the single place to look for
 
 | # | Milestone | Status | Instruction set |
 |---|---|---|---|
-| 0 | Repo skeleton + static TUI prototype | ◐ In progress | [ready](milestone-0.md) |
+| 0 | Repo skeleton + static TUI prototype | ☑ Complete | [done](milestone-0.md) |
 | 1 | Workspace engine + read-only tools | ☐ Not started | [ready](milestone-1.md) |
 | 2 | Patches, commands, approvals | ☐ Not started | not written |
 | 3 | Provider + agent loop | ☐ Not started | not written |

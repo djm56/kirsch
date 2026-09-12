@@ -239,6 +239,25 @@ func (g Glyphs) okLabel() string {
 	return g.OK + " ok"
 }
 
+// asciiFold downgrades typographic characters that a non-UTF-8 terminal cannot
+// display. The §10.2 table covers Kirsch's own glyphs; this covers characters
+// that arrive inside content — an em dash in a card title, smart quotes in a
+// commit message — which would otherwise render as mojibake on exactly the
+// terminals the fallback exists to serve.
+var asciiFold = strings.NewReplacer(
+	"—", "-", "–", "-", "‘", "'", "’", "'", "“", `"`, "”", `"`,
+	"…", "...", "·", ".", "‹", "<", "›", ">", "−", "-",
+)
+
+// Fold returns s with non-ASCII typography downgraded when the terminal cannot
+// render it, and unchanged otherwise.
+func (g Glyphs) Fold(s string) string {
+	if g.BoxH != "-" { // unicode table in use
+		return s
+	}
+	return asciiFold.Replace(s)
+}
+
 func init() {
 	// East Asian ambiguous-width characters must measure as 1, matching what
 	// the reference grids assume. Set once, package-wide.

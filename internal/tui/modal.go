@@ -56,9 +56,17 @@ func (m Model) modalBox(lay Layout) (box []string, top, left int) {
 	if w < 20 {
 		w = 20
 	}
-	h := lay.TranscriptH
-	if h < 3 {
-		h = 3
+	md := m.modal
+
+	// Height fits the content, capped by the region: chrome is the top border,
+	// the footer rule, the footer and the bottom border.
+	const chrome = 4
+	h := len(md.Lines) + chrome
+	if h > lay.TranscriptH {
+		h = lay.TranscriptH
+	}
+	if h < 5 {
+		h = 5
 	}
 	left = (lay.W - w) / 2
 	top = 0
@@ -66,7 +74,6 @@ func (m Model) modalBox(lay Layout) (box []string, top, left int) {
 		top = 1
 	}
 
-	md := m.modal
 	inner := w - 4
 
 	title := " " + truncEnd(md.Title, inner-10, "…") + " "
@@ -127,7 +134,10 @@ func (m Model) modalBox(lay Layout) (box []string, top, left int) {
 // Diff colour comes from the leading character, never from escapes in the
 // content — Kirsch colours diffs itself. ui-spec §4.1, §7.1.
 func (m Model) modalLine(md *ModalState, raw string, idx, inner int) string {
-	if md.Kind != ModalDiff {
+	switch md.Kind {
+	case ModalHelp:
+		return m.styleHelpLine(raw, inner)
+	case ModalContent:
 		num := m.sty.Dim(fmt.Sprintf("%4d ", idx+1))
 		return num + m.sty.Text(truncEnd(raw, inner-5, m.gly.Trunc))
 	}
@@ -172,27 +182,85 @@ func (m Model) overlayConfirm(rows []string, lay Layout) []string {
 	return overlay(rows, box, top, left, lay.W)
 }
 
-// helpLines builds the help overlay body from the binding table, so the two
-// cannot drift apart. ui-spec §4.2.
+// helpLines builds the help overlay body as two columns, matching screen 06.
+//
+// Both columns are generated from the same binding table update.go dispatches
+// on, so a binding that changes behaviour cannot quietly keep its old
+// description here.
 func helpLines() []string {
-	var out []string
-	for _, group := range bindingGroups {
-		out = append(out, group.Mode)
-		for _, b := range group.Bindings {
-			out = append(out, fmt.Sprintf("  %-13s %s", b.Key, b.Desc))
-		}
-		out = append(out, "")
-	}
-	out = append(out, "commands")
+	left := helpColumn(13, "composing", "browsing")
+	right := helpColumn(9, "approval", "modal")
+	right = append(right, "", "commands")
 	var cmds []string
 	for _, c := range SlashCommands {
 		cmds = append(cmds, "/"+c)
 	}
-	for i := 0; i < len(cmds); i += 3 {
-		end := minInt(i+3, len(cmds))
-		out = append(out, "  "+strings.Join(cmds[i:end], "   "))
+	for i := 0; i < len(cmds); i += 2 {
+		right = append(right, strings.Join(cmds[i:minInt(i+2, len(cmds))], "  "))
+	}
+
+	n := maxInt(len(left), len(right))
+	out := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		var l, r string
+		if i < len(left) {
+			l = left[i]
+		}
+		if i < len(right) {
+			r = right[i]
+		}
+		if r == "" {
+			out = append(out, strings.TrimRight(l, " "))
+			continue
+		}
+		out = append(out, pad(l, helpColWidth)+r)
 	}
 	return out
+}
+
+// helpColWidth is where the right-hand column starts.
+const helpColWidth = 37
+
+// helpColumn renders the named binding groups as "key  description" rows, with
+// the key field padded to keyW. The right-hand column uses a narrower key field
+// because its keys are single characters — a shared width would push its
+// descriptions past the modal's edge at the §2.2 80% width.
+func helpColumn(keyW int, groups ...string) []string {
+	var out []string
+	for gi, name := range groups {
+		if gi > 0 {
+			out = append(out, "")
+		}
+		for _, g := range bindingGroups {
+			if g.Mode != name {
+				continue
+			}
+			out = append(out, g.Mode)
+			for _, b := range g.Bindings {
+				out = append(out, fmt.Sprintf("%-*s %s", keyW, b.Key, b.Desc))
+			}
+		}
+	}
+	return out
+}
+
+// styleHelpLine colours a help row: section headings warning, bindings muted.
+func (m Model) styleHelpLine(raw string, inner int) string {
+	body := truncEnd(raw, inner, m.gly.Trunc)
+	trimmed := strings.TrimSpace(body)
+	if trimmed == "" {
+		return body
+	}
+	// A heading is a bare group name with no key column beside it.
+	for _, g := range bindingGroups {
+		if trimmed == g.Mode || strings.HasPrefix(body, g.Mode) && !strings.Contains(body, "  ") {
+			return m.sty.Warning(body)
+		}
+	}
+	if trimmed == "commands" {
+		return m.sty.Warning(body)
+	}
+	return m.sty.Muted(body)
 }
 
 func maxInt(a, b int) int {

@@ -8,9 +8,13 @@
 > ([`kirsch-plan.md`](kirsch-plan.md) §11, amendment 24).
 
 Every screen below is a literal character grid at **80 columns** (narrow variants noted
-per screen). Use these as render targets and as fixtures for the ui-spec §13 golden
-tests: the byte-for-byte structure is the contract, colour is applied on top per the
-tables at the end.
+per screen). These are not illustrations: `TestMatchesScreenReference` parses every grid
+out of this file and compares it against `View()`, so each one is verified byte-for-byte
+on every test run. The structure is the contract; colour is applied on top per the tables
+at the end.
+
+When that test fails, exactly one of two things is true — the renderer is wrong, or this
+document is. Fix whichever it is, and if it is this document, in the same commit.
 
 Screens 00–11 cover thirteen of the fourteen §13 golden states — the §13 table maps each
 state to its screen. The fourteenth (onboarding: no API key, not a Git repo) is not drawn
@@ -136,7 +140,11 @@ separators          both full-width "─" rules                border    238  #4
 ```
 
 - Onboarding, not an error: no border, no red. §7.5.
-- Composer placeholder is the literal string from §2.
+- Composer placeholder is the literal string from §2. It appears **only here**: an empty
+  composer shows the placeholder while the session is empty, the cursor `▌` once there is a
+  transcript and the composer has focus, and nothing at all while an approval or modal holds
+  capture (screens 03–06). A placeholder standing behind a pending approval reads as an
+  invitation to type into a composer that is deliberately refusing input.
 - Suggestions are `dim` (240) with `·` bullets; the lead-in line is `muted` (244).
 
 ---
@@ -152,8 +160,8 @@ Fix the Divide validation
 ▸ read_file calc/divide.go · 4ms · ✓ ok
 ◐ run_command go test ./... · running
 
-I found it in calc/divide.go — the zero check runs after the division,
-so the panic fires before validation can return an error. ▌
+I found it in calc/divide.go — the zero check runs after the division, so the
+panic fires before validation can return an error. ▌
 
 ────────────────────────────────────────────────────────────────────────────────
 claude-sonnet-5 · ⠋ running go test · 12.4k tok
@@ -253,7 +261,7 @@ Kirsch ─ my-project ─ main ● ───────────────
 ┃ │ cwd: .        timeout: 60s                                                 │
 ┃ │ reason: not on allowlist                                                   │
 ┃ │                                                                            │
-┃ │ [y] approve  [a] approve for session  [n] reject  [d] detail               │
+┃ │ [y] approve   [a] approve for session   [n] reject   [d] detail            │
 ┃ └────────────────────────────────────────────────────────────────────────────┘
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -287,20 +295,20 @@ status.grants       "1 grant"                                muted     244  #808
 
 ```text 80×20
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
-
-── you ─────────────────────────────────────────────────────────────────────────
-Fix t┌─ calc/divide.go ─────────────────────────────────────────── +12 −4 ┐
-     │ @@ -12,7 +12,15 @@ func Divide(a, b float64)                       │
-▸ sea│  func Divide(a, b float64) (float64, error) {                      │
-     │ -    return a / b, nil                                             │
-┃ ┌─ │ +    if b == 0 {                                                   │─── ┐
-┃ │ a│ +        return 0, ErrDivideByZero                                 │    │
-┃ │  │ +    }                                                             │    │
-┃ │ f│ +    return a / b, nil                                             │    │
-┃ │  │  }                                                                 │    │
-┃ │  ├────────────────────────────────────────────────────────────────────┤    │
-┃ │ [│ j/k scroll · g/G top/bottom · Esc back to approval                 │    │
-┃ └──└────────────────────────────────────────────────────────────────────┘────┘
+        ┌─ calc/divide.go ───────────────────────────────────── +12 −4 ┐
+── you ─│ @@ -12,7 +12,15 @@ func Divide(a, b float64) (float64, erro⋯ │────────
+Fix the │  func Divide(a, b float64) (float64, error) {                │
+        │ -    return a / b, nil                                       │
+▸ search│ +    if b == 0 {                                             │
+        │ +        return 0, ErrDivideByZero                           │
+┃ ┌─ app│ +    }                                                       │───────┐
+┃ │ appl│ +    return a / b, nil                                       │       │
+┃ │     │  }                                                           │       │
+┃ │ file├──────────────────────────────────────────────────────────────┤       │
+┃ │     │ j/k scroll · g/G top/bottom · Esc back to approval           │       │
+┃ │     └──────────────────────────────────────────────────────────────┘       │
+┃ │ [y] approve   [n] reject   [d] view diff                                   │
+┃ └────────────────────────────────────────────────────────────────────────────┘
 
 ────────────────────────────────────────────────────────────────────────────────
 claude-sonnet-5 · ⠸ awaiting approval · 14.1k tok
@@ -338,26 +346,26 @@ status+composer     unchanged, still live                    muted     244  #808
 
 ```text 80×25
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
-
- ┌─ help ──────────────────────────────────────────────────────────────────────┐
- │ composing                           approval                                │
- │ Enter        send                   y  approve     n  reject                │
- │ Alt+Enter    newline                a  + session   d  detail                │
- │ Tab          complete /cmd                                                  │
- │ ↑ at line 1  browse                 modal                                   │
- │ Esc          cancel turn            j/k ↑/↓  scroll                         │
- │ q            quit (idle)            g/G      top / bottom                   │
- │                                     Esc      close                          │
- │ browsing                                                                    │
- │ ↑/↓          select card            commands                                │
- │ PgUp/PgDn    scroll                 /help   /status   /diff                 │
- │ Enter        expand                 /files  /approvals                      │
- │ d            diff / content         /new    /compact  /quit                 │
- │ End          bottom, re-pin                                                 │
- ├─────────────────────────────────────────────────────────────────────────────┤
- │ kirsch v0.1.0 · docs: doc/usage.md · Esc or ? closes                        │
- └─────────────────────────────────────────────────────────────────────────────┘
-
+        ┌─ help ───────────────────────────────────────────────────────┐
+▸ read_f│ composing                            approval                │
+        │ Enter         send                   y         approve       │
+        │ Alt+Enter     newline                a         + session     │
+        │ Ctrl+J        newline (alt)          n         reject        │
+        │ Tab           complete /cmd          d         detail        │
+        │ ↑ at line 1   browse                                         │
+        │ Esc           cancel turn            modal                   │
+        │ q             quit (idle)            j/k ↑/↓   scroll        │
+        │                                      g/G       top/bottom    │
+        │ browsing                             Esc       close         │
+        │ ↑/↓           select card                                    │
+        │ PgUp/PgDn     scroll                 commands                │
+        │ Enter         expand                 /help  /status          │
+        │ d             diff / content         /diff  /files           │
+        │ End           bottom, re-pin         /approvals  /new        │
+        │ ?             help                   /compact  /quit         │
+        ├──────────────────────────────────────────────────────────────┤
+        │ kirsch v0.1.0 · docs: doc/usage.md · Esc or ? closes         │
+        └──────────────────────────────────────────────────────────────┘
 ────────────────────────────────────────────────────────────────────────────────
 claude-sonnet-5 · idle · 12.4k tok
 ────────────────────────────────────────────────────────────────────────────────
@@ -379,6 +387,10 @@ BACKGROUND CELLS    header row behind the overlay            dim       240  #585
 - Opens from Browsing and ApprovalPending only. In the composer, `?` is a literal character. §4.2.
 - One screen, no scrolling: bindings by mode, then slash commands, then the version footer.
 - Mode headings are `warning` (179); bindings are `muted` (244).
+- Two columns, both generated from the same binding table `update.go` dispatches on, so a
+  binding cannot change behaviour while keeping its old description here. The right-hand
+  column uses a narrower key field than the left because its keys are single characters —
+  a shared field pushes its descriptions past the modal's edge at §2.2's 80% width.
 
 ---
 
@@ -386,17 +398,17 @@ BACKGROUND CELLS    header row behind the overlay            dim       240  #585
 
 ```text 80×17
 Kirsch ─ my-project ─ main ● ───────────────────────────────────────────────────
-
-┃ ▾ run_command go test ./... · 2.4s · ✗ exit 1
-┃   ┌──────────────────────────────────────────────────────────────────────┐
-┃   │ === RUN   TestDivide                                                 │
-┃   │     divide_test.go:31: Divide(1, 0) = +Inf, want ErrDivideByZero     │
-┃   │ --- FAIL: TestDivide (0.00s)                                         │
-┃   │ === RUN   TestDivide_Table                                           │
-┃   │ --- PASS: TestDivide_Table (0.00s)                                   │
-┃   │ FAIL    example.com/calc    0.004s                                   │
-┃   └──────────────────────────────────────────────────────────────────────┘
-┃   ‹200 of 4,181 lines — press d for full output›
+┃   │     case 186: ok                                                         │
+┃   │     case 187: ok                                                         │
+┃   │     case 188: ok                                                         │
+┃   │     case 189: ok                                                         │
+┃   │     case 190: ok                                                         │
+┃   │     case 191: ok                                                         │
+┃   │     case 192: ok                                                         │
+┃   │     case 193: ok                                                         │
+┃   │     case 194: ok                                                         │
+┃   └──────────────────────────────────────────────────────────────────────────┘
+┃   ‹200 of 4,176 lines — press d for full output›
 
 ────────────────────────────────────────────────────────────────────────────────
 claude-sonnet-5 · idle · 22.9k tok · 1 grant
@@ -424,6 +436,12 @@ NOTE                captured output is NOT syntax-coloured; ANSI is stripped (§
   to an error card. §3.6.
 - Output panel sits on `codeBg` (235) with indentation preserved.
 - Cap marker in `warning` (179). `d` opens the full output in a content modal.
+- **The grid shows the tail of the expansion, and that is not an omission.** A capped card
+  is 204 rows — head, border, 200 lines, border, marker — so at any usable terminal height
+  the head is above the fold. The earlier drawing showed a head, six output lines and the
+  `‹200 of …›` marker together, which no renderer can produce: six lines and a 200-line cap
+  are different claims. What you see here is what the state actually looks like, and the
+  marker — the thing this state exists to show — is in frame.
 
 ---
 
@@ -435,10 +453,10 @@ Kirsch ─ my-project ─ main ● (compacted) ───────────
 · session recovered — 3 events after a torn line were discarded
 · compacted 94 events into a summary · 12 files touched this session
 
-  ┌─ provider_error ───────────────────────────────────────────────────────────┐
-  │ anthropic: 503 after 3 retries — request not sent                          │
-  │ Enter to expand · the turn is still cancellable                            │
-  └────────────────────────────────────────────────────────────────────────────┘
+┌─ provider_error ─────────────────────────────────────────────────────────────┐
+│ anthropic: 503 after 3 retries — request not sent                            │
+│ Enter to expand · the turn is still cancellable                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 
 ────────────────────────────────────────────────────────────────────────────────
 claude-sonnet-5 · idle · 31.2k tok                           ⚠ recovered session
@@ -474,16 +492,16 @@ Kirsch ─ my-project ─ main ● ───────────────
 
 ┃ ▸ read_file internal/session/store.go:1-120 · 3ms · ✓ ok
 
-The lock is taken in Open, before auto-resume reads index.json, so a
-second instance starts a fresh session instead of adopting the first.
+The lock is taken in Open, before auto-resume reads index.json, so a second
+instance starts a fresh session instead of adopting the first.
 
-▸ git_diff 2 files changed · 8ms · ✓ ok
+▸ git_diff · 2 files changed · 8ms · ✓ ok
 
-                                                                        ↓ 3 new
+                                                                         ↓ 3 new
 ────────────────────────────────────────────────────────────────────────────────
 claude-sonnet-5 · ⠼ thinking · 28.0k tok
 ────────────────────────────────────────────────────────────────────────────────
-> also check the second-instance path▌
+> also check the second-instance path              (input disabled, Esc cancels)
 ```
 
 **Colours**
@@ -516,15 +534,15 @@ cursor              "▌"                                      dim       240  #5
 ```text 40×11
 Kirsch ─ my-project ────────────────────
 
-▸ read_file calc/divide.go · ✓
+▸ read_file calc/divide.go · ✓ ok
 
-Soft wrap only. No horizontal
-scrolling in v0.1. ▌
+Soft wrap only. No horizontal scrolling
+in v0.1. ▌
 
 ────────────────────────────────────────
-sonnet-5 · ⠋ thinking
+claude-sonnet-5 · ⠋ thinking
 ────────────────────────────────────────
-> ▌
+>          (input disabled, Esc cancels)
 ```
 
 **38 columns** — below the transcript threshold:
@@ -533,18 +551,18 @@ sonnet-5 · ⠋ thinking
 terminal too narrow
 
 ──────────────────────────────────────
-⠋                                    ⚠
+⠋                  ⚠ recovered session
 ──────────────────────────────────────
-> ▌
+>        (input disabled, Esc cancels)
 ```
 
 **6 rows** — below the header threshold:
 
 ```text 40×6
-no header at 6 rows;
-transcript keeps 2 lines
+lines
+
 ────────────────────────────────────────
-sonnet-5 · idle
+claude-sonnet-5 · idle
 ────────────────────────────────────────
 > ▌
 ```
