@@ -52,10 +52,10 @@ not mention falls through to these defaults:
 
 | Fallback | Token | 256 | Hex |
 |---|---|---|---|
-| Body text (user, assistant, tool output) | `text` | 252 | `#d0d0d0` |
-| Every separator and unfocused border | `border` | 238 | `#444444` |
-| Metadata between `·` delimiters (paths, timings, counts) | `muted` | 244 | `#808080` |
-| Placeholders, hints, backgrounded cells | `dim` | 240 | `#585858` |
+| Body text (user, assistant, tool output) | `text` | 253 | `#dadada` |
+| Every separator and unfocused border | `border` | 244 | `#808080` |
+| Metadata between `·` delimiters (paths, timings, counts) | `muted` | 248 | `#a8a8a8` |
+| Placeholders, hints, backgrounded cells | `dim` | 245 | `#8a8a8a` |
 
 Three rules hold on every screen:
 
@@ -88,9 +88,9 @@ v0.1.0 . terminal-native coding agent
 **Colours**
 
 ```text
-wordmark            "█▄▀ █ █▀█ █▀▀ █▀▀ █ █" (both rows)      accent    111  #87afff
-tagline             "v0.1.0 · terminal-native coding agent"  dim       240  #585858
-(ASCII fallback)    same assignment, both rows               accent    111  #87afff
+wordmark            "█▄▀ █ █▀█ █▀▀ █▀▀ █ █" (both rows)      accent    117  #87d7ff
+tagline             "v0.1.0 · terminal-native coding agent"  dim       245  #8a8a8a
+(ASCII fallback)    same assignment, both rows               accent    117  #87d7ff
 ```
 
 - Two rows of half-blocks in `accent` (111). No background fill, so it sits on any host theme.
@@ -126,17 +126,17 @@ claude-sonnet-5 · idle · 0 tok
 **Colours**
 
 ```text
-header.title        "Kirsch ─ my-project ─ main"             accent    111  #87afff
-header.dirty        "●"                                      warning   179  #dfaf5f
-header.rule         trailing "─" fill                        border    238  #444444
-wordmark            both block rows                          accent    111  #87afff
-tagline             "v0.1.0 · terminal-native coding agent"  dim       240  #585858
-lead_in             "Ask anything. Three things to try:"     muted     244  #808080
-suggestions         the three "· …" lines                    dim       240  #585858
-status.bar          "claude-sonnet-5 · idle · 0 tok"         muted     244  #808080
-composer.prompt     ">"                                      accent    111  #87afff
-composer.placeholder "Ask anything (Enter to send, …)"       dim       240  #585858
-separators          both full-width "─" rules                border    238  #444444
+header.title        "Kirsch ─ my-project ─ main"             accent    117  #87d7ff
+header.dirty        "●"                                      warning   215  #ffaf5f
+header.rule         trailing "─" fill                        border    244  #808080
+wordmark            both block rows                          accent    117  #87d7ff
+tagline             "v0.1.0 · terminal-native coding agent"  dim       245  #8a8a8a
+lead_in             "Ask anything. Three things to try:"     muted     248  #a8a8a8
+suggestions         the three "· …" lines                    dim       245  #8a8a8a
+status.bar          "claude-sonnet-5 · idle · 0 tok"         muted     248  #a8a8a8
+composer.prompt     ">"                                      accent    117  #87d7ff
+composer.placeholder "Ask anything (Enter to send, …)"       dim       245  #8a8a8a
+separators          both full-width "─" rules                border    244  #808080
 ```
 
 - Onboarding, not an error: no border, no red. §7.5.
@@ -173,21 +173,21 @@ claude-sonnet-5 · ⠋ running go test · 12.4k tok
 
 ```text
 header.*            as screen 01
-speaker.rule        "── you ───…"                            border    238  #444444
-speaker.label       "you"                                    muted     244  #808080
-user.text           "Fix the Divide validation"              text      252  #d0d0d0
-tool.glyph          "▸"                                      accent    111  #87afff
-tool.glyph.running  "◐"                                      accent    111  #87afff
-tool.name           "read_file" / "run_command"    text 252 #d0d0d0 + BOLD
-tool.args+timing    " calc/divide.go · 4ms · "               muted     244  #808080
-tool.status.ok      "✓ ok"                                   success   114  #87d787
-tool.status.running "running"                                muted     244  #808080
-assistant.text      the two wrapped lines                    text      252  #d0d0d0
-cursor              "▌"                                      dim       240  #585858
-status.model        "claude-sonnet-5 · "                     muted     244  #808080
-status.spinner      "⠋"                                      accent    111  #87afff
-status.verb+tokens  "running go test · 12.4k tok"            muted     244  #808080
-composer.prompt     ">" (disabled state)                     dim       240  #585858
+speaker.rule        "── you ───…"                            border    244  #808080
+speaker.label       "you"                                    muted     248  #a8a8a8
+user.text           "Fix the Divide validation"              text      253  #dadada
+tool.glyph          "▸"                                      accent    117  #87d7ff
+tool.glyph.running  "◐"                                      accent    117  #87d7ff
+tool.name           "read_file" / "run_command"    text 253 #dadada + BOLD
+tool.args+timing    " calc/divide.go · 4ms · "               muted     248  #a8a8a8
+tool.status.ok      "✓ ok"                                   success   120  #87ff87
+tool.status.running "running"                                muted     248  #a8a8a8
+assistant.text      the two wrapped lines                    text      253  #dadada
+cursor              "▌"                                      dim       245  #8a8a8a
+status.model        "claude-sonnet-5 · "                     muted     248  #a8a8a8
+status.spinner      "⠋"                                      accent    117  #87d7ff
+status.verb+tokens  "running go test · 12.4k tok"            muted     248  #a8a8a8
+composer.prompt     ">" (disabled state)                     dim       245  #8a8a8a
 ```
 
 - The spinner appears twice by design: `◐` on the running tool card, and the verb in the
@@ -223,22 +223,22 @@ claude-sonnet-5 · ⠙ awaiting approval · 14.1k tok
 
 ```text
 header.*            as screen 01
-tool.glyph          "▸"                                      accent    111  #87afff
-tool.name           "search_code"                  text 252 #d0d0d0 + BOLD
-tool.args           ' "Divide(" · 3 matches · '              muted     244  #808080
-tool.status.ok      "✓ ok"                                   success   114  #87d787
-gutter              "┃" on every card row                    accent    111  #87afff
-card.border         "┌ ─ ┐ │ └ ┘"                            border    238  #444444
-card.title          "approval required"                      warning   179  #dfaf5f
+tool.glyph          "▸"                                      accent    117  #87d7ff
+tool.name           "search_code"                  text 253 #dadada + BOLD
+tool.args           ' "Divide(" · 3 matches · '              muted     248  #a8a8a8
+tool.status.ok      "✓ ok"                                   success   120  #87ff87
+gutter              "┃" on every card row                    accent    117  #87d7ff
+card.border         "┌ ─ ┐ │ └ ┘"                            border    244  #808080
+card.title          "approval required"                      warning   215  #ffaf5f
 card.bg             card interior cells             selectionBg 236 #303030 (background)
-card.summary        "apply_patch — add input validation"  text 252 #d0d0d0, tool name BOLD
-card.detail         "files: 2 changed (…" both lines         muted     244  #808080
-action.approve      "[y]"                                    success   114  #87d787
+card.summary        "apply_patch — add input validation"  text 253 #dadada, tool name BOLD
+card.detail         "files: 2 changed (…" both lines         muted     248  #a8a8a8
+action.approve      "[y]"                                    success   120  #87ff87
 action.reject       "[n]"                                    error     203  #ff5f5f
-action.diff         "[d]"                                    accent    111  #87afff
-action.labels       "approve" "reject" "view diff"           text      252  #d0d0d0
-status.spinner      "⠙"                                      accent    111  #87afff
-status.rest        "claude-sonnet-5 · awaiting approval · …" muted     244  #808080
+action.diff         "[d]"                                    accent    117  #87d7ff
+action.labels       "approve" "reject" "view diff"           text      253  #dadada
+status.spinner      "⠙"                                      accent    117  #87d7ff
+status.rest        "claude-sonnet-5 · awaiting approval · …" muted     248  #a8a8a8
 ```
 
 - Three actions only. `[a]` is **never** offered for `apply_patch`. §4.
@@ -274,10 +274,10 @@ claude-sonnet-5 · ⠹ awaiting approval · 16.8k tok · 1 grant
 
 ```text
 all rows            identical assignment to screen 03
-action.session      "[a]"                                    success   114  #87d787
-card.detail         "cwd: … timeout: …" / "reason: …"        muted     244  #808080
-status.grants       "1 grant"                                muted     244  #808080
-(collapsed form)    "✓ approved · session grant: go test"    success   114  #87d787
+action.session      "[a]"                                    success   120  #87ff87
+card.detail         "cwd: … timeout: …" / "reason: …"        muted     248  #a8a8a8
+status.grants       "1 grant"                                muted     248  #a8a8a8
+(collapsed form)    "✓ approved · session grant: go test"    success   120  #87ff87
 ```
 
 - Four actions. `reason:` states why approval was required.
@@ -319,19 +319,19 @@ claude-sonnet-5 · ⠸ awaiting approval · 14.1k tok
 **Colours**
 
 ```text
-modal.border        "┌ ─ ┐ │ ├ ┤ └ ┘" of the modal      borderFocus 111  #87afff
-modal.filename      "calc/divide.go"                         accent    111  #87afff
-modal.added.count   "+12"                                    success   114  #87d787
+modal.border        "┌ ─ ┐ │ ├ ┤ └ ┘" of the modal      borderFocus 117  #87d7ff
+modal.filename      "calc/divide.go"                         accent    117  #87d7ff
+modal.added.count   "+12"                                    success   120  #87ff87
 modal.removed.count "−4"                                     error     203  #ff5f5f
-diff.hunk           lines starting "@@"                      hunk      116  #87d7d7
-diff.context        lines starting " " (space)               muted     244  #808080
+diff.hunk           lines starting "@@"                      hunk      123  #87ffff
+diff.context        lines starting " " (space)               muted     248  #a8a8a8
 diff.removed        lines starting "-"                       error     203  #ff5f5f
-diff.added          lines starting "+"                       success   114  #87d787
-modal.footer        "j/k scroll · g/G … · Esc …"             muted     244  #808080
-BACKGROUND CELLS    every cell not owned by the modal        dim       240  #585858
+diff.added          lines starting "+"                       success   120  #87ff87
+modal.footer        "j/k scroll · g/G … · Esc …"             muted     248  #a8a8a8
+BACKGROUND CELLS    every cell not owned by the modal        dim       245  #8a8a8a
                     (approval card + transcript behind it lose their own colours
                      entirely while the modal is open — one flat dim pass)
-status+composer     unchanged, still live                    muted     244  #808080
+status+composer     unchanged, still live                    muted     248  #a8a8a8
 ```
 
 - The modal overwrites cells; the approval card and transcript behind it render at
@@ -349,7 +349,7 @@ Kirsch ─ my-project ─ main ● ───────────────
         ┌─ help ───────────────────────────────────────────────────────┐
 ▸ read_f│ composing                            approval                │
         │ Enter         send                   y         approve       │
-        │ Alt+Enter     newline                a         + session     │
+        │ Shift+Enter   newline                a         + session     │
         │ Ctrl+J        newline (alt)          n         reject        │
         │ Tab           complete /cmd          d         detail        │
         │ ↑ at line 1   browse                                         │
@@ -375,13 +375,13 @@ claude-sonnet-5 · idle · 12.4k tok
 **Colours**
 
 ```text
-modal.border        box borders + "├ ┤" divider         borderFocus 111  #87afff
-modal.title         "help"                                   accent    111  #87afff
-section.headings    "composing" "browsing" "approval"        warning   179  #dfaf5f
+modal.border        box borders + "├ ┤" divider         borderFocus 117  #87d7ff
+modal.title         "help"                                   accent    117  #87d7ff
+section.headings    "composing" "browsing" "approval"        warning   215  #ffaf5f
                     "modal" "commands"
-bindings            key + description columns                muted     244  #808080
-footer              "kirsch v0.1.0 · docs: … · Esc or ? closes"  dim   240  #585858
-BACKGROUND CELLS    header row behind the overlay            dim       240  #585858
+bindings            key + description columns                muted     248  #a8a8a8
+footer              "kirsch v0.1.0 · docs: … · Esc or ? closes"  dim   245  #8a8a8a
+BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8a8a
 ```
 
 - Opens from Browsing and ApprovalPending only. In the composer, `?` is a literal character. §4.2.
@@ -419,15 +419,15 @@ claude-sonnet-5 · idle · 22.9k tok · 1 grant
 **Colours**
 
 ```text
-gutter              "┃" on every card row                    accent    111  #87afff
-tool.glyph          "▾" (expanded)                           accent    111  #87afff
-tool.name           "run_command"                  text 252 #d0d0d0 + BOLD
-tool.args+timing    " go test ./... · 2.4s · "               muted     244  #808080
+gutter              "┃" on every card row                    accent    117  #87d7ff
+tool.glyph          "▾" (expanded)                           accent    117  #87d7ff
+tool.name           "run_command"                  text 253 #dadada + BOLD
+tool.args+timing    " go test ./... · 2.4s · "               muted     248  #a8a8a8
 tool.status.fail    "✗ exit 1"                               error     203  #ff5f5f
-output.border       inner "┌ ─ ┐ │ └ ┘"                      border    238  #444444
+output.border       inner "┌ ─ ┐ │ └ ┘"                      border    244  #808080
 output.bg           inner panel cells                 codeBg    235 #262626 (background)
-output.text         captured stdout/stderr verbatim          text      252  #d0d0d0
-cap.marker          "‹200 of 4,181 lines — press d …›"       warning   179  #dfaf5f
+output.text         captured stdout/stderr verbatim          text      253  #dadada
+cap.marker          "‹200 of 4,181 lines — press d …›"       warning   215  #ffaf5f
 card.bg             card interior (selected)         selectionBg 236 #303030 (background)
 NOTE                captured output is NOT syntax-coloured; ANSI is stripped (§5.1)
 ```
@@ -467,14 +467,14 @@ claude-sonnet-5 · idle · 31.2k tok                           ⚠ recovered ses
 **Colours**
 
 ```text
-header.compacted    "(compacted)"                            muted     244  #808080
-notices             both "· …" lines                         dim       240  #585858
+header.compacted    "(compacted)"                            muted     248  #a8a8a8
+notices             both "· …" lines                         dim       245  #8a8a8a
 error.border        "┌ ─ ┐ │ └ ┘" of the error card          error     203  #ff5f5f
 error.title         "provider_error"                         error     203  #ff5f5f
-error.message       "anthropic: 503 after 3 retries — …"     text      252  #d0d0d0
-error.hint          "Enter to expand · the turn is still …"  muted     244  #808080
-status.left         "claude-sonnet-5 · idle · 31.2k tok"     muted     244  #808080
-status.warning      "⚠ recovered session"                    warning   179  #dfaf5f
+error.message       "anthropic: 503 after 3 retries — …"     text      253  #dadada
+error.hint          "Enter to expand · the turn is still …"  muted     248  #a8a8a8
+status.left         "claude-sonnet-5 · idle · 31.2k tok"     muted     248  #a8a8a8
+status.warning      "⚠ recovered session"                    warning   215  #ffaf5f
 NOTE                the error card sets NO background — border and title only
 ```
 
@@ -507,17 +507,17 @@ claude-sonnet-5 · ⠼ thinking · 28.0k tok
 **Colours**
 
 ```text
-gutter              "┃" (selected card)                      accent    111  #87afff
+gutter              "┃" (selected card)                      accent    117  #87d7ff
 card.bg             selected card row               selectionBg 236 #303030 (background)
-tool.glyph          "▸"                                      accent    111  #87afff
-tool.name           "read_file" / "git_diff"       text 252 #d0d0d0 + BOLD
-tool.args+timing    " internal/session/store.go:1-120 · 3ms · "  muted 244  #808080
-tool.status.ok      "✓ ok"                                   success   114  #87d787
-assistant.text      the two wrapped lines                    text      252  #d0d0d0
-new.counter         "↓ 3 new"                                accent    111  #87afff
-composer.prompt     ">"                                      accent    111  #87afff
-composer.text       "also check the second-instance path"    text      252  #d0d0d0
-cursor              "▌"                                      dim       240  #585858
+tool.glyph          "▸"                                      accent    117  #87d7ff
+tool.name           "read_file" / "git_diff"       text 253 #dadada + BOLD
+tool.args+timing    " internal/session/store.go:1-120 · 3ms · "  muted 248  #a8a8a8
+tool.status.ok      "✓ ok"                                   success   120  #87ff87
+assistant.text      the two wrapped lines                    text      253  #dadada
+new.counter         "↓ 3 new"                                accent    117  #87d7ff
+composer.prompt     ">"                                      accent    117  #87d7ff
+composer.text       "also check the second-instance path"    text      253  #dadada
+cursor              "▌"                                      dim       245  #8a8a8a
 ```
 
 - Typing while unpinned does not yank the view to the bottom; the counter keeps rising. §2.4.
@@ -571,12 +571,12 @@ claude-sonnet-5 · idle
 
 ```text
 (applies to all three widths)
-header.title        "Kirsch ─ my-project"                    accent    111  #87afff
-too_narrow.notice   "terminal too narrow"                    dim       240  #585858
-status.spinner      "⠋"                                      accent    111  #87afff
-status.rest         "sonnet-5 · thinking" / "idle"           muted     244  #808080
-status.warning      "⚠" (38-col form, glyph only)            warning   179  #dfaf5f
-tool.status.ok      "✓" (glyph only, label dropped)          success   114  #87d787
+header.title        "Kirsch ─ my-project"                    accent    117  #87d7ff
+too_narrow.notice   "terminal too narrow"                    dim       245  #8a8a8a
+status.spinner      "⠋"                                      accent    117  #87d7ff
+status.rest         "sonnet-5 · thinking" / "idle"           muted     248  #a8a8a8
+status.warning      "⚠" (38-col form, glyph only)            warning   215  #ffaf5f
+tool.status.ok      "✓" (glyph only, label dropped)          success   120  #87ff87
 NOTE                no token changes at any width — only which SPANS are emitted.
                     Truncation never substitutes a colour.
 ```
@@ -640,16 +640,16 @@ NOTE                this screen is the golden-test fixture. Compare Kirsch's str
 
 | Token | 256 | Hex | Used for |
 |---|---|---|---|
-| `accent` | 111 | `#87afff` | Header title, tool glyphs, selection gutter, focused border, `↓ n new`, `[d]` |
-| `text` | 252 | `#d0d0d0` | Assistant and user body text, tool output, action labels |
-| `muted` | 244 | `#808080` | Metadata (paths, timings, counts), key bindings, status bar |
-| `dim` | 240 | `#585858` | Placeholders, suggestions, backgrounded cells, version footer, cursor |
-| `success` | 114 | `#87d787` | `✓`, `[y]`, `[a]`, diff additions, grant confirmations |
+| `accent` | 117 | `#87d7ff` | Header title, tool glyphs, selection gutter, focused border, `↓ n new`, `[d]` |
+| `text` | 253 | `#dadada` | Assistant and user body text, tool output, action labels |
+| `muted` | 248 | `#a8a8a8` | Metadata (paths, timings, counts), key bindings, status bar |
+| `dim` | 245 | `#8a8a8a` | Placeholders, suggestions, backgrounded cells, version footer, cursor |
+| `success` | 120 | `#87ff87` | `✓`, `[y]`, `[a]`, diff additions, grant confirmations |
 | `error` | 203 | `#ff5f5f` | `✗`, `[n]`, diff deletions, error card border and title |
-| `warning` | 179 | `#dfaf5f` | Dirty marker, `approval required`, cap marker, status-bar warnings |
-| `hunk` | 116 | `#87d7d7` | Diff `@@` hunk headers |
-| `border` | 238 | `#444444` | Unfocused borders, all separators |
-| `borderFocus` | 111 | `#87afff` | Focused modal border |
+| `warning` | 215 | `#ffaf5f` | Dirty marker, `approval required`, cap marker, status-bar warnings |
+| `hunk` | 123 | `#87ffff` | Diff `@@` hunk headers |
+| `border` | 244 | `#808080` | Unfocused borders, all separators |
+| `borderFocus` | 117 | `#87d7ff` | Focused modal border |
 | `codeBg` | 235 | `#262626` | Fenced tool-output panels (background) |
 | `selectionBg` | 236 | `#303030` | Selected card interior (background) |
 

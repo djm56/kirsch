@@ -333,24 +333,24 @@ Two consequences worth stating because they are easy to get wrong:
 | Key | Action |
 |---|---|
 | `Enter` | Send (turn starts) |
-| `Alt+Enter` | Newline (primary) |
-| `Ctrl+J` | Newline (fallback) |
-| `Shift+Enter` | Newline **where the terminal and toolkit can distinguish it** — see below |
+| `Shift+Enter` | Newline, where the terminal sends `ESC`+`CR` for it |
+| `Alt+Enter` | Newline, same decode path — **not produced by Option on a Mac keyboard** |
+| `Ctrl+J` | Newline — the one binding that is always representable |
 | `Tab` | Complete a unique slash-command prefix |
 | `↑` at first line | Focus transcript (→ Browsing) |
 | `Esc` / `Ctrl+C` | Cancel the in-flight turn if busy; otherwise clear composer |
 | `q` | Quit — **only** when idle and the composer is empty |
 | `Ctrl+C` ×2 within 1s | Force quit |
 
-**On the newline binding.** `Shift+Enter` was the primary binding in the original draft. It
-cannot be, on the toolkit this project is pinned to: Bubble Tea v1's `tea.Key` is
-`{Type, Runes, Alt, Paste}` — it carries **no shift modifier**, and the terminal sends
-Shift+Enter as a bare CR on most emulators anyway, making it indistinguishable from `Enter`.
-A binding the toolkit cannot report is not a binding. `Alt+Enter` is therefore primary and
-`Ctrl+J` the fallback; both are representable and both are synthetically testable. If the
-project later moves to a toolkit that decodes the Kitty keyboard protocol, `Shift+Enter`
-becomes available as an *additional* binding on terminals that support it — never as the
-only route to a newline.
+**On the newline binding.** No binding here is "primary", because which one reaches the
+program is a property of the terminal rather than of Kirsch. Bubble Tea v1's `tea.Key` is
+`{Type, Runes, Alt, Paste}` and carries **no shift modifier**, so the toolkit cannot name
+Shift+Enter — but terminals that emit `ESC`+`CR` for it decode down the same path as
+Alt+Enter, and in practice that is what most send. Conversely, Option+Enter on a Mac
+keyboard produces nothing at all. So the composer accepts `ESC`+`CR` however the terminal
+produces it, and `Ctrl+J` (a literal line feed), which is the only newline that is always
+representable. Reasoning from the toolkit's API alone got this backwards once already —
+see plan amendment 40.
 
 **Browsing**
 
@@ -529,23 +529,30 @@ The palette and glyph tables are repeated at the end of
 without flipping back here. §10 is the source of truth; change the two
 together or they drift.
 
-| Role | Colour | Used for |
-|---|---|---|
-| `fg` | 252 | Default text |
-| `dim` | 244 | Secondary text, paths, durations |
-| `faint` | 240 | Disabled composer, decoration |
-| `accent` | 111 | Header, card glyphs, selection gutter, focus |
-| `success` | 114 | `✓`, diff additions |
-| `error` | 203 | `✗`, diff deletions, error borders |
-| `warning` | 179 | `⋯` truncation, status-bar warnings |
-| `border` | 238 | Card and modal borders |
-| `borderFocus` | 111 | Focused modal border |
-| `hunk` | 116 | Diff `@@` headers |
-| `codeBg` | 235 | Fenced code block background |
-| `selectionBg` | 236 | Selected card background |
+| Role | 256 | Hex | Contrast on `#1e1e1e` | Used for |
+|---|---|---|---|---|
+| `text` | 253 | `#dadada` | 11.9:1 | Default body text |
+| `muted` | 248 | `#a8a8a8` | 7.0:1 | Metadata: paths, durations, counts |
+| `dim` | 245 | `#8a8a8a` | 4.8:1 | Placeholders, suggestions, decoration |
+| `accent` | 117 | `#87d7ff` | 10.5:1 | Header, card glyphs, selection gutter, focus |
+| `success` | 120 | `#87ff87` | 13.2:1 | `✓`, diff additions |
+| `error` | 203 | `#ff5f5f` | 5.6:1 | `✗`, diff deletions, error borders |
+| `warning` | 215 | `#ffaf5f` | 9.2:1 | `⋯` truncation, status-bar warnings |
+| `hunk` | 123 | `#87ffff` | 14.1:1 | Diff `@@` headers |
+| `border` | 244 | `#808080` | 4.2:1 | Card and modal borders, separators |
+| `borderFocus` | 117 | `#87d7ff` | 10.5:1 | Focused modal border |
+| `codeBg` | 235 | `#262626` | — | Fenced code block background |
+| `selectionBg` | 236 | `#303030` | — | Selected card background |
 
-Background is never set on `body`. Contrast rule: `faint` and `dim` carry no
-information that is not also available elsewhere.
+Background is never set on `body`.
+
+**Contrast floor.** Every foreground token clears 3:1 against a dark ground,
+and every token carrying words clears 4.5:1. The original palette did not: at
+`dim` 240 (2.3:1) and `border` 238 (1.7:1), placeholders, the three onboarding
+suggestions and every separator rule were effectively invisible on a dark
+terminal — the whole interface read as washed-out grey. §12's rule that dim
+text carries no unique information is a reason it may be *quieter*, never a
+licence for it to be unreadable.
 
 ### 10.2 Glyphs and fallbacks
 
@@ -665,15 +672,15 @@ diff. CI never auto-accepts them. When a golden diff is reviewed and found
 
 Named so they are watched, not discovered:
 
-- **~~`Shift+Enter` detection~~ — settled, see plan amendment 29.** The risk was
-  real but landed one layer lower than expected: Bubble Tea v1 carries no shift
-  modifier at all, so the binding is unrepresentable regardless of terminal.
-  `Alt+Enter` is primary and `Ctrl+J` the fallback. What remains to be checked in
-  M0 is whether `Alt+Enter` actually reaches the program in each target terminal —
-  if a common one swallows it, the `Ctrl+J` fallback becomes primary there and a
-  config-selectable binding becomes necessary after all.
-- **Braille spinner glyphs** render inconsistently in a few fonts. If the M0
-  prototype shows gaps, fall back to the ASCII cycle by default.
+- **~~`Shift+Enter` detection~~ — settled by testing, amendments 40 and 42.**
+  Shift+Enter works wherever the terminal emits `ESC`+`CR`; Option+Enter on a Mac
+  produces nothing; `Ctrl+J` always works. A config-selectable binding is not
+  needed. Worth remembering how this resolved: reading the toolkit's key table
+  produced a confident and wrong conclusion, and a person pressing the key in a
+  real terminal produced the right one.
+- **~~Braille spinner glyphs~~ — settled, amendment 42.** They render correctly in
+  the target terminals. The ASCII cycle stays as the non-UTF-8 fallback, not as a
+  default.
 - **200-line inline cap** is a guess at the right number. M0 is the moment to
   find out whether it feels right with real-shaped content.
 - **Exclusive approval capture** is correct but can feel abrupt when an

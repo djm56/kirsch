@@ -698,13 +698,56 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     cannot drift. This is the mechanism plan §9.6 asked for, and it is what
     caught findings 34 through 37.
 
+**Milestone 0 findings from real terminals (2026-09-12)**
+
+40. **Amendment 29 was wrong about `Shift+Enter`, and testing on real terminals
+    is what caught it.** The reasoning — Bubble Tea v1's `tea.Key` carries no
+    shift modifier, so the binding is unrepresentable — was sound about the
+    toolkit and wrong about the outcome. Terminals that emit `ESC`+`CR` for
+    Shift+Enter land on the same decode path as Alt+Enter, so it works, and it
+    is what the owner's terminals actually send. The reverse also held: **Option
+    (Alt) + Enter produces nothing on a Mac keyboard**, so the binding amendment
+    29 promoted to primary is the one that does not work. Corrected: the
+    composer accepts `ESC`+`CR` — however the terminal produces it — and
+    `Ctrl+J`, which is the only universally representable newline. All three
+    are documented; none is described as "the" primary, because which one
+    reaches the program is a property of the terminal, not of Kirsch.
+
+41. **The palette failed its own accessibility rule, and only a human on a real
+    screen noticed.** Measured against a dark ground, `dim` (240) was 2.3:1 and
+    `border` (238) was 1.7:1 — far below the 3:1 floor at which anything is
+    legible. Placeholders, the three onboarding suggestions and every separator
+    rule were effectively invisible; the interface read as washed-out grey.
+    §12's "dim text carries no unique information" is a reason it may be
+    *quieter*, never a licence for it to be unreadable, and no automated check
+    caught this because every test asserted structure. Retuned so every
+    foreground token clears 3:1 on black, `#1e1e1e`, One Dark and Nord, and
+    every token carrying words clears 4.5:1:
+
+    | Role | was | now |
+    |---|---|---|
+    | `text` | 252 | 253 |
+    | `muted` | 244 | 248 |
+    | `dim` | 240 | 245 |
+    | `accent` | 111 | 117 |
+    | `success` | 114 | 120 |
+    | `warning` | 179 | 215 |
+    | `hunk` | 116 | 123 |
+    | `border` | 238 | 244 |
+
+    §10.1 now records the hex and the measured contrast for each, so the next
+    change to the palette can be checked rather than eyeballed.
+
+42. **Braille spinner glyphs render correctly** in the owner's terminals,
+    closing the second of the two §14 risks. The ASCII cycle stays as the
+    non-UTF-8 fallback, not as a default.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.
 - Whether `/approvals` needs its own key binding or only the slash command.
-- The ui-spec §14 design risks: braille spinner glyph rendering, and whether 200
-  lines is the right inline cap. (Shift+Enter detection is settled by amendment 29
-  — it is unrepresentable on the pinned toolkit, so `Alt+Enter` is primary.)
+- Whether 200 lines is the right inline cap — the last open §14 risk. Both key
+  detection and spinner rendering are settled by amendments 40 and 42.
 - Session file rotation for very long sessions (ADR 0002 flagged this; still deferred).
 - Screen 14 (onboarding) in `plan/kirsch-ui-screens.md` — drawn at M3 with the
   provider onboarding path, per amendment 24.

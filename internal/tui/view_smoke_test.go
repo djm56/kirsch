@@ -159,8 +159,17 @@ func TestModeDerivationPrecedence(t *testing.T) {
 func TestRendererEmitsPaletteSGR(t *testing.T) {
 	sty := NewStyles(NewRenderer(true), true)
 	got := sty.Accent("X")
-	if !strings.Contains(got, "\x1b[38;5;111m") {
-		t.Fatalf("accent emitted no 256-colour SGR: %q", got)
+	m := sgrRe.FindStringSubmatch(got)
+	if m == nil {
+		t.Fatalf("accent emitted no SGR at all: %q", got)
+	}
+	// Asserted against the palette rather than a literal index, so retuning a
+	// colour does not require editing the test that guards colour working.
+	if !PaletteSGR[m[1]] {
+		t.Errorf("accent emitted SGR %q, which is not in the palette", m[1])
+	}
+	if !strings.HasPrefix(m[1], "38;5;") {
+		t.Errorf("accent emitted %q, want a 256-colour foreground", m[1])
 	}
 }
 

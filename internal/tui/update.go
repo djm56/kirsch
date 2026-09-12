@@ -21,7 +21,7 @@ type BindingGroup struct {
 var bindingGroups = []BindingGroup{
 	{"composing", []Binding{
 		{"Enter", "send"},
-		{"Alt+Enter", "newline"},
+		{"Shift+Enter", "newline"},
 		{"Ctrl+J", "newline (alt)"},
 		{"Tab", "complete /cmd"},
 		{"↑ at line 1", "browse"},
@@ -140,9 +140,11 @@ func (m Model) keyComposing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyEnter:
-		// Alt+Enter is the primary newline. Shift+Enter is not representable on
-		// this toolkit — tea.Key has no shift modifier — so Alt+Enter and
-		// Ctrl+J are the two routes. ui-spec §5.2, plan amendment 29.
+		// ESC+CR arrives here as Alt=true. Terminals send it for Shift+Enter,
+		// for Alt+Enter, or for neither — which one a given terminal produces
+		// is not something Kirsch gets to decide, so it accepts the sequence
+		// rather than the key name. Ctrl+J below is the always-representable
+		// route. ui-spec §5.2, plan amendments 29 and 40.
 		if k.Alt {
 			m.comp.ta.InsertString("\n")
 			return m, nil

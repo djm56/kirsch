@@ -29,7 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   defects in the screen reference, two arithmetically impossible height bands,
   a conflated spinner glyph, and an escape-sequence assertion that could never
   hold. Recorded as plan amendments 25–32.
-- `Alt+Enter` replaces `Shift+Enter` as the primary newline binding: Bubble Tea
-  v1 carries no shift modifier, so the original binding was unimplementable.
+- Newline binding settled by testing on real terminals rather than by reading
+  the toolkit's key table: `Shift+Enter` works wherever the terminal emits
+  `ESC`+`CR`, Option+Enter on a Mac produces nothing, and `Ctrl+J` always
+  works. The composer accepts the sequence rather than the key name.
+- Palette retuned for legibility on dark backgrounds. The original `dim` (2.3:1)
+  and `border` (1.7:1) were below the threshold at which anything is readable,
+  so placeholders, onboarding suggestions and every separator rule appeared as
+  washed-out grey. Every foreground token now clears 3:1 on black, `#1e1e1e`,
+  One Dark and Nord; every token carrying words clears 4.5:1.
 
 [Unreleased]: https://github.com/djm56/kirsch/commits/main

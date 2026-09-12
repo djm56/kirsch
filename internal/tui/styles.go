@@ -79,16 +79,16 @@ func identity(s string) string { return s }
 
 // Styles is the semantic palette. ui-spec §10.1.
 type Styles struct {
-	Text        Style // 252 — body text, tool output, action labels
-	Muted       Style // 244 — metadata between · delimiters
-	Dim         Style // 240 — placeholders, suggestions, backgrounded cells
-	Accent      Style // 111 — header title, tool glyphs, selection gutter
-	Success     Style // 114 — ✓, [y], [a], diff additions
+	Text        Style // 253 — body text, tool output, action labels
+	Muted       Style // 248 — metadata between · delimiters
+	Dim         Style // 245 — placeholders, suggestions, backgrounded cells
+	Accent      Style // 117 — header title, tool glyphs, selection gutter
+	Success     Style // 120 — ✓, [y], [a], diff additions
 	Error       Style // 203 — ✗, [n], diff deletions, error card
-	Warning     Style // 179 — dirty marker, approval required, cap marker
-	Hunk        Style // 116 — diff @@ headers
-	Border      Style // 238 — separators and unfocused borders
-	BorderFocus Style // 111 — focused modal border
+	Warning     Style // 215 — dirty marker, approval required, cap marker
+	Hunk        Style // 123 — diff @@ headers
+	Border      Style // 244 — separators and unfocused borders
+	BorderFocus Style // 117 — focused modal border
 	Bold        Style // tool names, and nothing else
 	CodeBg      Style // 235 — fenced tool-output panels
 	SelectionBg Style // 236 — selected card interior
@@ -99,9 +99,9 @@ type Styles struct {
 // is the automated form of "no raw colour numbers outside styles.go".
 var PaletteSGR = map[string]bool{
 	"0": true, "": true, "1": true,
-	"38;5;252": true, "38;5;244": true, "38;5;240": true, "38;5;111": true,
-	"38;5;114": true, "38;5;203": true, "38;5;179": true, "38;5;116": true,
-	"38;5;238": true, "48;5;235": true, "48;5;236": true,
+	"38;5;253": true, "38;5;248": true, "38;5;245": true, "38;5;117": true,
+	"38;5;120": true, "38;5;203": true, "38;5;215": true, "38;5;123": true,
+	"38;5;244": true, "48;5;235": true, "48;5;236": true,
 }
 
 // NewRenderer builds a renderer with an explicit colour profile.
@@ -146,17 +146,22 @@ func NewStyles(r *lipgloss.Renderer, colour bool) *Styles {
 		return func(x string) string { return st.Render(x) }
 	}
 	bold := r.NewStyle().Bold(true)
+	// Every foreground token clears 3:1 against a dark ground, and every token
+	// carrying words clears 4.5:1. The first palette did not: dim at 240 was
+	// 2.3:1 and border at 238 was 1.7:1, which made placeholders, the
+	// onboarding suggestions and every separator rule read as washed-out grey
+	// on a real dark terminal. ui-spec §10.1.
 	return &Styles{
-		Text:        fg("252"),
-		Muted:       fg("244"),
-		Dim:         fg("240"),
-		Accent:      fg("111"),
-		Success:     fg("114"),
+		Text:        fg("253"),
+		Muted:       fg("248"),
+		Dim:         fg("245"),
+		Accent:      fg("117"),
+		Success:     fg("120"),
 		Error:       fg("203"),
-		Warning:     fg("179"),
-		Hunk:        fg("116"),
-		Border:      fg("238"),
-		BorderFocus: fg("111"),
+		Warning:     fg("215"),
+		Hunk:        fg("123"),
+		Border:      fg("244"),
+		BorderFocus: fg("117"),
 		Bold:        func(x string) string { return bold.Render(x) },
 		CodeBg:      bg("235"),
 		SelectionBg: bg("236"),
