@@ -135,7 +135,12 @@ func (t *GitDiff) Invoke(ctx context.Context, raw json.RawMessage) Result {
 }
 
 func runGit(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	// The executable is a literal, never a variable, so there is no command
+	// injection surface. The only argument that originates outside Kirsch is
+	// git_diff's path, which crosses workspace.Resolve before it gets here and
+	// is passed after a `--` terminator so it cannot be read as an option.
+	// gosec G204.
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...) // #nosec G204 -- literal binary, resolved args
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()

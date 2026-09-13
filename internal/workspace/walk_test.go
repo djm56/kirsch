@@ -1,10 +1,12 @@
 package workspace
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func walkAll(t *testing.T, ws *Workspace, start string, o WalkOptions) []string {
@@ -204,5 +206,74 @@ func TestDetectProjectTypes(t *testing.T) {
 				t.Errorf("DetectTypes(%s) = %v, want %v", c.dir, got, c.want)
 			}
 		})
+	}
+}
+
+// TestIgnoreFileSymlinkEscapeIsRefused closes a gap gosec found (G122) and the
+// package's own tests had missed.
+//
+// filepath.WalkDir does not follow symlinks while traversing, but os.ReadFile
+// follows them when opening — so a file literally named .gitignore that is
+// itself a symlink pointing outside the workspace was read, and its contents
+// parsed as ignore patterns. Reading now goes through os.Root, which resolves
+// relative to a directory handle and lets the kernel refuse the escape.
+func TestIgnoreFileSymlinkEscapeIsRefused(t *testing.T) {
+	base := t.TempDir()
+	outside := filepath.Join(base, "outside")
+	root := filepath.Join(base, "ws")
+	for _, d := range []string{outside, filepath.Join(root, "sub")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The payload an escaping ignore file would pull in.
+	if err := os.WriteFile(filepath.Join(outside, "evil"), []byte("*.go\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "sub", "keep.go"), []byte("package x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join("..", "..", "outside", "evil"),
+		filepath.Join(root, "sub", ".gitignore")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	ws, err := newWorkspace(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(walkAll(t, ws, ".", WalkOptions{MaxDepth: -1}), "\n")
+
+	// If the escaping .gitignore had been read, its "*.go" rule would have
+	// hidden keep.go from the walk.
+	if !strings.Contains(got, "sub/keep.go") {
+		t.Errorf("an ignore file symlinked outside the workspace was honoured:\n%s", got)
+	}
+}
+
+// TestOversizedIgnoreFileIsCapped: a pathological .gitignore should not be able
+// to exhaust memory during a walk.
+func TestOversizedIgnoreFileIsCapped(t *testing.T) {
+	root := t.TempDir()
+	huge := strings.Repeat("# padding to make this file large\n", 80_000) // ~2.6MB
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(huge), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := newWorkspace(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = strings.Join(walkAll(t, ws, ".", WalkOptions{MaxDepth: -1}), "\n")
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("walking with an oversized .gitignore did not complete")
 	}
 }

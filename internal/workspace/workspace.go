@@ -63,6 +63,11 @@ type Workspace struct {
 }
 
 // ErrNoWorkspace is returned when neither --workspace nor a Git root is found.
+//
+// Capitalised and punctuated on purpose: this string is printed to the user as
+// onboarding text, not wrapped into another error. ui-spec §7.5.
+//
+//nolint:staticcheck // ST1005: user-facing message, not an error fragment
 var ErrNoWorkspace = errors.New(
 	"Kirsch runs inside a Git repository.\n\n" +
 		"Either cd into a repository, or point Kirsch at a directory explicitly:\n" +
@@ -106,7 +111,9 @@ func newWorkspace(root string, isGit bool) (*Workspace, error) {
 }
 
 func isGitRepo(dir string) bool {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--git-dir")
+	// Literal binary and literal subcommand; dir is the workspace root.
+	// gosec G204.
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--git-dir") // #nosec G204 -- literal binary
 	return cmd.Run() == nil
 }
 
@@ -274,6 +281,18 @@ func contained(p, root string) bool {
 }
 
 // checkDenylist refuses paths that no tool may touch.
+//
+// Matching is case-insensitive, and that is a correctness requirement rather
+// than leniency. macOS and Windows filesystems are case-insensitive by default,
+// so `.ENV` and `.env` name the same bytes on disk — a case-sensitive denylist
+// is simply bypassable there by changing the spelling, and macOS is a supported
+// platform (plan §1). Found by FuzzResolveNeverEscapes; see plan §11
+// amendment 51.
+//
+// On a case-sensitive filesystem this refuses a file genuinely named `.ENV`
+// that is distinct from `.env`. That is the right trade: declining to read an
+// oddly-named file costs nothing, while a security boundary whose behaviour
+// depends on the filesystem is not a boundary.
 func checkDenylist(rel string) error {
 	rel = filepath.ToSlash(filepath.Clean(rel))
 	if rel == "." {
@@ -285,14 +304,15 @@ func checkDenylist(rel string) error {
 
 	segments := strings.Split(rel, "/")
 	for _, seg := range segments {
+		lower := strings.ToLower(seg)
 		for _, prefix := range denyPrefixes {
-			if seg == prefix {
+			if lower == prefix {
 				return &Violation{Path: rel, Reason: prefix + "/ is never readable"}
 			}
 		}
 	}
 
-	base := segments[len(segments)-1]
+	base := strings.ToLower(segments[len(segments)-1])
 	for _, pattern := range denyPatterns {
 		if ok, _ := path.Match(pattern, base); ok {
 			return &Violation{Path: rel, Reason: "matches the denied pattern " + pattern}
@@ -347,6 +367,16 @@ func (w *Workspace) IsDirty() bool {
 // RefreshMeta forces a re-read of branch and dirty state.
 func (w *Workspace) RefreshMeta() { w.refreshMeta(true) }
 
+// git runs a read-only git subcommand in the workspace.
+//
+// One helper rather than three call sites, so the security argument is made
+// once: the executable is a literal, every argument here is a literal, and
+// nothing model- or repository-controlled reaches it. gosec G204.
+func (w *Workspace) git(args ...string) (string, error) {
+	out, err := exec.Command("git", append([]string{"-C", w.Root}, args...)...).Output() // #nosec G204 -- literal binary, literal subcommands
+	return string(out), err
+}
+
 func (w *Workspace) refreshMeta(force bool) {
 	if !w.IsGit {
 		return
@@ -362,17 +392,17 @@ func (w *Workspace) refreshMeta(force bool) {
 	// is a normal state (git init, then start work). symbolic-ref still knows
 	// the branch name, so fall back rather than reporting none.
 	branch := ""
-	if out, err := exec.Command("git", "-C", w.Root, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
-		branch = strings.TrimSpace(string(out))
+	if out, err := w.git("rev-parse", "--abbrev-ref", "HEAD"); err == nil {
+		branch = strings.TrimSpace(out)
 	}
 	if branch == "" || branch == "HEAD" {
-		if out, err := exec.Command("git", "-C", w.Root, "symbolic-ref", "--short", "HEAD").Output(); err == nil {
-			branch = strings.TrimSpace(string(out))
+		if out, err := w.git("symbolic-ref", "--short", "HEAD"); err == nil {
+			branch = strings.TrimSpace(out)
 		}
 	}
 	dirty := false
-	if out, err := exec.Command("git", "-C", w.Root, "status", "--porcelain").Output(); err == nil {
-		dirty = len(strings.TrimSpace(string(out))) > 0
+	if out, err := w.git("status", "--porcelain"); err == nil {
+		dirty = len(strings.TrimSpace(out)) > 0
 	}
 
 	w.mu.Lock()

@@ -18,6 +18,7 @@ someone using it?* Building → `plan/`. Using → `doc/`.
 | [`architecture.md`](architecture.md) | Why the codebase is shaped this way — dependency rules and their enforcement, the four interfaces that matter, concurrency and cancellation, the three representations of a conversation, error model, anti-goals |
 | [`ui-spec-v0.1.md`](ui-spec-v0.1.md) | Full TUI spec — layout and breakpoints, transcript elements, mode state machine, bindings per mode, slash commands, text sanitisation, palette, timing, accessibility, golden-test surface |
 | [`kirsch-ui-screens.md`](kirsch-ui-screens.md) | Screen reference — every ui-spec §13 golden state drawn as a literal 80-column character grid, each with a per-region colour map. What the spec describes in prose, this draws |
+| [`testing/`](testing/) | How to verify Kirsch — manual walkthroughs per milestone, what the automated suite covers, and the security tooling |
 | [`adr/`](adr/) | Architecture decision records 0001–0007 |
 | [`milestone-0.md`](milestone-0.md) | Instruction set — repo bootstrap + static TUI prototype |
 | [`milestone-1.md`](milestone-1.md) | Instruction set — workspace engine + read-only tools |
@@ -60,6 +61,20 @@ Status values: `☐ Not started` · `◐ In progress` · `☑ Complete`.
 A milestone is **Complete** only when every box in its instruction set's final
 acceptance checklist is ticked, `go test ./...` is green, and CI is green. Not
 before. A milestone that is "basically done except for tests" is in progress.
+
+## Verifying
+
+```bash
+npm run check      # fmt + vet + lint + test + screens — the pre-commit gate
+npm run security   # vulnerabilities, static analysis, secret scan
+npm run fuzz       # property tests over the untrusted-input surfaces
+```
+
+[`testing/`](testing/) has the detail: a manual walkthrough per milestone, a
+reference for what the automated suite does and does not cover, and how to
+triage what the security tooling reports. Three real defects have come out of
+that tooling so far — all recorded in §11 amendments 51–53, and none of them
+found by reading the code.
 
 ## Rules for the builder
 

@@ -244,7 +244,8 @@ func (t *SearchCode) searchPureGo(ctx context.Context, in searchCodeInput) ([]Ma
 		if err != nil {
 			return true
 		}
-		body, err := os.ReadFile(abs)
+		// Resolved immediately above; see readfile.go. gosec G304.
+		body, err := os.ReadFile(abs) // #nosec G304 -- resolved by workspace.Resolve
 		if err != nil || isBinary(body) {
 			return true
 		}

@@ -171,16 +171,18 @@ func renderTool(c *ToolCard, ctx renderCtx) []string {
 	if ctx.ShowDur && c.Elapsed > 0 {
 		head += ctx.Sty.Muted(dot + formatDuration(c.Elapsed))
 	}
-	switch {
-	case c.State == StateRunning:
+	switch c.State {
+	case StateRunning:
 		head += ctx.Sty.Muted(dot + "running")
-	case c.State == StateError:
+	case StateError:
+		// An errored command carries its summary with the ✗ rather than in the
+		// slot before the duration, so the line reads "· 2.4s · ✗ exit 1".
 		txt := ctx.G.Err
 		if c.Summary != "" {
 			txt += " " + c.Summary
 		}
 		head += ctx.Sty.Muted(dot) + ctx.Sty.Error(txt)
-	default:
+	case StatePending, StateOK, StateCancelled:
 		if _, styled := badge(c.State, ctx); styled != "" {
 			head += ctx.Sty.Muted(dot) + styled
 		}
@@ -239,6 +241,9 @@ func renderApproval(a *ApprovalCard, ctx renderCtx) []string {
 			line += ctx.Sty.Muted(dot + "session grant: " + a.GrantScope)
 		case Rejected:
 			line += ctx.Sty.Muted(dot) + ctx.Sty.Error(ctx.G.Err+" rejected")
+		case Unresolved:
+			// Unreachable: the enclosing branch tests for it. Listed so the
+			// compiler and the linter both notice if a new outcome is added.
 		}
 		return []string{line}
 	}

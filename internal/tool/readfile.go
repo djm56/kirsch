@@ -75,7 +75,10 @@ func (t *ReadFile) Invoke(ctx context.Context, raw json.RawMessage) Result {
 			in.Path, float64(st.Size())/(1<<20), MaxFileBytes>>20)
 	}
 
-	body, err := os.ReadFile(abs)
+	// abs came from workspace.Resolve above: containment-checked, denylist-
+	// checked, symlinks followed and validated hop by hop. A raw path never
+	// reaches here. gosec G304.
+	body, err := os.ReadFile(abs) // #nosec G304 -- resolved by workspace.Resolve
 	if err != nil {
 		return Fail(KindInternal, "read %s: %v", in.Path, err)
 	}

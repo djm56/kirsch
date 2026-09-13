@@ -219,7 +219,7 @@ var fakeTestOutput = func() string {
 	b.WriteString("=== RUN   TestDivide_Table\n")
 	b.WriteString("--- PASS: TestDivide_Table (0.00s)\n")
 	for i := 0; i < 4170; i++ {
-		b.WriteString(fmt.Sprintf("    case %d: ok\n", i))
+		fmt.Fprintf(&b, "    case %d: ok\n", i)
 	}
 	b.WriteString("FAIL    example.com/calc    0.004s")
 	return b.String()

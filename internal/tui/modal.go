@@ -140,6 +140,8 @@ func (m Model) modalLine(md *ModalState, raw string, idx, inner int) string {
 	case ModalContent:
 		num := m.sty.Dim(fmt.Sprintf("%4d ", idx+1))
 		return num + m.sty.Text(truncEnd(raw, inner-5, m.gly.Trunc))
+	case ModalDiff:
+		// Handled below, where the leading character selects the colour.
 	}
 	body := truncEnd(raw, inner, m.gly.Trunc)
 	switch {

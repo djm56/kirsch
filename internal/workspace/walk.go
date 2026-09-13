@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -137,6 +138,22 @@ func IsLimitReached(err error) bool {
 	return ok
 }
 
+// readThroughRoot reads a workspace-relative path via an os.Root handle, so a
+// symlink that escapes the root is refused by the kernel rather than by a
+// check this package has to remember to make.
+func readThroughRoot(root *os.Root, rel string) ([]byte, error) {
+	f, err := root.Open(filepath.ToSlash(rel))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	return io.ReadAll(io.LimitReader(f, maxIgnoreFileBytes))
+}
+
+// maxIgnoreFileBytes caps a single .gitignore. A pathological one should not be
+// able to exhaust memory during a walk.
+const maxIgnoreFileBytes = 1 << 20
+
 func isBuiltinIgnored(name string) bool {
 	for _, b := range builtinIgnore {
 		if name == b {
@@ -162,6 +179,22 @@ func (w *Workspace) ignoreMatcher() (gitignore.Matcher, error) {
 	w.mu.Unlock()
 
 	var patterns []gitignore.Pattern
+	// Opened through os.Root so the kernel enforces containment on every read
+	// below, not just this package's own path checks.
+	//
+	// filepath.WalkDir does not follow symlinks when traversing, but os.ReadFile
+	// does when opening — so a file literally named .gitignore that is itself a
+	// symlink pointing outside the workspace would otherwise be read. The window
+	// between the walk seeing a path and the read opening it is also a TOCTOU
+	// gap (gosec G122): the entry can be swapped in between. os.Root closes
+	// both, because it resolves relative to a directory handle and refuses to
+	// escape it.
+	root, rootErr := os.OpenRoot(w.CanonicalRoot)
+	if rootErr != nil {
+		return nil, rootErr
+	}
+	defer func() { _ = root.Close() }()
+
 	err := filepath.WalkDir(w.CanonicalRoot, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -175,9 +208,13 @@ func (w *Workspace) ignoreMatcher() (gitignore.Matcher, error) {
 		if d.Name() != ".gitignore" {
 			return nil
 		}
-		body, err := os.ReadFile(p)
-		if err != nil {
+		rel, relErr := filepath.Rel(w.CanonicalRoot, p)
+		if relErr != nil {
 			return nil
+		}
+		body, err := readThroughRoot(root, rel)
+		if err != nil {
+			return nil // unreadable, or refused by the root — either way, skip it
 		}
 		domain := strings.Split(strings.TrimPrefix(filepath.ToSlash(w.Rel(filepath.Dir(p))), "./"), "/")
 		if len(domain) == 1 && domain[0] == "." {

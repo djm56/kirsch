@@ -289,7 +289,8 @@ func (m *Model) relayout(lay Layout) {
 		ctx.Sty = plainSty
 		plainBody := renderItem(it, ctx)
 
-		if i > 0 && !(prevLines == 1 && len(body) == 1 && prevKind == it.Kind) {
+		grouped := prevLines == 1 && len(body) == 1 && prevKind == it.Kind
+		if i > 0 && !grouped {
 			lines = append(lines, "")
 			plain = append(plain, "")
 		}

@@ -82,7 +82,9 @@ func DetectTypes(root string) []ProjectType {
 // headerContains reports whether the first detectHeaderBytes of a file contain
 // needle.
 func headerContains(path, needle string) bool {
-	f, err := os.Open(path)
+	// Called only with a path built from the canonical workspace root plus a
+	// root-level entry name from os.ReadDir — never with caller input. gosec G304.
+	f, err := os.Open(path) // #nosec G304 -- root-relative, not caller-supplied
 	if err != nil {
 		return false
 	}
@@ -96,7 +98,9 @@ func headerContains(path, needle string) bool {
 // isJSONObject guards against a package.json that is present but unparseable,
 // which should not count as a Node project.
 func isJSONObject(path string) bool {
-	body, err := os.ReadFile(path)
+	// Root-level path built from the canonical root plus a literal filename.
+	// gosec G304.
+	body, err := os.ReadFile(path) // #nosec G304 -- root-relative, not caller-supplied
 	if err != nil {
 		return false
 	}

@@ -20,14 +20,6 @@ func render(t *testing.T, caps Caps, w, h int) string {
 	return mm.(Model).View()
 }
 
-// renderEmpty is the onboarding state — golden state 1, screen 01.
-func renderEmpty(t *testing.T, caps Caps, w, h int) string {
-	t.Helper()
-	m := New(Options{Version: "0.1.0", Caps: caps})
-	mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
-	return mm.(Model).View()
-}
-
 // TestFrameInvariants is the "no visual corruption" check: the frame is exactly
 // as tall as the terminal and never wider, at every size in ui-spec §2.2.
 func TestFrameInvariants(t *testing.T) {

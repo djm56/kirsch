@@ -81,6 +81,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 | [`plan/architecture.md`](plan/architecture.md) | Settled | Why the codebase is shaped this way: dependency rules, interfaces, concurrency, cancellation, error model |
 | [`plan/ui-spec-v0.1.md`](plan/ui-spec-v0.1.md) | Settled | Full TUI spec: layout, cards, modals, mode state machine, palette, timing, accessibility |
 | [`plan/kirsch-ui-screens.md`](plan/kirsch-ui-screens.md) | Settled | Screen reference: every UI state as an 80-column character grid with per-region colour maps — the render target and golden-test source |
+| [`plan/testing/`](plan/testing/) | Live | Manual walkthroughs, automated-test reference, security tooling |
 | [`plan/adr/`](plan/adr/) | Accepted | Seven architecture decision records |
 | [`plan/milestone-0.md`](plan/milestone-0.md) | Ready | Instruction set — repo bootstrap + static TUI prototype |
 | [`plan/milestone-1.md`](plan/milestone-1.md) | Complete | Instruction set — workspace engine + read-only tools |
@@ -118,6 +119,20 @@ one place so no tool can forget it.
 There is deliberately **no** code anywhere in the binary that writes a file,
 runs an arbitrary command, or calls a model. The only subprocesses are read-only
 `git` and `rg`.
+
+## Verifying it
+
+```bash
+npm run tools      # install the lint and security tooling (one-off)
+npm run check      # fmt + vet + lint + test + screens
+npm run security   # govulncheck + gosec + secret scan
+npm run fuzz       # property tests over the untrusted-input surfaces
+```
+
+`npm` is a front door, not a dependency — every script is one line of `go` or
+`bash`, and nothing in the build needs Node. See
+[`plan/testing/`](plan/testing/) for the manual walkthroughs and for what the
+suite deliberately does not cover.
 
 ## License
 

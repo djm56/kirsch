@@ -339,3 +339,39 @@ func TestSymlinkChainIsFollowed(t *testing.T) {
 		t.Errorf("chain resolved to %q, want real.txt", got)
 	}
 }
+
+// TestDenylistIsCaseInsensitive is a regression test for a bypass found by
+// FuzzResolveNeverEscapes, not by review.
+//
+// macOS and Windows filesystems are case-insensitive by default, so `.ENV`
+// opens the same bytes as `.env`. A case-sensitive denylist is therefore
+// bypassable on two of the three platforms people actually use, by nothing
+// cleverer than pressing shift. Plan §11 amendment 51.
+func TestDenylistIsCaseInsensitive(t *testing.T) {
+	ws := fixtureWS(t, "repo-small")
+	variants := []string{
+		".ENV", ".Env", ".eNv",
+		".ENV.LOCAL", ".Env.Production",
+		"KEY.PEM", "key.PEM", "Key.Pem",
+		"ID_RSA.KEY", "id_rsa.Key",
+		".GIT/config", ".Git/HEAD", "sub/.GIT/config",
+		".KIRSCH/config.toml", ".Kirsch/sessions/a.jsonl",
+	}
+	for _, p := range variants {
+		t.Run(p, func(t *testing.T) {
+			if _, err := ws.Resolve(p); !IsViolation(err) {
+				t.Errorf("%s was not refused (err=%v); on a case-insensitive "+
+					"filesystem this reads the real file", p, err)
+			}
+		})
+	}
+
+	// The rule must not over-reach: these merely contain the same letters.
+	for _, p := range []string{"environment.md", "monkey.go", "keyboard.txt", "gitignore.md"} {
+		t.Run("allowed/"+p, func(t *testing.T) {
+			if _, err := ws.Resolve(p); IsViolation(err) {
+				t.Errorf("%s was refused but is not denylisted: %v", p, err)
+			}
+		})
+	}
+}

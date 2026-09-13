@@ -1,0 +1,40 @@
+{
+  "name": "kirsch",
+  "version": "0.1.0-dev",
+  "private": true,
+  "description": "Task runner for Kirsch. The project is Go; npm is here only as a familiar front door to the commands that matter.",
+  "scripts": {
+    "check": "npm run fmt:check && npm run vet && npm run lint && npm run test && npm run screens",
+
+    "build": "go build -o bin/kirsch ./cmd/kirsch",
+    "start": "go run ./cmd/kirsch",
+    "start:debug": "go run ./cmd/kirsch --debug",
+
+    "test": "go test ./...",
+    "test:race": "go test -race -timeout 5m ./...",
+    "test:verbose": "go test -v ./...",
+    "test:cover": "go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1",
+    "test:cover:html": "go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out",
+
+    "fuzz": "bash scripts/fuzz.sh",
+    "fuzz:long": "FUZZTIME=5m bash scripts/fuzz.sh",
+
+    "security": "npm run security:vuln && npm run security:sast && npm run security:secrets",
+    "security:vuln": "govulncheck ./...",
+    "security:sast": "gosec -quiet -exclude-generated ./...",
+    "security:secrets": "bash scripts/secret-scan.sh",
+    "security:deps": "osv-scanner scan source -r .",
+
+    "fmt": "gofmt -w .",
+    "fmt:check": "bash -c 'test -z \"$(gofmt -l .)\" || { echo \"not gofmt-clean:\"; gofmt -l .; exit 1; }'",
+    "vet": "go vet ./...",
+    "lint": "golangci-lint run",
+    "screens": "python3 scripts/lint-screens.py",
+
+    "tools": "bash scripts/install-tools.sh",
+    "ci": "npm run check && npm run security && npm run test:race"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

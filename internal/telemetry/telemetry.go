@@ -56,7 +56,10 @@ func New(o Options) (*Logger, error) {
 	if !o.Enabled || o.Path == "" {
 		return Disabled(), nil
 	}
-	if err := os.MkdirAll(filepath.Dir(o.Path), 0o755); err != nil {
+	// 0700, not 0755: the debug log carries truncated file content and tool
+	// summaries from the user's repository. It is their data, and nobody
+	// else's business. gosec G301.
+	if err := os.MkdirAll(filepath.Dir(o.Path), 0o700); err != nil {
 		return Disabled(), err
 	}
 	f, err := os.OpenFile(o.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)

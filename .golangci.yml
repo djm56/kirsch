@@ -11,9 +11,22 @@ linters:
     - unconvert
     - exhaustive # every ItemKind / CardState switch must be complete
 
-settings:
-  exhaustive:
-    default-signifies-exhaustive: true
+  settings:
+    exhaustive:
+      # A switch with a default has considered the rest; that is the point of
+      # writing one.
+      default-signifies-exhaustive: true
+      # Only our own enums. Bubble Tea's KeyType has 80+ members and a key
+      # handler deliberately handles a handful — demanding exhaustiveness there
+      # produces noise, and noise is how a linter gets switched off.
+      ignore-enum-types: "tea\\.KeyType"
+
+  exclusions:
+    rules:
+      # Test helpers are allowed to ignore errors that the test itself would
+      # catch anyway.
+      - path: _test\.go
+        linters: [errcheck]
 
 run:
   timeout: 5m

@@ -74,8 +74,11 @@ func Defaults() Config {
 		Provider: ProviderConfig{
 			Default: "anthropic",
 			Anthropic: AnthropicProviderConfig{
-				Model:         "claude-sonnet-5",
-				APIKeyEnv:     "ANTHROPIC_API_KEY",
+				Model: "claude-sonnet-5",
+				// The name of an environment variable, never a credential —
+				// the distinction this whole package exists to enforce. See
+				// checkSecrets, which refuses any key that carries a value.
+				APIKeyEnv:     "ANTHROPIC_API_KEY", // #nosec G101 -- variable name, not a secret
 				PromptCaching: true,
 				Thinking:      "off",
 			},
@@ -169,7 +172,10 @@ func Load(o Options) (Config, []Warning, error) {
 // Unmarshalling into a fresh struct and copying it over would blank them —
 // the naive approach the instruction set warns about.
 func mergeFile(cfg *Config, path string) ([]Warning, error) {
-	data, err := os.ReadFile(path)
+	// The path is supplied by the caller, which is the only component allowed
+	// to read the environment (see Options). Nothing model- or
+	// repository-controlled reaches here. gosec G304.
+	data, err := os.ReadFile(path) // #nosec G304 -- caller-supplied config path
 	if os.IsNotExist(err) {
 		return nil, nil // a missing config file is not an error
 	}
@@ -212,6 +218,9 @@ func checkSecrets(md toml.MetaData, path string) error {
 		if md.Type(key...) == "Hash" {
 			continue // a table named e.g. [secrets] carries no value itself
 		}
+		// Multi-line and punctuated on purpose: printed to the user as
+		// onboarding text rather than wrapped into another error.
+		//nolint:staticcheck // ST1005: user-facing message, not an error fragment
 		return fmt.Errorf(
 			"%s: key %q looks like a credential\n\n"+
 				"Kirsch never reads secrets from config files, because config files get "+

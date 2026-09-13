@@ -8,3 +8,9 @@
 # Build output. Root-anchored, per the note above.
 /kirsch
 /dist/
+
+# Node is only a task runner here; root-anchored so it cannot reach
+# testdata/repo-node/node_modules, which is a tracked fixture.
+/node_modules/
+/bin/
+/coverage.out

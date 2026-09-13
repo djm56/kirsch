@@ -137,17 +137,6 @@ func fill(r string, w int) string {
 	return strings.Repeat(r, w/rw)
 }
 
-// rightAlign places tail at the right edge of a w-cell field containing base,
-// keeping at least one space between them. Used for the ↓ n new indicator and
-// the status bar's warning segment.
-func rightAlign(base, tail string, w int) string {
-	bw, tw := cellWidth(base), cellWidth(tail)
-	if bw+tw+1 > w {
-		return truncEnd(base, w, "")
-	}
-	return base + strings.Repeat(" ", w-bw-tw) + tail
-}
-
 // wrap soft-wraps s to w cells, breaking on spaces where possible and hard-
 // breaking words longer than the line. There is no horizontal scrolling in
 // v0.1, so everything that does not fit wraps. ui-spec §7.3.

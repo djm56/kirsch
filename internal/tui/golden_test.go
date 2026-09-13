@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -56,8 +57,8 @@ func parseGrids(t *testing.T) map[string]grid {
 			if !inFence {
 				inFence, buf, w, h = true, nil, 0, 0
 				if m := fenceRe.FindStringSubmatch(strings.TrimSpace(line)); m != nil {
-					fmt.Sscanf(m[1], "%d", &w)
-					fmt.Sscanf(m[2], "%d", &h)
+					w, _ = strconv.Atoi(m[1])
+					h, _ = strconv.Atoi(m[2])
 				}
 				continue
 			}

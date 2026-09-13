@@ -12,6 +12,7 @@ points at are the real thing.
 | Why is the code shaped this way? | [`plan/architecture.md`](plan/architecture.md) — dependency rules, concurrency, error model |
 | How should the UI behave? | [`plan/ui-spec-v0.1.md`](plan/ui-spec-v0.1.md) — normative for everything visual |
 | What should the UI *look* like? | [`plan/kirsch-ui-screens.md`](plan/kirsch-ui-screens.md) — literal character grids |
+| How do I verify it? | [`plan/testing/`](plan/testing/) — walkthroughs, suite reference, security |
 | Why was X decided? | [`plan/adr/`](plan/adr/) — ADRs 0001–0007 |
 
 ## Five rules
@@ -77,8 +78,18 @@ are easy to repeat, not because the code is fragile.
 ## Before you commit
 
 ```
-gofmt -l .                        # must be empty
-go vet ./...
-go test -race ./...
-python3 scripts/lint-screens.py   # the character grids are executable
+npm run check      # fmt + vet + lint + test + screens
+npm run security   # govulncheck + gosec + secret scan
 ```
+
+Or directly, if you would rather not go through npm:
+
+```
+gofmt -l .                        # must be empty
+go vet ./... && go test -race ./...
+python3 scripts/lint-screens.py   # the character grids are executable
+govulncheck ./... && gosec -quiet ./...
+```
+
+Run `npm run fuzz` as well after touching anything that handles paths, ignore
+rules or tool input. It has found a real bug there before.

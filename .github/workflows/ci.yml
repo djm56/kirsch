@@ -59,6 +59,40 @@ jobs:
       - name: golden files unchanged
         run: git diff --exit-code -- internal/tui/testdata
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Known vulnerabilities in dependencies and in the standard library,
+      # with reachability analysis so it reports what this code actually calls.
+      # This is how the toolchain pin in go.mod gets maintained: a new advisory
+      # fails the build instead of waiting to be noticed.
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      # Static analysis. Every finding is either fixed or carries a #nosec with
+      # a written reason; an unannotated finding fails the job.
+      - name: gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          gosec -quiet -exclude-generated ./...
+
+      - name: committed credentials
+        run: bash scripts/secret-scan.sh
+
+      # The seed corpus only. Real fuzzing is `npm run fuzz`, run deliberately
+      # rather than on every push — but a committed crasher must never regress.
+      - name: fuzz corpus
+        run: go test -run 'Fuzz' ./...
+
   screens:
     name: screen reference lint
     runs-on: ubuntu-latest

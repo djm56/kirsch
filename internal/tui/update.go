@@ -492,6 +492,9 @@ func (m Model) openDetail(lay Layout) Model {
 		m.openModal(ModalState{
 			Kind: ModalContent, Title: it.Err.Kind, Source: it.ID, Lines: it.Err.Detail,
 		})
+	default:
+		// User and assistant text, notices and thinking cards have no detail
+		// view: `d` on them is a no-op rather than an empty modal.
 	}
 	return m
 }

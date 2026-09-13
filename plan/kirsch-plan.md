@@ -857,6 +857,62 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     M5 is deliberately still unwritten. Four milestones of speculative detail is
     already more than the evidence supports.
 
+**Security review findings (2026-09-13)**
+
+51. **The path denylist was bypassable by changing case, and fuzzing found it.**
+    `checkDenylist` matched case-sensitively, so `read_file(".ENV")` was
+    permitted. On macOS and Windows the filesystem is case-insensitive by
+    default, which means `.ENV` opens the same bytes as `.env` — the denylist
+    was defeated on two of three platforms by pressing shift, and macOS is a
+    supported platform (§1). Verified on the development machine before fixing:
+    `.ENV` returned the contents of `.env`.
+
+    Matching is now case-insensitive. On a case-sensitive filesystem this
+    refuses a file genuinely named `.ENV` that differs from `.env`; that is the
+    right trade, because declining to read an oddly-named file costs nothing
+    while a security boundary whose behaviour depends on the filesystem is not
+    a boundary.
+
+    Worth noting *how* it was found. Neither review nor the hand-written table
+    of denied paths caught it — both encoded the same assumption the code made.
+    `FuzzResolveNeverEscapes` asserts the property (whatever Resolve returns is
+    inside the workspace and not denylisted) rather than a list of cases, and
+    reached `.ENV` in seconds.
+
+52. **Two containment escapes in the standard library; the toolchain is pinned
+    to 1.25.12.** First `GO-2026-4602`, "FileInfo can escape from a Root in
+    `os`", fixed in 1.25.8. Then — after amendment 53 adopted `os.Root` —
+    `GO-2026-4970`, "Root escape via symlink plus trailing slash in `os`", fixed
+    in 1.25.12. Hardening with `os.Root` created exposure to an `os.Root` bug,
+    which is worth remembering: a mitigation is code, and code has
+    vulnerabilities. What made both visible within minutes was `govulncheck`,
+    which is why it runs in CI rather than on somebody's laptop.
+    Containment is this project's entire security model, so a containment bug
+    below it matters more here than the advisory's severity suggests. Found by
+    `govulncheck`, which now runs in CI so the next advisory fails a build
+    instead of waiting to be noticed.
+
+53. **A `.gitignore` that is itself a symlink escaped the workspace.**
+    `filepath.WalkDir` does not follow symlinks while traversing, but
+    `os.ReadFile` follows them when opening — so a file literally named
+    `.gitignore` pointing outside the root was read and its contents parsed as
+    ignore rules. Narrow impact (the content never reaches the user or the
+    model) but a containment failure nonetheless, and it carried a TOCTOU window
+    besides: the entry could be swapped between the walk seeing it and the read
+    opening it.
+
+    Ignore files are now read through `os.Root`, so the kernel enforces
+    containment rather than this package remembering to. Reads are also capped
+    at 1MB. Found by `gosec` (G122). The regression test was checked by
+    reverting the fix and confirming it fails — the Milestone 1 lesson about
+    test doubles applies equally to tests themselves.
+
+54. **`gosec` is clean, with eleven justified suppressions.** Each `#nosec`
+    carries a comment explaining why the finding does not apply — almost always
+    "this path already crossed `workspace.Resolve`". Suppressions without a
+    stated reason are how a scanner stops being useful; the CI job fails on any
+    finding that is not annotated.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.
