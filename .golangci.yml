@@ -28,5 +28,35 @@ linters:
       - path: _test\.go
         linters: [errcheck]
 
+# golangci-lint v2 splits formatting out of `run` into its own block, driven by
+# `golangci-lint fmt`. Keeping it here means one tool, one config, and one
+# answer to "is this file formatted?" — rather than gofmt in npm scripts, CI
+# running its own copy, and the linter having no opinion at all.
+formatters:
+  enable:
+    # The baseline. Redundant under gofumpt, which is a strict superset, but
+    # named explicitly so removing gofumpt later does not silently leave the
+    # tree with no formatter at all.
+    - gofmt
+    # Stricter than gofmt: groups consecutive top-level vars, and puts the
+    # closing brace of a multi-line composite literal on its own line. Both
+    # are decisions this codebase was already making by hand, inconsistently.
+    - gofumpt
+    # Import hygiene. gofmt sorts within a group but will not add, drop, or
+    # regroup; goimports will, so a stray import cannot survive a format pass.
+    - goimports
+
+  settings:
+    goimports:
+      # Our own packages sort into a group after the third-party block, so a
+      # diff shows at a glance whether a new dependency is internal or external.
+      local-prefixes:
+        - github.com/djm56/kirsch
+
+  exclusions:
+    # Generated files are the generator's output, not ours; reformatting them
+    # makes the next regeneration a spurious diff.
+    generated: lax
+
 run:
   timeout: 5m

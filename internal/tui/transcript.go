@@ -34,8 +34,9 @@ const (
 // A tag rather than an interface, for three reasons. Fixtures read like the
 // reference grids instead of like constructor calls; rendering has exactly one
 // switch, so the rule that line counts must not change with colour has one
-// place to be audited rather than six; and the "never rewritten once terminal"
-// guard lives at a single seam (see MutateTool).
+// place to be audited rather than one per kind; and the "never rewritten once
+// terminal" guard has one place to live rather than one per payload type —
+// see MutateTool, which is also where its limits are written down.
 type Item struct {
 	ID   ItemID
 	Kind ItemKind
@@ -87,7 +88,7 @@ type TextBlock struct {
 // is applied at render, never to the stored data, because the transcript is
 // "what the user saw" and the user can always open the modal.
 type ToolCard struct {
-	Name    string // bold — the only bold text on screen
+	Name    string // rendered bold, as is an approval card's tool name
 	Target  string
 	Summary string
 	State   CardState
@@ -167,6 +168,16 @@ type Transcript struct {
 }
 
 // Append adds an item and returns its assigned ID.
+//
+// Model code reaches this through Model.appendBlock, never directly: the
+// transcript does not know where the viewport is, so the "↓ n new" count has to
+// be taken one level up.
+//
+// TestAppendBlockIsTheOnlyAppendPath checks that mechanically by rejecting any
+// `.Append(` call in a non-test file in this package outside appendBlock. It
+// keys on the method name only, so it does not catch an append spelled some
+// other way or one that writes t.items directly; that test's docblock lists
+// what falls outside it.
 func (t *Transcript) Append(it Item) ItemID {
 	t.nextID++
 	it.ID = t.nextID
@@ -193,11 +204,21 @@ func (t *Transcript) Find(id ItemID) (Item, int, bool) {
 }
 
 // MutateTool applies fn to a tool card, refusing if the card has already
-// reached a terminal state.
+// reached a terminal state, so a late-arriving message cannot rewrite a card
+// the user has already read. ui-spec §3.8.
 //
-// This guard is the whole reason for a tagged union over an interface: it lives
-// in one place, so a late-arriving message cannot rewrite a card the user has
-// already read. ui-spec §3.8.
+// Not a seam the type system closes. Item.Tool and Item.Text are pointers, so
+// any holder of an Item — from Find, or from ranging Items() — shares the
+// payload and can write it directly, past whatever the method would have
+// checked. cancelTurn sets it.Tool.State without coming through here, and is
+// correct only because it tests for StateRunning itself. Route a new tool
+// mutation through this method: writing the field is a decision to re-derive
+// the guard by hand, and it skips t.rev — which costs nothing today only
+// because nothing reads t.rev.
+//
+// Text has the same shape and one less method. cancelTurn and advanceFake both
+// clear it.Text.Streaming in the open because AppendText only appends; there
+// is no guarded way to end a stream, so that flag has no seam at all.
 func (t *Transcript) MutateTool(id ItemID, fn func(*ToolCard)) bool {
 	it, _, ok := t.Find(id)
 	if !ok || it.Kind != KindTool || it.Tool.State.Terminal() {
@@ -283,8 +304,8 @@ type Scroll struct {
 
 // setOffset moves the viewport and maintains every pin invariant.
 //
-// Re-pin trigger #1 ("scrolling back to the bottom") lives here, so it cannot
-// be forgotten at a call site.
+// The "scrolling back to the bottom" re-pin lives here, so it cannot be
+// forgotten at a call site.
 func (s *Scroll) setOffset(off, total, viewH int) {
 	max := total - viewH
 	if max < 0 {
@@ -306,10 +327,11 @@ func (s *Scroll) setOffset(off, total, viewH int) {
 
 // repin returns the transcript to the bottom.
 //
-// Called from exactly three places: End, Esc in Browsing, and sending a
-// message. It appears nowhere in the typing path, nowhere in the append path
-// and nowhere in View — and that absence is the entire content of ui-spec
-// §2.4's "typing does not re-pin".
+// What matters is where it is *not* called: nowhere in the typing path,
+// nowhere in the append path, nowhere in View. That absence is the entire
+// content of ui-spec §2.4's "typing does not re-pin". Every call site states
+// its own reason in a trailing comment, so grep for it rather than keeping a
+// list here that goes stale on the next one.
 func (s *Scroll) repin() {
 	s.Pinned, s.NewSince = true, 0
 }

@@ -371,7 +371,8 @@ wrong and gets updated in this milestone's commit.
 - [ ] Cancelling a turn with an approval pending returns within 1s and leaves
       no parked goroutine
 - [ ] Golden screens still match, or the reference is updated in this commit
-- [ ] `go test -race ./...`, `gofmt`, `go vet`, `golangci-lint`, CI all clean
+- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`,
+      `golangci-lint run`, CI all clean
 - [ ] **No provider, agent, or session code exists anywhere in the repo**
 
 **Definition of done:** every box checked, CHANGELOG updated, `plan/README.md`

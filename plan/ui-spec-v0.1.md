@@ -123,8 +123,19 @@ dropped**; at narrow widths they are the entire reason the bar exists.
   pinned keeps it pinned.
 - Scrolling up **unpins**. A `↓ 3 new` indicator appears bottom-right of the
   viewport and counts blocks arrived since unpinning.
-- Re-pin on any of: scrolling back to the bottom, `End`, `Esc` in Browsing
-  mode, or sending a message.
+- Re-pin on any of: scrolling back to the bottom, `End` or `G` in Browsing
+  mode, sending a message, or submitting a slash command.
+- **A slash command re-pins.** Submitting one is a request, and §3.1 renders the
+  invocation as a message, so the transcript goes to the bottom where its answer
+  will be. The two hint-only paths are the exception — an unknown command, and a
+  debug command called without its argument. Both answer entirely in the dim hint
+  under the composer and put nothing in the transcript, so re-pinning would cost
+  the reader their scroll position to report a typo.
+- **`Esc` does not re-pin.** Leaving Browsing hands focus back to the composer and
+  leaves the viewport exactly where it is. Re-pinning there would make the rule
+  below unreachable in practice: `Esc` is the only way back to the composer that
+  does not first walk the selection past the last card, so scrolling up to read
+  something would be undone by the act of going to type about it.
 - **Typing does not re-pin.** Composing a message while reading scrollback must
   not yank the view to the bottom — the user is reading it deliberately.
 - `PgUp`/`PgDn` scroll without moving the card selection. `↑`/`↓` move the
@@ -339,8 +350,10 @@ Two consequences worth stating because they are easy to get wrong:
 | `Tab` | Complete a unique slash-command prefix |
 | `↑` at first line | Focus transcript (→ Browsing) |
 | `Esc` / `Ctrl+C` | Cancel the in-flight turn if busy; otherwise clear composer |
-| `q` | Quit — **only** when idle and the composer is empty |
 | `Ctrl+C` ×2 within 1s | Force quit |
+
+There is no bare-key quit. `q` is an ordinary character in the composer, and
+quitting is `/quit`, `/exit`, or `Ctrl+C` twice — see §6.
 
 **On the newline binding.** No binding here is "primary", because which one reaches the
 program is a property of the terminal rather than of Kirsch. Bubble Tea v1's `tea.Key` is
@@ -359,11 +372,21 @@ see plan amendment 40.
 | `↑` / `↓` | Move card selection |
 | `PgUp` / `PgDn` | Scroll without moving selection |
 | `Home` / `End` | Top / bottom (`End` re-pins) |
+| `g` / `G` | Top / bottom — the keyboard-reachable form of `Home` / `End` (`G` re-pins) |
 | `Enter` | Expand / collapse selected card |
 | `d` | Open content or diff modal for selected card |
 | `?` | Help overlay |
-| `Esc` | Return to Composing and re-pin |
+| `Esc` | Return to Composing (does **not** re-pin — §2.4) |
 | `↓` at last card | Return to Composing |
+
+**On `g` / `G`.** They mirror the modal's own `g`/`G` rather than inventing a second
+vocabulary for the same gesture, and they exist because `Home` and `End` are not
+universally reachable: on macOS Terminal both arrive as SS3, which Bubble Tea v1.3.10
+does not decode. They are deliberately absent from the **`browsing`** block of the help
+overlay — the overlay's `modal` block does list them — because that grid is pinned by
+screen 06 in `plan/kirsch-ui-screens.md`, so adding a row there is a spec amendment
+rather than a code change. The overlay is a one-screen summary, not this table: its
+`browsing` block also omits `Home` and `Esc`, both of which are bound.
 
 **ApprovalPending**
 
@@ -411,6 +434,7 @@ trimmed, unparsed.
 | `/new` | New session; confirm if a turn is in flight |
 | `/compact` | Manual compaction (plan §6.4); notice confirms, status bar shows `compacting` |
 | `/quit` | Quit |
+| `/exit` | Quit — an alias of `/quit`, sharing one arm rather than a second behaviour |
 
 Unknown `/command` → a dim inline hint under the composer, not an error card,
 and **never sent to the model**. `Tab` completes a unique prefix.
@@ -510,12 +534,20 @@ modals, resize, and quit all work with no panic or visual corruption.
 - **Inline expansion cap:** 200 lines, full content via the modal.
 - **`?` in the composer is a literal character**, not a help key.
 - **Typing never re-pins** a scrolled-up transcript.
+- **No bare-key quit.** `q` is an ordinary character in the composer. Quitting is
+  `/quit`, `/exit`, or `Ctrl+C` twice. See §5.2 and §6.
+- **`Esc` does not re-pin.** Leaving Browsing returns focus to the composer and
+  keeps the viewport where it is. See §2.4.
+- **Slash commands re-pin** on submission; the two hint-only paths do not, because
+  they put nothing in the transcript. See §2.4.
+- **`g`/`G` are bound in the transcript pane as well as in modals** — one vocabulary
+  for the gesture, and the reachable form of `Home`/`End` where those arrive as
+  undecoded SS3. See §5.2.
 
 **Open questions (not blocking Milestone 0):**
 
 - Whether `/approvals` deserves a direct key binding.
 - Whether the 200-line inline cap should be configurable.
-- Whether `g`/`G` in modals is worth the vi-ism for a non-vi audience.
 
 ---
 

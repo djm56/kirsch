@@ -21,9 +21,9 @@ type renderCtx struct {
 
 // renderItem is the one place a transcript item becomes lines.
 //
-// One switch, one arm per kind. Six independent Lines() implementations would
-// each be an opportunity to break the rule that line counts must not change
-// with colour; here there is a single place to audit.
+// One switch, one arm per kind. A separate Lines() implementation per kind would
+// make every one of them an opportunity to break the rule that line counts must
+// not change with colour; here there is a single place to audit.
 func renderItem(it Item, ctx renderCtx) []string {
 	var body []string
 	// Content is folded to ASCII at the render boundary, not in the stored
@@ -323,8 +323,10 @@ func renderThinking(t *ThinkingCard, ctx renderCtx) []string {
 		ctx.G.Collapsed, ctx.G.Bullet, t.Tokens))}
 }
 
-// comma groups an integer with thousands separators, matching the reference
-// grids' "4,181 lines".
+// comma groups an integer with thousands separators, matching the "4,176
+// lines" in screen 07's grid. The colour map beside that grid still reads
+// 4,181 — ui-spec §7's figure, for a differently-composed card — and the grid
+// is the half the goldens compare against.
 func comma(n int) string {
 	s := fmt.Sprintf("%d", n)
 	if len(s) <= 3 {

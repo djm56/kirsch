@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -91,6 +92,59 @@ func FuzzSanitizeIsIdempotent(f *testing.F) {
 		once := Sanitize(in)
 		if twice := Sanitize(once); twice != once {
 			t.Fatalf("not idempotent:\n  in:    %q\n  once:  %q\n  twice: %q", in, once, twice)
+		}
+	})
+}
+
+// FuzzNormalizeSS3 covers the rewrite that sits in the path of every keystroke.
+//
+// Different threat model from Sanitize: these bytes come from the user's own
+// terminal, not from a hostile file, so the risk is not injection but a mangled
+// input stream. A rewrite that changed the length would short-read Bubble Tea's
+// input buffer; one that touched a byte other than the `O` of an SS3 Home or End
+// would corrupt some other key; one that was not idempotent would mean the first
+// pass had not finished. The bounds are the part worth fuzzing — the loop indexes
+// b[i+1] and b[i+2] — and a panic there happens inside the input goroutine, where
+// it takes the program down with the terminal still in raw mode.
+func FuzzNormalizeSS3(f *testing.F) {
+	for _, s := range []string{
+		"", "\x1b", "\x1bO", "\x1bOH", "\x1bOF", "\x1bOA", "\x1bOP",
+		"\x1b[H", "\x1b\x1bOH", "\x1bOH\x1bOF", "\x1bOHOH", "OH",
+		"go to the end", "\x1bO\x1bOH", "\x00\x1bOH\x00",
+		strings.Repeat("\x1bOH", 400),
+	} {
+		f.Add(s)
+	}
+
+	f.Fuzz(func(t *testing.T, in string) {
+		b := []byte(in)
+		normalizeSS3(b) // must not panic on any slice, however truncated
+
+		// 1. Length is never changed. ss3File.Read returns the file's own
+		//    count, so a rewrite that grew or shrank the buffer would hand
+		//    Bubble Tea bytes it never read or drop bytes it did.
+		if len(b) != len(in) {
+			t.Fatalf("length changed from %d to %d", len(in), len(b))
+		}
+		// 2. The only edit ever made is `O` -> `[`. Any other difference means
+		//    the rewrite reached a byte belonging to some other key.
+		for i := range b {
+			if b[i] == in[i] {
+				continue
+			}
+			if in[i] != 'O' || b[i] != '[' {
+				t.Fatalf("byte %d changed %q -> %q; the only permitted edit is 'O' -> '['",
+					i, in[i], b[i])
+			}
+		}
+		// 3. Idempotent: a second pass changes nothing. `\x1b[H` is not a
+		//    match, so a rewritten sequence cannot be rewritten again — and if
+		//    it could, the first pass had left work undone.
+		again := make([]byte, len(b))
+		copy(again, b)
+		normalizeSS3(again)
+		if !bytes.Equal(again, b) {
+			t.Fatalf("not idempotent:\n  in:    %q\n  once:  %q\n  twice: %q", in, b, again)
 		}
 	})
 }

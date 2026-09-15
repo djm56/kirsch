@@ -198,7 +198,8 @@ states; the §13 table's "not yet drawn" note is removed.
    M2 (`/read`, `/ls`, `/search`, `/gitstatus`, `/gitdiff`, `/patch`, `/run`)
    and the `debug (M1 only)` block from the help overlay. They were labelled as
    scaffolding precisely so this step is a deletion rather than a negotiation.
-   Screen 06 gets three rows back and shrinks from 80×30.
+   Screen 06 gets five rows back — the blank spacer, the heading, and the three
+   command rows — and shrinks from 80×31 to 80×26.
 2. Token counts in the status bar come from real `Usage` events.
 3. Budget estimation per §6.3: chars/4, 4096-token output reserve, auto-compact
    above 75%. Compaction itself is M4; here, exceeding the budget surfaces
@@ -222,7 +223,8 @@ states; the §13 table's "not yet drawn" note is removed.
 - [ ] Debug slash commands and their help block are **gone**
 - [ ] Live: Kirsch answers a read-only question about a real repo with evidence,
       and `/status` shows a non-zero cache read on the second turn
-- [ ] `go test -race ./...`, `gofmt`, `go vet`, `golangci-lint`, CI all clean
+- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`,
+      `golangci-lint run`, CI all clean
 - [ ] **No session store or compaction code exists yet**
 
 **Definition of done:** every box checked, CHANGELOG updated, progress table set

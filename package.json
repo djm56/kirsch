@@ -20,15 +20,16 @@
     "fuzz:long": "FUZZTIME=5m bash scripts/fuzz.sh",
 
     "security": "npm run security:vuln && npm run security:sast && npm run security:secrets",
-    "security:vuln": "govulncheck ./...",
-    "security:sast": "gosec -quiet -exclude-generated ./...",
+    "security:vuln": "bash scripts/go-tool.sh govulncheck ./...",
+    "security:sast": "bash scripts/go-tool.sh gosec -quiet -exclude-generated ./...",
     "security:secrets": "bash scripts/secret-scan.sh",
-    "security:deps": "osv-scanner scan source -r .",
+    "security:deps": "bash scripts/go-tool.sh osv-scanner scan source -r .",
 
-    "fmt": "gofmt -w .",
-    "fmt:check": "bash -c 'test -z \"$(gofmt -l .)\" || { echo \"not gofmt-clean:\"; gofmt -l .; exit 1; }'",
+    "fmt": "bash scripts/go-tool.sh golangci-lint fmt",
+    "fmt:check": "bash scripts/go-tool.sh golangci-lint fmt --diff",
     "vet": "go vet ./...",
-    "lint": "golangci-lint run",
+    "lint": "bash scripts/go-tool.sh golangci-lint run",
+    "lint:fix": "bash scripts/go-tool.sh golangci-lint run --fix",
     "screens": "python3 scripts/lint-screens.py",
 
     "tools": "bash scripts/install-tools.sh",

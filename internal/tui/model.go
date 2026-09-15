@@ -163,8 +163,9 @@ func New(o Options) Model {
 	return m
 }
 
-// NewWithFixture is New plus the ui-spec §8 fake transcript preloaded. Used by
-// the golden tests and by `--demo`; the plain constructor starts empty so the
+// NewWithFixture is New with loadFixture's transcript preloaded — a reduced
+// subset of ui-spec §8, not the whole of it; see loadFixture. Used by the
+// golden tests and by `--demo`; the plain constructor starts empty so the
 // first thing anyone sees is the onboarding screen (§7.5, screen 01).
 func NewWithFixture(o Options) Model {
 	m := New(o)
@@ -202,8 +203,8 @@ func (m *Model) mode() Mode {
 	}
 }
 
-// setBase moves focus between the composer and the transcript. The only place
-// the textarea is focused or blurred.
+// setBase moves focus between the composer and the transcript. Apart from the
+// initial Focus() in newComposer, focus and blur belong here and nowhere else.
 func (m *Model) setBase(b BaseMode) {
 	m.base = b
 	if b == BaseComposing {
@@ -225,6 +226,54 @@ func (m *Model) askConfirm(c ConfirmState) {
 	m.confirm = &c
 }
 
+// overlayOpen reports whether a modal or a confirm prompt is on screen.
+//
+// It is relayout's flatten condition and dispatchKey's repaint trigger, named
+// once so the two cannot drift: an overlay kind added to the flatten condition
+// but not to the repaint trigger would dim the transcript and never undim it.
+//
+// The opposite seam is open, but not reachable. dispatchKey repaints only when
+// this predicate *changes*, so a keypress that swapped one overlay for another —
+// closing a modal and raising a confirm inside a single handler — would read true
+// on both sides and skip the repaint. Nothing in Update does that today, and it
+// would be harmless anyway while relayout gives modals and confirms the identical
+// Flat() treatment: what the skipped repaint would have rebuilt is the cached
+// flattened transcript, and that cache is the same either way. The two *frames*
+// are not the same bytes — View draws a modal box or a confirm box over the band,
+// and those differ — but the band underneath is already correct, which is the part
+// a repaint would have changed. Give the two kinds different treatment in relayout
+// and this stops being theoretical.
+func (m *Model) overlayOpen() bool { return m.modal != nil || m.confirm != nil }
+
+// appendBlock adds a block to the transcript, counting it against the "↓ n new"
+// indicator when the viewport is scrolled away from the bottom.
+//
+// The count lives here rather than at each caller because ui-spec §2.4 defines
+// it as "blocks arrived since unpinning" — one fact about arrival, not a rule
+// each message handler has to remember. A handler that forgets it fails
+// silently: the indicator simply never appears, which is how NewSince spent
+// Milestone 0 as a field nothing ever incremented.
+//
+// TestAppendBlockIsTheOnlyAppendPath is the mechanical half of that rule: it
+// parses this directory's non-test files and fails on any `.Append(` call
+// outside this function. It matches on the method name alone, so it catches
+// the spellings someone reaches for by reflex and not an append that avoids
+// the word — see that test's docblock for what it knowingly does not cover.
+// Treat it as a check on the obvious routes, not a proof that this one is the
+// only one.
+//
+// Arrival is the trigger, not change. A tool card reaching a terminal state
+// (MutateTool) and words streaming into an open assistant block (AppendText)
+// are both blocks the user has already been counted for; counting them again
+// would have "↓ n new" promise more unread blocks below the fold than exist.
+func (m *Model) appendBlock(it Item) ItemID {
+	id := m.tr.Append(it)
+	if !m.scroll.Pinned {
+		m.scroll.NewSince++
+	}
+	return id
+}
+
 // relayout rebuilds the flattened transcript and its per-item extents.
 //
 // This runs in Update, before key handling, not lazily inside View: minimal
@@ -244,7 +293,7 @@ func (m *Model) relayout(lay Layout) {
 		fullW = 8
 	}
 	sty := m.sty
-	if m.modal != nil || m.confirm != nil {
+	if m.overlayOpen() {
 		sty = m.sty.Flat() // the transcript recedes behind an overlay
 	}
 

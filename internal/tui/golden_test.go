@@ -64,7 +64,7 @@ func parseGrids(t *testing.T) map[string]grid {
 			}
 			inFence = false
 			if screen != "" && !afterColours && w > 0 {
-				// Screen 10 holds three grids; they key as 10, 10b, 10c.
+				// A screen with more than one grid keys its extras 10b, 10c, …
 				key := screen
 				for n := 1; ; n++ {
 					if _, taken := out[key]; !taken {
@@ -99,16 +99,20 @@ func scenarios() []scenario {
 
 		{Screen: "02", Unicode: true, Build: func(m *Model) {
 			m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{
-				Lines: []string{"Fix the Divide validation"}}})
+				Lines: []string{"Fix the Divide validation"},
+			}})
 			m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
 				Name: "read_file", Target: "calc/divide.go",
-				State: StateOK, Elapsed: 4 * time.Millisecond}})
+				State: StateOK, Elapsed: 4 * time.Millisecond,
+			}})
 			m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
-				Name: "run_command", Target: "go test ./...", State: StateRunning}})
+				Name: "run_command", Target: "go test ./...", State: StateRunning,
+			}})
 			m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{
 				Lines: []string{"I found it in calc/divide.go — the zero check runs after " +
 					"the division, so the panic fires before validation can return an error."},
-				Streaming: true}})
+				Streaming: true,
+			}})
 			m.busy = Busy{Active: true, Verb: "running go test"}
 			m.status.Tokens = 12400
 		}},
@@ -145,9 +149,11 @@ func scenarios() []scenario {
 		{Screen: "08", Unicode: true, Build: func(m *Model) {
 			m.sess.Compacted = true
 			m.tr.Append(Item{Kind: KindNotice, Notice: &NoticeCard{
-				Text: "session recovered — 3 events after a torn line were discarded"}})
+				Text: "session recovered — 3 events after a torn line were discarded",
+			}})
 			m.tr.Append(Item{Kind: KindNotice, Notice: &NoticeCard{
-				Text: "compacted 94 events into a summary · 12 files touched this session"}})
+				Text: "compacted 94 events into a summary · 12 files touched this session",
+			}})
 			m.tr.Append(Item{Kind: KindError, Err: &ErrorCard{
 				Kind:    "provider_error",
 				Message: "anthropic: 503 after 3 retries — request not sent",
@@ -163,15 +169,18 @@ func scenarios() []scenario {
 				Name: "read_file", Target: "calc/divide.go", State: StateOK,
 			}})
 			m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{
-				Lines: []string{"Soft wrap only. No horizontal scrolling in v0.1."}, Streaming: true}})
+				Lines: []string{"Soft wrap only. No horizontal scrolling in v0.1."}, Streaming: true,
+			}})
 			m.busy = Busy{Active: true, Verb: "thinking"}
 		}},
 
 		{Screen: "05", Unicode: true, Build: func(m *Model) {
 			m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{
-				Lines: []string{"Fix the Divide validation"}}})
+				Lines: []string{"Fix the Divide validation"},
+			}})
 			m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
-				Name: "search_code", Target: `"Divide("`, Summary: "3 matches", State: StateOK}})
+				Name: "search_code", Target: `"Divide("`, Summary: "3 matches", State: StateOK,
+			}})
 			m.queuePatchApproval()
 			m.openModal(ModalState{
 				Kind: ModalDiff, Title: "calc/divide.go",
@@ -184,7 +193,8 @@ func scenarios() []scenario {
 		{Screen: "06", Unicode: true, Build: func(m *Model) {
 			m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
 				Name: "read_file", Target: "calc/divide.go", State: StateOK,
-				Elapsed: 4 * time.Millisecond}})
+				Elapsed: 4 * time.Millisecond,
+			}})
 			m.base = BaseBrowsing
 			m.openModal(ModalState{Kind: ModalHelp, Title: "help", Lines: helpLines()})
 			m.status.Tokens = 12400
@@ -197,7 +207,8 @@ func scenarios() []scenario {
 			}})
 			m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{Lines: []string{
 				"The lock is taken in Open, before auto-resume reads index.json, so a " +
-					"second instance starts a fresh session instead of adopting the first."}}})
+					"second instance starts a fresh session instead of adopting the first.",
+			}}})
 			m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
 				Name: "git_diff", Summary: "2 files changed",
 				State: StateOK, Elapsed: 8 * time.Millisecond,
@@ -217,7 +228,8 @@ func scenarios() []scenario {
 
 		{Screen: "10c", Unicode: true, Build: func(m *Model) {
 			m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{Lines: []string{
-				"no header at 6 rows; transcript keeps 2 lines"}}})
+				"no header at 6 rows; transcript keeps 2 lines",
+			}}})
 		}},
 
 		{Screen: "11", Unicode: false, Build: func(m *Model) {

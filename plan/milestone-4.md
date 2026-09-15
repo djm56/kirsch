@@ -97,7 +97,7 @@ Per §6.4, and the thing to keep in view: **compaction is itself a model call.**
 
 ## Task 5 — Slash commands, for real
 
-`/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` all operating
+`/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit` all operating
 on real state. `/status` reports model, branch, dirty count, session id, tokens
 (in/out/cache), compaction percentage, the project-context file loaded, and
 active grants.
@@ -136,7 +136,8 @@ files.
       `context_overflow` rather than an oversized request
 - [ ] All slash commands operate on real state
 - [ ] Token and cost tracking in the status bar and `usage.json`
-- [ ] `go test -race ./...`, `gofmt`, `go vet`, `golangci-lint`, CI all clean
+- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`,
+      `golangci-lint run`, CI all clean
 
 **Definition of done:** every box checked, CHANGELOG updated, progress set to
 `☑ Complete`, commit tagged so Milestone 5 starts from a known point.

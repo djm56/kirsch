@@ -87,9 +87,9 @@ cmd/kirsch/main.go
 └───────────────────────────────────────────────┘
 ```
 
-Key bindings: `Enter` send · `Alt+Enter` newline (`Ctrl+J` fallback) · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit (idle `q` quits).
+Key bindings: `Enter` send · `Alt+Enter` newline (`Ctrl+J` fallback) · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit. There is no bare-key quit — `q` is an ordinary character in the composer.
 
-Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit`.
+Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit`.
 
 The sketch above is indicative only. [`plan/ui-spec-v0.1.md`](ui-spec-v0.1.md) is normative for everything visual, and [`plan/kirsch-ui-screens.md`](kirsch-ui-screens.md) draws every state it describes as a literal 80-column character grid with a per-region colour map — the render target for M0 and the source for the §9.6 golden files.
 
@@ -369,7 +369,7 @@ Tasks:
 
 - `go mod init`, MIT `LICENSE`, `README.md`, `AGENTS.md`, `CHANGELOG.md`.
 - Design docs are already settled, not drafts: `plan/architecture.md`, `plan/ui-spec-v0.1.md`, `plan/kirsch-ui-screens.md`, and `plan/adr/` (0001–0007). M0 builds against them and corrects any drift it discovers, rather than writing them. Note the folder split: `plan/` is build instructions, `doc/` is reserved for end-user documentation written in M5.
-- CI: `gofmt` check, `go vet`, `golangci-lint`, `go test ./...` on GitHub Actions.
+- CI: formatting, `go vet`, `golangci-lint`, `go test ./...` on GitHub Actions. Formatting is `golangci-lint`'s to enforce; `gofmt` alone is not the bar.
 - Bubble Tea prototype at `cmd/kirsch` with: header, scrollable transcript with fake user/assistant/tool entries, multiline composer, status bar, fake approval modal, fake diff modal, resize-safe layout, `Ctrl+C` handling.
 - Use `bubbles` (textarea, viewport, spinner) + `lipgloss`; rune-aware width math (`go-runewidth`).
 
@@ -443,7 +443,7 @@ Tasks:
 - JSONL session store per §7: append, load, resume, repair-on-corruption, `index.json` workspace→last-session map, `usage.json` totals, and the advisory-lock / second-instance degradation rule.
 - Resume rebuilds the provider message array from `assistant.message` + `tool.completed` per the §7 reconstruction rule — never from deltas — including restored session-scoped approval grants.
 - `kirsch resume`, `--new` flag, auto-resume last session per workspace.
-- Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit`.
+- Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit`.
 - Token/cost tracking in status bar + `usage.json`.
 - Manual `/compact` implementing §6.
 
@@ -912,6 +912,55 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     "this path already crossed `workspace.Resolve`". Suppressions without a
     stated reason are how a scanner stops being useful; the CI job fails on any
     finding that is not annotated.
+
+**Manual Milestone 0 walkthrough, first operator run (2026-09-14, owner decisions)**
+
+55. **`Esc` no longer re-pins the transcript.** ui-spec §2.4 listed `Esc` in
+    Browsing as a re-pin trigger, and that made the neighbouring rule — "typing
+    does not re-pin" — unreachable in practice. `Esc` is the only route back to
+    the composer that does not first walk the selection past the last card, so
+    scrolling up to read something was undone by the act of going to type about
+    it. The operator's walkthrough marked all three scroll-and-pin checks ❌ for
+    this one cause. `Esc` now returns focus and leaves the viewport alone; §2.4
+    and §5.2 are amended to match.
+
+56. **Submitting a slash command re-pins.** A command is a request, and §3.1
+    already renders the invocation as a message, so the two rules agree. The
+    re-pin lives on the tail of `runSlash` rather than per-arm, because it is one
+    fact about slash commands and the next arm added is the one that would forget
+    it. The two hint-only paths — an unknown command, and a debug command called
+    without its argument — return before the tail: their whole answer is already
+    on screen in the composer, so moving the viewport would cost the reader their
+    place to report a typo.
+
+57. **The bare `q` quit binding is removed; `/quit` and `/exit` are the quit
+    commands.** The operator's objection was concrete: a composer where `q` on an
+    empty line quits is a composer where starting a message with a word beginning
+    in `q` is a hazard, and the failure is instant and unrecoverable. `q` is now
+    an ordinary character. `/exit` was added alongside `/quit` as an alias sharing
+    one arm — a second name, not a second behaviour — because both spellings are
+    what people reach for. ui-spec §5.2 and §6 are amended, and the help overlay
+    lists both.
+
+58. **`g`/`G` are bound in the transcript pane, not only in modals.** On macOS
+    Terminal, `Home` and `End` arrive as SS3 sequences that Bubble Tea v1.3.10
+    does not decode, so they reached no handler and the operator found them dead.
+    Those are decoded now, and `g`/`G` are bound beside them: they mirror the
+    modal's own bindings rather than inventing a second vocabulary for the same
+    gesture, and they give the operator a form that works whatever the terminal
+    does. This also closes the §9 open question about whether `g`/`G` were worth
+    the vi-ism.
+
+59. **The help overlay needs 31 rows, not 30.** Adding `/exit` to the commands
+    block took the overlay's body from 21 lines to 22, and screen 06 in
+    `plan/kirsch-ui-screens.md` is redrawn at 80×31. The grid is a test oracle —
+    `TestMatchesScreenReference` renders against it — so it was regenerated
+    mechanically rather than edited by eye. When the `debug (M1 only)` block
+    leaves with the debug commands in M3 it buys back five rows, not the three
+    previously recorded: the blank spacer, the heading, and three command rows.
+    Body height is the taller column, so that takes it to
+    `max(left 15, right 17)` = 17 and the screen to 80×26. M3's task list is
+    corrected to match.
 
 **Still open (not blocking Milestone 0)**
 

@@ -94,7 +94,19 @@ func run() error {
 		a.CancelTurn()
 	}
 
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	// Input is normalised on the way in so that terminals which encode Home and
+	// End as SS3 — macOS Terminal among them — reach Bubble Tea as the CSI forms
+	// its key table actually carries. See tui.NormalizeInput.
+	//
+	// The option is appended rather than always passed because NormalizeInput
+	// returns nil when stdin is not a terminal, and tea.WithInput(nil) disables
+	// input outright. Omitting it leaves Bubble Tea to open /dev/tty for itself,
+	// which is what keeps a piped or redirected invocation driveable.
+	opts := []tea.ProgramOption{tea.WithAltScreen()}
+	if in := tui.NormalizeInput(os.Stdin); in != nil {
+		opts = append(opts, tea.WithInput(in))
+	}
+	p := tea.NewProgram(m, opts...)
 	a.Attach(p)
 
 	for _, w := range warnings {

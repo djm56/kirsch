@@ -160,12 +160,12 @@ work in some states and silently vanish in others.
 8. Confirm prompt (ui-spec §4.3) wired for `/new` mid-turn. Quitting never
    confirms.
 9. Scroll and pin per ui-spec §2.4: pinned by default; scrolling up unpins and
-   shows `↓ n new`; re-pin on `End`, `Esc`, bottom, or send. **Typing must not
-   re-pin.**
-10. Quit semantics: idle `q` with empty composer quits; `Ctrl+C` cancels the
+   shows `↓ n new`; re-pin on `End`, `G`, the bottom, send, or a slash command.
+   **Typing must not re-pin, and neither must `Esc`.**
+10. Quit semantics: `/quit` and `/exit` quit; `Ctrl+C` cancels the
     in-flight fake turn (spinner stops, composer re-enables); double `Ctrl+C`
-    within 1s force-quits.
-11. Slash commands: `/help` and `/quit` functional; others render as system
+    within 1s force-quits. There is no bare-key quit — `q` types a `q`.
+11. Slash commands: `/help`, `/quit` and `/exit` functional; others render as system
     notices (fake content fine — the *shape* must match ui-spec §6); unknown
     `/command` → dim inline hint, never an error card.
 12. Text sanitisation (ui-spec §7.1) on the fake tool output: strip ANSI, keep
@@ -241,7 +241,7 @@ capture from the real binary, not by inspection:
       under colour only §10.1 palette SGR reaches `View()` (ui-spec §13)
 - [x] Resize (large ↔ small ↔ 0×0, plus every §2.2 breakpoint) never panics
       or corrupts
-- [x] Quit paths (`q`, double `Ctrl+C`) work
+- [x] Quit paths (`/quit`, `/exit`, double `Ctrl+C`) work
 - [x] NO_COLOR and ASCII-glyph fallbacks both render sensibly
 - [x] Rendered output matches every reachable grid in
       [`kirsch-ui-screens.md`](kirsch-ui-screens.md) (screens 00–11), colour

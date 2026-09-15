@@ -80,16 +80,42 @@ are easy to repeat, not because the code is fragile.
 ```
 npm run check      # fmt + vet + lint + test + screens
 npm run security   # govulncheck + gosec + secret scan
+npm run ci         # both of the above, then the race-enabled test run
 ```
 
-Or directly, if you would rather not go through npm:
+Or directly, if you would rather not go through npm. This is exactly what the
+two commands above expand to, in order:
 
 ```
-gofmt -l .                        # must be empty
-go vet ./... && go test -race ./...
-python3 scripts/lint-screens.py   # the character grids are executable
-govulncheck ./... && gosec -quiet ./...
+# npm run check
+golangci-lint fmt --diff             # must print nothing
+go vet ./...
+golangci-lint run
+go test ./...
+python3 scripts/lint-screens.py      # the character grids are executable
+
+# npm run security
+govulncheck ./...
+gosec -quiet -exclude-generated ./...
+bash scripts/secret-scan.sh
 ```
+
+**`gofmt -l .` is not the formatting bar.** It stopped being so when
+`.golangci.yml` grew a `formatters:` block: formatting is now gofmt, gofumpt
+and goimports together, all three inside the one `golangci-lint` binary.
+`golangci-lint fmt` rewrites files, `--diff` reports without writing, and
+`golangci-lint run` fails on a gofumpt violation as well. A tree that only
+satisfies `gofmt` can therefore look clean locally and still be red in CI.
+
+Two notes on running them directly. The npm scripts reach every Go tool through
+`scripts/go-tool.sh`, which takes a copy already on your PATH first and falls
+back to `GOBIN` or `GOPATH/bin` — so the npm commands need no PATH change — and
+which refuses a `golangci-lint` it can read as older than v2, warning and
+carrying on where the version string will not parse. Invoking the tools
+yourself means putting the install directory on your PATH first; `npm run
+tools` installs them and prints the directory it used. And `npm run check`
+runs the tests without `-race`; `npm run test:race` is the stricter run, and
+the one every milestone's acceptance checklist asks for.
 
 Run `npm run fuzz` as well after touching anything that handles paths, ignore
 rules or tool input. It has found a real bug there before.

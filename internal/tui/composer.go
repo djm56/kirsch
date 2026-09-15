@@ -153,8 +153,13 @@ func parseSlash(v string) (cmd, args string, ok bool) {
 }
 
 // SlashCommands is the v0.1 command set. ui-spec §6.
+//
+// /exit is an alias of /quit, not a second behaviour: the two share one arm in
+// runSlash. Both are listed because quitting has no key binding any more, and a
+// session-ending command is the one command a reader should not have to guess
+// the spelling of.
 var SlashCommands = []string{
-	"help", "status", "diff", "files", "approvals", "new", "compact", "quit",
+	"help", "status", "diff", "files", "approvals", "new", "compact", "quit", "exit",
 }
 
 // DebugCommands are Milestone 1 scaffolding: they exist so a real repository

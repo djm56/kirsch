@@ -207,8 +207,10 @@ type Glyphs struct {
 	Spinner []string // status-bar animation frames
 }
 
-var spinnerUTF8 = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-var spinnerASCII = []string{"-", "\\", "|", "/"}
+var (
+	spinnerUTF8  = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinnerASCII = []string{"-", "\\", "|", "/"}
+)
 
 // NewGlyphs returns the Unicode table, or the ASCII fallback when the locale is
 // not UTF-8.
