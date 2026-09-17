@@ -390,6 +390,231 @@ func TestGAndCapitalGAreLiteralInTheComposer(t *testing.T) {
 	}
 }
 
+// pinnedBottom is the offset relayout derives for a pinned viewport.
+//
+// The tests below assert it rather than asserting scroll.Pinned alone, because
+// repin() sets the pin and no offset: a caller that repins without relayouting
+// leaves a model that reports itself at the bottom while the frame still draws
+// the old window, and a pin-only assertion passes on exactly that model.
+func pinnedBottom(m Model) int { return maxInt(0, len(m.lines)-m.layout().TranscriptH) }
+
+// TestComposerCtrlGRePins covers the re-pin trigger reachable while typing.
+//
+// Every other trigger costs the user something they may not want to spend.
+// Sending a message and submitting a slash command both put a block in the
+// transcript, so neither is available to someone who scrolled up to check
+// something and then thought better of sending. End and G re-pin from Browsing
+// only, which makes them two keys from the composer by way of a mode change,
+// and End cannot simply be added to keyComposing: bubbles binds it to LineEnd
+// (textarea.go:88), as it binds Ctrl+End to InputEnd (:91). Ctrl+G is the key
+// left, and it is also the one of the three that is a single C0 byte rather
+// than a modified-key sequence a terminal can mangle.
+//
+// Subtests rather than one body: the binding has three statements and they fail
+// differently. Dropping repin() leaves the pin, the count and the offset all
+// wrong; dropping relayout() leaves only the offset wrong; dropping the return
+// leaves all three right and wipes the composer hint on the way out. Each
+// subtest is built to name one of those.
+//
+// "does not reveal or move the selection" is the mirror of the rest: it pins a
+// statement that has to stay *out* of the arm rather than one that has to be in
+// it. The subtests above are all written against a viewport whose selection is
+// the last card, and none of them can see that difference, because a selection
+// already at the bottom is on screen the moment the viewport pins there.
+func TestComposerCtrlGRePins(t *testing.T) {
+	t.Run("from an unpinned composer", func(t *testing.T) {
+		m := drive(composingUnpinned(t), NoticeMsg{Text: "first"}, NoticeMsg{Text: "second"})
+		if m.mode() != ModeComposing {
+			t.Fatalf("precondition: mode = %v, want Composing — Ctrl+G is a composing binding", m.mode())
+		}
+		if m.scroll.NewSince != 2 {
+			t.Fatalf("precondition: NewSince = %d before Ctrl+G, want 2 — it has nothing to clear",
+				m.scroll.NewSince)
+		}
+		if band := transcriptBand(t, m); !hasIndicator(m, band) {
+			t.Fatalf("precondition: the indicator is not on screen before Ctrl+G:\n%s", band)
+		}
+		before := m.scroll.Offset
+		if want := pinnedBottom(m); before == want {
+			t.Fatalf("precondition: the viewport is already at the bottom (offset %d of %d lines "+
+				"in a %d-line band), so Ctrl+G has nowhere to travel",
+				before, len(m.lines), m.layout().TranscriptH)
+		}
+
+		m = drive(m, keyType(tea.KeyCtrlG))
+		if !m.scroll.Pinned {
+			t.Error("Ctrl+G did not re-pin the transcript")
+		}
+		if m.scroll.NewSince != 0 {
+			t.Errorf("Ctrl+G left NewSince = %d, want 0", m.scroll.NewSince)
+		}
+		if want := pinnedBottom(m); m.scroll.Offset != want {
+			t.Errorf("Ctrl+G left the viewport at offset %d, want %d (%d lines, %d-line band); "+
+				"it started at %d, so the pin moved and the offset did not — repin() sets no "+
+				"offset, and relayout is what derives one from the pin",
+				m.scroll.Offset, want, len(m.lines), m.layout().TranscriptH, before)
+		}
+		if band := transcriptBand(t, m); hasIndicator(m, band) {
+			t.Errorf("Ctrl+G left the indicator drawn on the band:\n%s", band)
+		}
+		if m.mode() != ModeComposing {
+			t.Errorf("Ctrl+G left mode = %v, want Composing — it scrolls without changing mode", m.mode())
+		}
+	})
+
+	t.Run("does not reveal or move the selection", func(t *testing.T) {
+		// revealSelection is what both neighbouring keyBrowsing arms call once they
+		// have moved something, so it is the statement most likely to arrive in this
+		// arm by pattern-matching. It has to stay out. Ctrl+G means "show me the
+		// bottom"; revealing a selection parked further up would scroll back to it
+		// and unpin on the way, undoing the key in the one shape of session it
+		// exists for — read back through the transcript, then jump to the bottom
+		// without sending anything.
+		//
+		// The selection is walked to the first selectable card before Esc hands the
+		// viewport back to the composer. That is the whole point of the subtest: the
+		// shared fixture leaves the selection on the last card, where the bottom of
+		// the transcript and the selection are the same place and revealSelection
+		// cannot move anything. The precondition below states what this subtest
+		// needs from the fixture, so a later change that puts the selection back
+		// within the bottom band stops the test with a message rather than letting
+		// it pass while testing nothing.
+		m := scrolledUp(t)
+		for range m.rows { // Up settles on the first selectable card rather than wrapping
+			next := drive(m, keyType(tea.KeyUp))
+			if next.sel == m.sel {
+				break
+			}
+			m = next
+		}
+		m = drive(m, keyType(tea.KeyEsc))
+
+		if m.mode() != ModeComposing {
+			t.Fatalf("precondition: mode = %v, want Composing — Ctrl+G is a composing binding", m.mode())
+		}
+		if m.scroll.Pinned {
+			t.Fatalf("precondition: the transcript is pinned at offset %d, so Ctrl+G has nowhere to travel",
+				m.scroll.Offset)
+		}
+		sel := m.sel
+		r, ok := m.rowFor(sel)
+		if !ok {
+			t.Fatalf("precondition: selection %d has no row in the transcript", sel)
+		}
+		bottom := pinnedBottom(m)
+		if r.Start+r.N-1 >= bottom {
+			t.Fatalf("precondition: the selected card occupies lines %d-%d and the band at the "+
+				"bottom starts at line %d (%d lines, %d-line band), so the card is already on "+
+				"screen there and a revealSelection in the Ctrl+G arm would have nothing to do",
+				r.Start, r.Start+r.N-1, bottom, len(m.lines), m.layout().TranscriptH)
+		}
+
+		m = drive(m, keyType(tea.KeyCtrlG))
+		if m.sel != sel {
+			t.Errorf("Ctrl+G moved the selection from item %d to item %d", sel, m.sel)
+		}
+		if !m.scroll.Pinned {
+			t.Errorf("Ctrl+G left the transcript unpinned at offset %d, want pinned", m.scroll.Offset)
+		}
+		if want := pinnedBottom(m); m.scroll.Offset != want {
+			t.Errorf("Ctrl+G left the viewport at offset %d, want %d (%d lines, %d-line band)",
+				m.scroll.Offset, want, len(m.lines), m.layout().TranscriptH)
+		}
+		r, ok = m.rowFor(m.sel)
+		if !ok {
+			t.Fatalf("Ctrl+G left selection %d with no row in the transcript", m.sel)
+		}
+		if top := m.scroll.Offset; r.Start+r.N-1 >= top {
+			t.Errorf("Ctrl+G scrolled the selected card (lines %d-%d) into the band at lines %d-%d; "+
+				"it goes to the bottom and leaves the selection where it was",
+				r.Start, r.Start+r.N-1, top, top+m.layout().TranscriptH-1)
+		}
+	})
+
+	t.Run("is harmless when already pinned", func(t *testing.T) {
+		m := drive(newDrivenSize(t, 80, 12), key('y'))
+		if m.mode() != ModeComposing || !m.scroll.Pinned {
+			t.Fatalf("precondition: mode = %v pinned = %v, want Composing and pinned",
+				m.mode(), m.scroll.Pinned)
+		}
+		before, beforeBand := m.scroll.Offset, transcriptBand(t, m)
+
+		m = drive(m, keyType(tea.KeyCtrlG))
+		if !m.scroll.Pinned {
+			t.Error("Ctrl+G unpinned an already-pinned transcript")
+		}
+		if m.scroll.Offset != before {
+			t.Errorf("Ctrl+G moved an already-pinned viewport from offset %d to %d",
+				before, m.scroll.Offset)
+		}
+		if m.scroll.NewSince != 0 {
+			t.Errorf("Ctrl+G raised NewSince to %d on a pinned transcript, want 0", m.scroll.NewSince)
+		}
+		assertSameBand(t, "Ctrl+G redrew a transcript that was already at the bottom",
+			beforeBand, transcriptBand(t, m))
+	})
+
+	t.Run("types nothing into the composer", func(t *testing.T) {
+		m := composingUnpinned(t)
+		for _, r := range "hello" {
+			m = drive(m, key(r))
+		}
+		if v := m.comp.Value(); v != "hello" {
+			t.Fatalf("precondition: composer value = %q, want %q", v, "hello")
+		}
+
+		m = drive(m, keyType(tea.KeyCtrlG))
+		if v := m.comp.Value(); v != "hello" {
+			t.Errorf("Ctrl+G changed the composer value to %q, want %q left untouched", v, "hello")
+		}
+	})
+
+	t.Run("leaves an unknown-command hint standing", func(t *testing.T) {
+		// The hint is what the missing-return case shows up in. Ctrl+G carries no
+		// runes, so a fall-through to the textarea inserts nothing and every scroll
+		// assertion above still passes — but the line below keyComposing's switch
+		// clears m.comp.Hint, and the user loses the "unknown command" message
+		// under the composer for having jumped to the bottom.
+		m := typeCmd(composingUnpinned(t), "/nope")
+		if m.comp.Hint == "" {
+			t.Fatal("precondition: /nope set no hint, so there is nothing here to lose")
+		}
+		want := m.comp.Hint
+
+		m = drive(m, keyType(tea.KeyCtrlG))
+		if m.comp.Hint != want {
+			t.Errorf("Ctrl+G left the composer hint as %q, want %q", m.comp.Hint, want)
+		}
+	})
+
+	t.Run("works while a turn is live", func(t *testing.T) {
+		// Placed ahead of keyComposing's busy guard on purpose: Ctrl+G moves the
+		// viewport rather than entering text, and a turn streaming into the
+		// transcript is when getting back to the bottom is worth the most. Move
+		// the case below the guard and this is the subtest that says so.
+		m := drive(composingUnpinned(t),
+			ToolStartedMsg{ID: 42, Name: "run_command", Target: "go test ./..."})
+		if !m.busy.Active {
+			t.Fatal("precondition: the turn is not live, so the busy guard is not under test")
+		}
+		if m.scroll.Pinned {
+			t.Fatal("precondition: the arriving tool card re-pinned, leaving nothing to re-pin")
+		}
+
+		m = drive(m, keyType(tea.KeyCtrlG))
+		if !m.scroll.Pinned {
+			t.Error("Ctrl+G did not re-pin while a turn was live")
+		}
+		if want := pinnedBottom(m); m.scroll.Offset != want {
+			t.Errorf("Ctrl+G left the viewport at offset %d while a turn was live, want %d",
+				m.scroll.Offset, want)
+		}
+		if m.scroll.NewSince != 0 {
+			t.Errorf("Ctrl+G left NewSince = %d while a turn was live, want 0", m.scroll.NewSince)
+		}
+	})
+}
+
 // TestSlashCommandsRePin covers the operator's ruling that a slash command is a
 // request, so its answer is brought on screen.
 //

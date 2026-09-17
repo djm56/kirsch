@@ -9,6 +9,10 @@ import (
 // spinner Frame rather than letting cards read a clock, which is what keeps
 // View() a pure function of the model and the goldens byte-stable.
 type renderCtx struct {
+	// W is the cells this one card may draw into — Layout.ContentW less the
+	// gutter where the item draws one. It is never the terminal's width and
+	// never the frame's: by the time a card is rendered the frame's margin has
+	// already been taken out of Layout.ContentW, one level up.
 	W        int
 	Gutter   bool
 	Expanded bool
@@ -75,7 +79,7 @@ func box(indent int, title string, body []string, outer int, edge Style, ctx ren
 
 	top := ctx.G.BoxTL
 	if title != "" {
-		t := " " + truncEnd(title, content-2, "…") + " "
+		t := " " + truncEnd(title, content-2, ctx.G.Trunc) + " "
 		top += ctx.G.BoxH + t + fill(ctx.G.BoxH, content-cellWidth(t)-1)
 	} else {
 		top += fill(ctx.G.BoxH, content)
@@ -104,6 +108,7 @@ func renderUser(t *TextBlock, ctx renderCtx) []string {
 			out = append(out, ctx.Sty.Text(w))
 		}
 	}
+
 	return out
 }
 
@@ -160,7 +165,7 @@ func renderTool(c *ToolCard, ctx renderCtx) []string {
 	dot := " " + ctx.G.Bullet + " "
 	head := ctx.Sty.Accent(glyph) + " " + ctx.Sty.Bold(ctx.Sty.Text(c.Name))
 	if c.Target != "" {
-		head += " " + ctx.Sty.Muted(truncMid(c.Target, ctx.W/2, "…"))
+		head += " " + ctx.Sty.Muted(truncMid(c.Target, ctx.W/2, ctx.G.Trunc))
 	}
 	// Field order is glyph, name, target, summary, duration, status — §3.3 and
 	// every grid. An errored command carries its summary with the ✗ instead, so

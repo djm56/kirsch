@@ -35,27 +35,37 @@
 ## 2. Full-Screen Layout
 
 ```
-┌─ Kirsch ─ my-project ─ main ● ─────────────────┐  ① header (1 line)
-│                                                │
-│  [transcript viewport — scrolls]               │  ② transcript (fills)
-│                                                │
-│  ── you ───────────────────────                │
-│  Fix the Divide validation                     │
-│                                                │
-│  ▸ read_file calc/divide.go · 4ms · ok         │  tool card (collapsed)
-│                                                │
-│  I found the issue in... ▌                     │  streaming assistant
-│                                                │
-├────────────────────────────────────────────────┤
-│ claude-sonnet-5 · ⠋ thinking · 12.4k tok       │  ③ status bar (1 line)
-├────────────────────────────────────────────────┤
-│ > _                                            │  ④ composer (1–5 lines)
-└────────────────────────────────────────────────┘
+ Kirsch ───────────────────────────────────────   ① header row 1 — wordmark + rule
+ my-project ─ main ●                              ① header row 2 — session line
+
+                                                  ② transcript (fills)
+ ── you ──────────────────────
+ Fix the Divide validation
+
+ ▸ read_file calc/divide.go · 4ms · ok            tool card (collapsed)
+
+ I found the issue in... ▌                        streaming assistant
+
+ ──────────────────────────────────────────────   separator rule
+ claude-sonnet-5 · ⠋ thinking · 12.4k tok         ③ status bar (1 line)
+ ──────────────────────────────────────────────   separator rule
+ > _                                              ④ composer (1–5 lines)
+^                                              ^
+one blank column here, and one here — the frame margin, §2.1
 ```
 
-- **① Header** — `Kirsch ─ <project name> ─ <branch>[ ● if dirty]`. Append
-  ` (compacted)` when the session has been compacted. Project name is the
-  workspace directory's base name.
+There is no box around the frame. Every row begins one column in from the left
+edge and stops one column short of the right — the frame margin of §2.1 — and
+nothing else paints an outer border.
+
+- **① Header — two rows.** Row 1 is the wordmark `Kirsch` alone, followed by a
+  rule running to the last content column. Row 2 is the session line:
+  `<project name>[ ─ <branch>][ ● if dirty][ (compacted)]`. Project name is the
+  workspace directory's base name; below 60 columns §2.2 drops the branch and
+  the dirty marker goes with it. Only row 1 carries a rule — a second full-width
+  rule directly beneath the first would read as the top edge of a box rather
+  than as a header. The header is shown or hidden **as a unit**, so the height
+  ladder frees two rows at the step that drops it.
 - **② Transcript viewport** — all conversation history. Scroll and pin rules
   in §2.4.
 - **③ Status bar** — §2.3.
@@ -66,8 +76,40 @@
 
 ### 2.1 Sizing rules
 
-- Header and status bar are fixed at 1 line each. Composer is its content
-  height clamped to 1–5. Transcript takes everything left over.
+- The header is fixed at **2 lines**; the status bar and each separator rule are
+  fixed at 1. Composer is its content height clamped to 1–5. Transcript takes
+  everything left over.
+- **Frame margin.** The frame keeps **one blank column at its left edge and one
+  at its right**, and none at the top or bottom. Horizontal only, and
+  deliberately so: the chrome budget in §2.2 spends every row the terminal has,
+  so a blank row would come straight out of the transcript, which at the
+  advertised 40×10 minimum is already down to four rows. A column is cheap at
+  every width this app supports; a row is not.
+  - **The minimum terminal is unchanged at 40×10** (§1). The margin does not
+    raise it.
+  - **Two widths, and they are not interchangeable.** The *terminal* width is
+    what the §2.2 bands are read from, and nothing draws into it. The *content*
+    width — terminal width less both margin columns — is what every renderer
+    measures against, and the only width any of them sees. A 40-column terminal
+    has 38 content columns. Banding on content width would make a 40-column
+    terminal render the `terminal too narrow` notice and retire the advertised
+    minimum as a side effect of adding a margin; the same reasoning holds at 60
+    and 80, because a band is a statement about the terminal the user has.
+  - **The right column is reserved, not written.** Content is bounded at the
+    content width and shifted right by one, so nothing can reach the last
+    column. No space is emitted into it — writing one would put trailing
+    whitespace on every row of every frame without changing a single rendered
+    cell. Both margin columns therefore carry the terminal's own background,
+    which is what §1's "the terminal's own background shows through" requires.
+  - **Applied once, last**, after the final overlay is composited. No component
+    knows the margin exists; an overlay's span is the content span, never the
+    terminal's width (screens, layout invariant 3).
+  - The margin is not gated on a §2.2 band: the 38-column `terminal too narrow`
+    notice sits inside the same margin as an 80-column session, so the app does
+    not change shape at the moment it is most degraded. It is dropped only at
+    two columns and below, where the margin would be the whole frame; that seam
+    sits far beneath the supported minimum, where nothing legible renders either
+    way.
 - All width math is rune-aware (`go-runewidth`). A rune is not a cell: CJK and
   emoji are width 2, combining marks are width 0. Assuming otherwise corrupts
   every border on the screen.
@@ -91,12 +133,25 @@
 | < 5 | Status bar + composer only; both separator rules dropped. |
 | ≤ 0 either axis | Render empty string. |
 
-The bands follow from the chrome budget, so change them together. Chrome is header (1) +
-separator (1) + status (1) + separator (1) + composer (1) = **5 rows with a header, 4
-without**. So h=10 leaves 5 transcript rows, h=6 leaves 2, and h=5 leaves 1 — which is why
-the "at least 2 lines" band starts at 6, not 5. Degrade in this order, never another:
-composer (never dropped, minimum 1) → status bar (never dropped) → the two separator rules
-(dropped **as a pair**, so the bar is never half-framed) → header → transcript remainder.
+The width bands are read from the **terminal** width, the height bands from the terminal
+height; neither is read from the content width the margin leaves (§2.1).
+
+The bands follow from the chrome budget, so change them together. Chrome is header (2) +
+separator (1) + status (1) + separator (1) + composer (1) = **6 rows with a header, 4
+without**. So h=10 leaves 4 transcript rows, h=9 leaves 5, h=6 leaves 2, and h=5 leaves 1 —
+which is why the "at least 2 lines" band starts at 6, not 5. Degrade in this order, never
+another: composer (never dropped, minimum 1) → status bar (never dropped) → the two
+separator rules (dropped **as a pair**, so the bar is never half-framed) → header →
+transcript remainder.
+
+**The header band still starts at h=10, and the transcript is briefly larger without it.**
+§1 names 40×10 as the smallest supported terminal, and the smallest supported terminal is
+exactly where the full layout has to still be the full layout — raising the band to 11 so
+the two-row header could keep a five-row transcript would mean the advertised minimum no
+longer renders a header at all. The cost is the one discontinuity above: shrinking from 10
+rows to 9 *grows* the transcript from 4 rows to 5, as the two-row header goes and only
+four rows of chrome remain. That is unavoidable once the header is a two-row unit; moving
+the band relocates it rather than removing it.
 
 ### 2.3 Status bar
 
@@ -124,7 +179,25 @@ dropped**; at narrow widths they are the entire reason the bar exists.
 - Scrolling up **unpins**. A `↓ 3 new` indicator appears bottom-right of the
   viewport and counts blocks arrived since unpinning.
 - Re-pin on any of: scrolling back to the bottom, `End` or `G` in Browsing
-  mode, sending a message, or submitting a slash command.
+  mode, **`Ctrl+G` in Composing mode**, sending a message, or submitting a slash
+  command.
+- **`Ctrl+G` is the way back to the bottom from the composer.** It re-pins
+  without leaving Composing and without putting anything in the transcript —
+  every other re-pin reachable from the composer sends something first, so a
+  reader who scrolled up and then decided not to send had no single key that
+  returned the view. It moves the viewport only: the composer's contents, its
+  hint and the card selection are all left alone, and the mode does not change.
+  It is live **while a turn is running**, unlike the rest of the composer's
+  bindings — a transcript streaming past is when getting back to the bottom is
+  worth the most.
+  `Ctrl+G` rather than `End` or `Ctrl+End`: all three spell "go to the bottom",
+  but bubbles v1.0.0 already binds `End` to LineEnd and `Ctrl+End` to InputEnd
+  in the textarea, so taking either would buy a scroll at the price of a cursor
+  movement in a composer that can be five rows tall. `Ctrl+G` is also the
+  sturdiest on the wire — it is BEL, a single C0 byte, where `Ctrl+End` is a
+  modified-key escape sequence, and §5.2's note on `g`/`G` records that this
+  family of keys is exactly where terminal disagreement lands. Bare `G` was
+  never a candidate: it has to stay an ordinary character while typing.
 - **A slash command re-pins.** Submitting one is a request, and §3.1 renders the
   invocation as a message, so the transcript goes to the bottom where its answer
   will be. The two hint-only paths are the exception — an unknown command, and a
@@ -348,12 +421,22 @@ Two consequences worth stating because they are easy to get wrong:
 | `Alt+Enter` | Newline, same decode path — **not produced by Option on a Mac keyboard** |
 | `Ctrl+J` | Newline — the one binding that is always representable |
 | `Tab` | Complete a unique slash-command prefix |
+| `Ctrl+G` | Re-pin the transcript to the bottom — works during a live turn (§2.4) |
 | `↑` at first line | Focus transcript (→ Browsing) |
 | `Esc` / `Ctrl+C` | Cancel the in-flight turn if busy; otherwise clear composer |
 | `Ctrl+C` ×2 within 1s | Force quit |
 
 There is no bare-key quit. `q` is an ordinary character in the composer, and
 quitting is `/quit`, `/exit`, or `Ctrl+C` twice — see §6.
+
+**On `Ctrl+G`.** It is the only composing binding that runs *ahead* of the
+busy guard, so it is live while a turn is in flight when everything below it in
+this table is not. It is deliberately absent from the **`composing`** block of
+the help overlay, for the same reason `g`/`G` are absent from the `browsing`
+block: that grid is pinned byte-for-byte by screen 06 in
+`plan/kirsch-ui-screens.md`, so adding a row there is a spec amendment and a
+redraw rather than a code change. The overlay is a one-screen summary, not this
+table.
 
 **On the newline binding.** No binding here is "primary", because which one reaches the
 program is a property of the terminal rather than of Kirsch. Bubble Tea v1's `tea.Key` is
@@ -471,6 +554,12 @@ Milestone 1 adds temporary debug commands — `/read`, `/ls`, `/search`,
 ### 7.3 Rendering
 
 - **Soft wrap** everywhere; no horizontal scrolling in v0.1.
+- **Every row that is cut is cut with a marker.** A row too wide for the content
+  width ends in `⋯` (`...` in ASCII, §10.2), never mid-word with nothing to say
+  it was shortened. `View()`'s final bound on the frame is a hard edge rather
+  than an elision and carries no marker, so anything whose width is not a
+  constant — a build-time version string, a project name, a branch — is
+  truncated by its own renderer before it reaches that bound.
 - **No-color fallback**: `NO_COLOR` set, `TERM=dumb`, or not a TTY → styling
   degrades to plain prefixes (`+`/`-`, `[ok]`, `[err]`); layout identical.
 - **No-Unicode fallback**: when the locale is not UTF-8, every glyph falls back
@@ -497,8 +586,22 @@ must not be a red border.
 |---|---|
 | No API key | Which env vars are read, in precedence order, and that keys are never read from config files |
 | Not in a Git repo | Run inside a repository, or use `--workspace <dir>` |
-| Empty session | Placeholder plus three example prompts |
+| Empty session | Wordmark, tagline, and three example prompts |
 | Model unknown to the model table | Dim notice: cost display unavailable, conservative budget in use |
+
+**The empty session, in detail** (screens 00 and 01). The block wordmark is 21
+cells by 2 rows, suppressed below 40 columns or 10 rows where the transcript
+needs the lines more; the band is read from the terminal width, not the content
+width the margin leaves (§2.1), so it survives at the advertised 40-column
+minimum. Beneath it sits the tagline
+`v<version> · terminal-native coding agent`, truncated to the content width with
+the §7.3 marker. Its width is **not** a constant — the version is a build-time
+string, and the shipped `0.1.0-dev` already makes the tagline 41 cells against
+the 38 a 40-column terminal leaves — so it is cut by its own renderer and reads
+`v0.1.0-dev · terminal-native coding a⋯` rather than breaking off mid-air. The
+version leads because it is the part worth keeping when the row is cut. The
+lead-in and the three suggestions survive at sizes where the wordmark does not:
+they are the part that tells a new user what to do.
 
 ## 8. Milestone 0 Prototype Scope
 
@@ -603,11 +706,26 @@ licence for it to be unreadable.
 | Warning | `⚠` | `!` |
 | New content | `↓` | `v` |
 | Stream caret | `▌` | `_` |
+| Composer caret | `▌` | `_` |
+| Composer caret, over its own glyph | `▐` | `#` |
 | Selection gutter | `┃` | `\|` |
 | Box drawing | `┌─┐│└┘` | `+-+\|+ +` |
 
 Fallback triggers when the locale is not UTF-8. **Every state is identified by
 its glyph, not only by its colour** (§12).
+
+**The composer caret has two glyphs because it is drawn over the text rather than
+beside it.** It takes the cell of the character the cursor is on, so wherever that
+character is already the caret's own glyph the row renders byte-identical to the
+plain text and there is no cursor on screen. The second glyph is drawn in exactly
+that case and never otherwise. No single glyph avoids it: the composer accepts
+arbitrary text, so any character chosen is one the user can type — and in the
+ASCII table `_` is not a corner case but `parse_slash` and `my_file.go`.
+
+**The stream caret shares the first glyph and none of this behaviour.** It is
+drawn beside the streaming text rather than over it, and is removed when the
+message completes (§3.2), so it never covers a character, never collides with
+one, and never uses the second glyph. Only the composer caret has a stand-in.
 
 **Two distinct running indicators, one clock.** The card badge (`◐`) is a static glyph
 marking a tool's lifecycle state (§3.8); the status-bar spinner is animated, advancing one

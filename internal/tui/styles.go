@@ -197,6 +197,7 @@ type Glyphs struct {
 	Warn      string // ⚠ / !
 	New       string // ↓ / v
 	Caret     string // ▌ / _
+	CaretAlt  string // ▐ / #  — the caret's stand-in, see caretFor in composer.go
 	Gutter    string // ┃ / |
 	Bullet    string // · / .
 	Sep       string // ─ / -  (header fill and separator rules)
@@ -214,12 +215,18 @@ var (
 
 // NewGlyphs returns the Unicode table, or the ASCII fallback when the locale is
 // not UTF-8.
+//
+// CaretAlt is drawn only where the text under the cursor is already the caret
+// glyph, so the two only have to differ from one another — nothing else about
+// the pair is load-bearing. Both are one cell, which is what lets either of
+// them be padded to the width of what it covers by the same rule.
 func NewGlyphs(unicode bool) Glyphs {
 	if !unicode {
 		return Glyphs{
 			Collapsed: ">", Expanded: "v", Running: "*", Pending: ".",
 			OK: "[ok]", Err: "[err]", Cancelled: "[canc]", Trunc: "...",
-			Dirty: "*", Warn: "!", New: "v", Caret: "_", Gutter: "|",
+			Dirty: "*", Warn: "!", New: "v", Caret: "_", CaretAlt: "#",
+			Gutter: "|",
 			Bullet: ".", Sep: "-",
 			BoxTL: "+", BoxTR: "+", BoxBL: "+", BoxBR: "+",
 			BoxH: "-", BoxV: "|", BoxLT: "+", BoxRT: "+",
@@ -229,7 +236,8 @@ func NewGlyphs(unicode bool) Glyphs {
 	return Glyphs{
 		Collapsed: "▸", Expanded: "▾", Running: "◐", Pending: "◌",
 		OK: "✓", Err: "✗", Cancelled: "⊘", Trunc: "⋯",
-		Dirty: "●", Warn: "⚠", New: "↓", Caret: "▌", Gutter: "┃",
+		Dirty: "●", Warn: "⚠", New: "↓", Caret: "▌", CaretAlt: "▐",
+		Gutter: "┃",
 		Bullet: "·", Sep: "─",
 		BoxTL: "┌", BoxTR: "┐", BoxBL: "└", BoxBR: "┘",
 		BoxH: "─", BoxV: "│", BoxLT: "├", BoxRT: "┤",

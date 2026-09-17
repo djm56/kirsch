@@ -77,17 +77,19 @@ cmd/kirsch/main.go
 ### TUI layout
 
 ```
-┌─ Kirsch ─ my-project ─ main ──────────────────┐
-│ [conversation viewport: user msgs, assistant  │
-│  streaming text, tool cards, approval cards]  │
-├───────────────────────────────────────────────┤
-│ status: model, busy/spinner, tokens, errors    │
-├───────────────────────────────────────────────┤
-│ > composer (multiline input)                   │
-└───────────────────────────────────────────────┘
+ Kirsch ────────────────────────────────────────
+ my-project ─ main ●
+ [conversation viewport: user msgs, assistant
+  streaming text, tool cards, approval cards]
+ ───────────────────────────────────────────────
+ status: model, busy/spinner, tokens, errors
+ ───────────────────────────────────────────────
+ > composer (multiline input)
 ```
 
-Key bindings: `Enter` send · `Alt+Enter` newline (`Ctrl+J` fallback) · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit. There is no bare-key quit — `q` is an ordinary character in the composer.
+The header is two rows — wordmark and rule, then the session line — and the frame keeps one blank column at each edge. There is no box around it.
+
+Key bindings: `Enter` send · `Alt+Enter` newline (`Ctrl+J` fallback) · `Ctrl+G` re-pin the transcript to the bottom · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit. There is no bare-key quit — `q` is an ordinary character in the composer.
 
 Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit`.
 
@@ -962,6 +964,58 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     `max(left 15, right 17)` = 17 and the screen to 80×26. M3's task list is
     corrected to match.
 
+    **Superseded in part by amendment 60.** The body figures above still hold —
+    22 lines, a 26-row box — but every *screen* height in this entry is one row
+    short of current: the header is two rows now, so the overlay needs **32**
+    rows and screen 06 is drawn at 80×32, and the M3 figure becomes 80×27.
+
+60. **The header is two rows, the frame has a one-column side margin, `Ctrl+G`
+    re-pins from the composer, and the onboarding tagline truncates with a
+    marker.** Four changes from the same operator walkthrough of
+    `plan/testing/manual-milestone-0.md` (§11, *Additional Reporting*).
+
+    - **Two-row header.** `Kirsch` and its rule on row 1; project, branch, dirty
+      marker and compaction note on row 2. The single-row form spent most of its
+      width on text rather than rule at 40 columns, and a long project name, a
+      long branch and the compaction note were competing for one row. Chrome
+      goes from 5 rows with a header to **6**; the §2.2 height bands are
+      unchanged, because the full-layout band has to keep starting at the
+      advertised 40×10 minimum. The cost is one discontinuity: 10 rows leaves a
+      four-row transcript and 9 rows leaves five, as the header goes as a unit.
+      Only row 1 carries a rule — two full-width rules in succession read as the
+      top edge of a box.
+    - **One-column frame margin, left and right, none top or bottom.** The
+      operator asked for padding on all four sides; rows are too expensive to
+      spend, because the chrome budget already uses every one and the 40×10
+      transcript is four rows. The minimum terminal is unchanged at 40×10 and
+      the §2.2 bands are still read from the terminal width, so a 40-column
+      terminal is a full-layout terminal with 38 content columns. The right
+      column is **reserved, not written**: nothing can reach it, and emitting a
+      space there would put trailing whitespace on every row of every frame
+      without changing a rendered cell. Applied once, after the last overlay is
+      composited, so no renderer knows it exists.
+    - **`Ctrl+G` re-pins the transcript from the composer.** ui-spec §2.4 listed
+      no re-pin key reachable from Composing: every one that existed put
+      something in the transcript first, so a reader who scrolled up and decided
+      not to send had no way back. `End` and `Ctrl+End` are already bound inside
+      the text area by bubbles v1.0.0, and bare `G` has to stay an ordinary
+      character while typing. It sits ahead of the busy guard, so it works during
+      a live turn — which is when it is worth the most. The help overlay's
+      `composing` block does not list it: that grid is a byte-for-byte test
+      oracle, so the row is a redraw rather than a code change, and it is
+      **still open** below.
+    - **The onboarding tagline truncates with the `⋯` marker.** Its width is not
+      a constant — the version is a build-time string, and `0.1.0-dev` already
+      makes the row 41 cells against the 38 a 40-column terminal leaves — so it
+      was reaching `View()`'s final bound, which is a hard frame edge carrying no
+      marker, and breaking off mid-word with nothing to say it had been cut.
+
+    ui-spec §2, §2.1, §2.2, §2.4, §5.2, §7.3 and §7.5 are amended;
+    `plan/kirsch-ui-screens.md` gains layout invariant 6, three reading notes, and
+    two corrections to screen 00's prose (the wordmark is 21 columns, not 22; the
+    accent it uses is 117, not the 111 the text said while the colour map beside
+    it said 117).
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.
@@ -971,3 +1025,10 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 - Session file rotation for very long sessions (ADR 0002 flagged this; still deferred).
 - Screen 14 (onboarding) in `plan/kirsch-ui-screens.md` — drawn at M3 with the
   provider onboarding path, per amendment 24.
+- A `Ctrl+G` row in the help overlay's `composing` block (amendment 60). The
+  binding ships; the overlay does not name it. Screen 06 is a byte-for-byte test
+  oracle, so this is a redraw plus a `bindingGroups` entry — but it costs no
+  height: body height is the taller column, and the row lands in the left one at
+  15 rows against the right's 22. `max(16, 22)` is still 22, and after the debug
+  block leaves at M3 `max(16, 17)` is still 17. The 80×32 grid and the 80×27
+  projection both survive it.

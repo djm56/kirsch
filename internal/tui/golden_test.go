@@ -21,6 +21,22 @@ import (
 
 const screensDoc = "../../plan/kirsch-ui-screens.md"
 
+// fixtureVersion is the version string every fixture in this package renders.
+//
+// It is the binary's own default — `var version = "0.1.0-dev"` in
+// cmd/kirsch/main.go — and not the rounder "0.1.0" the fixtures used to carry.
+// Four cells of difference, and they were the four that mattered: the onboarding
+// tagline is built from this string, and at "0.1.0" it measured 37 cells against
+// the 38 a 40-column terminal leaves while the shipped binary measured 41 and
+// overran. A fixture narrower than the product tests a frame nobody runs, and
+// this one hid an overrun at exactly the width ui-spec §1 advertises as the
+// minimum.
+//
+// Anything width-sensitive that names a version takes this constant. If the
+// shipped default changes, this changes with it and the grids are regenerated —
+// which is the point: the goldens should move when the product does.
+const fixtureVersion = "0.1.0-dev"
+
 type grid struct {
 	Screen string
 	W, H   int
@@ -246,7 +262,7 @@ func scenarios() []scenario {
 func buildScenario(t *testing.T, sc scenario, g grid) string {
 	t.Helper()
 	m := New(Options{
-		Version: "0.1.0",
+		Version: fixtureVersion,
 		Caps:    Caps{Colour: sc.Colour, Unicode: sc.Unicode},
 		Session: SessionInfo{Project: "my-project", Branch: "main", Dirty: true},
 		Status:  Status{Model: "claude-sonnet-5", Family: "sonnet-5"},

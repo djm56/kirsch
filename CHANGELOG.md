@@ -67,6 +67,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The header is two rows.** `Kirsch` and its rule on the first, the project
+  name, branch, dirty marker and compaction note on the second. The single-row
+  form spent most of a 40-column terminal on text rather than rule, and a long
+  project name, a long branch and the compaction note all competed for the same
+  row. Chrome goes from 5 rows with a header to 6. The §2.2 height bands are
+  unchanged — the full-layout band has to keep starting at the advertised 40×10
+  minimum — so the one visible consequence is that shrinking from 10 rows to 9
+  makes the transcript *one row taller*, as the header goes as a unit and only
+  four rows of chrome remain.
+- **The frame keeps one blank column at its left and right edges**, and none at
+  the top or bottom. The operator asked for padding on all four sides; a
+  terminal row is not a window pixel, and the chrome budget already spends every
+  row there is, so a blank row would come straight out of a transcript that is
+  four rows tall at the supported minimum. The minimum terminal is still 40×10
+  and the width bands are still read from the terminal width, so a 40-column
+  terminal stays a full-layout terminal — with 38 content columns. The right
+  column is *reserved, not written*: nothing can reach it, and emitting a space
+  there would put trailing whitespace on every row of every frame without
+  changing a single rendered cell.
 - Corrected the render targets before building against them: five geometry
   defects in the screen reference, two arithmetically impossible height bands,
   a conflated spinner glyph, and an escape-sequence assertion that could never
@@ -92,8 +111,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   running state and ends on two approvals — a patch, then a command — so the
   `◐` glyph and the `[a]` session-grant row are both reachable by a person and
   not only by the golden tests.
-- Help overlay grew to 31 rows; screen 06 in `plan/kirsch-ui-screens.md` redrawn
-  at 80×31.
+- Help overlay grew to 32 rows; screen 06 in `plan/kirsch-ui-screens.md` is
+  drawn at 80×32. Two causes: adding `/exit` took the body from 21 lines to 22,
+  and the two-row header below cost one more.
 - **`npm run fmt` has changed meaning, and every contributor's local formatting
   step changes with it.** It was `gofmt -w .`. It is now `golangci-lint fmt`,
   which applies gofmt, gofumpt and goimports from the one binary, sorting
@@ -113,6 +133,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **There was no way back to the bottom of the transcript from the composer.**
+  Every re-pin reachable from Composing put something in the transcript first —
+  sending a message, or submitting a slash command — so a reader who scrolled up
+  and then decided not to send had no single key that returned the view; `↑` then
+  `End` did it in two, by way of a mode they did not want. `Ctrl+G` is now bound
+  in the composer and does exactly that: it moves the viewport and nothing else,
+  leaving the composer's text, its hint, the card selection and the mode alone.
+  It sits ahead of the busy guard, so it works **during a live turn**, which is
+  when getting back to the bottom is worth the most. `End` and `Ctrl+End` were
+  not candidates — bubbles binds both inside the text area — and bare `G` has to
+  stay an ordinary character while typing. `End` and `G` still re-pin in Browsing
+  mode, as they always did. The help overlay does not list `Ctrl+G` yet; its grid
+  is a byte-for-byte test oracle, so that is a redraw, tracked in plan §11.
+- **The onboarding tagline was cut with no truncation marker** between 40 and 42
+  columns, reading as a word broken off mid-air. Its width is not a constant —
+  the version is a build-time string, and `0.1.0-dev` already makes the row 41
+  cells against the 38 a 40-column terminal leaves — so it was reaching `View()`'s
+  final bound on the frame, which is a hard edge rather than an elision and
+  carries no marker. It is truncated by its own renderer now, with the standard
+  `⋯` (`...` in ASCII).
 - **The CI lint job, which had been failing on every run on `main`.** The
   pairing of `golangci-lint-action@v6` with `golangci-lint v1.62.2` never
   reached `.golangci.yml`: a linter built with go1.23 refuses a module

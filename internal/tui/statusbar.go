@@ -37,7 +37,7 @@ func (m Model) statusRow(lay Layout) string {
 	}
 
 	// Build the left segment at descending detail until it fits.
-	budget := lay.W - cellWidth(warnPlain)
+	budget := lay.ContentW - cellWidth(warnPlain)
 	if warnPlain != "" {
 		budget-- // at least one space between segments
 	}
@@ -90,7 +90,7 @@ func (m Model) statusRow(lay Layout) string {
 	if warn == "" {
 		return chosen.styled
 	}
-	gap := lay.W - cellWidth(chosen.plain) - cellWidth(warnPlain)
+	gap := lay.ContentW - cellWidth(chosen.plain) - cellWidth(warnPlain)
 	if gap < 1 {
 		gap = 1
 	}

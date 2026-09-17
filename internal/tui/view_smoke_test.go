@@ -15,7 +15,7 @@ import (
 
 func render(t *testing.T, caps Caps, w, h int) string {
 	t.Helper()
-	m := NewWithFixture(Options{Version: "0.1.0", Caps: caps})
+	m := NewWithFixture(Options{Version: fixtureVersion, Caps: caps})
 	mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	return mm.(Model).View()
 }
@@ -237,7 +237,7 @@ func newDriven(t *testing.T) Model { return newDrivenSize(t, 80, 24) }
 
 func newDrivenSize(t *testing.T, w, h int) Model {
 	t.Helper()
-	m := NewWithFixture(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
+	m := NewWithFixture(Options{Version: fixtureVersion, Caps: Caps{Colour: false, Unicode: true}})
 	return drive(m, tea.WindowSizeMsg{Width: w, Height: h})
 }
 
@@ -410,7 +410,7 @@ func TestDoubleCtrlCForceQuits(t *testing.T) {
 // helper as its neighbours for consistency, not because it needs the palette.
 func newDrivenColour(t *testing.T, w, h int) Model {
 	t.Helper()
-	m := NewWithFixture(Options{Version: "0.1.0", Caps: Caps{Colour: true, Unicode: true}})
+	m := NewWithFixture(Options{Version: fixtureVersion, Caps: Caps{Colour: true, Unicode: true}})
 	return drive(m, tea.WindowSizeMsg{Width: w, Height: h})
 }
 
@@ -424,10 +424,7 @@ func transcriptBand(t *testing.T, m Model) string {
 	t.Helper()
 	lay := m.layout()
 	rows := strings.Split(m.View(), "\n")
-	start := 0
-	if lay.ShowHeader {
-		start = 1
-	}
+	start := lay.HeaderH()
 	end := minInt(start+lay.TranscriptH, len(rows))
 	if start >= end {
 		t.Fatalf("no transcript band in a %dx%d frame", m.width, m.height)
@@ -1107,7 +1104,7 @@ func TestScriptedTurnOffersBothApprovalKinds(t *testing.T) {
 // the fixture pre-loads can be mistaken for something the turn produced.
 func newScriptedTurn(t *testing.T) Model {
 	t.Helper()
-	m := New(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
+	m := New(Options{Version: fixtureVersion, Caps: Caps{Colour: false, Unicode: true}})
 	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = drive(m, key('h'), key('i'), keyType(tea.KeyEnter))
 	if !m.busy.Active {

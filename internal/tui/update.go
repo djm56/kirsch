@@ -397,8 +397,10 @@ func (m Model) applyToolResult(msg ToolCompletedMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// layout resolves this model's frame geometry. It is the only place the overlay
+// flag is supplied, so View and every handler read the same region height.
 func (m Model) layout() Layout {
-	return computeLayout(m.width, m.height, m.comp.contentLines())
+	return computeLayout(m.width, m.height, m.comp.contentLines(), m.overlayOpen())
 }
 
 // handleKey dispatches to exactly one mode handler.
@@ -479,6 +481,47 @@ func (m Model) keyComposing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 				m.comp.SetValue("/" + full)
 			}
 		}
+		return m, nil
+
+	case tea.KeyCtrlG:
+		// The way back to the bottom without leaving the composer and without
+		// sending anything. Before this, every re-pin reachable from Composing
+		// put something in the transcript first — sending a message, or
+		// submitting a slash command — so a reader who scrolled up and then
+		// decided not to send after all had no single key that returned the
+		// view. ↑ then End did it in two, by way of a mode they did not want.
+		//
+		// Ctrl+G rather than End or Ctrl+End. All three spell "go to the
+		// bottom"; the other two are already spoken for here, because bubbles
+		// v1.0.0 binds End to LineEnd and Ctrl+End to InputEnd (textarea.go:88
+		// and :91). Taking either would buy a scroll at the price of a cursor
+		// movement in a composer that can be several lines tall. Ctrl+G is also
+		// the sturdiest of the three on the wire: it is BEL, a single C0 byte,
+		// where Ctrl+End is a modified-key escape sequence. This package already
+		// carries evidence that the plain forms of those keys are not decoded
+		// everywhere — normalizeSS3 above exists because macOS Terminal sends
+		// bare Home and End as SS3, which Bubble Tea v1.3.10 does not read. That
+		// is about the unmodified keys, so it does not by itself prove anything
+		// about Ctrl+End; what it establishes is that this family of keys is
+		// where terminal disagreement actually lands, and a single control byte
+		// sidesteps the question. Bare `G` was never a candidate: it has to stay
+		// an ordinary character while typing, and
+		// TestGAndCapitalGAreLiteralInTheComposer holds that line.
+		//
+		// repin() sets the pin and no offset — relayout derives the offset from
+		// the pin — so the two are called together, in this order, exactly as
+		// both Browsing arms do it. Split them and the model reports itself
+		// pinned while the frame still shows the old position.
+		//
+		// Deliberately ahead of the busy guard below: this moves the viewport
+		// rather than entering text, and a live turn streaming into the
+		// transcript is when getting back to the bottom is worth the most.
+		//
+		// ui-spec §2.4 lists no re-pin key reachable from Composing and §5.2's
+		// composing table has no row for this one. Amending both is tracked
+		// separately from this change.
+		m.scroll.repin() // re-pin: Ctrl+G is "go to the bottom" from the composer
+		m.relayout(lay)
 		return m, nil
 
 	case tea.KeyUp:
@@ -689,6 +732,12 @@ func (m Model) keyModal(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 // handlePaste inserts literal text, warning first when it is large. §7.2.
 func (m Model) handlePaste(s string) (tea.Model, tea.Cmd) {
 	if m.mode() != ModeComposing {
+		// A bracketed paste arriving under an open overlay is DISCARDED, not
+		// queued: an overlay traps every key, and text that landed in a textarea
+		// the user cannot see would appear in the composer on close with nothing
+		// naming where it came from. Silent is the right behaviour and the wrong
+		// word for it to go unwritten — a reader looking for where the paste went
+		// should find the answer here rather than infer it from mode().
 		return m, nil
 	}
 	if len(s) > PasteWarnBytes {

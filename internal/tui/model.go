@@ -288,7 +288,7 @@ func (m *Model) relayout(lay Layout) {
 	// Content width is per item: the gutter's two columns are only reserved
 	// for items that actually draw one. Reserving them everywhere shortens
 	// every speaker rule and separator by two cells.
-	fullW := lay.W
+	fullW := lay.ContentW
 	if fullW < 8 {
 		fullW = 8
 	}
@@ -427,8 +427,8 @@ func (m Model) transcriptRows(lay Layout) []string {
 		if idx >= 0 && idx < len(m.plainLines) {
 			plain = m.plainLines[idx]
 		}
-		keep := lay.W - cellWidth(tail) - 1
-		out[h-1] = pad(truncEnd(plain, maxInt(0, keep), "…"), maxInt(0, keep)) +
+		keep := lay.ContentW - cellWidth(tail) - 1
+		out[h-1] = pad(truncEnd(plain, maxInt(0, keep), m.gly.Trunc), maxInt(0, keep)) +
 			" " + m.sty.Accent(tail)
 	}
 	return out
