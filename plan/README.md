@@ -5,27 +5,29 @@ the architecture and UI specs, the ADRs, and the per-milestone instruction
 sets. It is scaffolding for the builder.
 
 [`doc/`](../doc/) is reserved for **documentation for people using Kirsch** —
-install, configuration reference, keybindings, troubleshooting. It is written
-at Milestone 5 and is deliberately empty until then. If you are wondering which
-folder something belongs in, ask: *is this for someone building Kirsch, or
-someone using it?* Building → `plan/`. Using → `doc/`.
+install, configuration reference, keybindings, troubleshooting. Usage documentation
+([`usage.md`](../doc/usage.md)) landed early because the help overlay inside the
+program points readers at that file, so leaving it absent meant shipping a pointer
+to nothing. The rest of `doc/` arrives at Milestone 5 when there is a working
+system to document. If you are wondering which folder something belongs in, ask:
+*is this for someone building Kirsch, or someone using it?* Building → `plan/`.
+Using → `doc/`.
 
 ## Contents
 
 | Document | Purpose |
 |---|---|
-| [`kirsch-plan.md`](kirsch-plan.md) | The locked v0.1 spec: contract, architecture, tool contracts, policy, config, context, events, milestones, testing |
-| [`architecture.md`](architecture.md) | Why the codebase is shaped this way — dependency rules and their enforcement, the four interfaces that matter, concurrency and cancellation, the three representations of a conversation, error model, anti-goals |
-| [`ui-spec-v0.1.md`](ui-spec-v0.1.md) | Full TUI spec — layout and breakpoints, transcript elements, mode state machine, bindings per mode, slash commands, text sanitisation, palette, timing, accessibility, golden-test surface |
-| [`kirsch-ui-screens.md`](kirsch-ui-screens.md) | Screen reference — every ui-spec §13 golden state drawn as a literal 80-column character grid, each with a per-region colour map. What the spec describes in prose, this draws |
-| [`testing/`](testing/) | How to verify Kirsch — manual walkthroughs per milestone, what the automated suite covers, and the security tooling |
-| [`adr/`](adr/) | Architecture decision records 0001–0007 |
-| [`milestone-0.md`](milestone-0.md) | Instruction set — repo bootstrap + static TUI prototype |
-| [`milestone-1.md`](milestone-1.md) | Instruction set — workspace engine + read-only tools |
-| [`milestone-2.md`](milestone-2.md) | Instruction set — patches, commands, approvals |
-| [`milestone-3.md`](milestone-3.md) | Instruction set — provider + agent loop *(drafted ahead; refine before executing)* |
-| [`milestone-4.md`](milestone-4.md) | Outline — real task loop + sessions *(drafted far ahead; expect to rewrite)* |
-| `milestone-5.md` | *Written when Milestone 4 completes* |
+| [`START-HERE.md`](START-HERE.md) | Your entry point — read this first. Routes you through the documents in the right order. |
+| [`PROGRESS.md`](PROGRESS.md) | Live status — who is working what, what is blocked, what is done. The single source of truth for "where are we". |
+| [`spec/`](spec/) | The locked v0.1 specification — contract, architecture, TUI spec, and screen reference. What Kirsch is and how it must behave. See [`spec/README.md`](spec/README.md) for the index and what each document answers. |
+| [`process/working-agreement.md`](process/working-agreement.md) | Practices for shared work — claiming deliverables, branch naming, commits, PRs, file ownership via the Owns column in deliverables, handover contract freezing, amendment procedure, board discipline. |
+| [`testing/`](testing/) | How to verify Kirsch — manual walkthroughs per milestone, what the automated suite covers, and the security tooling. See [`testing/README.md`](testing/README.md) for detail. |
+| [`adr/`](adr/) | Architecture decision records 0001–0007, documenting why major design decisions were made. See [`adr/README.md`](adr/README.md) for the index and what an ADR is. |
+| [`milestones/`](milestones/) | Per-milestone instruction sets. See [`milestones/README.md`](milestones/README.md) for the confidence levels and how milestones map to shipped code. |
+
+## Milestone Instruction Sets
+
+Kirsch is built in five milestones. Live status lives in [`PROGRESS.md`](PROGRESS.md). The milestone instruction sets, their confidence levels, and the links to each milestone's document live in [`milestones/README.md`](milestones/README.md).
 
 Milestone instruction sets are normally written **one at a time**, each authored
 after the previous milestone lands, because detail written three milestones
@@ -42,21 +44,9 @@ amendments correcting instructions written just *one* milestone ahead.
 Re-read the next milestone's document against the code before starting it, and
 amend rather than work around a mismatch.
 
-## Progress
+## Live Status
 
-Update this table as milestones complete. It is the single place to look for
-"where are we".
-
-| # | Milestone | Status | Instruction set |
-|---|---|---|---|
-| 0 | Repo skeleton + static TUI prototype | ☑ Complete | [done](milestone-0.md) |
-| 1 | Workspace engine + read-only tools | ☑ Complete | [done](milestone-1.md) |
-| 2 | Patches, commands, approvals | ☐ Not started | [ready](milestone-2.md) |
-| 3 | Provider + agent loop | ☐ Not started | [draft](milestone-3.md) |
-| 4 | Real task loop + sessions | ☐ Not started | [outline](milestone-4.md) |
-| 5 | Polish + release (`v0.1.0`) | ☐ Not started | not written |
-
-Status values: `☐ Not started` · `◐ In progress` · `☑ Complete`.
+Live status — who is working what, what is blocked, what is done — lives in [`PROGRESS.md`](PROGRESS.md). It is the single place to look for "where are we", and it is edited one cell at a time as work actually changes rather than batch-updated at the end of a milestone.
 
 A milestone is **Complete** only when every box in its instruction set's final
 acceptance checklist is ticked, `go test ./...` is green, and CI is green. Not
@@ -83,9 +73,9 @@ found by reading the code.
 2. **Do not build features from later milestones early**, and do not build
    anything from the plan's out-of-scope list (§1).
 3. **The plan is the spec; the UI spec is law for anything visual.** Where an
-   instruction set and [`ui-spec-v0.1.md`](ui-spec-v0.1.md) appear
+   instruction set and [`spec/ui-spec-v0.1.md`](spec/ui-spec-v0.1.md) appear
    to conflict, the spec wins — flag the conflict rather than guessing.
-   [`kirsch-ui-screens.md`](kirsch-ui-screens.md) is the render target for
+   [`spec/kirsch-ui-screens.md`](spec/kirsch-ui-screens.md) is the render target for
    that law: build the TUI to match those grids, and capture golden files
    against them. A screen that disagrees with the spec is the screen's bug —
    fix the screen, never the spec, and never split the difference in code.

@@ -86,7 +86,7 @@ it, and none is skipped.
 | 5 | **Every filesystem path crosses `workspace.Resolve`.** No tool opens a path it built itself. | No silent side effects (§1.3). Containment enforced at one chokepoint cannot be forgotten at seven call sites. |
 
 Rules 1 and 2 are **enforced by a test**, not by review — see
-[milestone-1.md](milestone-1.md) Task 10. The test exists before the packages it
+[milestone-1.md](../milestones/milestone-1.md) Task 10. The test exists before the packages it
 guards, because the day `internal/provider` first appears is precisely the day
 nobody is thinking about import rules.
 

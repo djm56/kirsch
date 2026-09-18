@@ -3,8 +3,8 @@
 > **Status: Settled for v0.1.** Companion to [`ui-spec-v0.1.md`](ui-spec-v0.1.md),
 > which stays normative: it says what the rules are, this shows what they produce.
 > Where a screen and the spec disagree, **the spec wins and the screen is the bug**.
-> Built against in [Milestone 0](milestone-0.md) (Tasks 4–7) and held to in
-> [Milestone 1](milestone-1.md) (Task 9); registered in the plan's amendment log
+> Built against in [Milestone 0](../milestones/milestone-0.md) (Tasks 4–7) and held to in
+> [Milestone 1](../milestones/milestone-1.md) (Task 9); registered in the plan's amendment log
 > ([`kirsch-plan.md`](kirsch-plan.md) §11, amendment 24).
 
 Every screen below is a literal character grid at **80 columns** (narrow variants noted

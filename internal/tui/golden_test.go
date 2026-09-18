@@ -14,12 +14,12 @@ import (
 )
 
 // The screen reference is the expected output, not a sketch of it. These tests
-// parse the character grids straight out of plan/kirsch-ui-screens.md and
+// parse the character grids straight out of plan/spec/kirsch-ui-screens.md and
 // compare View() against them, so a rendering change and a stale design
 // document cannot drift apart silently — which is the rule plan §9.6 states and
 // amendment 24 exists to protect.
 
-const screensDoc = "../../plan/kirsch-ui-screens.md"
+const screensDoc = "../../plan/spec/kirsch-ui-screens.md"
 
 // fixtureVersion is the version string every fixture in this package renders.
 //

@@ -389,7 +389,7 @@ within 1s and the card renders `⊘ cancelled`; no goroutine leak (`go test
    now runs on app messages.
 5. Golden tests updated for real card content. Real envelopes must render in
    the **same shape** as the M0 grids in
-   [`kirsch-ui-screens.md`](kirsch-ui-screens.md) — screen 02 for a running
+   [`spec/kirsch-ui-screens.md`](../spec/kirsch-ui-screens.md) — screen 02 for a running
    and a completed card, 07 for the 200-line cap, 08 for error cards and
    system notices. Real data changes the strings inside a card, never its
    structure; if a real envelope will not fit that shape, the screen reference
@@ -467,8 +467,8 @@ the deliberate import afterwards.
 - [x] **No patch, command-execution, provider, agent, session, or policy code
       exists anywhere in the repo**
 
-**Definition of done:** every box checked, CHANGELOG updated, `plan/README.md`
-progress table set to `☑ Complete`, and a commit or PR tagged so Milestone 2
+**Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md`
+set to `☑ Complete`, and a commit or PR tagged so Milestone 2
 starts from a known point.
 
 **Completed 2026-09-12.** All packages green under `-race`. Findings from

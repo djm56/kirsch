@@ -10,14 +10,14 @@
 1. **One milestone at a time.** Do not build anything from Milestones 1–5.
    In particular: **no** file-reading tools, **no** subprocess execution,
    **no** provider/agent/session/policy/config/telemetry packages.
-2. **The UI spec is law.** [`plan/ui-spec-v0.1.md`](ui-spec-v0.1.md) defines
+2. **The UI spec is law.** [`plan/spec/ui-spec-v0.1.md`](../spec/ui-spec-v0.1.md) defines
    layout, breakpoints, cards, modals, the mode state machine, keys per mode,
    text sanitisation, palette, timing constants, and accessibility rules.
    Where this instruction set and the spec seem to conflict, the spec wins —
    flag the conflict, don't guess. Read §5.1 (mode state machine) and §10
    (palette and glyphs) before writing any code.
 3. **The screens are the render target.**
-   [`plan/kirsch-ui-screens.md`](kirsch-ui-screens.md) draws twelve states
+   [`plan/spec/kirsch-ui-screens.md`](../spec/kirsch-ui-screens.md) draws twelve states
    (00–11) as literal 80-column character grids, each with a colour map naming
    the token, 256 index and hex for every span. Do not design the layout — it
    is already designed. Build to those grids, and capture the Task 6 golden
@@ -57,7 +57,7 @@ empty (or placeholder) full-screen TUI without panic.
 ## Task 2 — Repo housekeeping files
 
 1. `AGENTS.md` — short guide for coding agents working on this repo: point to
-   `plan/kirsch-plan.md` (spec), `plan/README.md` (progress + builder rules),
+   `plan/kirsch-plan.md` (spec), `plan/PROGRESS.md` (live status) and `plan/README.md` (builder rules),
    the hard dependency rules in `plan/architecture.md`, and the
    one-milestone-at-a-time rule. State that `doc/` is for end users and must
    not be used for build notes.
@@ -184,7 +184,7 @@ colour numbers anywhere else.
    ui-spec §13. Do not invent a shorter list; that appendix exists so the
    coverage question is already answered. Thirteen of the fourteen are drawn
    as character grids in
-   [`kirsch-ui-screens.md`](kirsch-ui-screens.md) (the §13 table maps state →
+   [`spec/kirsch-ui-screens.md`](../spec/kirsch-ui-screens.md) (the §13 table maps state →
    screen); compare against those grids before recording a golden file.
    **State 14 (onboarding — no API key, not a Git repo) has no screen and is
    not reachable in M0** — there is no provider until M3. Capture the other
@@ -244,7 +244,7 @@ capture from the real binary, not by inspection:
 - [x] Quit paths (`/quit`, `/exit`, double `Ctrl+C`) work
 - [x] NO_COLOR and ASCII-glyph fallbacks both render sensibly
 - [x] Rendered output matches every reachable grid in
-      [`kirsch-ui-screens.md`](kirsch-ui-screens.md) (screens 00–11), colour
+      [`spec/kirsch-ui-screens.md`](../spec/kirsch-ui-screens.md) (screens 00–11), colour
       maps included — spot-checked at 80 cols against each screen
 - [x] Thirteen of the fourteen ui-spec §13 golden states captured from those
       screens and human-reviewed; state 14 (onboarding) deferred to M3 with

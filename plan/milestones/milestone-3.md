@@ -30,6 +30,54 @@
 
 ---
 
+## Deliverables
+
+**This breakdown follows the provisional detail in the document above** and will need revision once Milestone 2 lands and the real shapes of `internal/patch`, `internal/policy`, and `internal/app` are known. The plan's own rules exist because instruction sets written far ahead tend to drift from what the code actually looks like — Milestone 1's execution produced seven corrections to instructions written just *one* milestone ahead. Read this against the codebase when M2 is complete, and amend before starting.
+
+| ID | Title | Tasks | Depends on | Parallel | Owns |
+|---|---|---|---|---|---|
+| m3-d1 | Provider interface and fake | 1 | — | Yes | `internal/provider/` (interface, StreamEvent, ToolCall, fake implementation) |
+| m3-d2 | Anthropic adapter | 2 | m3-d1 | Yes | `internal/provider/anthropic/` (streaming client, retry, caching, error mapping) |
+| m3-d3 | Agent state machine | 3 | m3-d1 | Yes | `internal/agent/` (turn loop, Request/Response, interfaces declared, no implementation imports) |
+| m3-d4 | System prompt and thinking | 4–5 | m3-d3 | Yes | `internal/agent/prompt/system.md`, agent streaming event handling for thinking blocks |
+| m3-d5 | Onboarding screens | 6 | m3-d1, m3-d3 | Yes | `kirsch-ui-screens.md` (state 14), `internal/tui/` (rendering), `internal/app/` (error state wiring) |
+| m3-d6 | Wiring and integration | 7–8 | all | No | `internal/app/` (adapters, main wiring), `internal/tui/` (real tokens, slash commands removed) |
+
+### Acceptance criteria per deliverable
+
+**m3-d1 (Provider interface and fake):** Done when `provider.Fake` can script text-only turns, single and multiple tool calls, thinking blocks, mid-stream errors, and a turn that blocks until cancelled; no Anthropic-specific identifiers appear in exported types; and `go test ./internal/provider/...` is green.
+
+**m3-d2 (Anthropic adapter):** Done when retry logic works correctly for 5xx/429/401/403/400, prompt caching shows non-zero `cache_read` on turn two (live smoke test only), partial tool-call JSON accumulates correctly, and unit tests replay recorded SSE streams rather than hand-written fixtures.
+
+**m3-d3 (Agent state machine):** Done when multiple tool calls execute sequentially; rejections short-circuit correctly but all requested calls return results; hallucinated tool names self-correct within two retries; max-turn guard trips at 25; cancellation returns within 1s and leaves the session resumable; and all tests run against fakes, not real providers.
+
+**m3-d4 (System prompt and thinking):** Done when system.md is embedded and assembled in the correct order; project context injects correctly (first file from config, capped 32KB, read once per session); untrusted-input rule surfaces injected project context to the user rather than obeying it; thinking-enabled turns round-trip their blocks verbatim on the second request; and the injection test passes.
+
+**m3-d5 (Onboarding screens):** Done when screen 14 is drawn and lint-clean, the golden test covers all fourteen states including no API key, not a Git repo, and unknown model, error states render as onboarding (not error cards), and the "not yet drawn" note in ui-spec §13 is removed.
+
+**m3-d6 (Wiring and integration):** Done when tool-call-then-answer works end to end; the provider is integrated and wired through the app; token counts in the status bar come from real Usage events; budget estimation surfaces `context_overflow` when oversized; debug slash commands are deleted; `go test -race ./...` is green; and all fourteen golden screens match or the reference is correctly updated.
+
+### Pinned file constraint
+
+m3-d5 edits [`../spec/kirsch-ui-screens.md`](../spec/kirsch-ui-screens.md), which is parsed by the test suite (`internal/tui/golden_test.go` and `scripts/lint-screens.py`). The deliverable handover requires `npm run check` to pass, and the file must not be moved from its path at `plan/spec/`.
+
+### How two developers work this milestone
+
+The parallel path follows this sequence of dependencies and unblocking:
+
+1. **Stage 1.** Dev A claims m3-d1 (provider interface and fake). This is a gate for all downstream work.
+2. **Once m3-d1 is done,** Dev A moves to m3-d2 (anthropic adapter) while Dev B claims m3-d3 (agent state machine). These can run in parallel: m3-d2 is tested with recorded fixtures (from Task 2), m3-d3 is tested against the fake from m3-d1 (Task 3).
+3. **Once m3-d3 is done,** both developers are unblocked. Dev A continues through m3-d4 (system prompt and thinking), while Dev B claims m3-d5 (onboarding screens). Both depend on m3-d3 and can run in parallel since they own different files; m3-d4 modifies `internal/agent/prompt/`, while m3-d5 modifies `internal/tui/` and `internal/app/`.
+4. **Once all five deliverables are done,** either developer can claim m3-d6 (wiring and integration), which integrates everything and runs acceptance tests.
+
+This sequence describes task ordering only and makes no estimate of how long any deliverable takes.
+
+### Note on parallelization
+
+The constraint that `internal/agent` imports no implementation package actually *enables* parallelization rather than limiting it: m3-d3 is tested exclusively against fakes, so m3-d2 can be built and tested independently in parallel. The interface from m3-d1 and the fake from m3-d1 are separable in practice — the fake is tested as part of d1's acceptance and can be used in d3's tests before d2's adapter is complete.
+
+---
+
 ## What makes this milestone hard
 
 Two things, and neither is the HTTP call.
@@ -230,8 +278,8 @@ states; the §13 table's "not yet drawn" note is removed.
       `golangci-lint run`, CI all clean
 - [ ] **No session store or compaction code exists yet**
 
-**Definition of done:** every box checked, CHANGELOG updated, progress table set
-to `☑ Complete`, commit tagged.
+**Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md`
+set to `☑ Complete`, commit tagged.
 
 ---
 

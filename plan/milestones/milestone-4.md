@@ -28,6 +28,18 @@
 
 ---
 
+## Deliverables
+
+**Detailed task breakdown is deferred until Milestone 3 lands.** As the document above states: "This document is two milestones from execution, and the plan's own rules exist because detail at that distance is usually wrong." Specifically, **Task 2 (resume) and Task 4 (compaction) depend closely on the shape the agent loop actually took** — how state flows through a turn, how thinking blocks round-trip, how multiple tool calls are ordered and recorded — and rewriting these tasks against assumptions written before Milestone 3 ships is how drift happens. The breakdown will need real work once M3 is complete and the actual message flow is known.
+
+The coarse shape appears to be roughly five to six deliverables: session storage (Task 1), resume and locking (Tasks 2–3), compaction (Task 4), command and telemetry wiring (Tasks 5–7), integration and acceptance (Tasks 8–9). But this is provisional — Tasks 2 and 4 in particular are marked in the document itself as likely to need amendment, and that amendment belongs in the plan, not in the code.
+
+Before writing the detailed deliverable breakdown, answer: How does state flow from one turn to the next in the actual agent loop? What form does the pending turn take in the session file? Where does thinking get stored, and what gets compacted out? These answers will come from Milestone 3's implementation.
+
+When the time comes, follow the template in [Milestone 2's Deliverables section](milestone-2.md#deliverables) — one table with dependencies, file ownership, parallel execution, and per-deliverable acceptance criteria — and name clearly what must be known before each deliverable can start.
+
+---
+
 ## What makes this milestone hard
 
 **Three representations of one conversation, and they are not the same thing.**
@@ -139,8 +151,8 @@ files.
 - [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`,
       `golangci-lint run`, CI all clean
 
-**Definition of done:** every box checked, CHANGELOG updated, progress set to
-`☑ Complete`, commit tagged so Milestone 5 starts from a known point.
+**Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md`
+set to `☑ Complete`, commit tagged so Milestone 5 starts from a known point.
 
 ---
 

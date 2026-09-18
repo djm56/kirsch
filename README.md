@@ -4,8 +4,8 @@
 > repository from inside the TUI, safely: every path crosses a containment
 > check, the path denylist is enforced in one place, and there is no code
 > anywhere that writes a file, runs an arbitrary command, or calls a model. The
-> authoritative build spec is [`plan/kirsch-plan.md`](plan/kirsch-plan.md);
-> progress is tracked in [`plan/README.md`](plan/README.md).
+> authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md);
+> progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
 > ```
 > go run ./cmd/kirsch
@@ -68,41 +68,35 @@ plan/     everything needed to BUILD Kirsch — spec, architecture, ADRs,
           UI spec, per-milestone instruction sets. Scaffolding; goes away
           after v0.1.0.
 doc/      everything needed to USE Kirsch — install, configuration, usage,
-          troubleshooting. Written at Milestone 5; empty until then.
+          troubleshooting. Mostly written at Milestone 5; `usage.md` landed
+          early because the help overlay already points to it.
 ```
 
 If you are unsure where something belongs: *is it for someone building Kirsch,
 or someone using it?* Building → `plan/`. Using → `doc/`.
 
-| Document | Status | Purpose |
-|---|---|---|
-| [`plan/README.md`](plan/README.md) | Live | Build index, progress tracker, rules for the builder |
-| [`plan/kirsch-plan.md`](plan/kirsch-plan.md) | Locked (amended) | Complete v0.1 build spec with milestones |
-| [`plan/architecture.md`](plan/architecture.md) | Settled | Why the codebase is shaped this way: dependency rules, interfaces, concurrency, cancellation, error model |
-| [`plan/ui-spec-v0.1.md`](plan/ui-spec-v0.1.md) | Settled | Full TUI spec: layout, cards, modals, mode state machine, palette, timing, accessibility |
-| [`plan/kirsch-ui-screens.md`](plan/kirsch-ui-screens.md) | Settled | Screen reference: every UI state as an 80-column character grid with per-region colour maps — the render target and golden-test source |
-| [`plan/testing/`](plan/testing/) | Live | Manual walkthroughs, automated-test reference, security tooling |
-| [`plan/adr/`](plan/adr/) | Accepted | Seven architecture decision records |
-| [`plan/milestone-0.md`](plan/milestone-0.md) | Ready | Instruction set — repo bootstrap + static TUI prototype |
-| [`plan/milestone-1.md`](plan/milestone-1.md) | Complete | Instruction set — workspace engine + read-only tools |
-| [`plan/milestone-2.md`](plan/milestone-2.md) | Ready | Instruction set — patches, commands, approvals |
-| [`plan/milestone-3.md`](plan/milestone-3.md) | Draft | Instruction set — provider + agent loop |
-| [`plan/milestone-4.md`](plan/milestone-4.md) | Outline | Real task loop + sessions |
-| [`doc/`](doc/) | Planned | End-user documentation (Milestone 5) |
+| Document | Purpose |
+|---|---|
+| [`plan/README.md`](plan/README.md) | Build index, rules for the builder |
+| [`plan/PROGRESS.md`](plan/PROGRESS.md) | Live milestone status, deliverables, blocking, and claiming |
+| [`plan/START-HERE.md`](plan/START-HERE.md) | Ingestion order for humans and AI assistants, first-contribution path |
+| [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md) | Complete v0.1 build spec with milestones and amendments |
+| [`plan/spec/architecture.md`](plan/spec/architecture.md) | Why the codebase is shaped this way: dependency rules, interfaces, concurrency, cancellation, error model |
+| [`plan/spec/ui-spec-v0.1.md`](plan/spec/ui-spec-v0.1.md) | Full TUI spec: layout, cards, modals, mode state machine, palette, timing, accessibility |
+| [`plan/spec/kirsch-ui-screens.md`](plan/spec/kirsch-ui-screens.md) | Screen reference: every UI state as an 80-column character grid with per-region colour maps — the render target and golden-test source |
+| [`plan/testing/`](plan/testing/) | Manual walkthroughs, automated-test reference, security tooling |
+| [`plan/adr/`](plan/adr/) | Seven architecture decision records |
+| [`plan/process/working-agreement.md`](plan/process/working-agreement.md) | Claiming, branches, commits, PRs, file ownership, and board discipline for shared work |
+| [`plan/milestones/milestone-0.md`](plan/milestones/milestone-0.md) | Instruction set — repo bootstrap + static TUI prototype |
+| [`plan/milestones/milestone-1.md`](plan/milestones/milestone-1.md) | Instruction set — workspace engine + read-only tools |
+| [`plan/milestones/milestone-2.md`](plan/milestones/milestone-2.md) | Instruction set — patches, commands, approvals |
+| [`plan/milestones/milestone-3.md`](plan/milestones/milestone-3.md) | Instruction set — provider + agent loop |
+| [`plan/milestones/milestone-4.md`](plan/milestones/milestone-4.md) | Instruction set — real task loop + sessions |
+| [`doc/`](doc/) | End-user documentation: install, configuration, usage, troubleshooting |
 
-## Milestone Map
+## Progress
 
-| Milestone | Delivers | Status |
-|---|---|---|
-| 0 | Repo skeleton + static TUI prototype | Complete |
-| 1 | Workspace engine + read-only tools | Complete |
-| 2 | Patches, commands, approvals | Not started — [instruction set ready](plan/milestone-2.md) |
-| 3 | Provider + agent loop | Not started — [drafted](plan/milestone-3.md) |
-| 4 | End-to-end tasks + durable sessions | Not started — [outlined](plan/milestone-4.md) |
-| 5 | Polish, doctor, distribution, `v0.1.0` | Not started |
-
-Live status is tracked in [`plan/README.md`](plan/README.md). Milestone 2 is
-next and its instruction set is ready to execute.
+Milestones 0 and 1 are complete. Milestone 2 is next, with its instruction set ready to execute. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 
 ## What works today
 

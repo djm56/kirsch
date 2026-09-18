@@ -27,7 +27,7 @@ type BindingGroup struct {
 // Keys are handled and deliberately unlisted — Home and End and their g/G
 // equivalents in the transcript among them, and Esc in more modes than the grid
 // shows — because the grid itself is pinned by screen 06 in
-// plan/kirsch-ui-screens.md, so adding a row here is a spec amendment rather
+// plan/spec/kirsch-ui-screens.md, so adding a row here is a spec amendment rather
 // than a code change. Read a missing row as "not documented yet", never as
 // "not bound": the handlers in this file are what decide that.
 //
@@ -616,7 +616,7 @@ func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	// End: on macOS Terminal those two arrive as SS3, which Bubble Tea v1.3.10
 	// does not decode — see normalizeSS3. They are deliberately absent from
 	// bindingGroups: that table renders the help overlay, whose grid is pinned by
-	// screen 06 in plan/kirsch-ui-screens.md, so listing them there is a spec
+	// screen 06 in plan/spec/kirsch-ui-screens.md, so listing them there is a spec
 	// amendment rather than a code change.
 	case "g":
 		m.scroll.setOffset(0, len(m.lines), lay.TranscriptH)

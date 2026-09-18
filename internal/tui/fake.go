@@ -10,7 +10,7 @@ import (
 
 // Milestone 0 fixture data.
 //
-// The literal strings come from plan/kirsch-ui-screens.md — same paths, same
+// The literal strings come from plan/spec/kirsch-ui-screens.md — same paths, same
 // commands, same timings and token counts — so the golden files can be compared
 // against the reference grids rather than against whatever the first render
 // happened to produce.

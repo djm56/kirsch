@@ -3,15 +3,19 @@
 Read this before changing anything. It is short on purpose; the documents it
 points at are the real thing.
 
+This is now a shared repository. [`plan/process/working-agreement.md`](plan/process/working-agreement.md) covers claiming work and staying out of each other's files.
+
 ## Where the rules live
 
 | Question | Document |
 |---|---|
-| What am I building, and in what order? | [`plan/kirsch-plan.md`](plan/kirsch-plan.md) — the locked v0.1 spec |
-| What milestone are we on? | [`plan/README.md`](plan/README.md) — progress table and builder rules |
-| Why is the code shaped this way? | [`plan/architecture.md`](plan/architecture.md) — dependency rules, concurrency, error model |
-| How should the UI behave? | [`plan/ui-spec-v0.1.md`](plan/ui-spec-v0.1.md) — normative for everything visual |
-| What should the UI *look* like? | [`plan/kirsch-ui-screens.md`](plan/kirsch-ui-screens.md) — literal character grids |
+| What am I building, and in what order? | [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md) — the locked v0.1 spec |
+| Where do I start? | [`plan/START-HERE.md`](plan/START-HERE.md) — ingestion order, first-contribution path, cross-tool index |
+| What milestone are we on? | [`plan/PROGRESS.md`](plan/PROGRESS.md) — live status, deliverables, blocking |
+| How do two developers share the work? | [`plan/process/working-agreement.md`](plan/process/working-agreement.md) — claiming, branches, commits, PRs, file ownership |
+| Why is the code shaped this way? | [`plan/spec/architecture.md`](plan/spec/architecture.md) — dependency rules, concurrency, error model |
+| How should the UI behave? | [`plan/spec/ui-spec-v0.1.md`](plan/spec/ui-spec-v0.1.md) — normative for everything visual |
+| What should the UI *look* like? | [`plan/spec/kirsch-ui-screens.md`](plan/spec/kirsch-ui-screens.md) — literal character grids |
 | How do I verify it? | [`plan/testing/`](plan/testing/) — walkthroughs, suite reference, security |
 | Why was X decided? | [`plan/adr/`](plan/adr/) — ADRs 0001–0007 |
 
@@ -25,7 +29,7 @@ points at are the real thing.
 2. **Respect the dependency rules.** `internal/agent` imports no implementation
    package; `internal/tui` imports no `provider`, `tool`, `workspace` or
    `agent`. These are enforced by a CI import check from Milestone 1, not by
-   review. See [`plan/architecture.md`](plan/architecture.md) §3.
+   review. See [`plan/spec/architecture.md`](plan/spec/architecture.md) §3.
 
 3. **The UI spec is law; the screens are the render target.** Where an
    instruction set and the spec conflict, the spec wins — flag it rather than
@@ -55,7 +59,7 @@ testdata/           six fixture repositories (M1)
 ```
 
 Each package is created by exactly one milestone; the table in
-[`plan/kirsch-plan.md`](plan/kirsch-plan.md) §2 says which. If a task seems to
+[`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md) §2 says which. If a task seems to
 need a package from a later milestone, stop and check that table — either the
 dependency is real and the plan needs amending, or the task is out of scope.
 

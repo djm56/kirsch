@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lint the character grids in plan/kirsch-ui-screens.md.
+"""Lint the character grids in plan/spec/kirsch-ui-screens.md.
 
 The grids are Milestone 0's render target and the source of the golden files
 (plan amendment 24). They were originally committed with ragged box borders and
@@ -40,7 +40,7 @@ import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DOC = ROOT / "plan" / "kirsch-ui-screens.md"
+DOC = ROOT / "plan" / "spec" / "kirsch-ui-screens.md"
 VIEW = ROOT / "internal" / "tui" / "view.go"
 BOX = "┌┐└┘│├┤"
 

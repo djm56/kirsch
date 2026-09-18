@@ -32,6 +32,57 @@
 
 ---
 
+## Deliverables
+
+This milestone breaks into six independently claimable deliverables. Each deliverable specifies which tasks it covers, what it owns in the codebase, and which other deliverables must be complete before work can start. Two developers can work in parallel on deliverables with no shared files and no dependency relationship.
+
+| ID | Title | Tasks | Depends on | Parallel | Owns |
+|---|---|---|---|---|---|
+| m2-d1 | Patch infrastructure | 1–3 | — | Yes | `internal/patch/`, `testdata/repo-patch/`, `testdata/patches/` |
+| m2-d2 | Policy | 4 | — | Yes | `internal/policy/` |
+| m2-d3 | Approval flow | 6 | m2-d2 | Yes | `internal/app/`, `internal/tui/update.go`, `internal/tui/messages.go`, `internal/tui/model.go` (approval state) |
+| m2-d4 | Tool implementations | 5 | m2-d1, m2-d2 | Yes | `internal/tool/` |
+| m2-d5 | TUI integration | 7 | m2-d3, m2-d4 | No | `internal/tui/cards.go`, `internal/tui/modal.go`, `internal/tui/view.go`, `internal/tui/model.go` (modal state), `internal/tui/update.go` (slash commands) |
+| m2-d6 | Testing & acceptance | 8–9 | all | No | — |
+
+### Acceptance criteria per deliverable
+
+**m2-d1 (Patch infrastructure):** Done when fixtures are created and tracked (Task 1.1, 1.2), all diff corpus files parse correctly with expected errors on malformed cases (Task 2), and patch application is atomic with correct handling of line endings, permissions, and trailing newlines (Task 3).
+
+**m2-d2 (Policy):** Done when allowlist matching works correctly for prefix patterns without false matches, `sh -c` and shell evasions always require approval, `ForPatch` never returns `DecisionAllow`, grants are properly scoped and refused for bare wildcards, and `go test ./internal/policy/...` is green.
+
+**m2-d3 (Approval flow):** Done when `Approver.Request` blocks correctly from the tool goroutine, `Approver.Resolve` returns immediately and never blocks, cancellation returns within 1s with no parked goroutines, and an integration test drives a real TUI model through approve, reject, and approve-for-session flows.
+
+**m2-d4 (Tool implementations):** Done when `apply_patch` validates and dry-runs before requesting approval (no approval prompts for invalid patches), `run_command` filters environment correctly (stripping tokens even when allowlisted), handles timeouts with process-group kill, and both tools pass their adversarial checks (path escapes, env leaks, shell evasions).
+
+**m2-d5 (TUI integration):** Done when approval cards render real `ApprovalRequest` data, the `[a]` button appears only when `policy.ForCommand` permits session grants, the diff modal renders parsed diffs with file statistics, `/approvals` lists and clears grants correctly, debug commands `/patch` and `/run` are implemented and labeled `(debug)`, and golden screens still match the reference or the reference is updated with correct visual changes.
+
+**m2-d6 (Testing & acceptance):** Done when all Task 8 tests pass (unit, atomicity, process, approval integration, adversarial), all Task 9 checklist items are ticked, CHANGELOG is updated, `go test -race ./...` is green, `golangci-lint` and `go vet` are clean, and no provider, agent, or session code exists in the repo.
+
+### How two developers work this milestone
+
+The parallel path follows this sequence of dependencies and unblocking:
+
+1. **Stage 1.** Dev A claims m2-d1 (patch infrastructure) and Dev B claims m2-d2 (policy). Both work independently.
+2. **Once m2-d1 and m2-d2 are done,** the sequential tail begins. Dev A moves to m2-d3 (approval flow, depends on d2) while Dev B starts m2-d4 (tool implementations, depends on d1 and d2). These overlap but do not collide in files—m2-d3 owns `internal/app/` and specific `internal/tui/` files, m2-d4 owns `internal/tool/`.
+3. **Once both m2-d3 and m2-d4 are done,** m2-d5 (TUI integration) can start. This task depends on both and owns the remaining `internal/tui/` files that render approval cards and diffs.
+4. **Once m2-d5 is done,** either developer can run m2-d6 (testing & acceptance).
+
+This sequence describes task ordering only and makes no estimate of how long any deliverable takes. The milestone is not fully parallel—the last two deliverables are inherently sequential because m2-d5 depends on m2-d3 and m2-d4 both completing, and m2-d6 depends on all others.
+
+### Warning: `internal/tui` file boundary
+
+Concurrent deliverables — m2-d1 with m2-d2, and m2-d3 with m2-d4 — own separate packages with no shared files and no collision risk.
+
+However, m2-d3 and m2-d5 are sequential, not concurrent: m2-d5 depends on m2-d3, and both edit `internal/tui/model.go` and `internal/tui/update.go`. The risk is not a merge conflict, but that m2-d5 starts against a nearly-complete m2-d3 and inherits its half-built state:
+
+- **m2-d3 builds** approval state in `model.go` (the approval struct and its decision channel) and approval-handling callbacks in `update.go` (Resolve calls from `y`/`a`/`n` key presses).
+- **m2-d5 builds** modal state in `model.go` (diff display state) and debug command handlers in `update.go` (`/approvals`, `/patch`, `/run` commands).
+
+The types in `messages.go` form the handover contract: m2-d3 defines `ApprovalRequestedMsg`, and m2-d5 consumes it. **Once m2-d5 has begun, do not change `ApprovalRequestedMsg` or any type it depends on** — changes break m2-d5's rendering logic.
+
+---
+
 ## The one hard problem in this milestone
 
 An approval is a **synchronous question asked of an asynchronous UI**. The tool
@@ -331,7 +382,7 @@ double — see ground rule 4.
    `/patch <file>` (apply a diff from `testdata/patches/`) and `/run <argv…>`.
    Label them `(debug)` in `/help` alongside M1's.
 
-**Check:** the golden states in [`kirsch-ui-screens.md`](kirsch-ui-screens.md)
+**Check:** the golden states in [`spec/kirsch-ui-screens.md`](../spec/kirsch-ui-screens.md)
 still match — screens 03, 04 and 05 are the approval and diff surfaces, and real
 data must render in the same shape. If it does not, the screen reference is
 wrong and gets updated in this milestone's commit.
@@ -375,8 +426,8 @@ wrong and gets updated in this milestone's commit.
       `golangci-lint run`, CI all clean
 - [ ] **No provider, agent, or session code exists anywhere in the repo**
 
-**Definition of done:** every box checked, CHANGELOG updated, `plan/README.md`
-progress set to `☑ Complete`, and a commit tagged so Milestone 3 starts from a
+**Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md`
+set to `☑ Complete`, and a commit tagged so Milestone 3 starts from a
 known point.
 
 ---
