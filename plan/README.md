@@ -20,7 +20,7 @@ Using → `doc/`.
 | [`START-HERE.md`](START-HERE.md) | Your entry point — read this first. Routes you through the documents in the right order. |
 | [`PROGRESS.md`](PROGRESS.md) | Live status — who is working what, what is blocked, what is done. The single source of truth for "where are we". |
 | [`spec/`](spec/) | The locked v0.1 specification — contract, architecture, TUI spec, and screen reference. What Kirsch is and how it must behave. See [`spec/README.md`](spec/README.md) for the index and what each document answers. |
-| [`process/working-agreement.md`](process/working-agreement.md) | Practices for shared work — claiming deliverables, branch naming, commits, PRs, file ownership via the Owns column in deliverables, handover contract freezing, amendment procedure, board discipline. |
+| [`process/`](process/) | Shared development practices — working agreements for divided work, and code standards for Go. See [`process/README.md`](process/README.md) for the index. |
 | [`testing/`](testing/) | How to verify Kirsch — manual walkthroughs per milestone, what the automated suite covers, and the security tooling. See [`testing/README.md`](testing/README.md) for detail. |
 | [`adr/`](adr/) | Architecture decision records 0001–0007, documenting why major design decisions were made. See [`adr/README.md`](adr/README.md) for the index and what an ADR is. |
 | [`milestones/`](milestones/) | Per-milestone instruction sets. See [`milestones/README.md`](milestones/README.md) for the confidence levels and how milestones map to shipped code. |
