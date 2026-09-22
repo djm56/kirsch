@@ -13,6 +13,7 @@ This is now a shared repository. [`plan/process/working-agreement.md`](plan/proc
 | Where do I start? | [`plan/START-HERE.md`](plan/START-HERE.md) — ingestion order, first-contribution path, cross-tool index |
 | What milestone are we on? | [`plan/PROGRESS.md`](plan/PROGRESS.md) — live status, deliverables, blocking |
 | How do two developers share the work? | [`plan/process/working-agreement.md`](plan/process/working-agreement.md) — claiming, branches, commits, PRs, file ownership |
+| How should the code be written? | [`plan/process/code-standards.md`](plan/process/code-standards.md) — Go style, file organisation, naming, comments, testing, error handling |
 | Why is the code shaped this way? | [`plan/spec/architecture.md`](plan/spec/architecture.md) — dependency rules, concurrency, error model |
 | How should the UI behave? | [`plan/spec/ui-spec-v0.1.md`](plan/spec/ui-spec-v0.1.md) — normative for everything visual |
 | What should the UI *look* like? | [`plan/spec/kirsch-ui-screens.md`](plan/spec/kirsch-ui-screens.md) — literal character grids |

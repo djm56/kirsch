@@ -22,7 +22,7 @@ A decision that contradicts the plan goes in the Amendment Log (`spec/kirsch-pla
 
 ## Pull Requests
 
-The title must carry the deliverable ID (e.g., "m2-d1"). CI already runs on pull requests targeting `main` — it must be green before you merge.
+The title must carry the deliverable ID (e.g., "m2-d1"). CI already runs on pull requests targeting `main` — it must be green before you merge. Before opening a pull request, verify your code against the checklist in [`code-standards.md`](code-standards.md) — file layout, naming, comments, and testing standards are reviewed on every PR.
 
 Review expectation: with a team of two, the other person reviews when they have space. If they are deep in their own deliverable, they might not have capacity right now — that is real and is not a blocker. The realistic options are to merge once you have verified everything locally and documented your choices in the PR, or to pair with them on review if the change is high-risk. Either is fine; review-queue backlog is not a blocker in a two-person team.
 
@@ -52,7 +52,7 @@ The two-person dimension: a decision that changes a shared contract — a type s
 
 ## Verifying and Testing
 
-How two developers divide the testing burden is in [`testing/README.md`](../testing/README.md). Read it before claiming a deliverable to understand who runs what, when.
+How two developers divide the testing burden is in [`testing/README.md`](../testing/README.md). Read it before claiming a deliverable to understand who runs what, when. Code style and structure are covered in [`code-standards.md`](code-standards.md) — use its Pre-PR Checklist as part of your verification gate.
 
 The one rule that belongs in a working agreement rather than a testing guide: **you do not merge on someone else's green.** CI on the pull request is the gate. Your local test run passing is validation, not permission. CI on the PR must be green before you merge, and CI is the same for both developers — no shortcuts, no exceptions.
 

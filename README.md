@@ -87,6 +87,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 | [`plan/testing/`](plan/testing/) | Manual walkthroughs, automated-test reference, security tooling |
 | [`plan/adr/`](plan/adr/) | Seven architecture decision records |
 | [`plan/process/working-agreement.md`](plan/process/working-agreement.md) | Claiming, branches, commits, PRs, file ownership, and board discipline for shared work |
+| [`plan/process/code-standards.md`](plan/process/code-standards.md) | Go code standards — file layout, naming, comments, error handling, testing, and pre-PR checklist |
 | [`plan/milestones/milestone-0.md`](plan/milestones/milestone-0.md) | Instruction set — repo bootstrap + static TUI prototype |
 | [`plan/milestones/milestone-1.md`](plan/milestones/milestone-1.md) | Instruction set — workspace engine + read-only tools |
 | [`plan/milestones/milestone-2.md`](plan/milestones/milestone-2.md) | Instruction set — patches, commands, approvals |
