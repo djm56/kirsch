@@ -8,7 +8,7 @@ This folder holds the per-milestone instruction sets for building Kirsch — one
 |-----------|-------|-----------|-------|
 | 0 | Repo skeleton + static TUI prototype | Executed | Instructions tested in the field. All acceptance checklist items verified. |
 | 1 | Workspace engine + read-only tools | Executed | Instructions tested in the field. Eight unticked walkthrough items noted in [`../PROGRESS.md`](../PROGRESS.md); see that section for detail. |
-| 2 | Patches, commands, approvals | Executable | Instructions written once, before building. Ready to execute as written. May need amendments as work progresses; a pattern that is now expected. |
+| 2 | Patches, commands, approvals | Executable | Work in progress. See [`../PROGRESS.md`](../PROGRESS.md) for deliverable status and task breakdown. |
 | 3 | Provider + agent loop | Provisional | Settled in shape and structure. Detail is provisional and may change during M2 based on what is learned. Re-read against the code before starting. |
 | 4 | Real task loop + sessions | Outline | A scope statement rather than detailed instructions. Task breakdown should expect to need real work during execution. |
 | 5 | Polish + release | — | Written when Milestone 4 completes. (See section below.) |
@@ -19,7 +19,7 @@ Live status for each milestone lives in [`../PROGRESS.md`](../PROGRESS.md).
 
 **Executed** (M0, M1) — These milestones have shipped. The instructions reflect what was actually built. Future reference purposes only.
 
-**Executable** (M2) — Written once before building, never yet executed. Expected to need amendment as the builder's constraints meet the plan's shape. This is the only confidence level for instructions that have never been built.
+**Executable** (M2) — Written once before building, with amendment expected as the builder's constraints meet the plan's shape. Unlike Executed (M0, M1), these instructions describe the planned approach before implementation reshapes the design.
 
 **Provisional** (M3) — Settled in shape at the architectural level, but detail — task decomposition, specific APIs, error handling — may shift after M2 is complete. Re-read the milestone instructions against the actual Milestone 2 code before starting M3 work. The amendments from M2 will inform them.
 

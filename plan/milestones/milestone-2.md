@@ -1,6 +1,6 @@
 # Milestone 2 — Instruction Set
 
-> **Status: Ready for execution.** Milestone 1 completed 2026-09-12. This is the
+> **Status: Ready for execution.** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 1 completed 2026-09-12. This is the
 > complete, ordered instruction set for Milestone 2 (patches, commands,
 > approvals). Execute tasks in order. This is the milestone where Kirsch first
 > changes something on disk, so the approval path is the point of the whole

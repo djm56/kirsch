@@ -1,6 +1,6 @@
 # Milestone 1 — Instruction Set
 
-> **Status: In progress.** Milestone 0 completed 2026-09-12. This is the
+> **Status: Instruction set finalised and reviewed.** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 0 completed 2026-09-12. This is the
 > complete, ordered instruction set for Milestone 1 (workspace engine +
 > read-only tools). Execute tasks in order. Nothing in this milestone touches
 > an LLM, writes to a file, or executes a subprocess other than `git` and `rg`.

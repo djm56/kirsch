@@ -1,6 +1,6 @@
 # Milestone 0 — Instruction Set
 
-> **Status: Ready for execution — NOT started.** This is the complete,
+> **Status: Ready for execution.** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. This is the complete,
 > ordered instruction set for the builder of Milestone 0 (repo bootstrap +
 > static TUI prototype). Execute tasks in order. Nothing in this milestone
 > touches an LLM, the filesystem (agent-side), or a shell.

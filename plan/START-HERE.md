@@ -6,17 +6,17 @@ You have cloned the repository and want to contribute. This file is your routing
 
 Get your bearings in this order. Stop here if you just want to understand what Kirsch is and what is happening right now.
 
-1. **[../README.md](../README.md)** — What Kirsch is and why. *139 lines.* Read the first three sections; you can skip the Milestone Map if you only want the executive summary.
+1. **[../README.md](../README.md)** — What Kirsch is and why. *134 lines.* Read the first three sections; you can skip the Milestone Map if you only want the executive summary.
 
-2. **[PROGRESS.md](PROGRESS.md)** — Where we are right now. *47 lines.* The milestone status table and current deliverables table. This is the single source of truth for what is in progress and what you can start next.
+2. **[PROGRESS.md](PROGRESS.md)** — Where we are right now. *77 lines.* The milestone status table and current deliverables table. This is the single source of truth for what is in progress and what you can start next.
 
-3. **[README.md](README.md)** — The build index. *98 lines.* The folder structure, what each document is for, and the rules for builders. Especially rule 3: "The UI spec is law."
+3. **[README.md](README.md)** — The build index. *86 lines.* The folder structure, what each document is for, and the rules for builders. Especially rule 3: "The UI spec is law."
 
 ## Understanding the Full Plan
 
-Kirsch's instruction set is big — about 7,000 lines across the plan folder — so this section shows you what to read and what to skim.
+Kirsch's instruction set is big — about 7,700 lines across the plan folder — so this section shows you what to read and what to skim.
 
-**Always read these three** (about 1,200 lines together):
+**Always read these three** (about 2,200 lines together):
 
 - **[spec/kirsch-plan.md](spec/kirsch-plan.md)** — The locked v0.1 spec. *1,034 lines.* Sections §1–§3 are essential: the contract, the architecture, and the tool contracts. Sections §4–§10 are reference; read them when you need them. §11 is the amendment log; skim it to understand what has been decided since the plan was written.
 
@@ -50,6 +50,7 @@ When using an AI coding tool, hand this prioritized list to it as context. Load 
 - `spec/kirsch-plan.md` (sections §1–§3 minimum; full file better)
 - `spec/architecture.md`
 - `spec/ui-spec-v0.1.md`
+- `process/code-standards.md` — required for any Go file you write; covers naming, comments, file layout, testing, and the pre-PR checklist
 - `milestones/milestone-2.md`
 
 **Load on demand**:
