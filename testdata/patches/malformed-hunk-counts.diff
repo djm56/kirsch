@@ -1,0 +1,7 @@
+diff --git a/plain.txt b/plain.txt
+--- a/plain.txt
++++ b/plain.txt
+@@ -1,5 +1,5 @@
+ First line
+ Second line
+ Third line

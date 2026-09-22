@@ -1,0 +1,6 @@
+diff --git a/../outside/file.txt b/../outside/file.txt
+new file mode 100644
+--- /dev/null
++++ b/../outside/file.txt
+@@ -0,0 +1,1 @@
++This should escape

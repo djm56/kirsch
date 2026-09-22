@@ -1,0 +1,18 @@
+diff --git a/plain.txt b/plain.txt
+--- a/plain.txt
++++ b/plain.txt
+@@ -1,1 +1,1 @@
+-First line
++Modified first line
+diff --git a/unicode.txt b/unicode.txt
+--- a/unicode.txt
++++ b/unicode.txt
+@@ -1,1 +1,1 @@
+-Café is a nice place
++Cafe is a nice place
+diff --git a/nested/deep.txt b/nested/deep.txt
+--- a/nested/deep.txt
++++ b/nested/deep.txt
+@@ -1,1 +1,1 @@
+-Content in nested directory
++Updated content in nested directory

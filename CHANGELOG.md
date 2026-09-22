@@ -64,6 +64,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   config file rather than from an export.
 - **`npm run lint:fix`** — `golangci-lint run --fix`, the auto-fixable subset of
   the lint findings, beside the formatting `npm run fmt` already applies.
+- **`internal/patch` — unified-diff parser, renderer, and atomic applier.**
+  Standard library only, no in-module imports, so the parser stays a leaf and
+  error mapping onto tool kinds belongs to the tool layer later. Parsing
+  handles `git diff` output and hand-written header-less diffs, including
+  multi-file header-less input; validates hunk arithmetic at parse time;
+  preserves `\ No newline at end of file` in both directions; detects binary
+  diffs rather than failing on them; honours `100644` ↔ `100755` mode changes
+  and rejects any other; and leaves paths untouched beyond stripping `a/` and
+  `b/` prefixes, so containment stays the workspace's job. Round-trip
+  re-render is byte-for-byte on every well-formed corpus file, including two
+  carrying CRLF — the renderer preserves carriage returns inside hunk content
+  while keeping metadata lines LF-only. Applying is all-or-nothing: content is
+  staged to temp files beside their targets, every file validated before any
+  is committed, each target moved aside to a backup before its replacement
+  lands, and every committed entry restored from that backup if a later one
+  fails. Where a restore cannot complete, the error names each path left
+  inconsistent and where its content now sits, rather than reporting a
+  rollback that did not happen. Strict context matching with zero fuzz — a
+  conflict returns the offending hunk and the actual file content at that
+  location, enabling a model to re-read and retry rather than guess. Line
+  endings are detected by dominance and preserved; a patch that would convert
+  them is rejected. Trailing newlines are honoured both ways. Permissions
+  survive except a deliberate exec-bit change. Test fixtures:
+  `testdata/repo-patch/` (seven files across LF, CRLF, no-trailing-newline,
+  executable, nested, multi-byte and binary) and `testdata/patches/` (twenty
+  diffs, each named for the behaviour it pins). The rollback path is exercised
+  by injected commit failures rather than only by inspection — that distinction
+  cost this deliverable four fix rounds and is the thing most worth recording.
 
 ### Changed
 

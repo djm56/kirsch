@@ -1,0 +1,7 @@
+diff --git a/newfile.txt b/newfile.txt
+new file mode 100644
+--- /dev/null
++++ b/newfile.txt
+@@ -0,0 +1,2 @@
++This is a new file
++With two lines

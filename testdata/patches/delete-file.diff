@@ -1,0 +1,8 @@
+diff --git a/plain.txt b/plain.txt
+deleted file mode 100644
+--- a/plain.txt
++++ /dev/null
+@@ -1,3 +0,0 @@
+-First line
+-Second line
+-Third line

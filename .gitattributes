@@ -1,0 +1,12 @@
+# Preserve exact line endings in test fixtures
+testdata/repo-patch/plain.txt text eol=lf
+testdata/repo-patch/crlf.txt -text
+testdata/repo-patch/no-eol.txt text eol=lf
+testdata/repo-patch/nested/deep.txt text eol=lf
+testdata/repo-patch/unicode.txt text eol=lf
+testdata/repo-patch/exec.sh text eol=lf
+testdata/repo-patch/binary.dat binary
+
+# Preserve exact byte content in diff corpus files with CRLF
+testdata/patches/crlf-preserving.diff -text
+testdata/patches/crlf-converting.diff -text
