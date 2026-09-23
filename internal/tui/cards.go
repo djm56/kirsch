@@ -246,6 +246,8 @@ func renderApproval(a *ApprovalCard, ctx renderCtx) []string {
 			line += ctx.Sty.Muted(dot + "session grant: " + a.GrantScope)
 		case Rejected:
 			line += ctx.Sty.Muted(dot) + ctx.Sty.Error(ctx.G.Err+" rejected")
+		case Cancelled:
+			line += ctx.Sty.Muted(dot) + ctx.Sty.Error(ctx.G.Err+" cancelled")
 		case Unresolved:
 			// Unreachable: the enclosing branch tests for it. Listed so the
 			// compiler and the linter both notice if a new outcome is added.

@@ -115,7 +115,38 @@ const (
 	Approved
 	ApprovedSession
 	Rejected
+	Cancelled
 )
+
+// ToAppOutcome converts a TUI ApprovalOutcome to an app-side ApprovalOutcome.
+// It uses an exhaustive switch to ensure all values are handled and prevents
+// silent casting errors between the two inverted enums. The app enum values are:
+//   - 0: ApprovalOutcomeOnce
+//   - 1: ApprovalOutcomeSession
+//   - 2: ApprovalOutcomeDeny
+//   - 3: ApprovalOutcomeCancelled
+func ToAppOutcome(o ApprovalOutcome) int {
+	switch o {
+	case Approved:
+		// User pressed 'y': approve once
+		return 0 // ApprovalOutcomeOnce
+	case ApprovedSession:
+		// User pressed 'a': approve for session
+		return 1 // ApprovalOutcomeSession
+	case Rejected:
+		// User pressed 'n': explicitly reject
+		return 2 // ApprovalOutcomeDeny
+	case Cancelled:
+		// User pressed Esc: turn cancelled, approval denied
+		return 3 // ApprovalOutcomeCancelled
+	case Unresolved:
+		// Unresolved should never be sent to the app, but handle it for safety
+		return 3 // ApprovalOutcomeCancelled
+	}
+	// This line is unreachable if the switch is exhaustive, but the compiler
+	// requires it for functions that don't always return explicitly.
+	return 3 // ApprovalOutcomeCancelled
+}
 
 // ApprovalCard is a pending or resolved approval. ui-spec §3.4.
 type ApprovalCard struct {

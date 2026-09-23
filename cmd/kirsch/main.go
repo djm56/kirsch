@@ -82,17 +82,7 @@ func run() error {
 			Dirty:   info.Dirty,
 		},
 	})
-	// Wrapped rather than assigned directly so the debug log records what the
-	// interface asked for, separately from what the tool layer then did. When
-	// the two disagree, that gap is the bug.
-	m.RunTool = func(name string, input map[string]any) {
-		log.Debug("tui requested tool", "tool", name, "input", input)
-		a.RunTool(name, input)
-	}
-	m.Cancel = func() {
-		log.Debug("tui requested cancel")
-		a.CancelTurn()
-	}
+	wireCallbacks(&m, a, log)
 
 	// Input is normalised on the way in so that terminals which encode Home and
 	// End as SS3 — macOS Terminal among them — reach Bubble Tea as the CSI forms
@@ -120,4 +110,31 @@ func run() error {
 
 	_, err = p.Run()
 	return err
+}
+
+// wireCallbacks wires the TUI model's callbacks to the app and telemetry logger.
+// This function encapsulates the three callback assignments (RunTool, Cancel, ResolveApproval)
+// that connect the TUI to the app. By extracting this, we enable tests to use the same
+// wiring path instead of duplicating or hand-writing callbacks.
+//
+// Deleting the m.ResolveApproval assignment in this function breaks the approval flow
+// and causes Request to block indefinitely, making user approvals impossible.
+func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger) {
+	// Wrapped rather than assigned directly so the debug log records what the
+	// interface asked for, separately from what the tool layer then did. When
+	// the two disagree, that gap is the bug.
+	m.RunTool = func(name string, input map[string]any) {
+		log.Debug("tui requested tool", "tool", name, "input", input)
+		a.RunTool(name, input)
+	}
+	m.Cancel = func() {
+		log.Debug("tui requested cancel")
+		a.CancelTurn()
+	}
+	// ResolveApproval wires the TUI's approval resolution to the app's decision channel.
+	// Deleting this assignment breaks the approval flow and causes Request to block indefinitely.
+	m.ResolveApproval = func(id int64, outcome tui.ApprovalOutcome) {
+		log.Debug("tui resolved approval", "id", id, "outcome", outcome)
+		a.Resolve(id, app.ApprovalOutcome(tui.ToAppOutcome(outcome)))
+	}
 }

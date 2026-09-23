@@ -283,6 +283,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.relayout(m.layout())
 		return m, nil
 
+	case ApprovalRequestedMsg:
+		return m.receiveApprovalRequest(msg)
+
 	case tea.KeyMsg:
 		lay := m.layout()
 		m.relayout(lay)
@@ -393,6 +396,47 @@ func (m Model) applyToolResult(msg ToolCompletedMsg) (tea.Model, tea.Cmd) {
 	// architecture.md §8; ui-spec §3.6.
 	m.busy = Busy{}
 	m.sel = cardID
+	m.relayout(m.layout())
+	return m, nil
+}
+
+// receiveApprovalRequest handles an incoming approval request from the tool
+// goroutine. It adds an approval card to the transcript and sets the pending
+// approval state, allowing the user to respond with y/a/n keys.
+func (m Model) receiveApprovalRequest(msg ApprovalRequestedMsg) (tea.Model, tea.Cmd) {
+	// Create an approval card from the message.
+	// Kind is mapped from the msg.Kind string.
+	// GrantScope is set to indicate whether [a] should appear (OffersSessionGrant
+	// checks Kind==ApprovalCommand && GrantScope!="").
+	// Task 7 renders this card; see plan/milestones/milestone-2.md Task 7.
+	// Architecture.md §3 rule 4: TUI state is mutated only inside Update.
+
+	kind := ApprovalPatch // default
+	if msg.Kind == "command" {
+		kind = ApprovalCommand
+	}
+
+	// GrantScope is non-empty iff [a] is offered; it holds the argv prefix
+	// for display purposes. Task 7 sets it properly; we just enable/disable
+	// the button here based on the message flag.
+	grantScope := ""
+	if msg.CanApproveForSession {
+		grantScope = "grant"
+	}
+
+	cardID := m.appendBlock(Item{
+		Kind: KindApproval,
+		Approval: &ApprovalCard{
+			Kind:       kind,
+			Title:      msg.Description,
+			GrantScope: grantScope,
+			Outcome:    Unresolved,
+		},
+	})
+
+	m.pendingApproval = cardID
+	m.pendingApprovalID = msg.ID
+
 	m.relayout(m.layout())
 	return m, nil
 }
@@ -635,7 +679,10 @@ func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 
 func (m Model) keyApproval(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	if k.Type == tea.KeyEsc || k.Type == tea.KeyCtrlC {
-		return m.resolveApproval(Rejected, lay), nil
+		// Esc/Ctrl+C cancels the turn; the approval is not approved.
+		// This resolves as Cancelled rather than Rejected to distinguish
+		// from the user explicitly pressing 'n' to deny.
+		return m.resolveApproval(Cancelled, lay), nil
 	}
 	switch string(k.Runes) {
 	case "y":
@@ -811,6 +858,7 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 	it, _, ok := m.tr.Find(m.pendingApproval)
 	if !ok {
 		m.pendingApproval = 0
+		m.pendingApprovalID = 0
 		return m
 	}
 	it.Approval.Outcome = o
@@ -818,7 +866,15 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 	if o == ApprovedSession {
 		m.status.Grants++
 	}
+
+	// Call back to app.Resolve() to unblock the approval goroutine.
+	// Must never block.
+	if m.ResolveApproval != nil {
+		m.ResolveApproval(m.pendingApprovalID, o)
+	}
+
 	m.pendingApproval = 0
+	m.pendingApprovalID = 0
 	m.tr.rev++
 	m.relayout(lay)
 	return m
@@ -828,6 +884,15 @@ func (m Model) cancelTurn() Model {
 	if m.Cancel != nil {
 		m.Cancel()
 	}
+
+	// When a turn is cancelled via Esc from the composer while the composer is
+	// busy, any pending approval must be resolved. However, that approval is
+	// already in ModeApprovalPending, so the keystroke that triggered the
+	// cancellation reached keyApproval instead of keyComposing. Therefore,
+	// m.pendingApproval and m.pendingApprovalID are never set when cancelTurn
+	// runs. The turn context cancellation in app.Request will unblock the
+	// approval goroutine automatically (architecture.md §5).
+
 	m.busy = Busy{}
 	for _, it := range m.tr.Items() {
 		if it.Kind == KindTool && it.Tool.State == StateRunning {

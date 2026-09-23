@@ -68,3 +68,12 @@ func (RunToolIntent) isIntent() {}
 type CancelIntent struct{}
 
 func (CancelIntent) isIntent() {}
+
+// ApprovalRequestedMsg asks the user for approval on an action. The ID
+// correlates it with the Resolve call that answers it.
+type ApprovalRequestedMsg struct {
+	ID                   int64  // Unique approval ID
+	Description          string // What is being asked for approval
+	Kind                 string // "command", "patch", etc. for the renderer
+	CanApproveForSession bool   // Whether [a] button should be shown
+}

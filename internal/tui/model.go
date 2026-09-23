@@ -97,10 +97,11 @@ type Model struct {
 	rows       []itemRow // per-item extents into lines
 
 	// Mode inputs. Each is independent; precedence lives in mode().
-	base            BaseMode
-	pendingApproval ItemID
-	modal           *ModalState
-	confirm         *ConfirmState
+	base              BaseMode
+	pendingApproval   ItemID // transcript item ID of the pending approval card
+	pendingApprovalID int64  // app-side approval ID for resolving
+	modal             *ModalState
+	confirm           *ConfirmState
 
 	busy   Busy
 	sess   SessionInfo
@@ -111,8 +112,9 @@ type Model struct {
 	// Callbacks into internal/app. Function fields rather than an interface
 	// so the TUI depends on behaviour it names itself and cannot be handed a
 	// package it is forbidden to import.
-	RunTool func(name string, input map[string]any)
-	Cancel  func()
+	RunTool         func(name string, input map[string]any)
+	Cancel          func()
+	ResolveApproval func(id int64, outcome ApprovalOutcome)
 
 	projectTypes []string
 	toolCards    map[int64]ItemID // app-side tool id → transcript card

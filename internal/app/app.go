@@ -16,11 +16,37 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tool"
 	"github.com/djm56/kirsch/internal/tui"
 	"github.com/djm56/kirsch/internal/workspace"
 )
+
+// ApprovalRequest describes what is being asked for approval.
+type ApprovalRequest struct {
+	Description          string   // Human-readable text for the approval card
+	Kind                 string   // "command", "patch", etc. for rendering
+	CanApproveForSession bool     // Whether session-scoped approval is an option
+	Argv                 []string // Command argv for session grant; nil if not applicable
+}
+
+// ApprovalOutcome represents a user's decision on an approval.
+type ApprovalOutcome uint8
+
+const (
+	ApprovalOutcomeOnce ApprovalOutcome = iota
+	ApprovalOutcomeSession
+	ApprovalOutcomeDeny
+	ApprovalOutcomeCancelled
+)
+
+// approval tracks a pending approval request.
+type approval struct {
+	id       int64
+	decision chan ApprovalOutcome // capacity 1; Resolve drops writes after first
+	argv     []string             // Command argv for session grant; nil if not applicable
+}
 
 // App owns the root context and the wiring between the TUI and the tools.
 type App struct {
@@ -28,6 +54,7 @@ type App struct {
 	cfg config.Config
 	log *telemetry.Logger
 	reg *tool.Registry
+	pol *policy.Policy // Session grant policy
 
 	program *tea.Program
 	// sendFn overrides delivery. Tests set it; production leaves it nil and
@@ -42,6 +69,11 @@ type App struct {
 	turnStop context.CancelFunc
 	nextID   atomic.Int64
 	inFlight sync.WaitGroup
+
+	// Approval state: tracks pending approvals.
+	approveMu sync.Mutex
+	approvals map[int64]*approval
+	approveID atomic.Int64
 }
 
 // New builds an App. The context hierarchy is rooted here: rootCtx outlives
@@ -54,8 +86,10 @@ func New(ws *workspace.Workspace, cfg config.Config, log *telemetry.Logger) *App
 		cfg:        cfg,
 		log:        log,
 		reg:        tool.NewRegistry(),
+		pol:        policy.New(),
 		rootCtx:    ctx,
 		rootCancel: cancel,
+		approvals:  make(map[int64]*approval),
 	}
 	a.reg.Register(&tool.ReadFile{WS: ws})
 	a.reg.Register(&tool.ListFiles{WS: ws})
@@ -224,6 +258,86 @@ func (a *App) RunTool(name string, input map[string]any) {
 			telemetry.Content("summary", res.DisplaySummary))
 		a.send(msg)
 	}()
+}
+
+// Request asks the user for approval, blocking until the user responds or a
+// context is cancelled. It is called only from tool goroutines, never from
+// Update or View. It sends ApprovalRequestedMsg to the TUI and waits for
+// Resolve to be called.
+func (a *App) Request(ctx context.Context, req ApprovalRequest) ApprovalOutcome {
+	id := a.approveID.Add(1)
+
+	app := &approval{
+		id:       id,
+		decision: make(chan ApprovalOutcome, 1), // buffered: capacity 1
+		argv:     req.Argv,
+	}
+
+	a.approveMu.Lock()
+	a.approvals[id] = app
+	a.approveMu.Unlock()
+
+	// Send the approval message to the TUI.
+	a.send(tui.ApprovalRequestedMsg{
+		ID:                   id,
+		Description:          req.Description,
+		Kind:                 req.Kind,
+		CanApproveForSession: req.CanApproveForSession,
+	})
+
+	// Block on three things:
+	// 1. User decision via the buffered channel
+	// 2. Turn cancellation (user pressed Esc)
+	// 3. Root cancellation (process shutting down)
+	select {
+	case outcome := <-app.decision:
+		a.approveMu.Lock()
+		delete(a.approvals, id)
+		a.approveMu.Unlock()
+		return outcome
+	case <-ctx.Done():
+		a.approveMu.Lock()
+		delete(a.approvals, id)
+		a.approveMu.Unlock()
+		return ApprovalOutcomeCancelled
+	case <-a.rootCtx.Done():
+		a.approveMu.Lock()
+		delete(a.approvals, id)
+		a.approveMu.Unlock()
+		return ApprovalOutcomeCancelled
+	}
+}
+
+// Resolve records a user's decision on an approval. It must never block.
+// It is called from Update when the user presses y/a/n or when the turn
+// is cancelled. It is safe to call for an approval that has already been
+// resolved or does not exist.
+func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
+	a.approveMu.Lock()
+	app, exists := a.approvals[id]
+	a.approveMu.Unlock()
+
+	if !exists {
+		return
+	}
+
+	// If approving for session with a command argv, grant it now.
+	if outcome == ApprovalOutcomeSession && len(app.argv) > 0 {
+		if err := a.pol.Grant(app.argv); err != nil {
+			// Log the rejection silently; the approval still succeeds, but the
+			// grant does not record. The TUI will not re-prompt; the tool gets
+			// the decision it asked for.
+			a.log.Debug("grant rejected", "argv", app.argv, "err", err)
+		}
+	}
+
+	// Send on the buffered channel. If it already has a value, this is a
+	// no-op (the select will have taken the first one).
+	select {
+	case app.decision <- outcome:
+	default:
+		// Already resolved; drop the duplicate silently.
+	}
 }
 
 // describeInput picks the field worth showing on a tool card.
