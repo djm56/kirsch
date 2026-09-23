@@ -85,7 +85,7 @@ little and every border on the row walked left.
 ### `tui`: the executable screen reference
 
 `TestMatchesScreenReference` parses all thirteen character grids out of
-`plan/kirsch-ui-screens.md` and compares them against `View()`. The design
+`plan/spec/kirsch-ui-screens.md` and compares them against `View()`. The design
 document is not a description of the interface; it is an assertion about it.
 
 When it fails, exactly one of two things is true — the renderer is wrong, or the

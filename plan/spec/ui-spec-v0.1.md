@@ -434,7 +434,7 @@ busy guard, so it is live while a turn is in flight when everything below it in
 this table is not. It is deliberately absent from the **`composing`** block of
 the help overlay, for the same reason `g`/`G` are absent from the `browsing`
 block: that grid is pinned byte-for-byte by screen 06 in
-`plan/kirsch-ui-screens.md`, so adding a row there is a spec amendment and a
+`plan/spec/kirsch-ui-screens.md`, so adding a row there is a spec amendment and a
 redraw rather than a code change. The overlay is a one-screen summary, not this
 table.
 
@@ -467,7 +467,7 @@ vocabulary for the same gesture, and they exist because `Home` and `End` are not
 universally reachable: on macOS Terminal both arrive as SS3, which Bubble Tea v1.3.10
 does not decode. They are deliberately absent from the **`browsing`** block of the help
 overlay — the overlay's `modal` block does list them — because that grid is pinned by
-screen 06 in `plan/kirsch-ui-screens.md`, so adding a row there is a spec amendment
+screen 06 in `plan/spec/kirsch-ui-screens.md`, so adding a row there is a spec amendment
 rather than a code change. The overlay is a one-screen summary, not this table: its
 `browsing` block also omits `Home` and `Esc`, both of which are bound.
 

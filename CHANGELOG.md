@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Planning baseline.** The locked v0.1 spec (`plan/kirsch-plan.md`), the
+- **Planning baseline.** The locked v0.1 spec (`plan/spec/kirsch-plan.md`), the
   architecture rationale, the TUI spec, a screen-by-screen render reference,
   and ADRs 0001–0007.
 - **Milestone 0 — repo bootstrap and static TUI prototype.** Go module, CI, and
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Plan §2's dependency rules are enforced by a test in CI**, not by review —
   in place before the packages it guards exist.
 - **The screen reference is executable.** All thirteen character grids in
-  `plan/kirsch-ui-screens.md` are parsed out of the markdown and compared
+  `plan/spec/kirsch-ui-screens.md` are parsed out of the markdown and compared
   against `View()` byte-for-byte on every test run, so a rendering change and a
   stale design document cannot drift apart.
 
@@ -128,7 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   washed-out grey. Every foreground token now clears 3:1 on black, `#1e1e1e`,
   One Dark and Nord; every token carrying words clears 4.5:1.
 - **Key bindings corrected by the first operator walkthrough of
-  `plan/testing/manual-milestone-0.md`.** `Esc` no longer re-pins the transcript,
+  `plan/testing/manual/milestone-0.md`.** `Esc` no longer re-pins the transcript,
   which had made "typing does not re-pin" unreachable — returning to the composer
   undid the scroll. Submitting a slash command now re-pins; the two hint-only
   paths do not. `Home`/`End` are decoded where terminals send them as SS3, and
@@ -139,7 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   running state and ends on two approvals — a patch, then a command — so the
   `◐` glyph and the `[a]` session-grant row are both reachable by a person and
   not only by the golden tests.
-- Help overlay grew to 32 rows; screen 06 in `plan/kirsch-ui-screens.md` is
+- Help overlay grew to 32 rows; screen 06 in `plan/spec/kirsch-ui-screens.md` is
   drawn at 80×32. Two causes: adding `/exit` took the body from 21 lines to 22,
   and the two-row header below cost one more.
 - **`npm run fmt` has changed meaning, and every contributor's local formatting

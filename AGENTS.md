@@ -38,7 +38,7 @@ This is now a shared repository. [`plan/process/working-agreement.md`](plan/proc
    is the bug.
 
 4. **Amend, don't drift.** A decision that contradicts the plan goes in the
-   Amendment Log (`plan/kirsch-plan.md` §11), not in a commit message.
+   Amendment Log (`plan/spec/kirsch-plan.md` §11), not in a commit message.
 
 5. **`plan/` is for building Kirsch; `doc/` is for using it.** `doc/` stays
    empty until Milestone 5. Never put build notes there.

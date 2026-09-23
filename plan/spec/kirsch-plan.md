@@ -93,7 +93,7 @@ Key bindings: `Enter` send · `Alt+Enter` newline (`Ctrl+J` fallback) · `Ctrl+G
 
 Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit`.
 
-The sketch above is indicative only. [`plan/ui-spec-v0.1.md`](ui-spec-v0.1.md) is normative for everything visual, and [`plan/kirsch-ui-screens.md`](kirsch-ui-screens.md) draws every state it describes as a literal 80-column character grid with a per-region colour map — the render target for M0 and the source for the §9.6 golden files.
+The sketch above is indicative only. [`plan/spec/ui-spec-v0.1.md`](ui-spec-v0.1.md) is normative for everything visual, and [`plan/spec/kirsch-ui-screens.md`](kirsch-ui-screens.md) draws every state it describes as a literal 80-column character grid with a per-region colour map — the render target for M0 and the source for the §9.6 golden files.
 
 ---
 
@@ -370,12 +370,12 @@ Rules: single writer goroutine; buffered flush with `fsync` every ~500ms and on 
 Tasks:
 
 - `go mod init`, MIT `LICENSE`, `README.md`, `AGENTS.md`, `CHANGELOG.md`.
-- Design docs are already settled, not drafts: `plan/architecture.md`, `plan/ui-spec-v0.1.md`, `plan/kirsch-ui-screens.md`, and `plan/adr/` (0001–0007). M0 builds against them and corrects any drift it discovers, rather than writing them. Note the folder split: `plan/` is build instructions, `doc/` is reserved for end-user documentation written in M5.
+- Design docs are already settled, not drafts: `plan/spec/architecture.md`, `plan/spec/ui-spec-v0.1.md`, `plan/spec/kirsch-ui-screens.md`, and `plan/adr/` (0001–0007). M0 builds against them and corrects any drift it discovers, rather than writing them. Note the folder split: `plan/` is build instructions, `doc/` is reserved for end-user documentation written in M5.
 - CI: formatting, `go vet`, `golangci-lint`, `go test ./...` on GitHub Actions. Formatting is `golangci-lint`'s to enforce; `gofmt` alone is not the bar.
 - Bubble Tea prototype at `cmd/kirsch` with: header, scrollable transcript with fake user/assistant/tool entries, multiline composer, status bar, fake approval modal, fake diff modal, resize-safe layout, `Ctrl+C` handling.
 - Use `bubbles` (textarea, viewport, spinner) + `lipgloss`; rune-aware width math (`go-runewidth`).
 
-**Acceptance:** `go run ./cmd/kirsch` opens; typing, scrolling, modal open/close, resize, and quit all work with no panic or visual corruption. Rendered output matches the grids in `plan/kirsch-ui-screens.md` for every state this milestone can reach, and the golden files are captured against them. No LLM, file, or shell code exists yet.
+**Acceptance:** `go run ./cmd/kirsch` opens; typing, scrolling, modal open/close, resize, and quit all work with no panic or visual corruption. Rendered output matches the grids in `plan/spec/kirsch-ui-screens.md` for every state this milestone can reach, and the golden files are captured against them. No LLM, file, or shell code exists yet.
 
 ### Milestone 1 — Workspace engine + read-only tools
 
@@ -477,7 +477,7 @@ Tasks:
 3. **Agent loop:** `provider.Fake` scripted turns — approval gating, cancellation, hallucinated tools, max-turn guard — deterministic, no API spend.
 4. **TUI:** drive Bubble Tea `Update` with synthetic `tea.KeyMsg` and agent events; golden-file snapshots of `View()` output.
 5. **Smoke:** `scripts/smoke-test.sh` runs fixed real-model tasks against fixture repos before any release; human reviews transcript.
-6. **Golden files:** the expected output is [`plan/kirsch-ui-screens.md`](kirsch-ui-screens.md) — each ui-spec §13 state is drawn there as a literal character grid whose structure is the contract, with colour applied on top per that document's colour maps. Screen 11 is the `NO_COLOR` fixture and compares directly against stripped output. Golden files are regenerated with `go test ./internal/tui -update` and reviewed by a human in the diff; CI never auto-accepts golden changes. A golden diff that turns out to be *correct* means the screen reference is stale — update it in the same commit.
+6. **Golden files:** the expected output is [`plan/spec/kirsch-ui-screens.md`](kirsch-ui-screens.md) — each ui-spec §13 state is drawn there as a literal character grid whose structure is the contract, with colour applied on top per that document's colour maps. Screen 11 is the `NO_COLOR` fixture and compares directly against stripped output. Golden files are regenerated with `go test ./internal/tui -update` and reviewed by a human in the diff; CI never auto-accepts golden changes. A golden diff that turns out to be *correct* means the screen reference is stale — update it in the same commit.
 7. **Adversarial:** `testdata/repo-prompt-injection` holds a file whose contents instruct the agent to break its own rules. A fake-provider test asserts the instruction is surfaced to the user, not acted on. Tool results are attacker-controllable input and are tested as such.
 8. **Architecture:** an import-rule test (or CI step) fails if `internal/agent` imports an implementation package, or `internal/tui` imports `provider`/`tool`/`workspace` (§2).
 
@@ -585,7 +585,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 **Milestone 0 pre-flight corrections (2026-09-12)**
 
 25. **The screen reference was measurably unbuildable; corrected before any code.**
-    Amendment 24 added `plan/kirsch-ui-screens.md` as M0's render target. Measuring
+    Amendment 24 added `plan/spec/kirsch-ui-screens.md` as M0's render target. Measuring
     the grids — rather than reading them — found five defects that no correct
     80-column renderer could reproduce, which would have meant capturing golden
     files from an unreviewed render: exactly the failure amendment 24 exists to
@@ -955,7 +955,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 
 59. **The help overlay needs 31 rows, not 30.** Adding `/exit` to the commands
     block took the overlay's body from 21 lines to 22, and screen 06 in
-    `plan/kirsch-ui-screens.md` is redrawn at 80×31. The grid is a test oracle —
+    `plan/spec/kirsch-ui-screens.md` is redrawn at 80×31. The grid is a test oracle —
     `TestMatchesScreenReference` renders against it — so it was regenerated
     mechanically rather than edited by eye. When the `debug (M1 only)` block
     leaves with the debug commands in M3 it buys back five rows, not the three
@@ -972,7 +972,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 60. **The header is two rows, the frame has a one-column side margin, `Ctrl+G`
     re-pins from the composer, and the onboarding tagline truncates with a
     marker.** Four changes from the same operator walkthrough of
-    `plan/testing/manual-milestone-0.md` (§11, *Additional Reporting*).
+    `plan/testing/manual/milestone-0.md` (§11, *Additional Reporting*).
 
     - **Two-row header.** `Kirsch` and its rule on row 1; project, branch, dirty
       marker and compaction note on row 2. The single-row form spent most of its
@@ -1011,7 +1011,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
       marker, and breaking off mid-word with nothing to say it had been cut.
 
     ui-spec §2, §2.1, §2.2, §2.4, §5.2, §7.3 and §7.5 are amended;
-    `plan/kirsch-ui-screens.md` gains layout invariant 6, three reading notes, and
+    `plan/spec/kirsch-ui-screens.md` gains layout invariant 6, three reading notes, and
     two corrections to screen 00's prose (the wordmark is 21 columns, not 22; the
     accent it uses is 117, not the 111 the text said while the colour map beside
     it said 117).
@@ -1023,7 +1023,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 - Whether 200 lines is the right inline cap — the last open §14 risk. Both key
   detection and spinner rendering are settled by amendments 40 and 42.
 - Session file rotation for very long sessions (ADR 0002 flagged this; still deferred).
-- Screen 14 (onboarding) in `plan/kirsch-ui-screens.md` — drawn at M3 with the
+- Screen 14 (onboarding) in `plan/spec/kirsch-ui-screens.md` — drawn at M3 with the
   provider onboarding path, per amendment 24.
 - A `Ctrl+G` row in the help overlay's `composing` block (amendment 60). The
   binding ships; the overlay does not name it. Screen 06 is a byte-for-byte test

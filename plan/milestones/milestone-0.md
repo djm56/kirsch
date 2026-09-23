@@ -57,8 +57,8 @@ empty (or placeholder) full-screen TUI without panic.
 ## Task 2 — Repo housekeeping files
 
 1. `AGENTS.md` — short guide for coding agents working on this repo: point to
-   `plan/kirsch-plan.md` (spec), `plan/PROGRESS.md` (live status) and `plan/README.md` (builder rules),
-   the hard dependency rules in `plan/architecture.md`, and the
+   `plan/spec/kirsch-plan.md` (spec), `plan/PROGRESS.md` (live status) and `plan/README.md` (builder rules),
+   the hard dependency rules in `plan/spec/architecture.md`, and the
    one-milestone-at-a-time rule. State that `doc/` is for end users and must
    not be used for build notes.
 2. `CHANGELOG.md` — Keep a Changelog format, `## [Unreleased]` section with
@@ -67,7 +67,7 @@ empty (or placeholder) full-screen TUI without panic.
 3. `README.md` — already exists; update the planning-phase banner to reflect
    Milestone 0 status when it starts, and remove the "no code exists" line
    once the prototype lands.
-4. `plan/architecture.md` already exists and is settled — **do not rewrite
+4. `plan/spec/architecture.md` already exists and is settled — **do not rewrite
    it.** Read it before Task 4; it defines the dependency rules, the mode the
    TUI must implement, and the concurrency constraints. At the end of the
    milestone, review it against what you actually built and correct any drift
@@ -76,7 +76,7 @@ empty (or placeholder) full-screen TUI without panic.
 
 **Check:** all markdown links resolve; `doc/` still contains only its
 placeholder; any architecture drift is either fixed in code or recorded in
-`plan/architecture.md`.
+`plan/spec/architecture.md`.
 
 ## Task 3 — CI (GitHub Actions)
 
@@ -260,7 +260,7 @@ updated, and a commit (or PR) tagged so Milestone 1 can start from a known
 point.
 
 **Completed 2026-09-12.** 43 tests green under `-race`; all thirteen character
-grids in `plan/kirsch-ui-screens.md` verified byte-for-byte against `View()` on
+grids in `plan/spec/kirsch-ui-screens.md` verified byte-for-byte against `View()` on
 every run. Golden state 14 (onboarding — no API key, not a Git repo) remains
 deferred to M3 with its screen, per amendment 24: there is no provider to be
 missing a key for until then. Findings from execution are recorded as plan
