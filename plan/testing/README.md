@@ -92,7 +92,12 @@ The master walkthrough (`manual/milestone-N.md`) is always blank — it is the t
 
 ## Outstanding Verification
 
-Eight manual walkthrough checks remain unticked. See [`PROGRESS.md`](../PROGRESS.md#outstanding-verification) for the list and which milestones they affect.
+Eight manual walkthrough checks remain unticked despite Milestones 0 and 1 being marked complete:
+
+- `testing/manual/milestone-0-donovan.md` — seven unticked items: all are the `Ctrl+G` / `g` / `G` re-pin checks. These were added by a later mission that built the re-pin feature, so they postdate the original walkthrough run rather than having been skipped.
+- `testing/manual/milestone-1.md` — one unticked item: "Outside a repository it refuses with a message naming `--workspace`" — the failure path for workspace detection.
+
+This section exists to keep the gap visible rather than lost. The operator has confirmed Milestones 0 and 1 are tested and is moving forward; close these unticked items as part of Milestone 2's acceptance work or afterward as a cleanup step.
 
 ## The One Rule Worth Repeating
 

@@ -1,29 +1,25 @@
-# Progress — Kirsch Milestones
+# Progress — Kirsch
 
-This file is canonical for *live state* — status, owner, and blocked-by relationships as work actually changes. The Deliverables tables in each milestone document are the *static definition* — IDs, dependencies, and file ownership — and never carry status or owner.
+**Where we are:** Milestone 2 — patches, commands, approvals. 1 of 6 deliverables done.
 
-## Milestone Document Status Conventions
+**What's next:** m2-d2 Policy. Unblocked, no dependencies. Owns `internal/policy/`.
 
-Milestone instruction documents (milestones/milestone-*.md) carry status lines that describe document maturity — readiness, completion-of-drafting, and provisionality — not execution progress. Real examples in use: "Ready for execution" (readiness), "Instruction set finalised and reviewed" (completion-of-drafting), "Drafted ahead of schedule — refine before executing" (provisionality), "Outline drafted far ahead — expect to rewrite" (provisionality with expected revision). For live execution status, consult this file's tables and the Delivery Log. The status line's pointer to `plan/PROGRESS.md` is recommended for documents in active execution (milestones currently underway or recently completed) to help readers distinguish maturity from progress; it is optional for future-dated outlines.
+This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
-## Milestone Status
+## Milestones
 
-Status convention: `☑ Complete` — milestone work finished; `◐ In progress` — work begun but not finished; `☐ Not started` — work not yet begun.
+| # | Milestone | Status |
+|---|---|---|
+| 0 | Repo skeleton + static TUI prototype | ☑ Complete |
+| 1 | Workspace engine + read-only tools | ☑ Complete |
+| 2 | Patches, commands, approvals | ◐ In progress |
+| 3 | Provider + agent loop | ☐ Not started |
+| 4 | Real task loop + sessions | ☐ Not started |
+| 5 | Polish + release (v0.1.0) | ☐ Not started |
 
-| # | Milestone | Status | Instruction set |
-|---|---|---|---|
-| 0 | Repo skeleton + static TUI prototype | ☑ Complete | [milestones/milestone-0.md](milestones/milestone-0.md) |
-| 1 | Workspace engine + read-only tools | ☑ Complete | [milestones/milestone-1.md](milestones/milestone-1.md) |
-| 2 | Patches, commands, approvals | ◐ In progress | [milestones/milestone-2.md](milestones/milestone-2.md) |
-| 3 | Provider + agent loop | ☐ Not started | [milestones/milestone-3.md](milestones/milestone-3.md) |
-| 4 | Real task loop + sessions | ☐ Not started | [milestones/milestone-4.md](milestones/milestone-4.md) |
-| 5 | Polish + release (v0.1.0) | ☐ Not started | Not yet written |
+## Milestone 2 — what's left
 
-## Current Milestone — Deliverables
-
-Milestone 2 work begins here. Each deliverable specifies what it owns and which other deliverables must be complete before work can start.
-
-| ID | Title | Status | Owner | Blocked by |
+| ID | Title | Status | Owner | Waits on |
 |---|---|---|---|---|
 | m2-d1 | Patch infrastructure | done | — | — |
 | m2-d2 | Policy | not started | — | — |
@@ -32,46 +28,12 @@ Milestone 2 work begins here. Each deliverable specifies what it owns and which 
 | m2-d5 | TUI integration | not started | — | m2-d3, m2-d4 |
 | m2-d6 | Testing & acceptance | not started | — | all |
 
-## How to Claim a Deliverable
+## What has landed
 
-1. Check the `Blocked by` column — if it names any deliverables, they must all be marked `done` before you start.
-2. If clear, edit this file: set `Owner` to your name and change `Status` to `in progress`.
-3. Work on the tasks listed in the static table in [milestones/milestone-2.md](milestones/milestone-2.md). Branch name follows the convention `m2-d[N]-<short-title>` (e.g., `m2-d1-patch-infrastructure`).
-4. When the deliverable's "done when" statement in the milestone document is fully satisfied, edit this file: change `Status` to `done`.
+| Completed | Deliverable | What landed |
+|---|---|---|
+| 2026-09-22 | m2-d1 Patch infrastructure | `internal/patch`: unified-diff parser, renderer, and atomic applier (standard library only, 44 tests). Fixtures at `testdata/repo-patch/` and diff corpus at `testdata/patches/`. |
 
-## Milestone 2 — Task Status
+---
 
-| Task | Deliverable | Title | Status |
-|---|---|---|---|
-| 1 | m2-d1 | Fixtures for patching | done |
-| 2 | m2-d1 | `internal/patch`: parse | done |
-| 3 | m2-d1 | `internal/patch`: apply | done |
-| 4 | m2-d2 | `internal/policy` | not started |
-| 5 | m2-d4 | `apply_patch` and `run_command` tools | not started |
-| 6 | m2-d3 | The approval flow | not started |
-| 7 | m2-d5 | TUI: real approval and diff | not started |
-| 8 | m2-d6 | Tests | not started |
-| 9 | m2-d6 | Final acceptance | not started |
-
-## Delivery Log
-
-| Completed | Deliverable | Outcome | What landed |
-|---|---|---|---|
-| 2026-09-22 | m2-d1 Patch infrastructure | done | `internal/patch`: a unified-diff parser, renderer and atomic applier, standard library only, 44 tests. Fixtures at `testdata/repo-patch/` (seven files) and a twenty-file diff corpus at `testdata/patches/`. Staged, not committed. |
-
-## Next Up
-
-**m2-d2 (Policy)** is the only unblocked deliverable. It has no dependencies in the blocked-by column. m2-d1 is done; starting m2-d2 does not unblock m2-d4 yet, since m2-d4 waits for both m2-d1 and m2-d2 to be done.
-
-## Outstanding Verification
-
-Eight manual walkthrough checks remain unticked despite Milestones 0 and 1 being marked complete:
-
-- `testing/manual/milestone-0-donovan.md` — seven unticked items: all are the `Ctrl+G` / `g` / `G` re-pin checks. These were added by a later mission that built the re-pin feature, so they postdate the original walkthrough run rather than having been skipped.
-- `testing/manual/milestone-1.md` — one unticked item: "Outside a repository it refuses with a message naming `--workspace`" — the failure path for workspace detection.
-
-This section exists to keep the gap visible rather than lost. The operator has confirmed Milestones 0 and 1 are tested and is moving forward; close these unticked items as part of Milestone 2's acceptance work or afterward as a cleanup step.
-
-## Update Discipline
-
-This file is edited one cell at a time as work actually changes state — never batch-updated at the end of a milestone. Anyone may correct a cell that disagrees with reality, and if this file ever disagrees with reality, reality wins and the file gets fixed immediately. Treat this as the ground truth for what is in progress and what you can start next.
+**Outstanding verification:** see [testing/README.md](testing/README.md#outstanding-verification).

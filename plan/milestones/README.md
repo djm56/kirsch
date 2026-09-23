@@ -7,7 +7,7 @@ This folder holds the per-milestone instruction sets for building Kirsch — one
 | Milestone | Title | Confidence | Notes |
 |-----------|-------|-----------|-------|
 | 0 | Repo skeleton + static TUI prototype | Executed | Instructions tested in the field. All acceptance checklist items verified. |
-| 1 | Workspace engine + read-only tools | Executed | Instructions tested in the field. Eight unticked walkthrough items noted in [`../PROGRESS.md`](../PROGRESS.md); see that section for detail. |
+| 1 | Workspace engine + read-only tools | Executed | Instructions tested in the field. Eight unticked walkthrough items noted in [`../testing/README.md`](../testing/README.md#outstanding-verification); see that section for detail. |
 | 2 | Patches, commands, approvals | Executable | Work in progress. See [`../PROGRESS.md`](../PROGRESS.md) for deliverable status and task breakdown. |
 | 3 | Provider + agent loop | Provisional | Settled in shape and structure. Detail is provisional and may change during M2 based on what is learned. Re-read against the code before starting. |
 | 4 | Real task loop + sessions | Outline | A scope statement rather than detailed instructions. Task breakdown should expect to need real work during execution. |
@@ -47,7 +47,7 @@ Live status — who is working what, what is done, what is blocked — lives in 
 
 When you claim a deliverable:
 
-1. Check `PROGRESS.md`'s `Blocked by` column — if it names deliverables, all of them must be marked `done` before you start.
+1. Check `PROGRESS.md`'s `Waits on` column — if it names deliverables, all of them must be marked `done` before you start.
 2. Edit `PROGRESS.md`: set `Owner` to your name and change `Status` to `in progress`.
 3. Read the Ground Rules and your deliverable's tasks in this milestone's file.
 4. When your deliverable's "done when" statement is fully satisfied, edit `PROGRESS.md`: change `Status` to `done`.

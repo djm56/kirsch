@@ -4,7 +4,7 @@ This document is how two developers divide work on the same milestone and stay o
 
 ## Claiming Work
 
-Work is claimed through [`PROGRESS.md`](../PROGRESS.md), which is the single source of truth for what is in progress and what you can start next. See the claim procedure in `PROGRESS.md` for the process.
+Work is claimed through [`PROGRESS.md`](../PROGRESS.md), which is the single source of truth for what is in progress and what you can start next. See the claim procedure in [`milestones/README.md`](../milestones/README.md) for the process.
 
 Two people want the same deliverable? They coordinate synchronously. If everything unblocked is already claimed and you want to move forward, the honest answer is to pair on the next unblocked deliverable — solving two problems at once — or to work the sequential tail together. The board exists to prevent thrashing, not to create queues; use it that way.
 
