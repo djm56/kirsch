@@ -2,7 +2,7 @@
 
 **Where we are:** Milestone 2 — patches, commands, approvals. 1 of 6 deliverables done.
 
-**What's next:** m2-d2 Policy. Unblocked, no dependencies. Owns `internal/policy/`.
+**What's next:** m2-d3, Approval flow. Unblocked now that m2-d2 is complete.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -22,7 +22,7 @@ This file is the single source of truth for live state — what is in progress a
 | ID | Title | Status | Owner | Waits on |
 |---|---|---|---|---|
 | m2-d1 | Patch infrastructure | done | — | — |
-| m2-d2 | Policy | not started | — | — |
+| m2-d2 | Policy | done | — | — |
 | m2-d3 | Approval flow | not started | — | m2-d2 |
 | m2-d4 | Tool implementations | not started | — | m2-d1, m2-d2 |
 | m2-d5 | TUI integration | not started | — | m2-d3, m2-d4 |
@@ -32,6 +32,7 @@ This file is the single source of truth for live state — what is in progress a
 
 | Completed | Deliverable | What landed |
 |---|---|---|
+| 2026-09-23 | m2-d2 Policy | `internal/policy`: the command allowlist and session-grant engine. Argv-slice matching so a semicolon-bearing element cannot be split; shells and runners refused at any install location by basename; `ForPatch` never auto-allows; grants refuse wildcards, empty prefixes and shells, and are disabled wholesale by config. Shipped allowlist entries are exact-match, so `go build -toolexec=` and `git diff --output=` require approval. |
 | 2026-09-22 | m2-d1 Patch infrastructure | `internal/patch`: unified-diff parser, renderer, and atomic applier (standard library only, 44 tests). Fixtures at `testdata/repo-patch/` and diff corpus at `testdata/patches/`. |
 
 ---
