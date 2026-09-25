@@ -1087,11 +1087,10 @@ func confirmPrompts(t *testing.T) []string {
 		m.busy.Active = true
 		return m.runSlash("new", "", m.layout())
 	})
-	// /approvals with grants to clear. update.go, runSlash.
-	raise("/approvals", func(m Model) (tea.Model, tea.Cmd) {
-		m.status.Grants = 3
-		return m.runSlash("approvals", "", m.layout())
-	})
+	// /approvals no longer directly raises a confirm — it opens a modal listing grants,
+	// and pressing 'c' in the modal raises the clear-confirm. Both paths are tested in
+	// internal/tui tests (TestGrantsModalCKeyShowsConfirm, TestApprovalsListsRealGrants).
+
 	// A paste over the §7.2 warning threshold. update.go, handlePaste. The size
 	// is part of the prompt, so this one has no single length — twelve kilobytes
 	// is representative, and a four-digit paste adds two cells to it.

@@ -82,12 +82,12 @@ func TestIntegrationApprovalFlow(t *testing.T) {
 			})
 
 			// Wire the callbacks exactly as run() does in main.go via wireCallbacks().
-			wireCallbacks(&m, a, log)
+			wireCallbacks(&m, a, log, ws)
 
 			// Run an approval request in a goroutine.
 			done := make(chan app.ApprovalOutcome, 1)
 			go func() {
-				result := a.Request(context.Background(), app.ApprovalRequest{
+				result, _ := a.Request(context.Background(), app.ApprovalRequest{
 					Description: tt.description,
 					Operation:   tt.operation,
 					Argv:        []string{"go", "test", "./..."},
@@ -151,12 +151,12 @@ func TestIntegrationCancelledOutcome(t *testing.T) {
 	})
 
 	// Wire the callbacks exactly as run() does in main.go via wireCallbacks().
-	wireCallbacks(&m, a, log)
+	wireCallbacks(&m, a, log, ws)
 
 	// Run an approval request.
 	done := make(chan app.ApprovalOutcome, 1)
 	go func() {
-		result := a.Request(context.Background(), app.ApprovalRequest{
+		result, _ := a.Request(context.Background(), app.ApprovalRequest{
 			Description: "test patch",
 			Operation:   policy.OperationPatch,
 		})
@@ -210,7 +210,7 @@ func TestIntegrationCancellationWithinOneSecond(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan app.ApprovalOutcome, 1)
 	go func() {
-		result := a.Request(ctx, app.ApprovalRequest{
+		result, _ := a.Request(ctx, app.ApprovalRequest{
 			Description: "test patch",
 			Operation:   policy.OperationPatch,
 		})
@@ -285,7 +285,7 @@ func TestIntegrationResolveTwiceIsHarmless(t *testing.T) {
 	// Run an approval request.
 	done := make(chan app.ApprovalOutcome, 1)
 	go func() {
-		result := a.Request(context.Background(), app.ApprovalRequest{
+		result, _ := a.Request(context.Background(), app.ApprovalRequest{
 			Description: "test patch",
 			Operation:   policy.OperationPatch,
 		})

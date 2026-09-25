@@ -375,7 +375,7 @@ status+composer     unchanged, still live                    muted     248  #a8a
 
 ## 06 · Help overlay
 
-```text 80×32
+```text 80×33
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
          ┌─ help ─────────────────────────────────────────────────────┐
@@ -397,10 +397,11 @@ status+composer     unchanged, still live                    muted     248  #a8a
          │                                      /compact  /quit       │
          │                                      /exit                 │
          │                                                            │
-         │                                      debug (M1 only)       │
+         │                                      debug (M1–M2)         │
          │                                      /read  /ls            │
          │                                      /search  /gitstatus   │
-         │                                      /gitdiff              │
+         │                                      /gitdiff  /patch      │
+         │                                      /run                  │
          ├────────────────────────────────────────────────────────────┤
          │ kirsch v0.1.0-dev · docs: doc/usage.md · Esc or ? closes   │
          └────────────────────────────────────────────────────────────┘
@@ -427,17 +428,19 @@ BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8
 - Mode headings are `warning` (179); bindings are `muted` (244).
 - Two columns, both generated from the same binding table `update.go` dispatches on, so a
   binding cannot change behaviour while keeping its old description here.
-- **The overlay needs 32 rows.** §4.2 says one screen, no scrolling, and the content now
-  runs to 22 body lines plus four rows of modal chrome — a 26-row box. The frame spends
+- **The overlay needs 33 rows.** §4.2 says one screen, no scrolling, and the content now
+  runs to 23 body lines plus four rows of modal chrome — a 27-row box. The frame spends
   six more around it: the two-row header, the two rules, the status bar and the composer.
+  The additional row accommodates M2 debug commands `/patch` and `/run` alongside the M1
+  commands, requiring four rows of debug entries (two commands per line) instead of three.
   Below that height it scrolls rather than truncating silently, but the grid is drawn at
-  the height where the rule actually holds. The `debug (M1 only)` block is Milestone 1
-  scaffolding and leaves with the debug commands in M3, which buys back five rows — the
-  blank spacer, the heading, and the three command rows beneath it. Body height is the
-  taller of the two columns, so dropping them takes it from 22 to
-  `max(left 15, right 17)` = 17, a 21-row box and a 27-row screen. The right-hand
-  column uses a narrower key field than the left because its keys are single characters —
-  a shared field pushes its descriptions past the modal's edge at §2.2's 80% width.
+  the height where the rule actually holds. The `debug (M1–M2)` block is scaffolding and
+  leaves with the debug commands in M3, which buys back six rows — the blank spacer, the
+  heading, and the four command rows beneath it. Body height is the taller of the two
+  columns, so dropping them takes it from 23 to `max(left 15, right 17)` = 17, a 21-row
+  box and a 27-row screen. The right-hand column uses a narrower key field than the left
+  because its keys are single characters — a shared field pushes its descriptions past the
+  modal's edge at §2.2's 80% width.
 
 ---
 

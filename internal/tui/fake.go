@@ -86,7 +86,8 @@ func (m *Model) queuePatchApproval() {
 			"files: 2 changed (calc/divide.go,",
 			"       calc/divide_test.go)",
 		},
-		Diff: fakeDiff(), Added: 12, Removed: 4,
+		DiffFilename: "calc/divide.go",
+		Diff:         fakeDiff(), Added: 12, Removed: 4,
 	}})
 	m.pendingApproval = id
 	m.sel = id

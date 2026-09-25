@@ -147,7 +147,8 @@ func scenarios() []scenario {
 				Kind: ApprovalPatch, Subject: "2 files changed", Outcome: Approved,
 			}})
 			m.queueCommandApproval()
-			m.status.Tokens, m.status.Grants = 16800, 1
+			m.status.Tokens = 16800
+			m.GetGrantCount = func() int { return 1 }
 			m.frame = 2 // ⠹
 		}},
 
@@ -159,7 +160,8 @@ func scenarios() []scenario {
 			}})
 			m.sel = id
 			m.expanded[id] = true
-			m.status.Tokens, m.status.Grants = 22900, 1
+			m.status.Tokens = 22900
+			m.GetGrantCount = func() int { return 1 }
 		}},
 
 		{Screen: "08", Unicode: true, Build: func(m *Model) {

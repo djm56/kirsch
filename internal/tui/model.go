@@ -112,12 +112,35 @@ type Model struct {
 	// Callbacks into internal/app. Function fields rather than an interface
 	// so the TUI depends on behaviour it names itself and cannot be handed a
 	// package it is forbidden to import.
-	RunTool         func(name string, input map[string]any)
-	Cancel          func()
-	ResolveApproval func(id int64, outcome ApprovalOutcome)
+	RunTool          func(name string, input map[string]any)
+	Cancel           func()
+	ResolveApproval  func(id int64, outcome ApprovalOutcome)
+	GetGrants        func() []string
+	GetGrantCount    func() int
+	ClearGrants      func()
+	ResolvePatchFile func(filename string) (string, error)
 
 	projectTypes []string
 	toolCards    map[int64]ItemID // app-side tool id → transcript card
+
+	// approvalCards correlates an ApprovalResolvedMsg back to its card. It is
+	// populated in receiveApprovalRequest, keyed by the app-side approval ID
+	// (ApprovalRequestedMsg.ID / ApprovalResolvedMsg.ID) — a counter the app
+	// owns independently of the transcript's item IDs. Without this map the
+	// only candidates are m.pendingApproval, which resolveApproval clears
+	// synchronously on keypress before app.Resolve's asynchronous reply can
+	// reach Update, and ItemID(msg.ID), which silently conflates the two ID
+	// spaces whenever the approval card is not the transcript's first item.
+	// Same shape as toolCards above, for the same keying reason: msg.ID there
+	// is also drawn from a counter the transcript does not own. The cleanup
+	// differs, though: toolCards is deleted unconditionally in
+	// applyToolResult, because RunTool sends a ToolCompletedMsg on every path
+	// including its early error return. approvalCards has no such guarantee —
+	// app.Resolve (app.go) only sends an ApprovalResolvedMsg when it attempted
+	// a session grant, so an entry for any other outcome is deleted eagerly by
+	// resolveApproval itself (update.go) instead of waiting for a message that
+	// will never arrive.
+	approvalCards map[int64]ItemID
 
 	frame        int  // spinner frame; advanced only by a tick message
 	spinnerAlive bool // a tick chain is in flight; see tickSpinnerOnce
@@ -150,17 +173,18 @@ func New(o Options) Model {
 
 	rend := NewRenderer(o.Caps.Colour)
 	m := Model{
-		caps:      o.Caps,
-		rend:      rend,
-		sty:       NewStyles(rend, o.Caps.Colour),
-		gly:       NewGlyphs(o.Caps.Unicode),
-		expanded:  map[ItemID]bool{},
-		toolCards: map[int64]ItemID{},
-		scroll:    Scroll{Pinned: true},
-		sess:      o.Session,
-		status:    o.Status,
-		comp:      newComposer(),
-		now:       o.Now,
+		caps:          o.Caps,
+		rend:          rend,
+		sty:           NewStyles(rend, o.Caps.Colour),
+		gly:           NewGlyphs(o.Caps.Unicode),
+		expanded:      map[ItemID]bool{},
+		toolCards:     map[int64]ItemID{},
+		approvalCards: map[int64]ItemID{},
+		scroll:        Scroll{Pinned: true},
+		sess:          o.Session,
+		status:        o.Status,
+		comp:          newComposer(),
+		now:           o.Now,
 	}
 	return m
 }

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -286,6 +287,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ApprovalRequestedMsg:
 		return m.receiveApprovalRequest(msg)
 
+	case ApprovalResolvedMsg:
+		return m.updateApprovalOutcome(msg), nil
+
 	case tea.KeyMsg:
 		lay := m.layout()
 		m.relayout(lay)
@@ -408,7 +412,10 @@ func (m Model) receiveApprovalRequest(msg ApprovalRequestedMsg) (tea.Model, tea.
 	// Kind is mapped from the msg.Kind string.
 	// GrantScope is set to indicate whether [a] should appear (OffersSessionGrant
 	// checks Kind==ApprovalCommand && GrantScope!="").
-	// Task 7 renders this card; see plan/milestones/milestone-2.md Task 7.
+	// Subject and Detail come from the message, computed by app.
+	// All text fields are sanitised at ingestion to strip ANSI escape sequences
+	// and other control characters, protecting against malicious content in paths
+	// and diff lines.
 	// Architecture.md §3 rule 4: TUI state is mutated only inside Update.
 
 	kind := ApprovalPatch // default
@@ -416,26 +423,41 @@ func (m Model) receiveApprovalRequest(msg ApprovalRequestedMsg) (tea.Model, tea.
 		kind = ApprovalCommand
 	}
 
-	// GrantScope is non-empty iff [a] is offered; it holds the argv prefix
-	// for display purposes. Task 7 sets it properly; we just enable/disable
-	// the button here based on the message flag.
+	// GrantScope holds the argv prefix for display; it's non-empty iff [a] is offered.
+	// For patches, GrantScope must be empty even if CanApproveForSession is true.
+	// Single-row fields must not contain newlines, which would break the box rendering.
 	grantScope := ""
-	if msg.CanApproveForSession {
-		grantScope = "grant"
+	if msg.CanApproveForSession && kind == ApprovalCommand {
+		grantScope = sanitizeSingleLine(msg.GrantScope)
 	}
+
+	// Sanitise each Detail line individually to preserve line structure,
+	// splitting any embedded newlines into separate elements.
+	sanitizedDetail := sanitizeAndSplitLines(strings.Join(msg.Detail, "\n"))
+
+	// Sanitise each Diff line individually to preserve line structure,
+	// splitting any embedded newlines into separate elements.
+	sanitizedDiff := sanitizeAndSplitLines(strings.Join(msg.DiffLines, "\n"))
 
 	cardID := m.appendBlock(Item{
 		Kind: KindApproval,
 		Approval: &ApprovalCard{
-			Kind:       kind,
-			Title:      msg.Description,
-			GrantScope: grantScope,
-			Outcome:    Unresolved,
+			Kind:         kind,
+			Title:        sanitizeSingleLine(msg.Description),
+			Subject:      sanitizeSingleLine(msg.Subject),
+			Detail:       sanitizedDetail,
+			GrantScope:   grantScope,
+			Outcome:      Unresolved,
+			DiffFilename: sanitizeSingleLine(msg.DiffFilename),
+			Diff:         sanitizedDiff,
+			Added:        msg.DiffAdded,
+			Removed:      msg.DiffRemoved,
 		},
 	})
 
 	m.pendingApproval = cardID
 	m.pendingApprovalID = msg.ID
+	m.approvalCards[msg.ID] = cardID
 
 	m.relayout(m.layout())
 	return m, nil
@@ -768,6 +790,12 @@ func (m Model) keyModal(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 		m.modal.Off = 0
 	case "G":
 		m.modal.Off = maxInt(0, len(m.modal.Lines)-1)
+	case "c":
+		// On grants modal, 'c' closes the modal and shows the clear confirmation
+		if m.modal.Kind == ModalContent && m.modal.Title == "session grants" {
+			m.closeModal()
+			m.askConfirm(ConfirmState{Prompt: "Clear all session grants?", Action: ConfirmClearGrants})
+		}
 	case "?":
 		if m.modal.Kind == ModalHelp {
 			m.closeModal() // ? also closes help, §4.2
@@ -821,7 +849,9 @@ func (m Model) applyConfirm(c *ConfirmState, lay Layout) Model {
 		// never raised. It is named here because the branch is still in the code
 		// above; do not read it as a live caller.
 	case ConfirmClearGrants:
-		m.status.Grants = 0
+		if m.ClearGrants != nil {
+			m.ClearGrants()
+		}
 	}
 	return m
 }
@@ -839,10 +869,19 @@ func (m Model) openDetail(lay Layout) Model {
 			Source: it.ID, Lines: it.Tool.Out,
 		})
 	case KindApproval:
-		m.openModal(ModalState{
-			Kind: ModalDiff, Title: "calc/divide.go", Source: it.ID,
-			Lines: it.Approval.Diff, Added: it.Approval.Added, Removed: it.Approval.Removed,
-		})
+		if it.Approval.Kind == ApprovalPatch {
+			// Patch approvals show a diff modal
+			m.openModal(ModalState{
+				Kind: ModalDiff, Title: it.Approval.DiffFilename, Source: it.ID,
+				Lines: it.Approval.Diff, Added: it.Approval.Added, Removed: it.Approval.Removed,
+			})
+		} else if it.Approval.Kind == ApprovalCommand {
+			// Command approvals show a content modal with detail lines
+			m.openModal(ModalState{
+				Kind: ModalContent, Title: "approval detail",
+				Source: it.ID, Lines: it.Approval.Detail,
+			})
+		}
 	case KindError:
 		m.openModal(ModalState{
 			Kind: ModalContent, Title: it.Err.Kind, Source: it.ID, Lines: it.Err.Detail,
@@ -857,26 +896,95 @@ func (m Model) openDetail(lay Layout) Model {
 func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 	it, _, ok := m.tr.Find(m.pendingApproval)
 	if !ok {
+		// Unreachable today: the transcript is append-only (no Transcript
+		// method ever removes an item — see transcript.go), so a pendingApproval
+		// set by receiveApprovalRequest always resolves here. Left in place as
+		// a defensive guard rather than a panic if that ever changes. Because
+		// this path never runs, it neither calls m.ResolveApproval nor removes
+		// the approvalCards entry for m.pendingApprovalID; a future change that
+		// makes items removable would need to account for both here too.
 		m.pendingApproval = 0
 		m.pendingApprovalID = 0
 		return m
 	}
 	it.Approval.Outcome = o
 	it.Approval.Elapsed = 2400 * time.Millisecond
-	if o == ApprovedSession {
-		m.status.Grants++
-	}
 
 	// Call back to app.Resolve() to unblock the approval goroutine.
-	// Must never block.
+	// Must never block. For ApprovedSession, the actual grant outcome will arrive
+	// in an ApprovalResolvedMsg; the counter is incremented only then, after we
+	// know whether the policy grant succeeded or failed.
 	if m.ResolveApproval != nil {
 		m.ResolveApproval(m.pendingApprovalID, o)
+	}
+
+	// app.Resolve only ever sends an ApprovalResolvedMsg when it attempted a
+	// session grant (grantAttempted in app.go), which happens exactly when
+	// o == ApprovedSession. For the other three outcomes — Approved, Rejected,
+	// Cancelled — no confirmation is coming and updateApprovalOutcome will
+	// never run for this approval ID, so its correlation entry would sit in
+	// approvalCards for the rest of the process. Remove it here instead, while
+	// a session grant's entry is left for updateApprovalOutcome to delete once
+	// the confirmation arrives (it may still fail and resolve to Rejected).
+	if o != ApprovedSession {
+		delete(m.approvalCards, m.pendingApprovalID)
 	}
 
 	m.pendingApproval = 0
 	m.pendingApprovalID = 0
 	m.tr.rev++
 	m.relayout(lay)
+	return m
+}
+
+// updateApprovalOutcome updates a pending approval card's outcome when the
+// confirmed outcome arrives from app. This is necessary because a refused
+// session grant still has outcome ApprovalOutcomeSession from the user's
+// keypress, but the card should show Rejected when the grant fails.
+//
+// The card is now matched by m.approvalCards, keyed by the app-side approval
+// ID and populated in receiveApprovalRequest when the card is created — the
+// same shape toolCards already uses for ToolCompletedMsg.
+//
+// Two things ruled this out before. It cannot correlate through
+// m.pendingApproval: resolveApproval calls back into app.Resolve
+// synchronously and then clears pendingApproval before returning, while
+// App.send dispatches the confirmation through program.Send in a goroutine
+// (app.go), so the confirmation always arrives after the slot is empty. And
+// it cannot correlate by treating msg.ID as a transcript item ID: msg.ID is
+// drawn from the app's own approval counter (approveID.Add(1) in app.go), a
+// space the transcript's item IDs do not share — Transcript.Append counts
+// every item, approvals included. The two coincide only when the approval
+// card happens to be the transcript's first item, which is why converting
+// that field straight to an ItemID looked correct in a transcript that
+// starts empty and has nothing before it.
+func (m Model) updateApprovalOutcome(msg ApprovalResolvedMsg) Model {
+	cardID, known := m.approvalCards[msg.ID]
+	if !known {
+		// No pending card tracked for this approval ID: already resolved, or
+		// never requested through receiveApprovalRequest. Nothing to update.
+		return m
+	}
+	delete(m.approvalCards, msg.ID)
+
+	it, _, ok := m.tr.Find(cardID)
+	if !ok || it.Kind != KindApproval || it.Approval == nil {
+		// All three conditions are unreachable today, not merely defensive:
+		// !ok would need a removed transcript item, and the transcript is
+		// append-only (see the resolveApproval comment above); Kind !=
+		// KindApproval and Approval == nil would need approvalCards to hold an
+		// ID that was never written by receiveApprovalRequest, which is the
+		// map's only writer and always stores an approval card's own ID with
+		// a non-nil Approval. Kept as a guard against a future change to
+		// either invariant rather than a panic, matching the style of the
+		// early return above.
+		return m
+	}
+
+	// Update the approval outcome to the confirmed value.
+	it.Approval.Outcome = msg.Outcome
+
+	m.tr.rev++
 	return m
 }
 
@@ -981,10 +1089,25 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 			m = m.applyConfirm(&ConfirmState{Action: ConfirmNewSession}, lay)
 		}
 	case "approvals":
-		if m.status.Grants > 0 {
-			m.askConfirm(ConfirmState{Prompt: "Clear all session grants?", Action: ConfirmClearGrants})
-		} else {
+		// Get the real grants from the policy
+		grants := []string{}
+		if m.GetGrants != nil {
+			grants = m.GetGrants()
+		}
+
+		if len(grants) == 0 {
 			m.notice("no active session grants")
+		} else {
+			// Show the grants in a modal, sanitised for single-line display
+			sanitisedGrants := make([]string, len(grants))
+			for i, g := range grants {
+				sanitisedGrants[i] = sanitizeSingleLine(g)
+			}
+			m.openModal(ModalState{
+				Kind:  ModalContent,
+				Title: "session grants",
+				Lines: sanitisedGrants,
+			})
 		}
 	case "status":
 		m.notice("model " + m.status.Model + " " + m.gly.Bullet + " branch " + m.sess.Branch +
@@ -995,14 +1118,18 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 		m.notice("files touched this session: calc/divide.go, calc/divide_test.go")
 	case "compact":
 		m.notice("nothing to compact yet")
-	case "read", "ls", "search", "gitstatus", "gitdiff":
+	case "read", "ls", "search", "gitstatus", "gitdiff", "patch", "run":
 		// Temporary M1 scaffolding, removed in M3 when the model drives tools.
 		// Labelled (debug) in /help so nobody mistakes them for product surface.
 		if m.RunTool == nil {
 			m.notice("tools are not wired up in this build")
 			break
 		}
-		name, input := debugToolCall(cmd, args)
+		name, input, errMsg := debugToolCall(cmd, args, m.ResolvePatchFile)
+		if errMsg != "" {
+			m.comp.Hint = errMsg
+			return m, nil
+		}
 		if name == "" {
 			m.comp.Hint = "usage: /" + cmd + " " + debugUsage(cmd)
 			return m, nil
@@ -1025,30 +1152,59 @@ func (m *Model) notice(text string) {
 }
 
 // debugToolCall maps an M1 debug command to a tool invocation.
-func debugToolCall(cmd, args string) (string, map[string]any) {
+// debugToolCall constructs a tool invocation from a debug command. The
+// resolvePatchFile callback is used to safely resolve and read patch files from
+// the workspace, preventing directory traversal attacks. It returns the tool
+// name, input map, and an optional error message. If errMsg is non-empty, the
+// command should be rejected and the message displayed. If name is empty and
+// errMsg is empty, show usage.
+func debugToolCall(cmd, args string, resolvePatchFile func(string) (string, error)) (string, map[string]any, string) {
 	args = strings.TrimSpace(args)
 	switch cmd {
 	case "read":
 		if args == "" {
-			return "", nil
+			return "", nil, ""
 		}
-		return "read_file", map[string]any{"path": args}
+		return "read_file", map[string]any{"path": args}, ""
 	case "ls":
 		if args == "" {
 			args = "."
 		}
-		return "list_files", map[string]any{"path": args}
+		return "list_files", map[string]any{"path": args}, ""
 	case "search":
 		if args == "" {
-			return "", nil
+			return "", nil, ""
 		}
-		return "search_code", map[string]any{"query": args}
+		return "search_code", map[string]any{"query": args}, ""
 	case "gitstatus":
-		return "git_status", map[string]any{}
+		return "git_status", map[string]any{}, ""
 	case "gitdiff":
-		return "git_diff", map[string]any{}
+		return "git_diff", map[string]any{}, ""
+	case "patch":
+		if args == "" {
+			return "", nil, ""
+		}
+		if resolvePatchFile == nil {
+			return "", nil, "patch: callback not wired"
+		}
+		diffContent, err := resolvePatchFile(args)
+		if err != nil {
+			return "", nil, "patch: " + err.Error()
+		}
+		return "apply_patch", map[string]any{"diff": diffContent}, ""
+	case "run":
+		if args == "" {
+			return "", nil, ""
+		}
+		// Parse arguments as shell-like syntax. Split on spaces and preserve
+		// quoted strings. Quotes are removed during parsing.
+		argv, err := shellSplit(args)
+		if err != nil {
+			return "", nil, "run: " + err.Error()
+		}
+		return "run_command", map[string]any{"argv": argv}, ""
 	}
-	return "", nil
+	return "", nil, ""
 }
 
 func debugUsage(cmd string) string {
@@ -1059,6 +1215,58 @@ func debugUsage(cmd string) string {
 		return "<query>"
 	case "ls":
 		return "[path]"
+	case "patch":
+		return "<file>"
+	case "run":
+		return "<argv…>"
 	}
 	return ""
+}
+
+// shellSplit parses a command line into arguments, respecting double quotes.
+// Inside double quotes, whitespace is preserved and quotes themselves are removed.
+// Outside quotes, whitespace (space, tab, newline) splits arguments.
+// Empty quoted arguments (e.g., "") are preserved.
+//
+// Limitations (not implemented):
+// - Single quotes are not recognized; 'text' is parsed as an ordinary token.
+// - Backslash escapes are not recognized; \n, \", \\ are parsed literally.
+func shellSplit(s string) ([]string, error) {
+	var argv []string
+	var current strings.Builder
+	inQuotes := false
+	wasQuoted := false // Track if we just closed quotes
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch c {
+		case '"':
+			inQuotes = !inQuotes
+			if !inQuotes {
+				wasQuoted = true // Mark that we just closed a quoted section
+			}
+		case ' ', '\t', '\n':
+			if inQuotes {
+				current.WriteByte(c)
+			} else if current.Len() > 0 || wasQuoted {
+				argv = append(argv, current.String())
+				current.Reset()
+				wasQuoted = false
+			}
+		default:
+			current.WriteByte(c)
+			wasQuoted = false
+		}
+	}
+
+	if inQuotes {
+		// Unclosed quote is an error
+		return nil, fmt.Errorf("unclosed quote")
+	}
+
+	if current.Len() > 0 || wasQuoted {
+		argv = append(argv, current.String())
+	}
+
+	return argv, nil
 }

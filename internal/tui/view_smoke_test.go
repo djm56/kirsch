@@ -268,9 +268,6 @@ func TestApproveResolvesAndReleasesCapture(t *testing.T) {
 	if m.mode() != ModeComposing {
 		t.Errorf("mode after approve = %v, want Composing", m.mode())
 	}
-	if m.status.Grants != 0 {
-		t.Errorf("plain approve recorded %d grants, want 0", m.status.Grants)
-	}
 	if out := m.View(); strings.Contains(out, "approval required") {
 		t.Error("resolved approval still renders its box")
 	}
@@ -282,9 +279,6 @@ func TestSessionGrantRefusedOnPatch(t *testing.T) {
 	m := drive(newDriven(t), key('a'))
 	if m.mode() != ModeApprovalPending {
 		t.Error("`a` resolved an apply_patch approval")
-	}
-	if m.status.Grants != 0 {
-		t.Errorf("`a` on apply_patch recorded %d grants, want 0", m.status.Grants)
 	}
 }
 
@@ -521,7 +515,14 @@ func TestClosingAConfirmRepaintsInTheSameFrame(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newDrivenColour(t, 80, 24)
-			m.status.Grants = 1 // /approvals only prompts when there is something to clear
+			// Wire GetGrants to return a grant, so /approvals shows the modal
+			grantsList := []string{"go test"}
+			m.GetGrants = func() []string {
+				return grantsList
+			}
+			m.ClearGrants = func() {
+				grantsList = []string{}
+			}
 			// Setup, not the thing under test: NewWithFixture starts in
 			// ModeApprovalPending, so `y` resolves that approval and is what lets
 			// the keys below reach the composer at all.
@@ -539,8 +540,14 @@ func TestClosingAConfirmRepaintsInTheSameFrame(t *testing.T) {
 				open = drive(open, key(r))
 			}
 			open = drive(open, keyType(tea.KeyEnter))
+			// /approvals with grants opens a modal listing them
+			if open.mode() != ModeModal {
+				t.Fatalf("/approvals should open a modal with grants: mode = %v", open.mode())
+			}
+			// Press 'c' to open the clear-grants confirm from the modal
+			open = drive(open, key('c'))
 			if open.mode() != ModeConfirm {
-				t.Fatalf("/approvals raised no confirm prompt: mode = %v", open.mode())
+				t.Fatalf("pressing 'c' on grants modal should open confirm: mode = %v", open.mode())
 			}
 			if transcriptBand(t, open) == before {
 				t.Fatal("the confirm prompt changed nothing on screen")
@@ -787,10 +794,14 @@ func TestSlashNoticeCommandsRebuildTheCache(t *testing.T) {
 		{cmd: "/compact", want: "nothing to compact yet"},
 		{cmd: "/approvals", want: "no active session grants", pre: func(t *testing.T, m Model) {
 			t.Helper()
-			if m.status.Grants != 0 {
+			var grantCount int
+			if m.GetGrants != nil {
+				grantCount = len(m.GetGrants())
+			}
+			if grantCount != 0 {
 				t.Fatalf("the fixture holds %d session grant%s, so /approvals raises the "+
 					"clear-grants confirm instead of appending a notice",
-					m.status.Grants, plural(m.status.Grants))
+					grantCount, plural(grantCount))
 			}
 		}},
 	}
@@ -1182,4 +1193,33 @@ func TestEnteringBrowsingDrawsTheGutterInTheSameFrame(t *testing.T) {
 	assertBandMatchesRebuild(t,
 		"the frame that entered Browsing is missing the selection gutter: the cache was "+
 			"built against the previous selection and dispatchKey did not rebuild it", m)
+}
+
+// TestDebugCommandsVisibleInHelpOverlay verifies that the M2 debug commands
+// (/patch and /run) appear in the rendered help overlay. This is distinct from
+// simply having them in the command list — they must be visible in what View()
+// produces when the help modal is open.
+func TestDebugCommandsVisibleInHelpOverlay(t *testing.T) {
+	// Create a model at 80×33 (the minimum size needed to show all debug commands in help)
+	m := newDrivenSize(t, 80, 33)
+	if m.mode() != ModeApprovalPending {
+		t.Fatalf("fixture should start in ApprovalPending, got %v", m.mode())
+	}
+
+	// Open help overlay from approval pending mode
+	m = drive(m, key('?'))
+	if m.mode() != ModeModal {
+		t.Fatalf("? did not open a modal: mode = %v", m.mode())
+	}
+
+	// Get the rendered output
+	output := m.View()
+
+	// Verify both M2 debug commands appear in the rendered output
+	if !strings.Contains(output, "/run") {
+		t.Error("/run (M2 debug command) does not appear in help overlay View() output")
+	}
+	if !strings.Contains(output, "/patch") {
+		t.Error("/patch (M2 debug command) does not appear in help overlay View() output")
+	}
 }

@@ -35,6 +35,7 @@ type ApprovalRequest struct {
 	Operation   policy.Operation
 	Description string
 	Changes     []patch.FileChange
+	Argv        []string // Command argv for session grant; nil for patches
 }
 
 type applyPatchInput struct {
@@ -129,7 +130,9 @@ func (t *ApplyPatch) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	})
 
 	// Step 5: On approval, commit; on denial, discard.
-	if decision != policy.DecisionAllow {
+	// DecisionAllow means allow once; DecisionSession means allow and record a grant.
+	// Both mean we proceed. Any other decision means denial.
+	if decision != policy.DecisionAllow && decision != policy.DecisionSession {
 		// User or policy denied the patch.
 		// The defer will attempt to discard, but we also do it explicitly here.
 		// The defer's discard will fail (handle no longer staged) but that's safe.

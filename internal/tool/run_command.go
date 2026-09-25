@@ -129,11 +129,11 @@ func (t *RunCommand) Invoke(ctx context.Context, raw json.RawMessage) Result {
 			ID:          1, // TODO: provided by approval flow in M3
 			Operation:   policy.OperationCommand,
 			Description: fmt.Sprintf("Run: %s", strings.Join(in.Argv, " ")),
+			Argv:        in.Argv,
 		})
-		if appDecision != policy.DecisionAllow {
+		if appDecision != policy.DecisionAllow && appDecision != policy.DecisionSession {
 			return Fail(KindPolicyDenied, "command rejected")
 		}
-		// TODO: record the grant in approval flow (M3)
 	}
 
 	// Build the environment: start with PATH, HOME, LANG.

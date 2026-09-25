@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +38,32 @@ func TestApprovalOutcomeConversion(t *testing.T) {
 			got := tui.ToAppOutcome(tt.tuiOutcome)
 			if got != int(tt.appOutcome) {
 				t.Errorf("ToAppOutcome(%d) = %d, want %d", tt.tuiOutcome, got, int(tt.appOutcome))
+			}
+		})
+	}
+}
+
+// TestFromAppOutcomeConversion verifies the FromAppOutcome conversion function
+// (the inverse of ToAppOutcome) handles all app enum values correctly, preventing
+// the enum trap. Uses actual app constants rather than bare literals to ensure
+// reordering the iota block fails a test instead of silently inverting the mapping.
+func TestFromAppOutcomeConversion(t *testing.T) {
+	tests := []struct {
+		appOutcome app.ApprovalOutcome
+		tuiOutcome tui.ApprovalOutcome
+		name       string
+	}{
+		{app.ApprovalOutcomeOnce, tui.Approved, "Once -> Approved"},
+		{app.ApprovalOutcomeSession, tui.ApprovedSession, "Session -> ApprovedSession"},
+		{app.ApprovalOutcomeDeny, tui.Rejected, "Deny -> Rejected"},
+		{app.ApprovalOutcomeCancelled, tui.Cancelled, "Cancelled -> Cancelled"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tui.FromAppOutcome(int(tt.appOutcome))
+			if got != tt.tuiOutcome {
+				t.Errorf("FromAppOutcome(%d) = %d, want %d", int(tt.appOutcome), got, tt.tuiOutcome)
 			}
 		})
 	}
@@ -82,7 +109,7 @@ func TestResolveApprovalNilCheckWired(t *testing.T) {
 	}
 
 	// Wire the callbacks.
-	wireCallbacks(&m, a, log)
+	wireCallbacks(&m, a, log, ws)
 
 	// After wiring, ResolveApproval must not be nil.
 	if m.ResolveApproval == nil {
@@ -93,7 +120,7 @@ func TestResolveApprovalNilCheckWired(t *testing.T) {
 	// the real Update path.
 	done := make(chan app.ApprovalOutcome, 1)
 	go func() {
-		result := a.Request(context.Background(), app.ApprovalRequest{
+		result, _ := a.Request(context.Background(), app.ApprovalRequest{
 			Description: "test patch",
 			Operation:   policy.OperationPatch,
 		})
@@ -168,7 +195,7 @@ func TestRunToolCallbackWired(t *testing.T) {
 	}
 
 	// Wire the callbacks through wireCallbacks, which assigns m.RunTool.
-	wireCallbacks(&m, a, log)
+	wireCallbacks(&m, a, log, ws)
 
 	// After wiring, RunTool must not be nil. If m.RunTool = ... is deleted
 	// from inside wireCallbacks, this assertion will fail.
@@ -215,11 +242,319 @@ func TestCancelCallbackWired(t *testing.T) {
 	}
 
 	// Wire the callbacks through wireCallbacks, which assigns m.Cancel.
-	wireCallbacks(&m, a, log)
+	wireCallbacks(&m, a, log, ws)
 
 	// After wiring, Cancel must not be nil. If m.Cancel = ... is deleted
 	// from inside wireCallbacks, this assertion will fail.
 	if m.Cancel == nil {
 		t.Fatal("Cancel is nil after wireCallbacks; wiring assignment is missing")
+	}
+}
+
+// TestGrantsSanitisedE2E verifies end-to-end that a grant containing hostile
+// ANSI escape bytes — created through the real approval flow, with the exact
+// argv also passed to policy via a.Request/a.Resolve — is stripped of those
+// bytes when displayed via /approvals, while its ordinary text survives.
+//
+// The assertion reads m.View(), the fully rendered screen, rather than the
+// tui package's internal modal.Lines: that field is unexported, and this test
+// lives in package main (cmd/kirsch), which cannot reach into internal/tui
+// state without an internal import — reading the same bytes a real terminal
+// would receive is the only externally-visible way to prove sanitisation ran.
+// GetGrants() alone cannot do this: it deliberately returns the policy's raw,
+// unsanitised text (sanitising happens only at the /approvals render site in
+// update.go's runSlash), so asserting against it — as the previous version of
+// this test did — passes whether or not the sanitising call is even present.
+func TestGrantsSanitisedE2E(t *testing.T) {
+	ws, err := workspace.Detect("")
+	if err != nil {
+		t.Fatalf("workspace.Detect: %v", err)
+	}
+
+	log, err := telemetry.New(telemetry.Options{Enabled: false})
+	if err != nil {
+		t.Fatalf("telemetry.New: %v", err)
+	}
+
+	cfg, _, err := config.Load(config.Options{})
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	a := app.New(ws, cfg, log)
+	defer a.Close()
+
+	m := tui.New(tui.Options{
+		Version: "0.1.0-test",
+		Caps:    tui.Caps{Colour: false, Unicode: false},
+		Session: tui.SessionInfo{
+			Project: "test-project",
+			Branch:  "main",
+			Dirty:   false,
+		},
+	})
+
+	// Wire the callbacks
+	wireCallbacks(&m, a, log, ws)
+
+	// View() renders nothing at the zero-value width/height Options{} leaves
+	// it with (§2.2: degenerate sizes render nothing rather than panicking),
+	// so a real terminal size must arrive before the rendered-screen
+	// assertions below can see anything.
+	model0, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = model0.(tui.Model)
+
+	// Hostile argv: a real command prefix with an ANSI escape sequence riding
+	// along in one token. GrantScope is computed the same way app.go's
+	// formatCommandDisplay does (space-joined argv), so the dispatched
+	// message matches what the real Request path would send.
+	hostileToken := "\x1b[31mpwned\x1b[0m"
+	argv := []string{"go", "test", hostileToken}
+	grantScope := strings.Join(argv, " ")
+
+	// Run an approval request that offers a session grant in a goroutine.
+	done := make(chan app.ApprovalOutcome, 1)
+	go func() {
+		result, _ := a.Request(context.Background(), app.ApprovalRequest{
+			Description: "test command for grant",
+			Operation:   policy.OperationCommand,
+			Argv:        argv,
+		})
+		done <- result
+	}()
+
+	// Give the request goroutine a moment to register the approval.
+	time.Sleep(10 * time.Millisecond)
+
+	// Dispatch the ApprovalRequestedMsg through the TUI as app.go would send it.
+	msg := tui.ApprovalRequestedMsg{
+		ID:                   1,
+		Description:          "test command for grant",
+		Kind:                 "command",
+		CanApproveForSession: true,
+		Subject:              "go test",
+		Detail:               []string{},
+		GrantScope:           grantScope,
+		Argv:                 argv,
+	}
+	model, _ := m.Update(msg)
+	m = model.(tui.Model)
+
+	// User presses 'a' to approve for session (creates the grant).
+	keyMsg := tea.KeyMsg{Runes: []rune("a")}
+	model, _ = m.Update(keyMsg)
+	m = model.(tui.Model)
+
+	// App confirms the grant creation via ApprovalResolvedMsg.
+	resolved := tui.ApprovalResolvedMsg{
+		ID:      1,
+		Outcome: tui.ApprovedSession,
+	}
+	model, _ = m.Update(resolved)
+	m = model.(tui.Model)
+
+	// Verify the approval outcome is now confirmed.
+	// (The wired callback has processed the approval and created the grant in policy.)
+	select {
+	case outcome := <-done:
+		if outcome != app.ApprovalOutcomeSession {
+			t.Errorf("Request returned %d, want %d (ApprovalOutcomeSession)",
+				outcome, app.ApprovalOutcomeSession)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("Request() blocked; approval flow may not be wired correctly")
+	}
+
+	// The raw grant, as policy stores and GetGrants() returns it, must still
+	// carry the hostile bytes untouched — sanitising is not policy's job.
+	rawGrants := m.GetGrants()
+	rawJoined := strings.Join(rawGrants, "|")
+	if !strings.Contains(rawJoined, hostileToken) {
+		t.Fatalf("setup: raw grant lost the hostile token before /approvals even ran: %v", rawGrants)
+	}
+
+	// Now run /approvals command to display the created grant.
+	for _, r := range "/approvals" {
+		model, _ = m.Update(tea.KeyMsg{Runes: []rune{r}})
+		m = model.(tui.Model)
+	}
+	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = model.(tui.Model)
+
+	// Read the rendered screen — the one thing package main can observe that
+	// proves the sanitising call ran, since modal.Lines is unexported.
+	rendered := m.View()
+
+	if !strings.Contains(rendered, "session grants") {
+		t.Fatalf("rendered view does not show the grants modal: %s", rendered)
+	}
+	if strings.ContainsRune(rendered, '\x1b') {
+		t.Errorf("rendered view still contains a raw ESC byte; grant was not sanitised: %q", rendered)
+	}
+	if !strings.Contains(rendered, "pwned") {
+		t.Errorf("rendered view lost the grant's ordinary text 'pwned': %s", rendered)
+	}
+}
+
+// TestConfigWiringThroughAppNew verifies that the config object created in
+// run() reaches the RunCommand tool through app.New(). This test constructs
+// the same path the production code does: config.Load(), app.New(), and then
+// checks that the tool registry contains a RunCommand tool with the config wired.
+func TestConfigWiringThroughAppNew(t *testing.T) {
+	ws, err := workspace.Detect("")
+	if err != nil {
+		t.Fatalf("workspace.Detect: %v", err)
+	}
+
+	log, err := telemetry.New(telemetry.Options{Enabled: false})
+	if err != nil {
+		t.Fatalf("telemetry.New: %v", err)
+	}
+
+	// Load config the same way run() does
+	cfg, _, err := config.Load(config.Options{})
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	// Create the app the same way run() does
+	a := app.New(ws, cfg, log)
+	defer a.Close()
+
+	// Verify the app can access the config through its registry.
+	// The run_command tool is registered with Config: &cfg.
+	// We can't directly inspect the RunCommand struct, but we can verify
+	// the tool is registered by checking the registry has it.
+	registry := a.Registry()
+	names := registry.Names()
+
+	// Look for run_command in the registry
+	found := false
+	for _, name := range names {
+		if name == "run_command" {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("run_command tool not registered in app registry; config wiring may be broken")
+	}
+}
+
+// TestClearGrantsEmptiesPolicyE2E verifies end-to-end that clearing grants
+// through the TUI actually empties the real policy. A real grant is created
+// via approval, then /approvals is run, then 'c' clears it, and the policy
+// is verified empty afterward.
+func TestClearGrantsEmptiesPolicyE2E(t *testing.T) {
+	ws, err := workspace.Detect("")
+	if err != nil {
+		t.Fatalf("workspace.Detect: %v", err)
+	}
+
+	log, err := telemetry.New(telemetry.Options{Enabled: false})
+	if err != nil {
+		t.Fatalf("telemetry.New: %v", err)
+	}
+
+	cfg, _, err := config.Load(config.Options{})
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	a := app.New(ws, cfg, log)
+	defer a.Close()
+
+	m := tui.New(tui.Options{
+		Version: "0.1.0-test",
+		Caps:    tui.Caps{Colour: false, Unicode: false},
+		Session: tui.SessionInfo{
+			Project: "test-project",
+			Branch:  "main",
+			Dirty:   false,
+		},
+	})
+
+	// Wire the callbacks
+	wireCallbacks(&m, a, log, ws)
+
+	// Create a real grant by running an approval request for a session grant.
+	done := make(chan app.ApprovalOutcome, 1)
+	go func() {
+		result, _ := a.Request(context.Background(), app.ApprovalRequest{
+			Description: "test command for clear",
+			Operation:   policy.OperationCommand,
+			Argv:        []string{"go", "test"},
+		})
+		done <- result
+	}()
+
+	// Give the request goroutine a moment to register.
+	time.Sleep(10 * time.Millisecond)
+
+	// Dispatch the approval request to the TUI.
+	msg := tui.ApprovalRequestedMsg{
+		ID:                   1,
+		Description:          "test command for clear",
+		Kind:                 "command",
+		CanApproveForSession: true,
+		Subject:              "go test",
+		Detail:               []string{},
+		GrantScope:           "go test",
+		Argv:                 []string{"go", "test"},
+	}
+	model, _ := m.Update(msg)
+	m = model.(tui.Model)
+
+	// Approve for session to create a grant.
+	keyMsg := tea.KeyMsg{Runes: []rune("a")}
+	model, _ = m.Update(keyMsg)
+	m = model.(tui.Model)
+
+	// Confirm the grant.
+	resolved := tui.ApprovalResolvedMsg{
+		ID:      1,
+		Outcome: tui.ApprovedSession,
+	}
+	model, _ = m.Update(resolved)
+	m = model.(tui.Model)
+
+	// Wait for the approval to be confirmed.
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("Request() blocked; approval flow may not be wired correctly")
+	}
+
+	// Verify the grant was created. The precondition this test exists to
+	// prove is exactly this: a skip here would hide a real regression in
+	// grant creation behind a result that every summary reads as a pass.
+	grantsAfterCreate := m.GetGrants()
+	if len(grantsAfterCreate) == 0 {
+		t.Fatal("grant was not created through the approval flow; nothing to clear")
+	}
+
+	// Run /approvals to open the grants modal
+	for _, r := range "/approvals" {
+		model, _ = m.Update(tea.KeyMsg{Runes: []rune{r}})
+		m = model.(tui.Model)
+	}
+	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = model.(tui.Model)
+
+	// Press 'c' to trigger clear confirmation
+	keyMsg = tea.KeyMsg{Runes: []rune("c")}
+	model, _ = m.Update(keyMsg)
+	m = model.(tui.Model)
+
+	// Confirm the clear action
+	keyMsg = tea.KeyMsg{Runes: []rune("y")}
+	model, _ = m.Update(keyMsg)
+	m = model.(tui.Model)
+
+	// Verify the policy is now empty
+	grantsAfterClear := m.GetGrants()
+	if len(grantsAfterClear) != 0 {
+		t.Errorf("after clear, GetGrants() = %v, want empty", grantsAfterClear)
 	}
 }

@@ -148,18 +148,36 @@ func ToAppOutcome(o ApprovalOutcome) int {
 	return 3 // ApprovalOutcomeCancelled
 }
 
+// FromAppOutcome converts an app approval outcome to a TUI approval outcome.
+// It is the inverse of ToAppOutcome.
+func FromAppOutcome(appOutcome int) ApprovalOutcome {
+	switch appOutcome {
+	case 0: // ApprovalOutcomeOnce
+		return Approved
+	case 1: // ApprovalOutcomeSession
+		return ApprovedSession
+	case 2: // ApprovalOutcomeDeny
+		return Rejected
+	case 3: // ApprovalOutcomeCancelled
+		return Cancelled
+	default:
+		return Cancelled
+	}
+}
+
 // ApprovalCard is a pending or resolved approval. ui-spec §3.4.
 type ApprovalCard struct {
-	Kind       ApprovalKind
-	Title      string
-	Subject    string // the collapsed form's summary, e.g. "2 files changed"
-	Detail     []string
-	GrantScope string // argv prefix; must be empty for ApprovalPatch
-	Outcome    ApprovalOutcome
-	Elapsed    time.Duration
-	Diff       []string
-	Added      int
-	Removed    int
+	Kind         ApprovalKind
+	Title        string
+	Subject      string // the collapsed form's summary, e.g. "2 files changed"
+	Detail       []string
+	GrantScope   string // argv prefix; must be empty for ApprovalPatch
+	Outcome      ApprovalOutcome
+	Elapsed      time.Duration
+	DiffFilename string // the filename shown in the diff modal (for patches only)
+	Diff         []string
+	Added        int
+	Removed      int
 }
 
 // OffersSessionGrant reports whether [a] appears on this card.
@@ -414,6 +432,22 @@ func Sanitize(s string) string {
 // SanitizeLines is Sanitize, split ready for storage.
 func SanitizeLines(s string) []string {
 	return strings.Split(Sanitize(s), "\n")
+}
+
+// sanitizeAndSplitLines sanitises text and splits it into one element per line.
+// Used for slice fields that should preserve line structure (Detail, Diff).
+func sanitizeAndSplitLines(s string) []string {
+	return strings.Split(Sanitize(s), "\n")
+}
+
+// sanitizeSingleLine sanitises text for a single-row field, removing any
+// embedded newlines. A newline in a single-row field becomes a space, preserving
+// the text content while preventing the line from breaking the box rendering.
+func sanitizeSingleLine(s string) string {
+	s = Sanitize(s)
+	// Remove any embedded newlines that Sanitize preserved
+	s = strings.ReplaceAll(s, "\n", " ")
+	return s
 }
 
 // lastNonEmptySegment keeps only the final segment of a \r-separated run, which

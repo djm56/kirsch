@@ -358,12 +358,13 @@ var SlashCommands = []string{
 	"help", "status", "diff", "files", "approvals", "new", "compact", "quit", "exit",
 }
 
-// DebugCommands are Milestone 1 scaffolding: they exist so a real repository
-// can be read from inside the TUI before the model drives tools, and they are
-// removed in M3. Tab-completable alongside the real set, but labelled (debug)
-// in the help overlay.
+// DebugCommands are Milestone 1–2 scaffolding: they exist so a real repository
+// can be inspected from inside the TUI before the model drives tools, and they are
+// removed in M3. M1 commands (/read, /ls, /search, /gitstatus, /gitdiff) are read-only;
+// M2 commands (/patch, /run) apply patches and execute commands. Tab-completable
+// alongside the real set, but labelled (debug) in the help overlay.
 var DebugCommands = []string{
-	"/read", "/ls", "/search", "/gitstatus", "/gitdiff",
+	"/read", "/ls", "/search", "/gitstatus", "/gitdiff", "/patch", "/run",
 }
 
 // completeSlash completes a unique prefix, returning the completion and whether

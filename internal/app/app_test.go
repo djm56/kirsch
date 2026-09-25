@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/patch"
 	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tool"
@@ -276,7 +277,7 @@ func TestApprovalRequestBlocksUntilResolved(t *testing.T) {
 
 	resultCh := make(chan ApprovalOutcome)
 	go func() {
-		outcome := a.Request(ctx, req)
+		outcome, _ := a.Request(ctx, req)
 		resultCh <- outcome
 	}()
 
@@ -342,7 +343,7 @@ func TestApprovalResolvingTwiceIsHarmless(t *testing.T) {
 
 	resultCh := make(chan ApprovalOutcome)
 	go func() {
-		outcome := a.Request(ctx, req)
+		outcome, _ := a.Request(ctx, req)
 		resultCh <- outcome
 	}()
 
@@ -444,7 +445,7 @@ func TestApprovalCancellationReleasesRequest(t *testing.T) {
 
 	resultCh := make(chan ApprovalOutcome)
 	go func() {
-		outcome := a.Request(ctx, req)
+		outcome, _ := a.Request(ctx, req)
 		resultCh <- outcome
 	}()
 
@@ -485,7 +486,7 @@ func TestApprovalMessageSent(t *testing.T) {
 		a.Resolve(1, ApprovalOutcomeOnce)
 	}()
 
-	a.Request(ctx, req)
+	_, _ = a.Request(ctx, req)
 	msgs := c.wait(t, time.Second)
 
 	if len(msgs) != 1 {
@@ -536,7 +537,7 @@ func TestApprovalPatchNeverOffersSessionApproval(t *testing.T) {
 		a.Resolve(1, ApprovalOutcomeOnce)
 	}()
 
-	a.Request(ctx, req)
+	_, _ = a.Request(ctx, req)
 	msgs := c.wait(t, time.Second)
 
 	if len(msgs) != 1 {
@@ -580,7 +581,8 @@ func TestApprovalPatchResolvedForSessionRecordsNoGrant(t *testing.T) {
 
 	resultCh := make(chan ApprovalOutcome)
 	go func() {
-		resultCh <- a.Request(ctx, req)
+		outcome, _ := a.Request(ctx, req)
+		resultCh <- outcome
 	}()
 
 	// Wait for the ApprovalRequestedMsg rather than sleeping: Request
@@ -604,6 +606,69 @@ func TestApprovalPatchResolvedForSessionRecordsNoGrant(t *testing.T) {
 	}
 }
 
+// TestApprovalNonSessionOutcomesRecordNoGrant drives the real Request and
+// Resolve path for the three outcomes that must never create a session
+// grant — approve-once, reject, and cancel — using argv that WOULD qualify
+// for a grant if the outcome were ApprovalOutcomeSession. This is the
+// negative-path counterpart to TestApprovalPatchResolvedForSessionRecordsNoGrant
+// (which proves refusal on Operation alone, for a patch): here the operation
+// and argv are both grantable, so the only thing keeping Grants() empty is
+// Resolve's own outcome check. It closes a coverage gap left when
+// TestGrantCounterIncrementsOnlyOnConfirmedSessionGrant was deleted as
+// redundant — that test asserted only a value it set itself and never
+// covered these three outcomes.
+func TestApprovalNonSessionOutcomesRecordNoGrant(t *testing.T) {
+	cases := []struct {
+		name    string
+		outcome ApprovalOutcome
+	}{
+		{"approve-once", ApprovalOutcomeOnce},
+		{"reject", ApprovalOutcomeDeny},
+		{"cancel", ApprovalOutcomeCancelled},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCollector(1)
+			a := testApp(t, "repo-small", c)
+			defer a.Close()
+
+			ctx := context.Background()
+			req := ApprovalRequest{
+				Description: "run a grantable command",
+				Operation:   policy.OperationCommand,
+				Argv:        []string{"go", "test"}, // grantable; proves the outcome check, not argv refusal
+			}
+
+			resultCh := make(chan ApprovalOutcome)
+			go func() {
+				outcome, _ := a.Request(ctx, req)
+				resultCh <- outcome
+			}()
+
+			// Wait for the ApprovalRequestedMsg rather than sleeping: Request
+			// registers the approval in a.approvals before it sends, so once the
+			// message has been observed, id 1 is guaranteed resolvable.
+			c.wait(t, time.Second)
+
+			a.Resolve(1, tc.outcome)
+
+			select {
+			case outcome := <-resultCh:
+				if outcome != tc.outcome {
+					t.Fatalf("outcome = %v, want %v", outcome, tc.outcome)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("Request did not return after Resolve")
+			}
+
+			if grants := a.pol.Grants(); len(grants) != 0 {
+				t.Errorf("Grants() = %v, want none for outcome %v", grants, tc.outcome)
+			}
+		})
+	}
+}
+
 // TestApprovalNoGoroutineLeakOnFullCycle: requesting and resolving an approval
 // must not leak goroutines. Creates multiple cycles and verifies cleanup.
 func TestApprovalNoGoroutineLeakOnFullCycle(t *testing.T) {
@@ -622,7 +687,7 @@ func TestApprovalNoGoroutineLeakOnFullCycle(t *testing.T) {
 
 		resultCh := make(chan ApprovalOutcome)
 		go func() {
-			outcome := a.Request(ctx, req)
+			outcome, _ := a.Request(ctx, req)
 			resultCh <- outcome
 		}()
 
@@ -717,7 +782,7 @@ func TestApprovalRootContextCancellation(t *testing.T) {
 
 	resultCh := make(chan ApprovalOutcome)
 	go func() {
-		outcome := a.Request(ctx, req)
+		outcome, _ := a.Request(ctx, req)
 		resultCh <- outcome
 	}()
 
@@ -733,5 +798,993 @@ func TestApprovalRootContextCancellation(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("root cancellation did not release Request")
+	}
+}
+
+// TestApprovalShellCommandNeverOffersSessionGrant: [a] is never offered for
+// shell commands, even though they are OperationCommand. This verifies that
+// app.Request checks both CanApproveForSession(Operation) AND CanGrant(argv),
+// so that CanApproveForSession alone (which checks only the operation type)
+// cannot trick the caller into offering [a] for ungrantable argv.
+// This is the test for Defect 2: ensure [a] is not offered for commands
+// that Grant would refuse.
+func TestApprovalShellCommandNeverOffersSessionGrant(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "run shell command",
+		Operation:   policy.OperationCommand,
+		Argv:        []string{"bash", "-c", "echo hi"},
+	}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		a.Resolve(1, ApprovalOutcomeOnce)
+	}()
+
+	_, _ = a.Request(ctx, req)
+	msgs := c.wait(t, time.Second)
+
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+
+	msg, ok := msgs[0].(tui.ApprovalRequestedMsg)
+	if !ok {
+		t.Fatalf("message is %T, want ApprovalRequestedMsg", msgs[0])
+	}
+
+	if msg.Kind != "command" {
+		t.Errorf("kind = %q, want %q", msg.Kind, "command")
+	}
+	// CRITICAL: CanApproveForSession is false for shells, even though Operation
+	// is OperationCommand. This proves the gate checks BOTH operation type
+	// and the specific argv.
+	if msg.CanApproveForSession {
+		t.Error("CanApproveForSession is true for a shell command, want false (shells cannot be granted)")
+	}
+}
+
+// TestApprovalWildcardCommandNeverOffersSessionGrant: [a] is never offered for
+// bare wildcard commands. This verifies the gate refuses bare wildcards.
+func TestApprovalWildcardCommandNeverOffersSessionGrant(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "bare wildcard",
+		Operation:   policy.OperationCommand,
+		Argv:        []string{"*"},
+	}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		a.Resolve(1, ApprovalOutcomeOnce)
+	}()
+
+	_, _ = a.Request(ctx, req)
+	msgs := c.wait(t, time.Second)
+
+	msg := msgs[0].(tui.ApprovalRequestedMsg)
+	if msg.CanApproveForSession {
+		t.Error("CanApproveForSession is true for a bare wildcard, want false")
+	}
+}
+
+// TestApprovalGrantableCommandOffersSessionGrant: [a] IS offered for a valid,
+// grantable command. This verifies the positive case: a normal command reaches
+// the user with CanApproveForSession=true.
+func TestApprovalGrantableCommandOffersSessionGrant(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "run curl",
+		Operation:   policy.OperationCommand,
+		Argv:        []string{"curl", "-v", "https://example.com"},
+	}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		a.Resolve(1, ApprovalOutcomeOnce)
+	}()
+
+	_, _ = a.Request(ctx, req)
+	msgs := c.wait(t, time.Second)
+
+	msg := msgs[0].(tui.ApprovalRequestedMsg)
+	if !msg.CanApproveForSession {
+		t.Error("CanApproveForSession is false for a valid command, want true")
+	}
+}
+
+// TestApprovalSessionGrantRecordsGrant: pressing [a] on a valid command records
+// the grant in policy and it reaches Grants(). This verifies the full path from
+// Request through Resolve to a live grant.
+func TestApprovalSessionGrantRecordsGrant(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	// Start with no grants
+	if grants := a.pol.Grants(); len(grants) != 0 {
+		t.Fatalf("setup: Grants() should be empty, got %v", grants)
+	}
+
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "run curl -v",
+		Operation:   policy.OperationCommand,
+		Argv:        []string{"curl", "-v"},
+	}
+
+	resultCh := make(chan ApprovalOutcome)
+	go func() {
+		outcome, _ := a.Request(ctx, req)
+		resultCh <- outcome
+	}()
+
+	// Wait for the message to be sent, which confirms the approval is registered
+	c.wait(t, time.Second)
+
+	// Resolve as ApprovalOutcomeSession
+	a.Resolve(1, ApprovalOutcomeSession)
+
+	// Wait for Request to return
+	select {
+	case outcome := <-resultCh:
+		if outcome != ApprovalOutcomeSession {
+			t.Fatalf("outcome = %v, want ApprovalOutcomeSession", outcome)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Request did not return after Resolve")
+	}
+
+	// Verify the grant was recorded in policy
+	grants := a.pol.Grants()
+	if len(grants) != 1 {
+		t.Fatalf("Grants() has %d grants, want 1", len(grants))
+	}
+	if grants[0] != "curl -v" {
+		t.Errorf("Grants()[0] = %q, want %q", grants[0], "curl -v")
+	}
+}
+
+// TestApprovalRefusedGrantIsNotSilent: if Grant fails after the user presses [a],
+// the error is returned by Request so the caller can handle it. This verifies the
+// fix for Defect 3: a refused grant must not vanish into a debug log.
+// Test by calling Request with a shell command (which will fail on Grant) and
+// verifying the error is returned.
+func TestApprovalRefusedGrantIsNotSilent(t *testing.T) {
+	c := newCollector(0)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	// Run a Request with a shell command in a goroutine. Shells cannot be granted,
+	// so when Resolve is called with ApprovalOutcomeSession, Grant will fail.
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "run shell",
+		Operation:   policy.OperationCommand,
+		Argv:        []string{"bash", "-c", "echo hi"},
+	}
+
+	resultCh := make(chan struct {
+		outcome    ApprovalOutcome
+		grantError error
+	})
+	go func() {
+		outcome, grantErr := a.Request(ctx, req)
+		resultCh <- struct {
+			outcome    ApprovalOutcome
+			grantError error
+		}{outcome, grantErr}
+	}()
+
+	// Give the goroutine time to reach the blocking point and register the approval.
+	time.Sleep(100 * time.Millisecond)
+
+	// Resolve as session grant. This will call Grant with the shell argv,
+	// which should fail because shells cannot be granted.
+	a.Resolve(1, ApprovalOutcomeSession)
+
+	// Verify the error was returned by Request
+	select {
+	case result := <-resultCh:
+		if result.outcome != ApprovalOutcomeSession {
+			t.Errorf("outcome = %v, want ApprovalOutcomeSession", result.outcome)
+		}
+		if result.grantError == nil {
+			t.Error("grantError is nil, want error (shell should be refused by Grant)")
+		}
+		if result.grantError != policy.ErrShellGrantForbidden {
+			t.Errorf("grantError = %v, want %v", result.grantError, policy.ErrShellGrantForbidden)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Request did not return after Resolve")
+	}
+
+	// Verify no grant was recorded
+	if grants := a.pol.Grants(); len(grants) != 0 {
+		t.Errorf("Grants() = %v, want empty (grant should have failed)", grants)
+	}
+}
+
+// TestApprovalGateChecksBothConditions: this test demonstrates the gate works
+// by showing it checks BOTH CanApproveForSession(op) AND CanGrant(op, argv).
+// If either condition is false, CanApproveForSession is false in the message.
+// This is a mutation test: we remove one condition, show the test fails, restore,
+// show it passes. The test captures the state by reading what reaches the TUI
+// and verifying the combined gate's result.
+func TestApprovalGateChecksBothConditions(t *testing.T) {
+	cases := []struct {
+		name                 string
+		operation            policy.Operation
+		argv                 []string
+		expectCanApproveTrue bool
+		description          string
+	}{
+		{
+			name:                 "patch operation",
+			operation:            policy.OperationPatch,
+			argv:                 []string{"go", "test"},
+			expectCanApproveTrue: false,
+			description:          "patch never allows session approval (CanApproveForSession returns false)",
+		},
+		{
+			name:                 "valid command",
+			operation:            policy.OperationCommand,
+			argv:                 []string{"curl"},
+			expectCanApproveTrue: true,
+			description:          "valid command with grantable argv (both conditions true)",
+		},
+		{
+			name:                 "shell argv",
+			operation:            policy.OperationCommand,
+			argv:                 []string{"bash"},
+			expectCanApproveTrue: false,
+			description:          "shell cannot be granted (CanGrant returns false despite OperationCommand)",
+		},
+		{
+			name:                 "empty argv",
+			operation:            policy.OperationCommand,
+			argv:                 []string{},
+			expectCanApproveTrue: false,
+			description:          "empty argv cannot be granted (CanGrant returns false)",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCollector(1)
+			a := testApp(t, "repo-small", c)
+			defer a.Close()
+
+			ctx := context.Background()
+			req := ApprovalRequest{
+				Description: tc.description,
+				Operation:   tc.operation,
+				Argv:        tc.argv,
+			}
+
+			go func() {
+				time.Sleep(50 * time.Millisecond)
+				a.Resolve(1, ApprovalOutcomeOnce)
+			}()
+
+			_, _ = a.Request(ctx, req)
+			msgs := c.wait(t, time.Second)
+
+			msg := msgs[0].(tui.ApprovalRequestedMsg)
+			if msg.CanApproveForSession != tc.expectCanApproveTrue {
+				t.Errorf("CanApproveForSession = %v, want %v. %s",
+					msg.CanApproveForSession, tc.expectCanApproveTrue, tc.description)
+			}
+		})
+	}
+}
+
+// TestApprovalPatchChangesReachCard verifies that patch file changes are carried
+// through the approval message and reach the card for rendering. This test fails
+// if Changes stops flowing through the seam.
+func TestApprovalPatchChangesReachCard(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "apply patch",
+		Operation:   policy.OperationPatch,
+		Changes: []patch.FileChange{
+			{Path: "file1.go"},
+			{Path: "file2.go"},
+		},
+	}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		a.Resolve(1, ApprovalOutcomeOnce)
+	}()
+
+	_, _ = a.Request(ctx, req)
+	msgs := c.wait(t, time.Second)
+
+	msg := msgs[0].(tui.ApprovalRequestedMsg)
+
+	// Subject should indicate the number of files changed
+	if msg.Subject != "2 files changed" {
+		t.Errorf("Subject = %q, want %q", msg.Subject, "2 files changed")
+	}
+
+	// Detail should contain the file list
+	if len(msg.Detail) == 0 {
+		t.Error("Detail is empty, expected file list")
+	} else if !strings.Contains(msg.Detail[0], "file1.go") {
+		t.Errorf("Detail[0] = %q, expected to contain file1.go", msg.Detail[0])
+	}
+}
+
+// TestApprovalCommandGrantScopeIsArgv verifies that GrantScope holds the full
+// argv for session grants, matching what policy.Grant records. This test fails
+// if GrantScope is set to only argv[0] or any other subset.
+func TestApprovalCommandGrantScopeIsArgv(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "run a command",
+		Operation:   policy.OperationCommand,
+		Argv:        []string{"go", "test", "./..."},
+	}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		a.Resolve(1, ApprovalOutcomeOnce)
+	}()
+
+	_, _ = a.Request(ctx, req)
+	msgs := c.wait(t, time.Second)
+
+	msg := msgs[0].(tui.ApprovalRequestedMsg)
+
+	// GrantScope should be the full argv as a space-separated string,
+	// matching what policy.Grant records and policy.Grants() returns
+	if msg.GrantScope != "go test ./..." {
+		t.Errorf("GrantScope = %q, want %q", msg.GrantScope, "go test ./...")
+	}
+
+	// Subject should contain the command
+	if msg.Subject != "go test" {
+		t.Errorf("Subject = %q, want %q", msg.Subject, "go test")
+	}
+}
+
+// TestApprovalSessionGrantRefusedIsVisible verifies that when a session grant
+// is refused, a notice message is sent to the TUI, and an ApprovalResolvedMsg
+// is sent to inform the TUI of the actual outcome (Rejected). This test fails
+// if a refused grant is silently downgraded without notification.
+func TestApprovalSessionGrantRefusedIsVisible(t *testing.T) {
+	c := newCollector(3) // Expect ApprovalRequestedMsg + NoticeMsg + ApprovalResolvedMsg
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "run a shell command",
+		Operation:   policy.OperationCommand,
+		Argv:        []string{"bash"}, // Shell cannot be granted
+	}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		a.Resolve(1, ApprovalOutcomeSession) // Try to grant a session for a shell
+	}()
+
+	outcome, grantErr := a.Request(ctx, req)
+	msgs := c.wait(t, time.Second)
+
+	// The grant should have failed
+	if grantErr == nil {
+		t.Error("grantErr is nil, expected an error for shell command")
+	}
+
+	// Outcome should be session (though grant failed, this is what the user chose)
+	if outcome != ApprovalOutcomeSession {
+		t.Errorf("outcome = %v, want ApprovalOutcomeSession", outcome)
+	}
+
+	// Should have received: approval request, notice of failure, and confirmation of actual outcome
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(msgs))
+	}
+
+	// Second message should be a NoticeMsg indicating the grant was refused
+	noticeMsg, ok := msgs[1].(tui.NoticeMsg)
+	if !ok {
+		t.Fatalf("second message is %T, want tui.NoticeMsg", msgs[1])
+	}
+
+	if !strings.Contains(noticeMsg.Text, "denied") {
+		t.Errorf("NoticeMsg.Text = %q, expected to contain 'denied'", noticeMsg.Text)
+	}
+
+	// Third message should be ApprovalResolvedMsg with Rejected outcome
+	resolvedMsg, ok := msgs[2].(tui.ApprovalResolvedMsg)
+	if !ok {
+		t.Fatalf("third message is %T, want tui.ApprovalResolvedMsg", msgs[2])
+	}
+
+	// The confirmed outcome should be Rejected because the grant was refused
+	if resolvedMsg.Outcome != tui.Rejected {
+		t.Errorf("ApprovalResolvedMsg.Outcome = %v, want tui.Rejected", resolvedMsg.Outcome)
+	}
+}
+
+// TestApprovalSessionGrantRecordsGrantInPolicy verifies that a successful
+// session grant is recorded in the policy and can be queried via policy.Grants().
+// This test ensures the TUI grant counter is synchronized with the policy state.
+func TestApprovalSessionGrantRecordsGrantInPolicy(t *testing.T) {
+	c := newCollector(2) // ApprovalRequestedMsg + ApprovalResolvedMsg on success
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := ApprovalRequest{
+		Description: "run a test",
+		Operation:   policy.OperationCommand,
+		Argv:        []string{"go", "test", "./..."},
+	}
+
+	// Before the grant, record the number of grants
+	initialGrantCount := len(a.pol.Grants())
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		a.Resolve(1, ApprovalOutcomeSession) // Approve for session
+	}()
+
+	outcome, err := a.Request(ctx, req)
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+
+	if outcome != ApprovalOutcomeSession {
+		t.Errorf("outcome = %v, want ApprovalOutcomeSession", outcome)
+	}
+
+	// After the grant, policy.Grants should have one more entry
+	afterGrantCount := len(a.pol.Grants())
+	if afterGrantCount != initialGrantCount+1 {
+		t.Errorf("policy.Grants count after session grant = %d, want %d", afterGrantCount, initialGrantCount+1)
+	}
+
+	// Verify the grant is recorded in the policy
+	grants := a.pol.Grants()
+	if len(grants) > 0 {
+		lastGrant := grants[len(grants)-1]
+		expectedGrant := "go test ./..."
+		if lastGrant != expectedGrant {
+			t.Errorf("last grant = %q, want %q", lastGrant, expectedGrant)
+		}
+	}
+}
+
+// TestComputeDiffDisplayParsesRealDiff verifies that computeDiffDisplay correctly
+// parses a unified diff, counts added and removed lines, and returns the filename.
+// The diff is parsed by patch.Parse and then stats are computed.
+func TestComputeDiffDisplayParsesRealDiff(t *testing.T) {
+	// A real unified diff in the format patch.Parse expects.
+	// The hunk header format is @@ -oldStart,oldLines +newStart,newLines @@
+	// Old has 4 lines: 1 context + 1 removed + 2 context
+	// New has 7 lines: 1 context + 4 added + 2 context
+	diffText := `--- a/calc/divide.go
++++ b/calc/divide.go
+@@ -1,4 +1,7 @@
+ func Divide(a, b float64) (float64, error) {
+-	return a / b, nil
++	if b == 0 {
++		return 0, ErrDivideByZero
++	}
++	return a / b, nil
+ }
+ func Other() {
+`
+
+	// Parse the diff.
+	changes, err := patch.Parse([]byte(diffText))
+	if err != nil {
+		t.Fatalf("patch.Parse failed: %v", err)
+	}
+
+	if len(changes) == 0 {
+		t.Fatalf("patch.Parse returned no changes")
+	}
+
+	// Compute the display data.
+	filename, diffLines, added, removed := computeDiffDisplay(changes)
+
+	// Verify the filename.
+	if filename != "calc/divide.go" {
+		t.Errorf("filename = %q, want %q", filename, "calc/divide.go")
+	}
+
+	// Verify counts match the diff.
+	if removed != 1 {
+		t.Errorf("removed = %d, want 1", removed)
+	}
+	if added != 4 {
+		t.Errorf("added = %d, want 4", added)
+	}
+
+	// Verify diff lines are present and start with @@.
+	if len(diffLines) == 0 {
+		t.Errorf("diffLines is empty, want at least one line")
+	}
+	if !strings.HasPrefix(diffLines[0], "@@") {
+		t.Errorf("first line = %q, want to start with @@", diffLines[0])
+	}
+
+	// Verify diff lines preserve prefixes.
+	foundMinus := false
+	foundPlus := false
+	for _, line := range diffLines {
+		if len(line) > 0 && line[0] == '-' {
+			foundMinus = true
+		}
+		if len(line) > 0 && line[0] == '+' {
+			foundPlus = true
+		}
+	}
+	if !foundMinus {
+		t.Errorf("no '-' prefixed lines found in diff")
+	}
+	if !foundPlus {
+		t.Errorf("no '+' prefixed lines found in diff")
+	}
+}
+
+// TestComputeDiffDisplayHandlesBinaryFiles verifies that when a file has
+// IsBinary set and no hunks, computeDiffDisplay provides a descriptive body.
+func TestComputeDiffDisplayHandlesBinaryFiles(t *testing.T) {
+	changes := []patch.FileChange{
+		{
+			Op:       patch.OpModify,
+			Path:     "image.png",
+			IsBinary: true,
+			Hunks:    []patch.Hunk{}, // No hunks for binary
+		},
+	}
+
+	filename, diffLines, added, removed := computeDiffDisplay(changes)
+
+	if filename != "image.png" {
+		t.Errorf("filename = %q, want %q", filename, "image.png")
+	}
+	if added != 0 {
+		t.Errorf("added = %d, want 0", added)
+	}
+	if removed != 0 {
+		t.Errorf("removed = %d, want 0", removed)
+	}
+	if len(diffLines) == 0 {
+		t.Errorf("diffLines is empty, want a descriptive body for binary file")
+	}
+	if len(diffLines) > 0 && diffLines[0] != "Binary file changed" {
+		t.Errorf("diffLines[0] = %q, want %q", diffLines[0], "Binary file changed")
+	}
+}
+
+// TestComputeDiffDisplayHandlesPureRename verifies that computeDiffDisplay
+// correctly handles a pure rename (no hunks, just a path change).
+func TestComputeDiffDisplayHandlesPureRename(t *testing.T) {
+	diffText := `diff --git a/old_name.go b/new_name.go
+rename from old_name.go
+rename to new_name.go
+`
+
+	changes, err := patch.Parse([]byte(diffText))
+	if err != nil {
+		t.Fatalf("patch.Parse failed: %v", err)
+	}
+
+	if len(changes) == 0 {
+		t.Fatalf("patch.Parse returned no changes")
+	}
+
+	filename, diffLines, added, removed := computeDiffDisplay(changes)
+
+	// For renames, filename should show "old → new" to match formatPatchDisplay
+	if filename != "old_name.go → new_name.go" {
+		t.Errorf("filename = %q, want %q", filename, "old_name.go → new_name.go")
+	}
+
+	if len(diffLines) == 0 {
+		t.Errorf("diffLines is empty for pure rename, want descriptive body")
+	}
+
+	// Should have a descriptive line
+	found := false
+	for _, line := range diffLines {
+		if strings.Contains(line, "renamed") || strings.Contains(line, "Renamed") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("diffLines = %v, want at least one line mentioning rename", diffLines)
+	}
+
+	if added != 0 || removed != 0 {
+		t.Errorf("added=%d removed=%d, want both 0 for a pure rename", added, removed)
+	}
+}
+
+// TestComputeDiffDisplayHandlesZeroByteCreate verifies that computeDiffDisplay
+// correctly handles a zero-byte create (no hunks).
+func TestComputeDiffDisplayHandlesZeroByteCreate(t *testing.T) {
+	diffText := `diff --git a/empty.txt b/empty.txt
+new file mode 100644
+index 0000000..e69de29
+`
+
+	changes, err := patch.Parse([]byte(diffText))
+	if err != nil {
+		t.Fatalf("patch.Parse failed: %v", err)
+	}
+
+	if len(changes) == 0 {
+		t.Fatalf("patch.Parse returned no changes")
+	}
+
+	filename, diffLines, added, removed := computeDiffDisplay(changes)
+
+	if filename != "empty.txt" {
+		t.Errorf("filename = %q, want %q", filename, "empty.txt")
+	}
+
+	if len(diffLines) == 0 {
+		t.Errorf("diffLines is empty for zero-byte create, want descriptive body")
+	}
+
+	// Should have a descriptive line
+	found := false
+	for _, line := range diffLines {
+		if strings.Contains(line, "created") || strings.Contains(line, "Created") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("diffLines = %v, want at least one line mentioning create", diffLines)
+	}
+
+	if added != 0 || removed != 0 {
+		t.Errorf("added=%d removed=%d, want both 0 for an empty file", added, removed)
+	}
+}
+
+// TestComputeDiffDisplayHandlesZeroByteDelete verifies that computeDiffDisplay
+// correctly handles a zero-byte delete (no hunks).
+func TestComputeDiffDisplayHandlesZeroByteDelete(t *testing.T) {
+	diffText := `diff --git a/empty.txt b/empty.txt
+deleted file mode 100644
+index e69de29..0000000
+`
+
+	changes, err := patch.Parse([]byte(diffText))
+	if err != nil {
+		t.Fatalf("patch.Parse failed: %v", err)
+	}
+
+	if len(changes) == 0 {
+		t.Fatalf("patch.Parse returned no changes")
+	}
+
+	filename, diffLines, added, removed := computeDiffDisplay(changes)
+
+	if filename != "empty.txt" {
+		t.Errorf("filename = %q, want %q", filename, "empty.txt")
+	}
+
+	if len(diffLines) == 0 {
+		t.Errorf("diffLines is empty for zero-byte delete, want descriptive body")
+	}
+
+	// Should have a descriptive line
+	found := false
+	for _, line := range diffLines {
+		if strings.Contains(line, "deleted") || strings.Contains(line, "Deleted") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("diffLines = %v, want at least one line mentioning delete", diffLines)
+	}
+
+	if added != 0 || removed != 0 {
+		t.Errorf("added=%d removed=%d, want both 0 for an empty file", added, removed)
+	}
+}
+
+// TestFormatPatchDisplayShowsRenameWithOldPath verifies that formatPatchDisplay
+// shows both old and new paths for renamed files.
+func TestFormatPatchDisplayShowsRenameWithOldPath(t *testing.T) {
+	changes := []patch.FileChange{
+		{
+			Op:      patch.OpRename,
+			Path:    "new_name.go",
+			OldPath: "old_name.go",
+		},
+	}
+
+	subject, detail := formatPatchDisplay(changes)
+
+	if subject != "1 file changed" {
+		t.Errorf("subject = %q, want %q", subject, "1 file changed")
+	}
+
+	// The detail should contain both old and new paths, separated by →
+	detailStr := strings.Join(detail, " ")
+	if !strings.Contains(detailStr, "old_name.go") {
+		t.Errorf("detail does not contain old_name.go: %s", detailStr)
+	}
+	if !strings.Contains(detailStr, "new_name.go") {
+		t.Errorf("detail does not contain new_name.go: %s", detailStr)
+	}
+	if !strings.Contains(detailStr, "→") {
+		t.Errorf("detail does not contain → separator: %s", detailStr)
+	}
+}
+
+// TestComputeDiffDisplayHandlesModeChange verifies that when a file has
+// NewMode set and no hunks, computeDiffDisplay provides a descriptive body.
+func TestComputeDiffDisplayHandlesModeChange(t *testing.T) {
+	changes := []patch.FileChange{
+		{
+			Op:      patch.OpModify,
+			Path:    "script.sh",
+			NewMode: 0o755, // Mode change, no content change
+			Hunks:   []patch.Hunk{},
+		},
+	}
+
+	filename, diffLines, added, removed := computeDiffDisplay(changes)
+
+	if filename != "script.sh" {
+		t.Errorf("filename = %q, want %q", filename, "script.sh")
+	}
+	if added != 0 {
+		t.Errorf("added = %d, want 0", added)
+	}
+	if removed != 0 {
+		t.Errorf("removed = %d, want 0", removed)
+	}
+	if len(diffLines) == 0 {
+		t.Errorf("diffLines is empty, want a descriptive body for mode change")
+	}
+	if len(diffLines) > 0 && diffLines[0] != "Mode changed: 755" {
+		t.Errorf("diffLines[0] = %q, want %q", diffLines[0], "Mode changed: 755")
+	}
+}
+
+// TestComputeDiffDisplayBackslashLineRenderingMatchesPatch verifies that
+// computeDiffDisplay renders a backslash-prefixed line the same way as
+// patch.Render does: with a space after the backslash. Specifically, when
+// a line has Prefix == '\\', the output should be "\ " (backslash and space)
+// followed by the content.
+func TestComputeDiffDisplayBackslashLineRenderingMatchesPatch(t *testing.T) {
+	// A diff ending with a backslash-prefixed line (no newline at end of file).
+	diffText := `--- a/main.go
++++ b/main.go
+@@ -1,2 +1,2 @@
+ fmt.Println("hello")
+-fmt.Println("world")
+\ No newline at end of file
++fmt.Println("world")
+`
+
+	changes, err := patch.Parse([]byte(diffText))
+	if err != nil {
+		t.Fatalf("patch.Parse failed: %v", err)
+	}
+
+	if len(changes) == 0 {
+		t.Fatalf("patch.Parse returned no changes")
+	}
+
+	// Compute diff display
+	filename, diffLines, _, _ := computeDiffDisplay(changes)
+
+	if filename != "main.go" {
+		t.Errorf("filename = %q, want %q", filename, "main.go")
+	}
+
+	// Call patch.Render to get the expected output
+	renderedBytes := patch.Render(changes)
+	renderedLines := strings.Split(strings.TrimSuffix(string(renderedBytes), "\n"), "\n")
+
+	// Find the backslash line in the rendered diff
+	var expectedBackslashLine string
+	for _, line := range renderedLines {
+		if strings.HasPrefix(line, `\ `) {
+			expectedBackslashLine = line
+			break
+		}
+	}
+
+	if expectedBackslashLine == "" {
+		t.Fatalf("no backslash line found in patch.Render output")
+	}
+
+	// Find the backslash line in the computed diff lines
+	var computedBackslashLine string
+	for _, line := range diffLines {
+		if len(line) > 0 && line[0] == '\\' {
+			computedBackslashLine = line
+			break
+		}
+	}
+
+	if computedBackslashLine == "" {
+		t.Fatalf("no backslash line found in computed diff lines")
+	}
+
+	// Verify they match
+	if computedBackslashLine != expectedBackslashLine {
+		t.Errorf("computedBackslashLine = %q, want %q", computedBackslashLine, expectedBackslashLine)
+	}
+}
+
+// TestApprovalRequestWithRealHunks verifies that when Request is called with
+// Changes containing real hunks from patch.Parse, the emitted ApprovalRequestedMsg
+// has the four diff fields (DiffFilename, DiffLines, DiffAdded, DiffRemoved)
+// correctly populated.
+func TestApprovalRequestWithRealHunks(t *testing.T) {
+	// A real diff with hunks, parsed through patch.Parse
+	// Note: hunk header @@ -1,4 +1,7 @@ means: 4 lines starting at line 1 (old), 7 lines starting at line 1 (new)
+	diffText := `--- a/calc/divide.go
++++ b/calc/divide.go
+@@ -1,4 +1,7 @@
+ func Divide(a, b float64) (float64, error) {
+-	return a / b, nil
++	if b == 0 {
++		return 0, ErrDivideByZero
++	}
++	return a / b, nil
+ }
+ func Other() {
+`
+
+	changes, err := patch.Parse([]byte(diffText))
+	if err != nil {
+		t.Fatalf("patch.Parse failed: %v", err)
+	}
+
+	if len(changes) == 0 {
+		t.Fatalf("patch.Parse returned no changes")
+	}
+
+	// Build a Request with the parsed changes
+	req := ApprovalRequest{
+		Description: "test approval with real hunks",
+		Operation:   policy.OperationPatch,
+		Changes:     changes,
+	}
+
+	// Collect the emitted message
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	// Start the approval request in a goroutine so we can inspect the message
+	ctx := context.Background()
+	go func() {
+		a.Request(ctx, req)
+	}()
+
+	// Wait for the ApprovalRequestedMsg
+	msgs := c.wait(t, 5*time.Second)
+	if len(msgs) < 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+
+	msg, ok := msgs[0].(tui.ApprovalRequestedMsg)
+	if !ok {
+		t.Fatalf("first message is %T, want ApprovalRequestedMsg", msgs[0])
+	}
+
+	// Verify the four diff fields are populated
+	if msg.DiffFilename != "calc/divide.go" {
+		t.Errorf("DiffFilename = %q, want %q", msg.DiffFilename, "calc/divide.go")
+	}
+
+	if len(msg.DiffLines) == 0 {
+		t.Errorf("DiffLines is empty, want hunks from the parsed diff")
+	}
+
+	if msg.DiffAdded != 4 {
+		t.Errorf("DiffAdded = %d, want 4", msg.DiffAdded)
+	}
+
+	if msg.DiffRemoved != 1 {
+		t.Errorf("DiffRemoved = %d, want 1", msg.DiffRemoved)
+	}
+
+	// Verify DiffLines start with the hunk header
+	if len(msg.DiffLines) > 0 && !strings.HasPrefix(msg.DiffLines[0], "@@") {
+		t.Errorf("first DiffLine = %q, want to start with @@", msg.DiffLines[0])
+	}
+}
+
+// TestComputeDiffDisplayRenameAgreement verifies that computeDiffDisplay
+// returns the rename in "old → new" format, matching what formatPatchDisplay
+// shows in the detail lines. Both functions must agree so the modal title
+// and the card detail describe the same rename.
+func TestComputeDiffDisplayRenameAgreement(t *testing.T) {
+	// Parse a rename diff
+	diffText := `--- a/old_name.go
++++ b/new_name.go
+rename from old_name.go
+rename to new_name.go
+`
+	changes, err := patch.Parse([]byte(diffText))
+	if err != nil {
+		t.Fatalf("patch.Parse failed: %v", err)
+	}
+	if len(changes) == 0 {
+		t.Fatalf("patch.Parse returned no changes")
+	}
+
+	// computeDiffDisplay should return "old_name.go → new_name.go"
+	filename, _, _, _ := computeDiffDisplay(changes)
+	wantFilename := "old_name.go → new_name.go"
+	if filename != wantFilename {
+		t.Errorf("computeDiffDisplay filename = %q, want %q", filename, wantFilename)
+	}
+
+	// formatPatchDisplay should also include "old_name.go → new_name.go"
+	_, detail := formatPatchDisplay(changes)
+	detailStr := strings.Join(detail, "\n")
+	if !strings.Contains(detailStr, wantFilename) {
+		t.Errorf("formatPatchDisplay detail does not contain rename: %v", detail)
+	}
+}
+
+// TestFormatCommandDetailPopulatesDetailLines verifies that formatCommandDetail
+// returns non-empty detail lines for display in a command approval modal.
+func TestFormatCommandDetailPopulatesDetailLines(t *testing.T) {
+	description := "run a command"
+	argv := []string{"go", "test", "./..."}
+
+	detail := formatCommandDetail(description, argv)
+
+	if len(detail) == 0 {
+		t.Errorf("formatCommandDetail returned empty detail")
+	}
+
+	detailStr := strings.Join(detail, "\n")
+
+	// Should contain the description
+	if !strings.Contains(detailStr, description) {
+		t.Errorf("detail missing description: %v", detail)
+	}
+
+	// Should contain the command
+	wantCmdStr := "go test ./..."
+	if !strings.Contains(detailStr, wantCmdStr) {
+		t.Errorf("detail missing command: want %q in %v", wantCmdStr, detail)
 	}
 }

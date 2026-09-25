@@ -72,8 +72,27 @@ func (CancelIntent) isIntent() {}
 // ApprovalRequestedMsg asks the user for approval on an action. The ID
 // correlates it with the Resolve call that answers it.
 type ApprovalRequestedMsg struct {
-	ID                   int64  // Unique approval ID
-	Description          string // What is being asked for approval
-	Kind                 string // "command", "patch", etc. for the renderer
-	CanApproveForSession bool   // Whether [a] button should be shown
+	ID                   int64    // Unique approval ID
+	Description          string   // What is being asked for approval
+	Kind                 string   // "command", "patch", etc. for the renderer
+	CanApproveForSession bool     // Whether [a] button should be shown
+	Subject              string   // Collapsed form summary (e.g., "2 files changed" or "go test ...")
+	Detail               []string // Detailed lines for expansion
+	GrantScope           string   // argv prefix for session grant; empty for patches
+	Argv                 []string // Full command argv for session grant; nil for patches
+
+	// Diff data for patch approvals (empty for command approvals).
+	// For a patch touching multiple files, the modal shows the first file only.
+	DiffFilename string   // The path of the first file in the patch
+	DiffLines    []string // Diff lines starting from "@@ " hunks, no "diff --git", "---", "+++" headers
+	DiffAdded    int      // Number of added lines (lines with '+' prefix) in the first file
+	DiffRemoved  int      // Number of removed lines (lines with '-' prefix) in the first file
+}
+
+// ApprovalResolvedMsg reports the actual outcome of an approval after validation.
+// It carries the approval ID and the confirmed outcome (which may differ from
+// what the user chose if validation failed, e.g., grant refused).
+type ApprovalResolvedMsg struct {
+	ID      int64           // Approval ID this resolves
+	Outcome ApprovalOutcome // Actual confirmed outcome
 }

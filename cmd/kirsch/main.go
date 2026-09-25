@@ -9,6 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -18,6 +20,13 @@ import (
 	"github.com/djm56/kirsch/internal/tui"
 	"github.com/djm56/kirsch/internal/workspace"
 )
+
+// patchFileDir is the fixed directory the temporary M1/M7 debug `/patch`
+// command reads from — plan/milestones/milestone-2.md Task 7.5 specifies it
+// verbatim: "/patch <file> (apply a diff from testdata/patches/)". The
+// command takes a bare filename, so the directory has to be supplied by the
+// wiring rather than by the caller.
+const patchFileDir = "testdata/patches"
 
 // version is overridden at release time via -ldflags (Milestone 5).
 var version = "0.1.0-dev"
@@ -82,7 +91,7 @@ func run() error {
 			Dirty:   info.Dirty,
 		},
 	})
-	wireCallbacks(&m, a, log)
+	wireCallbacks(&m, a, log, ws)
 
 	// Input is normalised on the way in so that terminals which encode Home and
 	// End as SS3 — macOS Terminal among them — reach Bubble Tea as the CSI forms
@@ -113,13 +122,13 @@ func run() error {
 }
 
 // wireCallbacks wires the TUI model's callbacks to the app and telemetry logger.
-// This function encapsulates the three callback assignments (RunTool, Cancel, ResolveApproval)
-// that connect the TUI to the app. By extracting this, we enable tests to use the same
-// wiring path instead of duplicating or hand-writing callbacks.
+// This function encapsulates the callback assignments that connect the TUI to the app.
+// By extracting this, we enable tests to use the same wiring path instead of
+// duplicating or hand-writing callbacks.
 //
 // Deleting the m.ResolveApproval assignment in this function breaks the approval flow
 // and causes Request to block indefinitely, making user approvals impossible.
-func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger) {
+func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger, ws *workspace.Workspace) {
 	// Wrapped rather than assigned directly so the debug log records what the
 	// interface asked for, separately from what the tool layer then did. When
 	// the two disagree, that gap is the bug.
@@ -136,5 +145,45 @@ func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger) {
 	m.ResolveApproval = func(id int64, outcome tui.ApprovalOutcome) {
 		log.Debug("tui resolved approval", "id", id, "outcome", outcome)
 		a.Resolve(id, app.ApprovalOutcome(tui.ToAppOutcome(outcome)))
+	}
+	// GetGrants wires the TUI's grant listing to the app's policy.
+	m.GetGrants = func() []string {
+		return a.Grants()
+	}
+	// GetGrantCount wires the TUI's grant count to the app's policy.
+	m.GetGrantCount = func() int {
+		return len(a.Grants())
+	}
+	// ClearGrants wires the TUI's grant clearing to the app's policy.
+	m.ClearGrants = func() {
+		a.ClearGrants()
+	}
+	// ResolvePatchFile wires the TUI's patch file resolution to the
+	// workspace. The filename is joined onto patchFileDir before it reaches
+	// ws.Resolve, so /patch create-file.diff actually finds
+	// testdata/patches/create-file.diff instead of a file that has never
+	// existed at the workspace root.
+	//
+	// ws.Resolve is the workspace's own security boundary: it refuses
+	// anything that resolves outside the workspace root, including through a
+	// symlink resolved stepwise. That bounds the result to the workspace,
+	// not to patchFileDir specifically — a filename such as
+	// "../../internal/policy/policy.go" stays inside the workspace while
+	// leaving the patch directory. Containment is re-checked below against
+	// patchFileDir once ws.Resolve has settled the symlink question, so
+	// /patch can only ever read what the milestone spec scoped it to.
+	m.ResolvePatchFile = func(filename string) (string, error) {
+		resolved, err := ws.Resolve(filepath.Join(patchFileDir, filename))
+		if err != nil {
+			return "", err
+		}
+		if rel := ws.Rel(resolved); rel != patchFileDir && !strings.HasPrefix(rel, patchFileDir+"/") {
+			return "", fmt.Errorf("patch file %q is outside %s", filename, patchFileDir)
+		}
+		content, err := os.ReadFile(resolved)
+		if err != nil {
+			return "", err
+		}
+		return string(content), nil
 	}
 }

@@ -1188,3 +1188,110 @@ func TestZeroValueOperationRefused(t *testing.T) {
 		t.Errorf("after Grant(OperationCommand, [go test]), Grants() has len %d, want 1", len(grants))
 	}
 }
+
+// TestCanGrantAcceptsValidArgv verifies that CanGrant returns true for argv
+// that Grant would accept, and false for argv that Grant would refuse.
+// This is the check that app.Request uses to decide whether to offer [a].
+func TestCanGrantAcceptsValidArgv(t *testing.T) {
+	cases := []struct {
+		name      string
+		operation Operation
+		argv      []string
+		expected  bool
+	}{
+		// Valid commands
+		{
+			name:      "valid command go test",
+			operation: OperationCommand,
+			argv:      []string{"go", "test"},
+			expected:  true,
+		},
+		{
+			name:      "valid command single element",
+			operation: OperationCommand,
+			argv:      []string{"curl"},
+			expected:  true,
+		},
+		// Shells (should be refused)
+		{
+			name:      "shell bash",
+			operation: OperationCommand,
+			argv:      []string{"bash"},
+			expected:  false,
+		},
+		{
+			name:      "shell bash -c",
+			operation: OperationCommand,
+			argv:      []string{"bash", "-c", "echo hi"},
+			expected:  false,
+		},
+		{
+			name:      "shell zsh",
+			operation: OperationCommand,
+			argv:      []string{"zsh"},
+			expected:  false,
+		},
+		{
+			name:      "shell /bin/sh",
+			operation: OperationCommand,
+			argv:      []string{"/bin/sh"},
+			expected:  false,
+		},
+		// Bare wildcard
+		{
+			name:      "bare wildcard",
+			operation: OperationCommand,
+			argv:      []string{"*"},
+			expected:  false,
+		},
+		// Empty argv
+		{
+			name:      "empty argv",
+			operation: OperationCommand,
+			argv:      []string{},
+			expected:  false,
+		},
+		// Patches can never be granted
+		{
+			name:      "patch operation",
+			operation: OperationPatch,
+			argv:      []string{"go", "test"},
+			expected:  false,
+		},
+		// Unspecified operation
+		{
+			name:      "unspecified operation",
+			operation: OperationUnspecified,
+			argv:      []string{"go", "test"},
+			expected:  false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := New()
+			got := p.CanGrant(tc.operation, tc.argv)
+			if got != tc.expected {
+				t.Errorf("CanGrant(%v, %v) = %v, want %v", tc.operation, tc.argv, got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestCanGrantRefusesWhenGrantsDisabled verifies that CanGrant returns false
+// when session grants are disabled by configuration, matching Grant's behavior.
+func TestCanGrantRefusesWhenGrantsDisabled(t *testing.T) {
+	p := New()
+	p.allowSessionScopedGrants = false
+
+	// A valid command argv would normally be grantable
+	if p.CanGrant(OperationCommand, []string{"curl"}) {
+		t.Error("CanGrant([curl]) with grants disabled = true, want false")
+	}
+
+	// Verify Grant also refuses it with the same error
+	err := p.Grant(OperationCommand, []string{"curl"})
+	if err != ErrGrantsDisabled {
+		t.Errorf("Grant([curl]) with grants disabled = %v, want ErrGrantsDisabled", err)
+	}
+}

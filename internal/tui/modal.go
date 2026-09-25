@@ -554,9 +554,9 @@ func helpLines() []string {
 	for i := 0; i < len(cmds); i += 2 {
 		right = append(right, strings.Join(cmds[i:minInt(i+2, len(cmds))], "  "))
 	}
-	// Milestone 1 scaffolding, removed in M3 when the model drives tools.
+	// Milestone 1–2 scaffolding, removed in M3 when the model drives tools.
 	// Labelled so nobody mistakes them for product surface.
-	right = append(right, "", "debug (M1 only)")
+	right = append(right, "", "debug (M1–M2)")
 	for i := 0; i < len(DebugCommands); i += 2 {
 		right = append(right, strings.Join(DebugCommands[i:minInt(i+2, len(DebugCommands))], "  "))
 	}

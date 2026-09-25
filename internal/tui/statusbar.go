@@ -11,7 +11,6 @@ type Status struct {
 	Model    string // "claude-sonnet-5"
 	Family   string // "sonnet-5" — precomputed for the truncation ladder
 	Tokens   int
-	Grants   int
 	Warnings []string // persistent conditions, never transient errors
 }
 
@@ -58,10 +57,13 @@ func (m Model) statusRow(lay Layout) string {
 			p += dot + t
 			s += m.sty.Muted(dot + t)
 		}
-		if grants && m.status.Grants > 0 {
-			g := fmt.Sprintf("%d grant%s", m.status.Grants, plural(m.status.Grants))
-			p += dot + g
-			s += m.sty.Muted(dot + g)
+		if grants && m.GetGrantCount != nil {
+			count := m.GetGrantCount()
+			if count > 0 {
+				g := fmt.Sprintf("%d grant%s", count, plural(count))
+				p += dot + g
+				s += m.sty.Muted(dot + g)
+			}
 		}
 		return variant{p, s}
 	}

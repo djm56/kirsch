@@ -1546,3 +1546,93 @@ func (s *stubApprover) Request(ctx context.Context, req ApprovalRequest) policy.
 func (s *stubApprover) Resolve(id int64, decision policy.Decision) {
 	// No-op for testing
 }
+
+// TestRunCommandApprovalIncludesArgv verifies that RunCommand.Invoke populates
+// the Argv field of the ApprovalRequest when requesting approval.
+func TestRunCommandApprovalIncludesArgv(t *testing.T) {
+	ctx := context.Background()
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New()
+	approver := newFakeApprover(policy.DecisionAllow)
+
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// Use a command that requires approval (not in allowlist).
+	input := runCommandInput{
+		Argv: []string{"echo", "test", "args"},
+		Cwd:  ".",
+	}
+	raw, _ := json.Marshal(input)
+
+	_ = tool.Invoke(ctx, raw)
+
+	// Verify the approver was called with the Argv field populated.
+	if !approver.called {
+		t.Fatalf("approver should have been called")
+	}
+	if len(approver.lastReq.Argv) == 0 {
+		t.Fatalf("ApprovalRequest.Argv should be populated, got empty")
+	}
+	if approver.lastReq.Argv[0] != "echo" || approver.lastReq.Argv[1] != "test" {
+		t.Fatalf("ApprovalRequest.Argv = %v, want [echo test args]", approver.lastReq.Argv)
+	}
+}
+
+// TestRunCommandSessionApprovalRuns verifies that RunCommand accepts
+// DecisionSession as valid approval and runs the command.
+func TestRunCommandSessionApprovalRuns(t *testing.T) {
+	ctx := context.Background()
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New()
+	approver := newFakeApprover(policy.DecisionSession)
+
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// Use a command that requires approval and will succeed.
+	input := runCommandInput{
+		Argv: []string{"echo", "hello"},
+		Cwd:  ".",
+	}
+	raw, _ := json.Marshal(input)
+
+	result := tool.Invoke(ctx, raw)
+
+	// Verify the command ran successfully (DecisionSession treated as permission).
+	if !result.OK {
+		t.Fatalf("command should have run with session approval, got error: %s", result.Error.Message)
+	}
+	if !strings.Contains(result.Content, "hello") {
+		t.Fatalf("command output missing expected content, got: %q", result.Content)
+	}
+}
+
+// TestRunCommandSessionApprovalFails verifies that RunCommand rejects
+// DecisionDeny even when it's not DecisionAllow.
+func TestRunCommandRejectionDenyOnly(t *testing.T) {
+	ctx := context.Background()
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New()
+	approver := newFakeApprover(policy.DecisionDeny)
+
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// Use a command that requires approval.
+	input := runCommandInput{
+		Argv: []string{"echo", "hello"},
+		Cwd:  ".",
+	}
+	raw, _ := json.Marshal(input)
+
+	result := tool.Invoke(ctx, raw)
+
+	// Verify the command was rejected.
+	if result.OK {
+		t.Fatalf("command should have been rejected with DecisionDeny")
+	}
+	if result.Error.Kind != KindPolicyDenied {
+		t.Fatalf("expected KindPolicyDenied, got %s", result.Error.Kind)
+	}
+}

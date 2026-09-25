@@ -29,13 +29,14 @@ const (
 	OperationPatch
 )
 
-// Decision is a policy outcome: allow, ask the user, or deny.
+// Decision is a policy outcome: allow once, allow for this session, ask the user, or deny.
 type Decision uint8
 
 const (
 	DecisionAllow Decision = iota
 	DecisionAskUser
 	DecisionDeny
+	DecisionSession // Approved for this session; grant should be recorded
 )
 
 // allowlistEntry represents a command pattern in the allowlist.
@@ -132,13 +133,11 @@ func (p *Policy) CanApproveForSession(op Operation) bool {
 	}
 }
 
-// Grant records a session-scoped grant for a command prefix. It returns an
-// error if the operation is not a command, or if the prefix is invalid
-// (bare wildcard, empty, or a shell). argv is copied to prevent the caller
-// from mutating a granted prefix after the fact. This function enforces the
-// ground rule that patches can never be approved for session — it refuses
-// patch-originated grants at the enforcement point, not in the caller.
-func (p *Policy) Grant(op Operation, argv []string) error {
+// validateGrant checks whether an argv would be accepted by Grant. It returns
+// nil if all checks pass, or an error describing the first validation failure.
+// This function enforces the seven validation rules that both CanGrant and Grant
+// must apply, so the logic is defined in exactly one place.
+func (p *Policy) validateGrant(op Operation, argv []string) error {
 	// Refuse unspecified operations
 	if op == OperationUnspecified {
 		return ErrOperationUnspecified
@@ -172,6 +171,28 @@ func (p *Policy) Grant(op Operation, argv []string) error {
 	// Refuse shells
 	if isShell(argv) {
 		return ErrShellGrantForbidden
+	}
+
+	return nil
+}
+
+// CanGrant checks whether an argv would be accepted by Grant, without actually
+// recording it. It returns true only if Grant would succeed (return nil). This
+// allows callers to ask policy whether a session grant is possible for a specific
+// command before offering the approval option.
+func (p *Policy) CanGrant(op Operation, argv []string) bool {
+	return p.validateGrant(op, argv) == nil
+}
+
+// Grant records a session-scoped grant for a command prefix. It returns an
+// error if the operation is not a command, or if the prefix is invalid
+// (bare wildcard, empty, or a shell). argv is copied to prevent the caller
+// from mutating a granted prefix after the fact. This function enforces the
+// ground rule that patches can never be approved for session — it refuses
+// patch-originated grants at the enforcement point, not in the caller.
+func (p *Policy) Grant(op Operation, argv []string) error {
+	if err := p.validateGrant(op, argv); err != nil {
+		return err
 	}
 
 	// Copy argv to prevent caller mutation
