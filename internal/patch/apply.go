@@ -23,6 +23,7 @@ const (
 	ErrPatchConflict      ApplyErrorKind = "patch_conflict"
 	ErrLineEnding         ApplyErrorKind = "line_ending_mismatch"
 	ErrBinaryNotSupported ApplyErrorKind = "binary_not_supported"
+	ErrInvalidState       ApplyErrorKind = "invalid_state"
 )
 
 func (e *ApplyError) Error() string {
@@ -85,7 +86,7 @@ var backupRenameSource = os.Rename
 // selfRepairFinalPath restores p.finalPath from p.backupPath when this
 // entry already backed up a pre-existing file at finalPath but the calling
 // site is about to return an error from somewhere other than the shared
-// commitErr handling in ApplyToAbsPath's Phase 2 loop (which performs this
+// commitErr handling in Commit's Phase 2 loop (which performs this
 // same repair for every failure that reaches it). Every early return in the
 // rename-with-edit setup that can fire after the target has been backed up
 // must call this before returning — that backup is otherwise invisible to
@@ -176,21 +177,46 @@ func rollback(committed []pendingRename, pending []pendingRename) []string {
 	// Clean up remaining temp files
 	for _, p := range pending {
 		if p.tempPath != "" {
-			_ = os.Remove(p.tempPath)
+			if err := os.Remove(p.tempPath); err != nil {
+				inconsistent = append(inconsistent, fmt.Sprintf("%s (temp file, remove failed: %v)", p.tempPath, err))
+			}
 		}
 	}
 
 	return inconsistent
 }
 
-// ApplyToAbsPath applies a set of file changes to absolute paths.
-// All paths in changes must be absolute. This function implements atomicity:
-// changes are applied to temp files in the same directories, validated,
-// then renamed into place. If any operation fails, previously renamed files
-// are reverted from backups.
-func ApplyToAbsPath(changes []FileChange) error {
+// StageHandleState represents the lifecycle state of a StageHandle.
+type StageHandleState string
+
+const (
+	StateStaged    StageHandleState = "staged"    // changes staged, ready for commit or discard
+	StateCommitted StageHandleState = "committed" // changes successfully committed
+	StateDiscarded StageHandleState = "discarded" // changes discarded, handle spent
+	StateFailed    StageHandleState = "failed"    // commit failed, changes rolled back
+)
+
+// StageHandle holds the result of a Stage operation.
+// The staged changes are ready for commit or can be discarded.
+// After calling Commit or Discard, the handle cannot be reused.
+type StageHandle struct {
+	pending []pendingRename
+	state   StageHandleState // tracks the handle's lifecycle state
+}
+
+// Stage runs Phase 1 of patch application: applies each change to a temp file
+// in its directory, validating as it goes. On success, returns a handle whose
+// Commit method will atomically commit the validated changes. On failure,
+// cleans up any temp files and returns an error.
+//
+// The returned handle holds temp files in each target directory until Commit
+// or Discard is called. If a caller holds a handle across an approval prompt,
+// checkpoint, or other suspension point where an error or panic might occur,
+// it MUST ensure Discard is called if the approval flow does not complete.
+// Temp files are not automatically cleaned up if the handle is abandoned.
+func Stage(changes []FileChange) (*StageHandle, error) {
 	if len(changes) == 0 {
-		return nil
+		return &StageHandle{state: StateStaged}, nil
 	}
 
 	// Phase 1: Apply each change to a temp file in its directory, validating as we go
@@ -198,7 +224,9 @@ func ApplyToAbsPath(changes []FileChange) error {
 
 	for _, change := range changes {
 		if change.IsBinary {
-			return &ApplyError{
+			// Cleanup on failure
+			rollback(nil, pending)
+			return nil, &ApplyError{
 				Kind:    ErrBinaryNotSupported,
 				Message: fmt.Sprintf("binary files cannot be patched: %s", change.Path),
 			}
@@ -217,7 +245,8 @@ func ApplyToAbsPath(changes []FileChange) error {
 		case OpRename:
 			tempPath, err = applyRename(&change)
 		default:
-			return &ApplyError{
+			rollback(nil, pending)
+			return nil, &ApplyError{
 				Kind:    "invalid_op",
 				Message: fmt.Sprintf("unsupported operation: %v", change.Op),
 			}
@@ -229,7 +258,7 @@ func ApplyToAbsPath(changes []FileChange) error {
 			// loop rather than duplicating it here: this file has already
 			// drifted from that duplication once.
 			rollback(nil, pending)
-			return err
+			return nil, err
 		}
 
 		switch change.Op {
@@ -255,6 +284,30 @@ func ApplyToAbsPath(changes []FileChange) error {
 		}
 	}
 
+	return &StageHandle{pending: pending, state: StateStaged}, nil
+}
+
+// Commit atomically commits all staged changes with backup and rollback.
+// For each entry, preserves the original before replacing it, then restores
+// on failure. After successful commit, cleans up all backups. It is an error
+// to call Commit after the handle has been used (committed or discarded).
+func (h *StageHandle) Commit() error {
+	// Ensure this handle is in the staged state
+	if h.state != StateStaged {
+		return &ApplyError{
+			Kind:    ErrInvalidState,
+			Message: fmt.Sprintf("cannot commit: handle is in %q state (must be %q)", h.state, StateStaged),
+		}
+	}
+
+	pending := h.pending
+	h.pending = nil // Clear pending
+
+	if len(pending) == 0 {
+		h.state = StateCommitted
+		return nil
+	}
+
 	// Phase 2: Commit all changes atomically with backup/restore
 	// For each entry, preserve the original before replacing it, then restore on failure
 	var committed []pendingRename
@@ -269,6 +322,7 @@ func ApplyToAbsPath(changes []FileChange) error {
 				// Target already exists, back it up using CreateTemp for atomic safety
 				backupFile, err := os.CreateTemp(filepath.Dir(p.finalPath), ".patch-backup-")
 				if err != nil {
+					h.state = StateFailed
 					inconsistent := rollback(committed, pending)
 					return &ApplyError{
 						Kind:    "backup_failed",
@@ -280,6 +334,7 @@ func ApplyToAbsPath(changes []FileChange) error {
 
 				if err := os.Rename(p.finalPath, backupPath); err != nil {
 					_ = os.Remove(backupPath)
+					h.state = StateFailed
 					inconsistent := rollback(committed, pending)
 					return &ApplyError{
 						Kind:    "backup_failed",
@@ -304,6 +359,7 @@ func ApplyToAbsPath(changes []FileChange) error {
 					// in `committed`, so rollback() alone cannot see it.
 					// Restore it here before falling back to rollback() for
 					// everything committed by prior entries.
+					h.state = StateFailed
 					selfInconsistent := selfRepairFinalPath(p)
 					inconsistent := rollback(committed, pending)
 					inconsistent = append(inconsistent, selfInconsistent...)
@@ -320,6 +376,7 @@ func ApplyToAbsPath(changes []FileChange) error {
 					// Same reasoning as above: self-repair p.finalPath before
 					// rolling back everything else, since this entry never
 					// reaches `committed`.
+					h.state = StateFailed
 					selfInconsistent := selfRepairFinalPath(p)
 					inconsistent := rollback(committed, pending)
 					inconsistent = append(inconsistent, selfInconsistent...)
@@ -345,6 +402,7 @@ func ApplyToAbsPath(changes []FileChange) error {
 			// Delete operation: move to backup instead of removing
 			backupFile, err := os.CreateTemp(filepath.Dir(p.finalPath), ".patch-backup-")
 			if err != nil {
+				h.state = StateFailed
 				inconsistent := rollback(committed, pending)
 				return &ApplyError{
 					Kind:    "backup_failed",
@@ -368,6 +426,7 @@ func ApplyToAbsPath(changes []FileChange) error {
 				// File exists, must back it up
 				backupFile, err := os.CreateTemp(filepath.Dir(p.finalPath), ".patch-backup-")
 				if err != nil {
+					h.state = StateFailed
 					inconsistent := rollback(committed, pending)
 					return &ApplyError{
 						Kind:    "backup_failed",
@@ -379,6 +438,7 @@ func ApplyToAbsPath(changes []FileChange) error {
 
 				if err := os.Rename(p.finalPath, backupPath); err != nil {
 					_ = os.Remove(backupPath)
+					h.state = StateFailed
 					inconsistent := rollback(committed, pending)
 					return &ApplyError{
 						Kind:    "backup_failed",
@@ -404,6 +464,7 @@ func ApplyToAbsPath(changes []FileChange) error {
 			// branches above both back up before they move new content in).
 			// Put it back before touching anything else, or this file is
 			// left with content missing and a backup nobody's told about.
+			h.state = StateFailed
 			selfInconsistent := selfRepairFinalPath(p)
 
 			// Revert all previously committed entries.
@@ -436,7 +497,49 @@ func ApplyToAbsPath(changes []FileChange) error {
 		}
 	}
 
+	h.state = StateCommitted
 	return nil
+}
+
+// Discard abandons the staged work and removes every temp file it created.
+// After calling Discard, the handle cannot be reused. Discard reports any
+// failure to clean up temp files, so the caller can decide whether to retry
+// or escalate. A non-nil return means some temp files could not be removed.
+func (h *StageHandle) Discard() error {
+	// Ensure this handle is in the staged state
+	if h.state != StateStaged {
+		return &ApplyError{
+			Kind:    ErrInvalidState,
+			Message: fmt.Sprintf("cannot discard: handle is in %q state (must be %q)", h.state, StateStaged),
+		}
+	}
+
+	// Clean up all pending temp files, collecting any failures
+	inconsistent := rollback(nil, h.pending)
+	h.pending = nil
+	h.state = StateDiscarded
+
+	// Report any cleanup failures
+	if len(inconsistent) > 0 {
+		return &ApplyError{
+			Kind:    "cleanup_failed",
+			Message: fmt.Sprintf("discard abandoned changes but failed to clean up temp files: %v", inconsistent),
+		}
+	}
+	return nil
+}
+
+// ApplyToAbsPath applies a set of file changes to absolute paths.
+// All paths in changes must be absolute. This function implements atomicity:
+// changes are applied to temp files in the same directories, validated,
+// then renamed into place. If any operation fails, previously renamed files
+// are reverted from backups.
+func ApplyToAbsPath(changes []FileChange) error {
+	handle, err := Stage(changes)
+	if err != nil {
+		return err
+	}
+	return handle.Commit()
 }
 
 // ── Operation-Specific Handlers (Phase 1) ───────────────────────────────────

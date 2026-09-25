@@ -885,3 +885,460 @@ rename to dst.txt
 		t.Errorf("no temp or backup files should remain after self-repair, found: %v", leftovers)
 	}
 }
+
+// TestStageAndDiscardNoTempFiles tests that Stage followed by Discard leaves no temp files.
+func TestStageAndDiscardNoTempFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+
+	// Create test file
+	if err := os.WriteFile(testFile, []byte("First line\nSecond line\n"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Parse a modification diff
+	diff := `--- a/test.txt
++++ b/test.txt
+@@ -1,2 +1,2 @@
+ First line
+-Second line
++Updated line
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = testFile
+
+	// Count temp files before
+	beforeTempFiles, _ := filepath.Glob(filepath.Join(tmpDir, ".patch-*"))
+	beforeCount := len(beforeTempFiles)
+
+	// Stage the changes
+	handle, err := Stage(changes)
+	if err != nil {
+		t.Fatalf("Stage failed: %v", err)
+	}
+
+	// Count temp files after Stage (should have created temp files)
+	afterStageTempFiles, _ := filepath.Glob(filepath.Join(tmpDir, ".patch-*"))
+	afterStageCount := len(afterStageTempFiles)
+	if afterStageCount <= beforeCount {
+		t.Errorf("Stage should have created temp files, expected > %d temp files, got %d", beforeCount, afterStageCount)
+	}
+
+	// Discard the staged changes
+	if err := handle.Discard(); err != nil {
+		t.Fatalf("Discard failed: %v", err)
+	}
+
+	// Count temp files after Discard (should be back to before count)
+	afterDiscardTempFiles, _ := filepath.Glob(filepath.Join(tmpDir, ".patch-*"))
+	afterDiscardCount := len(afterDiscardTempFiles)
+	if afterDiscardCount != beforeCount {
+		t.Errorf("Discard should clean up all temp files, expected %d temp files, got %d", beforeCount, afterDiscardCount)
+		t.Logf("Leftover temp files: %v", afterDiscardTempFiles)
+	}
+}
+
+// TestStageMidwayFailureNoTempFiles tests that a Stage failing partway leaves no temp files.
+func TestStageMidwayFailureNoTempFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	file1 := filepath.Join(tmpDir, "file1.txt")
+	file2 := filepath.Join(tmpDir, "file2.txt")
+
+	// Create both files
+	if err := os.WriteFile(file1, []byte("File 1 line 1\nFile 1 line 2\n"), 0o644); err != nil {
+		t.Fatalf("failed to create file1: %v", err)
+	}
+	if err := os.WriteFile(file2, []byte("File 2 line 1\nFile 2 line 2\n"), 0o644); err != nil {
+		t.Fatalf("failed to create file2: %v", err)
+	}
+
+	// Parse a diff with two files, where the second will fail due to context mismatch
+	diff := `--- a/file1.txt
++++ b/file1.txt
+@@ -1,2 +1,2 @@
+ File 1 line 1
+-File 1 line 2
++Modified 1
+--- a/file2.txt
++++ b/file2.txt
+@@ -1,2 +1,2 @@
+ Wrong context that won't match
+-File 2 line 2
++Modified 2
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = file1
+	changes[1].Path = file2
+
+	// Count temp files before
+	beforeTempFiles, _ := filepath.Glob(filepath.Join(tmpDir, ".patch-*"))
+	beforeCount := len(beforeTempFiles)
+
+	// Stage the changes - should fail on second file
+	_, stageErr := Stage(changes)
+	if stageErr == nil {
+		t.Fatal("expected Stage to fail on conflicting patch")
+	}
+
+	// Count temp files after failed Stage (should be back to before count)
+	afterTempFiles, _ := filepath.Glob(filepath.Join(tmpDir, ".patch-*"))
+	afterCount := len(afterTempFiles)
+	if afterCount != beforeCount {
+		t.Errorf("Stage failure should clean up all temp files, expected %d temp files, got %d", beforeCount, afterCount)
+		t.Logf("Leftover temp files: %v", afterTempFiles)
+	}
+
+	// The first file should be unchanged (Stage never modifies disk on failure)
+	content, _ := os.ReadFile(file1)
+	if string(content) != "File 1 line 1\nFile 1 line 2\n" {
+		t.Errorf("File 1 should be unchanged after Stage failure, got: %q", string(content))
+	}
+}
+
+// TestCommitStagedBytes tests that the bytes committed are the bytes staged,
+// not re-applied against a potentially modified file.
+func TestCommitStagedBytes(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+
+	// Create test file
+	if err := os.WriteFile(testFile, []byte("Line 1\nLine 2\n"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Parse a modification diff
+	diff := `--- a/test.txt
++++ b/test.txt
+@@ -1,2 +1,2 @@
+ Line 1
+-Line 2
++Modified Line 2
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = testFile
+
+	// Stage the changes
+	handle, err := Stage(changes)
+	if err != nil {
+		t.Fatalf("Stage failed: %v", err)
+	}
+
+	// Modify the target file on disk to have different content
+	if err := os.WriteFile(testFile, []byte("Line 1\nDifferent Line 2\n"), 0o644); err != nil {
+		t.Fatalf("failed to modify test file: %v", err)
+	}
+
+	// Commit - it should commit the staged content, not re-apply
+	if err := handle.Commit(); err != nil {
+		t.Fatalf("Commit failed: %v", err)
+	}
+
+	// Verify the committed content is what was staged, not a re-application
+	result, _ := os.ReadFile(testFile)
+	expected := "Line 1\nModified Line 2\n"
+	if string(result) != expected {
+		t.Errorf("expected committed content %q, got %q", expected, string(result))
+	}
+}
+
+// TestCommitTwiceFails tests that calling Commit twice on the same handle fails.
+func TestCommitTwiceFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+
+	// Create test file
+	if err := os.WriteFile(testFile, []byte("Original\n"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Parse a modification diff
+	diff := `--- a/test.txt
++++ b/test.txt
+@@ -1 +1 @@
+-Original
++Modified
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = testFile
+
+	// Stage the changes
+	handle, err := Stage(changes)
+	if err != nil {
+		t.Fatalf("Stage failed: %v", err)
+	}
+
+	// First Commit should succeed
+	if err := handle.Commit(); err != nil {
+		t.Fatalf("first Commit failed: %v", err)
+	}
+
+	// Second Commit should fail
+	if err := handle.Commit(); err == nil {
+		t.Fatal("expected second Commit to fail, but it succeeded")
+	}
+}
+
+// TestCommitAfterDiscard tests that calling Commit after Discard returns an error.
+// This ensures the handle cannot be reused after discarding.
+func TestCommitAfterDiscard(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+
+	// Create test file
+	if err := os.WriteFile(testFile, []byte("Original\n"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Parse a modification diff
+	diff := `--- a/test.txt
++++ b/test.txt
+@@ -1 +1 @@
+-Original
++Modified
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = testFile
+
+	// Stage the changes
+	handle, err := Stage(changes)
+	if err != nil {
+		t.Fatalf("Stage failed: %v", err)
+	}
+
+	// Discard the changes
+	if err := handle.Discard(); err != nil {
+		t.Fatalf("Discard failed: %v", err)
+	}
+
+	// Commit after Discard should fail
+	if err := handle.Commit(); err == nil {
+		t.Fatal("expected Commit after Discard to fail, but it succeeded")
+	}
+
+	// File should be unchanged
+	result, _ := os.ReadFile(testFile)
+	expected := "Original\n"
+	if string(result) != expected {
+		t.Errorf("expected file unchanged to %q, got %q", expected, string(result))
+	}
+}
+
+// TestDiscardAfterCommit tests that calling Discard after Commit returns an error.
+// The committed state indicates the handle is no longer staged, so discard should fail.
+func TestDiscardAfterCommit(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+
+	// Create test file
+	if err := os.WriteFile(testFile, []byte("Original\n"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Parse a modification diff
+	diff := `--- a/test.txt
++++ b/test.txt
+@@ -1 +1 @@
+-Original
++Modified
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = testFile
+
+	// Stage the changes
+	handle, err := Stage(changes)
+	if err != nil {
+		t.Fatalf("Stage failed: %v", err)
+	}
+
+	// Commit the changes
+	if err := handle.Commit(); err != nil {
+		t.Fatalf("Commit failed: %v", err)
+	}
+
+	// Discard after Commit should fail
+	if err := handle.Discard(); err == nil {
+		t.Fatal("expected Discard after Commit to fail, but it succeeded")
+	}
+
+	// File should be modified
+	result, _ := os.ReadFile(testFile)
+	expected := "Modified\n"
+	if string(result) != expected {
+		t.Errorf("expected file modified to %q, got %q", expected, string(result))
+	}
+}
+
+// TestFailedCommitState tests that a failed commit leaves the handle in a
+// distinguishable state, and that subsequent operations on the handle report
+// the true state rather than succeeding silently.
+func TestFailedCommitState(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+
+	// Create test file
+	if err := os.WriteFile(testFile, []byte("Original\n"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Parse a modification diff
+	diff := `--- a/test.txt
++++ b/test.txt
+@@ -1 +1 @@
+-Original
++Modified
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = testFile
+
+	// Stage the changes
+	handle, err := Stage(changes)
+	if err != nil {
+		t.Fatalf("Stage failed: %v", err)
+	}
+
+	// Inject a failure in commitRename to simulate a commit failure
+	oldCommitRename := commitRename
+	commitRename = func(oldpath, newpath string) error {
+		return fmt.Errorf("injected failure")
+	}
+	defer func() { commitRename = oldCommitRename }()
+
+	// Commit should fail
+	commitErr := handle.Commit()
+	if commitErr == nil {
+		t.Fatal("expected Commit to fail but it succeeded")
+	}
+
+	// Second Commit attempt should also fail (not silently succeed)
+	// and report the actual state, not that it's already committed
+	secondErr := handle.Commit()
+	if secondErr == nil {
+		t.Fatal("expected second Commit to fail after first failure, but it succeeded")
+	}
+
+	// The error message should mention the failed state, not a successful commit
+	if strings.Contains(secondErr.Error(), "already been committed") {
+		t.Errorf("error message should not claim successful commit: %v", secondErr)
+	}
+
+	// Discard should also fail with state error
+	discardErr := handle.Discard()
+	if discardErr == nil {
+		t.Fatal("expected Discard to fail after failed commit, but it succeeded")
+	}
+	if !strings.Contains(discardErr.Error(), "invalid_state") || !strings.Contains(discardErr.Error(), "failed") {
+		t.Errorf("error message should indicate failed state: %v", discardErr)
+	}
+
+	// File should be unchanged
+	result, _ := os.ReadFile(testFile)
+	expected := "Original\n"
+	if string(result) != expected {
+		t.Errorf("expected file unchanged to %q, got %q", expected, string(result))
+	}
+}
+
+// TestDiscardReportsCleanupFailures tests that Discard reports when it cannot
+// clean up temp files, rather than swallowing the error. This is tested by
+// creating a handle with a pending entry that points to a path that cannot
+// be removed (a directory or a file in a read-only location).
+func TestDiscardReportsCleanupFailures(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+
+	// Create test file
+	if err := os.WriteFile(testFile, []byte("Original\n"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Parse a modification diff
+	diff := `--- a/test.txt
++++ b/test.txt
+@@ -1 +1 @@
+-Original
++Modified
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = testFile
+
+	// Stage the changes
+	handle, err := Stage(changes)
+	if err != nil {
+		t.Fatalf("Stage failed: %v", err)
+	}
+
+	// Manually inject a bad temp path into the handle's pending list
+	// This simulates a scenario where cleanup will fail because the path
+	// is invalid or inaccessible. We'll use a path that doesn't exist,
+	// which rollback will try to remove and fail on.
+	if len(handle.pending) > 0 {
+		// Replace the temp path with one that's in a non-existent directory
+		nonExistentDir := filepath.Join(tmpDir, "nonexistent", "subdir")
+		handle.pending[0].tempPath = filepath.Join(nonExistentDir, ".patch-test")
+	}
+
+	// Discard should report cleanup failure
+	discardErr := handle.Discard()
+	if discardErr == nil {
+		t.Fatal("expected Discard to report cleanup failure, but it succeeded")
+	}
+
+	if !strings.Contains(discardErr.Error(), "cleanup_failed") {
+		t.Errorf("error kind should be cleanup_failed, got: %v", discardErr)
+	}
+}
+
+// TestEmptyChangeSetStillCommits tests that an empty change set (zero files)
+// still commits cleanly, which is the correct behavior for a no-op.
+func TestEmptyChangeSetStillCommits(t *testing.T) {
+	// Create an empty change set
+	changes := []FileChange{}
+
+	// Stage should succeed with an empty set
+	handle, err := Stage(changes)
+	if err != nil {
+		t.Fatalf("Stage failed on empty change set: %v", err)
+	}
+
+	// Commit should succeed on an empty set
+	if err := handle.Commit(); err != nil {
+		t.Fatalf("Commit failed on empty change set: %v", err)
+	}
+
+	// Second Commit should fail (handle already committed)
+	if err := handle.Commit(); err == nil {
+		t.Fatal("expected second Commit to fail on empty set, but it succeeded")
+	}
+}

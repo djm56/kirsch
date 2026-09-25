@@ -342,8 +342,8 @@ func TestForPatchNoConfigurationAllows(t *testing.T) {
 			p.allowSessionScopedGrants = tc.allowSessionScopedGrants
 			// If requested, set up some grants (even though ForPatch should ignore them)
 			if tc.setupGrants && tc.allowSessionScopedGrants {
-				p.Grant([]string{"go", "test"})
-				p.Grant([]string{"git", "diff"})
+				p.Grant(OperationCommand, []string{"go", "test"})
+				p.Grant(OperationCommand, []string{"git", "diff"})
 			}
 			got, _ := p.ForPatch(tc.files)
 			if got == DecisionAllow {
@@ -439,7 +439,7 @@ func TestGrantRefusesInvalidPrefixes(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			p := New()
-			err := p.Grant(tc.argv)
+			err := p.Grant(OperationCommand, tc.argv)
 			if err == nil {
 				t.Errorf("Grant(%v) = nil, want an error for invalid prefix", tc.argv)
 			}
@@ -483,7 +483,7 @@ func TestGrantAcceptsValidPrefixes(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			p := New()
-			err := p.Grant(tc.argv)
+			err := p.Grant(OperationCommand, tc.argv)
 			if err != nil {
 				t.Errorf("Grant(%v) = %v, want nil for valid prefix", tc.argv, err)
 			}
@@ -549,7 +549,7 @@ func TestGrantSemantics(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := New()
 			// Record the grant
-			err := p.Grant(tc.grantedPrefix)
+			err := p.Grant(OperationCommand, tc.grantedPrefix)
 			if err != nil {
 				t.Fatalf("Grant(%v) failed: %v", tc.grantedPrefix, err)
 			}
@@ -583,7 +583,7 @@ func TestGrantsReturnsRecordedGrants(t *testing.T) {
 	}
 
 	// Record a grant
-	p.Grant([]string{"go", "test"})
+	p.Grant(OperationCommand, []string{"go", "test"})
 	grants = p.Grants()
 	if len(grants) != 1 {
 		t.Errorf("after Grant([go test]), Grants() has len %d, want 1 grant", len(grants))
@@ -593,7 +593,7 @@ func TestGrantsReturnsRecordedGrants(t *testing.T) {
 	}
 
 	// Record another
-	p.Grant([]string{"git", "diff"})
+	p.Grant(OperationCommand, []string{"git", "diff"})
 	grants = p.Grants()
 	if len(grants) != 2 {
 		t.Errorf("after second Grant, Grants() has len %d, want 2 grants", len(grants))
@@ -607,7 +607,7 @@ func TestGrantsReturnsRecordedGrants(t *testing.T) {
 	}
 
 	// Record a grant with flags
-	p.Grant([]string{"ls", "-la"})
+	p.Grant(OperationCommand, []string{"ls", "-la"})
 	grants = p.Grants()
 	if len(grants) != 3 {
 		t.Errorf("after third Grant, Grants() has len %d, want 3 grants", len(grants))
@@ -623,8 +623,8 @@ func TestClearGrants(t *testing.T) {
 	p := New()
 
 	// Record grants
-	p.Grant([]string{"go", "test"})
-	p.Grant([]string{"git", "diff"})
+	p.Grant(OperationCommand, []string{"go", "test"})
+	p.Grant(OperationCommand, []string{"git", "diff"})
 
 	// Verify grants are in the list
 	grants := p.Grants()
@@ -661,7 +661,7 @@ func TestClearGrants(t *testing.T) {
 
 	// Test a command not in the default allowlist (the grant we just cleared)
 	// Grant something that's not in default allowlist
-	p.Grant([]string{"curl"})
+	p.Grant(OperationCommand, []string{"curl"})
 	got, _ = p.ForCommand([]string{"curl", "-v"})
 	if got != DecisionAllow {
 		t.Errorf("ForCommand([curl -v]) after Grant([curl]) = %v, want DecisionAllow", got)
@@ -684,7 +684,7 @@ func TestGrantsDisabledByConfiguration(t *testing.T) {
 	p.allowSessionScopedGrants = false
 
 	// Attempt to grant a command
-	err := p.Grant([]string{"curl"})
+	err := p.Grant(OperationCommand, []string{"curl"})
 	if err != ErrGrantsDisabled {
 		t.Errorf("Grant([curl]) with grants disabled = %v, want ErrGrantsDisabled", err)
 	}
@@ -714,7 +714,7 @@ func TestGrantDisableSeam(t *testing.T) {
 	}
 
 	// Grant a prefix (not in default allowlist)
-	err := p.Grant([]string{"curl"})
+	err := p.Grant(OperationCommand, []string{"curl"})
 	if err != nil {
 		t.Fatalf("Grant([curl]) with grants enabled = %v, want nil", err)
 	}
@@ -767,7 +767,7 @@ func TestAllowlistAndGrantDistinction(t *testing.T) {
 	}
 
 	// But with the grant, extended calls match
-	p.Grant([]string{"go", "test"})
+	p.Grant(OperationCommand, []string{"go", "test"})
 	got, _ = p.ForCommand([]string{"go", "test", "foo"})
 	if got != DecisionAllow {
 		t.Errorf("ForCommand([go test foo]) after grant = %v, want DecisionAllow (grant always extends)", got)
@@ -971,5 +971,220 @@ func TestShellDetectionByBasename(t *testing.T) {
 				t.Errorf("ForCommand(%v) = %v, want DecisionAskUser (shell detected by basename)", tc.argv, got)
 			}
 		})
+	}
+}
+
+// TestConcurrentGrantAndForCommand verifies that Grant and ForCommand are
+// safe for concurrent use from multiple goroutines. This test would race
+// without the sync.RWMutex protection.
+func TestConcurrentGrantAndForCommand(t *testing.T) {
+	p := New()
+	done := make(chan struct{})
+	errChan := make(chan string, 10)
+
+	// Launch multiple goroutines: some grant, some check
+	for i := 0; i < 5; i++ {
+		// Grant goroutines
+		go func(id int) {
+			defer func() { done <- struct{}{} }()
+			for j := 0; j < 100; j++ {
+				prefix := []string{"cmd", string(rune('a' + (id*100+j)%26))}
+				if err := p.Grant(OperationCommand, prefix); err != nil {
+					// Only ErrEmptyPrefix and ErrBareWildcard should occur, others are unexpected
+					if err != ErrGrantsDisabled {
+						errChan <- err.Error()
+					}
+				}
+			}
+		}(i)
+
+		// ForCommand goroutines
+		go func(id int) {
+			defer func() { done <- struct{}{} }()
+			for j := 0; j < 100; j++ {
+				argv := []string{"cmd", string(rune('a' + (id*100+j)%26)), "arg"}
+				_, _ = p.ForCommand(argv)
+			}
+		}(i)
+
+		// Grants goroutines (read the list)
+		go func(id int) {
+			defer func() { done <- struct{}{} }()
+			for j := 0; j < 100; j++ {
+				_ = p.Grants()
+			}
+		}(i)
+
+		// ClearGrants goroutines
+		go func(id int) {
+			defer func() { done <- struct{}{} }()
+			for j := 0; j < 20; j++ {
+				p.ClearGrants()
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < 20; i++ {
+		<-done
+	}
+
+	// Check for unexpected errors
+	close(errChan)
+	for err := range errChan {
+		t.Errorf("unexpected error during concurrent access: %s", err)
+	}
+}
+
+// TestGrantCopiesArgv verifies that Grant copies the argv slice, so the caller
+// cannot mutate a granted prefix after the fact.
+func TestGrantCopiesArgv(t *testing.T) {
+	p := New()
+	// Use a command not in the default allowlist
+	argv := []string{"curl", "verbose"}
+	err := p.Grant(OperationCommand, argv)
+	if err != nil {
+		t.Fatalf("Grant(%v) = %v, want nil", argv, err)
+	}
+
+	// Mutate the caller's slice
+	argv[1] = "quiet"
+
+	// Verify the granted prefix is still the original
+	grants := p.Grants()
+	if len(grants) != 1 {
+		t.Fatalf("Grants() = %v, want 1 grant", grants)
+	}
+	if grants[0] != "curl verbose" {
+		t.Errorf("Grants()[0] = %q after caller mutation, want %q (should be copied)", grants[0], "curl verbose")
+	}
+
+	// Verify ForCommand still matches the original granted prefix (extended)
+	got, _ := p.ForCommand([]string{"curl", "verbose", "output.txt"})
+	if got != DecisionAllow {
+		t.Errorf("ForCommand([curl verbose output.txt]) after caller mutation = %v, want DecisionAllow", got)
+	}
+
+	// Verify it does NOT match the mutated prefix
+	got, _ = p.ForCommand([]string{"curl", "quiet"})
+	if got == DecisionAllow {
+		t.Errorf("ForCommand([curl quiet]) after caller mutation = DecisionAllow, want DecisionAskUser (mutation should not affect grants)")
+	}
+}
+
+// TestCanApproveForSessionCommands verifies that CanApproveForSession returns
+// true for commands when grants are enabled, false otherwise.
+func TestCanApproveForSessionCommands(t *testing.T) {
+	p := New()
+
+	// By default, grants are enabled
+	if !p.allowSessionScopedGrants {
+		t.Fatalf("setup: grants should be enabled by default")
+	}
+
+	// For commands with grants enabled, CanApproveForSession returns true
+	if !p.CanApproveForSession(OperationCommand) {
+		t.Errorf("CanApproveForSession(OperationCommand) with grants enabled = false, want true")
+	}
+
+	// Disable grants and verify it returns false
+	p.allowSessionScopedGrants = false
+	if p.CanApproveForSession(OperationCommand) {
+		t.Errorf("CanApproveForSession(OperationCommand) with grants disabled = true, want false")
+	}
+}
+
+// TestCanApproveForSessionPatchesNeverAllowed verifies that CanApproveForSession
+// always returns false for patches, regardless of configuration.
+func TestCanApproveForSessionPatchesNeverAllowed(t *testing.T) {
+	p := New()
+
+	// With grants enabled (default)
+	if p.CanApproveForSession(OperationPatch) {
+		t.Errorf("CanApproveForSession(OperationPatch) with grants enabled = true, want false (patches can never be approved for session)")
+	}
+
+	// With grants disabled
+	p.allowSessionScopedGrants = false
+	if p.CanApproveForSession(OperationPatch) {
+		t.Errorf("CanApproveForSession(OperationPatch) with grants disabled = true, want false (patches can never be approved for session)")
+	}
+
+	// Verify this holds even if grants have been recorded
+	p.allowSessionScopedGrants = true
+	p.Grant(OperationCommand, []string{"go", "test"})
+	if p.CanApproveForSession(OperationPatch) {
+		t.Errorf("CanApproveForSession(OperationPatch) with active grants = true, want false (patches can never be approved for session)")
+	}
+}
+
+// TestGrantRefusesPatchAtEnforcementPoint verifies that Grant refuses patch-originated
+// grants at the enforcement point (in the Grant function itself), not just as a
+// precondition check. This tests ground rule 3: the enforcement must sit on the
+// path that records the grant, so no call site can offer it by accident.
+func TestGrantRefusesPatchAtEnforcementPoint(t *testing.T) {
+	p := New()
+
+	// Attempt to grant with a patch operation
+	err := p.Grant(OperationPatch, []string{"go", "test"})
+	if err != ErrPatchGrantForbidden {
+		t.Errorf("Grant(OperationPatch, [go test]) = %v, want ErrPatchGrantForbidden", err)
+	}
+
+	// Verify the grant was not recorded
+	grants := p.Grants()
+	if len(grants) != 0 {
+		t.Errorf("after failed Grant(OperationPatch), Grants() = %v, want empty", grants)
+	}
+
+	// Verify that a command grant still works (as a control)
+	err = p.Grant(OperationCommand, []string{"go", "test"})
+	if err != nil {
+		t.Errorf("Grant(OperationCommand, [go test]) = %v, want nil", err)
+	}
+
+	// Verify the command grant was recorded
+	grants = p.Grants()
+	if len(grants) != 1 {
+		t.Errorf("after Grant(OperationCommand, [go test]), Grants() has len %d, want 1", len(grants))
+	}
+}
+
+// TestZeroValueOperationRefused verifies that a zero-valued Operation (created by
+// var op Operation or left unset in a struct) is refused by both CanApproveForSession
+// and Grant, making the zero value a denying default rather than a permissive one.
+func TestZeroValueOperationRefused(t *testing.T) {
+	p := New()
+
+	// Construct a zero-valued Operation the way an accident would (not by naming a constant)
+	var zeroOp Operation
+
+	// Verify CanApproveForSession refuses it
+	if p.CanApproveForSession(zeroOp) {
+		t.Errorf("CanApproveForSession(zero-valued Operation) = true, want false (zero value must refuse)")
+	}
+
+	// Verify Grant refuses it
+	err := p.Grant(zeroOp, []string{"go", "test"})
+	if err != ErrOperationUnspecified {
+		t.Errorf("Grant(zero-valued Operation, [go test]) = %v, want ErrOperationUnspecified", err)
+	}
+
+	// Verify no grant was recorded
+	grants := p.Grants()
+	if len(grants) != 0 {
+		t.Errorf("after failed Grant(zero-valued Operation), Grants() = %v, want empty", grants)
+	}
+
+	// Verify that a valid operation still works (as a control)
+	err = p.Grant(OperationCommand, []string{"go", "test"})
+	if err != nil {
+		t.Errorf("Grant(OperationCommand, [go test]) = %v, want nil", err)
+	}
+
+	// Verify the grant was recorded
+	grants = p.Grants()
+	if len(grants) != 1 {
+		t.Errorf("after Grant(OperationCommand, [go test]), Grants() has len %d, want 1", len(grants))
 	}
 }

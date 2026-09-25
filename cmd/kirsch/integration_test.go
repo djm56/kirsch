@@ -8,6 +8,7 @@ import (
 
 	"github.com/djm56/kirsch/internal/app"
 	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tui"
 	"github.com/djm56/kirsch/internal/workspace"
@@ -23,24 +24,28 @@ func TestIntegrationApprovalFlow(t *testing.T) {
 		decision       tui.ApprovalOutcome
 		wantAppOutcome app.ApprovalOutcome
 		description    string
+		operation      policy.Operation
 	}{
 		{
 			name:           "approve once",
 			decision:       tui.Approved,
 			wantAppOutcome: app.ApprovalOutcomeOnce,
 			description:    "approve this once",
+			operation:      policy.OperationPatch,
 		},
 		{
 			name:           "reject",
 			decision:       tui.Rejected,
 			wantAppOutcome: app.ApprovalOutcomeDeny,
 			description:    "reject this proposal",
+			operation:      policy.OperationPatch,
 		},
 		{
 			name:           "approve for session",
 			decision:       tui.ApprovedSession,
 			wantAppOutcome: app.ApprovalOutcomeSession,
 			description:    "approve for this session",
+			operation:      policy.OperationCommand,
 		},
 	}
 
@@ -83,10 +88,9 @@ func TestIntegrationApprovalFlow(t *testing.T) {
 			done := make(chan app.ApprovalOutcome, 1)
 			go func() {
 				result := a.Request(context.Background(), app.ApprovalRequest{
-					Description:          tt.description,
-					Kind:                 "patch",
-					CanApproveForSession: tt.decision == tui.ApprovedSession,
-					Argv:                 []string{"go", "test", "./..."},
+					Description: tt.description,
+					Operation:   tt.operation,
+					Argv:        []string{"go", "test", "./..."},
 				})
 				done <- result
 			}()
@@ -153,9 +157,8 @@ func TestIntegrationCancelledOutcome(t *testing.T) {
 	done := make(chan app.ApprovalOutcome, 1)
 	go func() {
 		result := a.Request(context.Background(), app.ApprovalRequest{
-			Description:          "test patch",
-			Kind:                 "patch",
-			CanApproveForSession: false,
+			Description: "test patch",
+			Operation:   policy.OperationPatch,
 		})
 		done <- result
 	}()
@@ -208,9 +211,8 @@ func TestIntegrationCancellationWithinOneSecond(t *testing.T) {
 	done := make(chan app.ApprovalOutcome, 1)
 	go func() {
 		result := a.Request(ctx, app.ApprovalRequest{
-			Description:          "test patch",
-			Kind:                 "patch",
-			CanApproveForSession: false,
+			Description: "test patch",
+			Operation:   policy.OperationPatch,
 		})
 		done <- result
 	}()
@@ -284,9 +286,8 @@ func TestIntegrationResolveTwiceIsHarmless(t *testing.T) {
 	done := make(chan app.ApprovalOutcome, 1)
 	go func() {
 		result := a.Request(context.Background(), app.ApprovalRequest{
-			Description:          "test patch",
-			Kind:                 "patch",
-			CanApproveForSession: false,
+			Description: "test patch",
+			Operation:   policy.OperationPatch,
 		})
 		done <- result
 	}()

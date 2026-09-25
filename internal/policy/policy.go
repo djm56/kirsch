@@ -7,14 +7,26 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // Grant validation errors.
 var (
-	ErrGrantsDisabled      = errors.New("session grants are disabled")
-	ErrEmptyPrefix         = errors.New("grant prefix cannot be empty")
-	ErrBareWildcard        = errors.New("bare wildcard '*' cannot be granted")
-	ErrShellGrantForbidden = errors.New("shells cannot be granted")
+	ErrGrantsDisabled       = errors.New("session grants are disabled")
+	ErrEmptyPrefix          = errors.New("grant prefix cannot be empty")
+	ErrBareWildcard         = errors.New("bare wildcard '*' cannot be granted")
+	ErrShellGrantForbidden  = errors.New("shells cannot be granted")
+	ErrPatchGrantForbidden  = errors.New("patches can never be approved for session")
+	ErrOperationUnspecified = errors.New("operation type cannot be unspecified")
+)
+
+// Operation describes the type of operation for which approval is being sought.
+type Operation uint8
+
+const (
+	OperationUnspecified Operation = iota // zero value, used as default — must refuse
+	OperationCommand
+	OperationPatch
 )
 
 // Decision is a policy outcome: allow, ask the user, or deny.
@@ -33,13 +45,19 @@ type allowlistEntry struct {
 }
 
 // Policy holds the command allowlist, session-scoped grants, and configuration.
-// Note: Policy is not goroutine-safe. Single-goroutine use is load-bearing.
+// Policy is safe for concurrent use. The sync.RWMutex protects the grants slice;
+// allowSessionScopedGrants is set during New() and never written after, so reads
+// require no lock. Writers (Grant, ClearGrants) and readers of grants (ForCommand, Grants)
+// are protected by the mutex. ForPatch and CanApproveForSession do not access the mutex.
 type Policy struct {
+	mu sync.RWMutex
 	// allowlist holds default command patterns that are allowed.
 	allowlist []allowlistEntry
 	// allowSessionScopedGrants controls whether Grant() is enabled (config: allow_session_scoped_grants).
+	// Set during New() and never written after; no lock needed for reads.
 	allowSessionScopedGrants bool
 	// grants records session-scoped command prefixes approved by the user.
+	// Protected by mu.
 	grants [][]string
 }
 
@@ -74,6 +92,9 @@ func (p *Policy) ForCommand(argv []string) (Decision, string) {
 	}
 
 	// Check session grants (only if enabled)
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	if p.allowSessionScopedGrants {
 		for _, grant := range p.grants {
 			if matchesPattern(grant, true, argv) { // grants always extend
@@ -92,9 +113,47 @@ func (p *Policy) ForPatch(files []string) (Decision, string) {
 	return DecisionAskUser, "file patches always require approval"
 }
 
+// CanApproveForSession returns whether an operation type may be approved for the
+// current session. Commands may be approved for session if session grants are enabled.
+// Patches and unspecified operations can never be approved for session, enforcing
+// the ground rule that apply_patch never offers session approval (principle #1),
+// and that unset Operation defaults to denial, not permission. Callers must check
+// this before offering a session approval option in the UI.
+func (p *Policy) CanApproveForSession(op Operation) bool {
+	switch op {
+	case OperationCommand:
+		return p.allowSessionScopedGrants
+	case OperationPatch:
+		return false // patches can never be approved for session
+	case OperationUnspecified:
+		return false // zero value must refuse
+	default:
+		return false
+	}
+}
+
 // Grant records a session-scoped grant for a command prefix. It returns an
-// error if the prefix is invalid (bare wildcard, empty, or a shell).
-func (p *Policy) Grant(argv []string) error {
+// error if the operation is not a command, or if the prefix is invalid
+// (bare wildcard, empty, or a shell). argv is copied to prevent the caller
+// from mutating a granted prefix after the fact. This function enforces the
+// ground rule that patches can never be approved for session — it refuses
+// patch-originated grants at the enforcement point, not in the caller.
+func (p *Policy) Grant(op Operation, argv []string) error {
+	// Refuse unspecified operations
+	if op == OperationUnspecified {
+		return ErrOperationUnspecified
+	}
+
+	// Refuse patches at the enforcement point (ground rule 3)
+	if op == OperationPatch {
+		return ErrPatchGrantForbidden
+	}
+
+	// Only commands may be granted
+	if op != OperationCommand {
+		return ErrOperationUnspecified
+	}
+
 	// Grants must be enabled
 	if !p.allowSessionScopedGrants {
 		return ErrGrantsDisabled
@@ -115,13 +174,22 @@ func (p *Policy) Grant(argv []string) error {
 		return ErrShellGrantForbidden
 	}
 
+	// Copy argv to prevent caller mutation
+	grantCopy := make([]string, len(argv))
+	copy(grantCopy, argv)
+
 	// Record the grant
-	p.grants = append(p.grants, argv)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.grants = append(p.grants, grantCopy)
 	return nil
 }
 
 // Grants returns the list of active session-scoped grants as formatted strings.
 func (p *Policy) Grants() []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	result := make([]string, len(p.grants))
 	for i, grant := range p.grants {
 		result[i] = strings.Join(grant, " ")
@@ -131,6 +199,8 @@ func (p *Policy) Grants() []string {
 
 // ClearGrants removes all active session-scoped grants.
 func (p *Policy) ClearGrants() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.grants = make([][]string, 0)
 }
 

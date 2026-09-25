@@ -24,11 +24,35 @@ import (
 )
 
 // ApprovalRequest describes what is being asked for approval.
+//
+// There is deliberately no Kind field here. An earlier revision carried an
+// independent Kind string next to Operation: policy enforcement read
+// Operation, the TUI's rendering read Kind, and nothing reconciled the two,
+// so a caller could describe a patch as a command (or the reverse) and the
+// disagreement was never caught. The string the TUI needs is derived from
+// Operation inside Request (see kindString) instead of accepted from the
+// caller, so the two can no longer disagree — the same principle
+// internal/tui applies to ApprovalCard.OffersSessionGrant: a value that
+// exists only to be derived is not stored, so the invalid combination has
+// nowhere to live.
 type ApprovalRequest struct {
-	Description          string   // Human-readable text for the approval card
-	Kind                 string   // "command", "patch", etc. for rendering
-	CanApproveForSession bool     // Whether session-scoped approval is an option
-	Argv                 []string // Command argv for session grant; nil if not applicable
+	Description string           // Human-readable text for the approval card
+	Operation   policy.Operation // The operation type; drives both policy enforcement and the TUI's rendering kind
+	Argv        []string         // Command argv for session grant; nil if not applicable
+}
+
+// kindString derives the "command"/"patch" string that
+// tui.ApprovalRequestedMsg.Kind expects, from the policy Operation that
+// governs the same request. It exists so that string is computed, never
+// supplied — see the ApprovalRequest doc comment. Anything other than
+// OperationCommand renders as "patch", the more restrictive kind, matching
+// Policy.CanApproveForSession, which also refuses everything but
+// OperationCommand.
+func kindString(op policy.Operation) string {
+	if op == policy.OperationCommand {
+		return "command"
+	}
+	return "patch"
 }
 
 // ApprovalOutcome represents a user's decision on an approval.
@@ -43,9 +67,10 @@ const (
 
 // approval tracks a pending approval request.
 type approval struct {
-	id       int64
-	decision chan ApprovalOutcome // capacity 1; Resolve drops writes after first
-	argv     []string             // Command argv for session grant; nil if not applicable
+	id        int64
+	decision  chan ApprovalOutcome // capacity 1; Resolve drops writes after first
+	argv      []string             // Command argv for session grant; nil if not applicable
+	operation policy.Operation     // The operation type for this approval
 }
 
 // App owns the root context and the wiring between the TUI and the tools.
@@ -268,21 +293,26 @@ func (a *App) Request(ctx context.Context, req ApprovalRequest) ApprovalOutcome 
 	id := a.approveID.Add(1)
 
 	app := &approval{
-		id:       id,
-		decision: make(chan ApprovalOutcome, 1), // buffered: capacity 1
-		argv:     req.Argv,
+		id:        id,
+		decision:  make(chan ApprovalOutcome, 1), // buffered: capacity 1
+		argv:      req.Argv,
+		operation: req.Operation,
 	}
 
 	a.approveMu.Lock()
 	a.approvals[id] = app
 	a.approveMu.Unlock()
 
+	// Calculate whether session approval is possible by consulting policy.
+	// The policy decides based on the operation type, not the caller.
+	canApproveForSession := a.pol.CanApproveForSession(req.Operation)
+
 	// Send the approval message to the TUI.
 	a.send(tui.ApprovalRequestedMsg{
 		ID:                   id,
 		Description:          req.Description,
-		Kind:                 req.Kind,
-		CanApproveForSession: req.CanApproveForSession,
+		Kind:                 kindString(req.Operation),
+		CanApproveForSession: canApproveForSession,
 	})
 
 	// Block on three things:
@@ -322,8 +352,9 @@ func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
 	}
 
 	// If approving for session with a command argv, grant it now.
+	// Use the real operation from the request, not a bare literal.
 	if outcome == ApprovalOutcomeSession && len(app.argv) > 0 {
-		if err := a.pol.Grant(app.argv); err != nil {
+		if err := a.pol.Grant(app.operation, app.argv); err != nil {
 			// Log the rejection silently; the approval still succeeds, but the
 			// grant does not record. The TUI will not re-prompt; the tool gets
 			// the decision it asked for.

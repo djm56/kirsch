@@ -9,6 +9,7 @@ import (
 
 	"github.com/djm56/kirsch/internal/app"
 	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tui"
 	"github.com/djm56/kirsch/internal/workspace"
@@ -93,9 +94,8 @@ func TestResolveApprovalNilCheckWired(t *testing.T) {
 	done := make(chan app.ApprovalOutcome, 1)
 	go func() {
 		result := a.Request(context.Background(), app.ApprovalRequest{
-			Description:          "test patch",
-			Kind:                 "patch",
-			CanApproveForSession: false,
+			Description: "test patch",
+			Operation:   policy.OperationPatch,
 		})
 		done <- result
 	}()

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/workspace"
 )
 
@@ -49,7 +51,7 @@ func mustJSON(t *testing.T, v any) json.RawMessage {
 
 // TestEveryPathTakingToolRefusesEscapes is the table the acceptance checklist
 // asks for: the denylist and containment must hold through every entry point,
-// not just through read_file.
+// not just through read_file. Covers both read-only and write tools.
 func TestEveryPathTakingToolRefusesEscapes(t *testing.T) {
 	ws := fixtureWS(t, "repo-small")
 	r := registryFor(ws)
@@ -66,13 +68,15 @@ func TestEveryPathTakingToolRefusesEscapes(t *testing.T) {
 		".kirsch/config.toml",
 		"/etc/passwd", // absolute: invalid input rather than a violation
 	}
-	callers := map[string]func(string) json.RawMessage{
+
+	// Read-only tools that take a path parameter
+	readOnlyCallers := map[string]func(string) json.RawMessage{
 		"read_file":  func(p string) json.RawMessage { return mustJSON(t, map[string]any{"path": p}) },
 		"list_files": func(p string) json.RawMessage { return mustJSON(t, map[string]any{"path": p}) },
 		"git_diff":   func(p string) json.RawMessage { return mustJSON(t, map[string]any{"path": p}) },
 	}
 
-	for tool, build := range callers {
+	for tool, build := range readOnlyCallers {
 		for _, p := range badPaths {
 			t.Run(tool+"/"+p, func(t *testing.T) {
 				res := r.Invoke(context.Background(), tool, build(p))
@@ -89,6 +93,98 @@ func TestEveryPathTakingToolRefusesEscapes(t *testing.T) {
 				}
 			})
 		}
+	}
+
+	// Test apply_patch target path escapes
+	tmpWS := newTestWorkspace(t)
+	approver := newFakeApprover(policy.DecisionAllow)
+	applyPatchTool := &ApplyPatch{WS: tmpWS, Approver: approver}
+
+	for _, p := range badPaths {
+		t.Run("apply_patch/target/"+p, func(t *testing.T) {
+			diff := "diff --git a/" + p + " b/" + p + "\n" +
+				"--- a/" + p + "\n" +
+				"+++ b/" + p + "\n" +
+				"@@ -1 +1 @@\n" +
+				"-old\n" +
+				"+new\n"
+			input := applyPatchInput{Diff: diff, Description: "test"}
+			raw := mustJSON(t, input)
+			res := applyPatchTool.Invoke(context.Background(), raw)
+			if res.OK {
+				t.Fatalf("apply_patch accepted target %q", p)
+			}
+			want := KindWorkspaceViolation
+			if strings.HasPrefix(p, "/") {
+				want = KindToolInputInvalid
+			}
+			if res.Error.Kind != want {
+				t.Errorf("apply_patch target %q: kind = %s, want %s", p, res.Error.Kind, want)
+			}
+			if approver.called {
+				t.Errorf("apply_patch should not call approver for path violation on target %q", p)
+			}
+		})
+	}
+
+	// Test apply_patch rename source escapes
+	tmpWS2 := newTestWorkspace(t)
+	approver2 := newFakeApprover(policy.DecisionAllow)
+	applyPatchTool2 := &ApplyPatch{WS: tmpWS2, Approver: approver2}
+
+	for _, p := range badPaths {
+		t.Run("apply_patch/rename_source/"+p, func(t *testing.T) {
+			diff := "diff --git a/" + p + " b/good.txt\n" +
+				"--- a/" + p + "\n" +
+				"+++ b/good.txt\n" +
+				"similarity index 100%\n" +
+				"rename from " + p + "\n" +
+				"rename to good.txt\n"
+			input := applyPatchInput{Diff: diff, Description: "test"}
+			raw := mustJSON(t, input)
+			res := applyPatchTool2.Invoke(context.Background(), raw)
+			if res.OK {
+				t.Fatalf("apply_patch accepted rename source %q", p)
+			}
+			want := KindWorkspaceViolation
+			if strings.HasPrefix(p, "/") {
+				want = KindToolInputInvalid
+			}
+			if res.Error.Kind != want {
+				t.Errorf("apply_patch rename source %q: kind = %s, want %s", p, res.Error.Kind, want)
+			}
+			if approver2.called {
+				t.Errorf("apply_patch should not call approver for path violation on rename source %q", p)
+			}
+		})
+	}
+
+	// Test run_command cwd escapes
+	tmpWS3 := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New()
+	approver3 := newFakeApprover(policy.DecisionAllow)
+	runCmdTool := &RunCommand{WS: tmpWS3, Config: &conf, Policy: pol, Approver: approver3}
+
+	for _, p := range badPaths {
+		t.Run("run_command/cwd/"+p, func(t *testing.T) {
+			input := runCommandInput{Argv: []string{"echo", "test"}, Cwd: p}
+			raw := mustJSON(t, input)
+			res := runCmdTool.Invoke(context.Background(), raw)
+			if res.OK {
+				t.Fatalf("run_command accepted cwd %q", p)
+			}
+			want := KindWorkspaceViolation
+			if strings.HasPrefix(p, "/") {
+				want = KindToolInputInvalid
+			}
+			if res.Error.Kind != want {
+				t.Errorf("run_command cwd %q: kind = %s, want %s", p, res.Error.Kind, want)
+			}
+			if approver3.called {
+				t.Errorf("run_command should not call approver for path violation on cwd %q", p)
+			}
+		})
 	}
 }
 
@@ -397,5 +493,265 @@ func TestRegistryListsAllFive(t *testing.T) {
 	want := []string{"git_diff", "git_status", "list_files", "read_file", "search_code"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("tools = %v, want %v", got, want)
+	}
+}
+
+// TestApplyPatchSymlinkOutsideWorkspaceRefused verifies that apply_patch detects
+// when a symlink inside the workspace points outside it, preventing laundering
+// of denied paths. The approver must never be called for this violation.
+func TestApplyPatchSymlinkOutsideWorkspaceRefused(t *testing.T) {
+	ws := newTestWorkspace(t)
+	approver := newFakeApprover(policy.DecisionAllow)
+	tool := &ApplyPatch{WS: ws, Approver: approver}
+
+	// Create a symlink inside the workspace that points outside.
+	targetPath := filepath.Join(ws.Root, "escape-link")
+	// Point it to a path outside workspace (using relative path to go up)
+	if err := os.Symlink("../../../etc/passwd", targetPath); err != nil {
+		t.Skipf("cannot create symlink on this system: %v", err)
+	}
+	defer os.Remove(targetPath)
+
+	// Try to create a patch targeting the symlink.
+	input := applyPatchInput{
+		Diff: "diff --git a/escape-link b/escape-link\n" +
+			"--- a/escape-link\n" +
+			"+++ b/escape-link\n" +
+			"@@ -1 +1 @@\n" +
+			"-old\n" +
+			"+new\n",
+		Description: "test",
+	}
+	raw := mustJSON(t, input)
+
+	result := tool.Invoke(context.Background(), raw)
+
+	if result.OK {
+		t.Fatalf("apply_patch accepted symlink escape_link pointing outside workspace")
+	}
+	if result.Error.Kind != KindWorkspaceViolation {
+		t.Errorf("kind = %s, want KindWorkspaceViolation", result.Error.Kind)
+	}
+	if approver.called {
+		t.Errorf("approver should not be called for symlink pointing outside workspace")
+	}
+}
+
+// TestRunCommandSymlinkOutsideWorkspaceRefused verifies that run_command detects
+// when a symlink inside the workspace (used as cwd) points outside it.
+func TestRunCommandSymlinkOutsideWorkspaceRefused(t *testing.T) {
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New()
+	approver := newFakeApprover(policy.DecisionAllow)
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// Create a directory and a symlink to it from outside workspace.
+	linkPath := filepath.Join(ws.Root, "link-outside")
+	if err := os.Symlink("../../../tmp", linkPath); err != nil {
+		t.Skipf("cannot create symlink on this system: %v", err)
+	}
+	defer os.Remove(linkPath)
+
+	input := runCommandInput{
+		Argv: []string{"pwd"},
+		Cwd:  "link-outside",
+	}
+	raw := mustJSON(t, input)
+
+	result := tool.Invoke(context.Background(), raw)
+
+	if result.OK {
+		t.Fatalf("run_command accepted symlink cwd pointing outside workspace")
+	}
+	if result.Error.Kind != KindWorkspaceViolation {
+		t.Errorf("kind = %s, want KindWorkspaceViolation", result.Error.Kind)
+	}
+	if approver.called {
+		t.Errorf("approver should not be called for symlink pointing outside workspace")
+	}
+}
+
+// TestRunCommandEnvironmentCaseSensitivity verifies that environment filtering
+// is case-sensitive: MY_TOKEN (uppercase) is stripped, but my_token (lowercase)
+// passes through if it is allowlisted.
+//
+// Known gap: lowercase secret-shaped names (my_token vs MY_TOKEN) escape the
+// uppercase-only strip patterns entirely. This is a known limitation and not
+// intended design; it is registered for the operator.
+func TestRunCommandEnvironmentCaseSensitivity(t *testing.T) {
+	ws := newTestWorkspace(t)
+
+	// Set up environment: uppercase will be stripped (matches *_TOKEN),
+	// lowercase will pass through.
+	if err := os.Setenv("MY_TOKEN", "secret123"); err != nil {
+		t.Fatalf("failed to setenv MY_TOKEN: %v", err)
+	}
+	defer os.Unsetenv("MY_TOKEN")
+
+	if err := os.Setenv("my_token", "visible456"); err != nil {
+		t.Fatalf("failed to setenv my_token: %v", err)
+	}
+	defer os.Unsetenv("my_token")
+
+	conf := config.Defaults()
+	conf.Policy.EnvPassthrough = []string{"my_token", "MY_TOKEN"}
+	pol := policy.New()
+	approver := newFakeApprover(policy.DecisionAllow)
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	input := runCommandInput{
+		Argv: []string{"env"},
+		Cwd:  ".",
+	}
+	raw := mustJSON(t, input)
+
+	result := tool.Invoke(context.Background(), raw)
+
+	if !result.OK {
+		t.Fatalf("env command failed: %s", result.Error.Message)
+	}
+
+	// MY_TOKEN should be stripped (case-sensitive match of *_TOKEN pattern).
+	if strings.Contains(result.Content, "MY_TOKEN") {
+		t.Errorf("MY_TOKEN should have been stripped (matches *_TOKEN pattern)")
+	}
+
+	// Lowercase my_token doesn't match the uppercase _TOKEN strip pattern, so it
+	// passes through when allowlisted.
+	if !strings.Contains(result.Content, "my_token=visible456") {
+		t.Errorf("my_token should pass through when allowlisted and doesn't match strip patterns")
+	}
+}
+
+// TestRunCommandParentEnvironmentAbsent verifies that environment variables
+// from the parent process that are neither allowlisted nor stripped are absent
+// from the child's environment.
+func TestRunCommandParentEnvironmentAbsent(t *testing.T) {
+	ws := newTestWorkspace(t)
+
+	// Set a variable that is neither allowlisted nor a strip-pattern match.
+	unusedVar := "UNUSED_PARENT_VAR_" + fmt.Sprintf("%d", os.Getpid())
+	if err := os.Setenv(unusedVar, "should-not-appear"); err != nil {
+		t.Fatalf("failed to setenv: %v", err)
+	}
+	defer os.Unsetenv(unusedVar)
+
+	conf := config.Defaults()
+	conf.Policy.EnvPassthrough = []string{} // Empty: only PATH, HOME, LANG pass.
+	pol := policy.New()
+	approver := newFakeApprover(policy.DecisionAllow)
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	input := runCommandInput{
+		Argv: []string{"env"},
+		Cwd:  ".",
+	}
+	raw := mustJSON(t, input)
+
+	result := tool.Invoke(context.Background(), raw)
+
+	if !result.OK {
+		t.Fatalf("env command failed: %s", result.Error.Message)
+	}
+
+	// The unused variable should not appear in the command's environment.
+	if strings.Contains(result.Content, unusedVar) {
+		t.Errorf("%s should not appear in child environment", unusedVar)
+	}
+
+	// Verify that PATH, HOME, or LANG are present (control).
+	hasStdVar := strings.Contains(result.Content, "PATH=") ||
+		strings.Contains(result.Content, "HOME=") ||
+		strings.Contains(result.Content, "LANG=")
+	if !hasStdVar {
+		t.Errorf("at least one of PATH, HOME, LANG should be in child environment")
+	}
+}
+
+// TestRunCommandExecPatternDocumentsPlatformGuarantee documents a property
+// guaranteed by os/exec's argv handling: shell metacharacters in argv elements
+// (;, &&, |, $(...), backticks) are passed as literal arguments to the program,
+// never interpreted by a shell. This property holds because exec.CommandContext
+// invokes the program directly without a shell intermediary. The test verifies
+// this platform guarantee holds, not a defense implemented by this codebase.
+func TestRunCommandExecPatternDocumentsPlatformGuarantee(t *testing.T) {
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New()
+	approver := newFakeApprover(policy.DecisionAllow)
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// Use printf to output its argument literally. Shell metacharacters should be
+	// passed as a single literal argument to printf, which will output them exactly.
+	// We use a format string with %s to test argument passing: the metacharacters
+	// should appear verbatim, not be interpreted as shell commands.
+	input := runCommandInput{
+		Argv: []string{"printf", "%s", "$(whoami);id;cat /etc/passwd"},
+		Cwd:  ".",
+	}
+	raw := mustJSON(t, input)
+
+	result := tool.Invoke(context.Background(), raw)
+
+	if !result.OK {
+		t.Fatalf("printf command failed: %s", result.Error.Message)
+	}
+
+	// The output should contain the literal argument string exactly as passed.
+	expected := "$(whoami);id;cat /etc/passwd"
+	if !strings.Contains(result.Content, expected) {
+		t.Errorf("shell metacharacters were not passed as literals. output: %q, want substring: %q",
+			result.Content, expected)
+	}
+
+	// Verify shell commands were not executed: "root" and "uid=" are outputs of id/whoami.
+	// These would only appear if the shell had interpreted the metacharacters.
+	if strings.Contains(result.Content, "uid=") || strings.Contains(result.Content, "root:") {
+		t.Errorf("shell command was interpreted (found output of id or cat in result)")
+	}
+}
+
+// TestRunCommandRenamedShellLimitationDocumented documents the known limitation
+// that policy.isShell matches by basename only and does not catch a renamed or
+// copied shell (e.g., cp /bin/bash ./mytool). A renamed shell would be treated as
+// a regular command, subject to default policy (allowlist/grant checks) rather than
+// being rejected as a shell. This test asserts that behavior is unchanged and
+// documents the gap for visibility.
+func TestRunCommandRenamedShellLimitationDocumented(t *testing.T) {
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New()
+	approver := newFakeApprover(policy.DecisionAllow)
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// The basename check in policy.isShell does not catch renamed shells.
+	// This is documented in policy.go: "It does NOT catch deliberately renamed or
+	// symlinked shells (e.g., cp /bin/bash ./mytool)."
+	// A renamed shell like "mytool" (which is really /bin/bash) will be treated as
+	// a regular command: it requires approval if not in the allowlist.
+	// This test records that gap.
+
+	input := runCommandInput{
+		Argv: []string{"mytool", "--help"},
+		Cwd:  ".",
+	}
+	raw := mustJSON(t, input)
+
+	// mytool is not a recognized shell by basename, so it's treated as a regular
+	// command. Since it's not in the default allowlist, approver WILL be called.
+	// This is the intended (albeit limited) behavior.
+	result := tool.Invoke(context.Background(), raw)
+
+	// The approver should have been called because mytool is not in the allowlist.
+	// This verifies the documented behavior: renamed shells bypass the shell check.
+	if !approver.called {
+		t.Errorf("expected approver to be called for unknown command 'mytool' (not in allowlist)")
+	}
+
+	// We expect the command to fail (mytool doesn't exist) after approver approval.
+	// We return DecisionAllow, so the tool attempts to run it.
+	if result.OK {
+		t.Fatalf("expected command to fail (mytool not found)")
 	}
 }

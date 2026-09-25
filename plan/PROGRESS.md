@@ -1,8 +1,8 @@
 # Progress — Kirsch
 
-**Where we are:** Milestone 2 — patches, commands, approvals. 3 of 6 deliverables done.
+**Where we are:** Milestone 2 — patches, commands, approvals. 4 of 6 deliverables done.
 
-**What's next:** m2-d4, Tool implementations — its dependencies are m2-d1 and m2-d2, both done, so it is unblocked.
+**What's next:** m2-d5, TUI integration; its dependencies are m2-d3 and m2-d4, both now done, so it is unblocked.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -24,7 +24,7 @@ This file is the single source of truth for live state — what is in progress a
 | m2-d1 | Patch infrastructure | done | — | — |
 | m2-d2 | Policy | done | — | — |
 | m2-d3 | Approval flow | done | — | m2-d2 |
-| m2-d4 | Tool implementations | not started | — | m2-d1, m2-d2 |
+| m2-d4 | Tool implementations | done | — | m2-d1, m2-d2 |
 | m2-d5 | TUI integration | not started | — | m2-d3, m2-d4 |
 | m2-d6 | Testing & acceptance | not started | — | all |
 
@@ -32,6 +32,7 @@ This file is the single source of truth for live state — what is in progress a
 
 | Completed | Deliverable | What landed |
 |---|---|---|
+| 2026-09-25 | m2-d4 Tool implementations | `internal/tool`: `apply_patch` and `run_command`, the first tools that change the world and so the first that must ask first. `apply_patch` parses, resolves every path including rename sources, stages into temp files and only then requests approval, committing the bytes it validated rather than re-applying — so an invalid patch never produces a prompt. `run_command` takes an argv slice and never a shell, builds the child's environment from scratch and strips secrets last, reads stdin from the null device, confines the working directory, caps output at 200KB head-and-tail, and bounds cancellation with a process-group kill plus a `WaitDelay` backstop for descendants that leave the group. Supporting changes: a mutex and an operation-typed grant path in `internal/policy`, and a `Stage`/`Commit`/`Discard` seam in `internal/patch`. **Adversarial coverage is partial** — path escapes are solid, environment filtering has a known case-sensitivity gap, and the renamed-shell evasion is documented rather than tested. See findings dated 2026-09-25. |
 | 2026-09-23 | m2-d3 Approval flow | `internal/app`: `Approver.Request` blocks on a per-approval buffered channel from the tool goroutine and selects on the decision, the turn context and the root context, deleting its map entry on every path; `Resolve` never blocks, taking the lock only for the lookup and sending under `select`/`default`. Session approvals call `policy.Grant`. The TUI resolves through `wireCallbacks` in `cmd/kirsch`, with a `Cancelled` outcome distinct from rejection so an abandoned turn is not recorded as a refusal. Approve, reject, approve-for-session and escape-to-cancel are proven through real `Model.Update` dispatch; cancellation returns inside a second with no parked goroutines. |
 | 2026-09-23 | m2-d2 Policy | `internal/policy`: the command allowlist and session-grant engine. Argv-slice matching so a semicolon-bearing element cannot be split; shells and runners refused at any install location by basename; `ForPatch` never auto-allows; grants refuse wildcards, empty prefixes and shells, and are disabled wholesale by config. Shipped allowlist entries are exact-match, so `go build -toolexec=` and `git diff --output=` require approval. |
 | 2026-09-22 | m2-d1 Patch infrastructure | `internal/patch`: unified-diff parser, renderer, and atomic applier (standard library only, 44 tests). Fixtures at `testdata/repo-patch/` and diff corpus at `testdata/patches/`. |

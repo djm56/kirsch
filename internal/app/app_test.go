@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tool"
 	"github.com/djm56/kirsch/internal/tui"
@@ -269,9 +270,8 @@ func TestApprovalRequestBlocksUntilResolved(t *testing.T) {
 
 	ctx := context.Background()
 	req := ApprovalRequest{
-		Description:          "test approval",
-		Kind:                 "test",
-		CanApproveForSession: false,
+		Description: "test approval",
+		Operation:   policy.OperationCommand,
 	}
 
 	resultCh := make(chan ApprovalOutcome)
@@ -336,9 +336,8 @@ func TestApprovalResolvingTwiceIsHarmless(t *testing.T) {
 
 	ctx := context.Background()
 	req := ApprovalRequest{
-		Description:          "test approval",
-		Kind:                 "test",
-		CanApproveForSession: false,
+		Description: "test approval",
+		Operation:   policy.OperationCommand,
 	}
 
 	resultCh := make(chan ApprovalOutcome)
@@ -439,9 +438,8 @@ func TestApprovalCancellationReleasesRequest(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	req := ApprovalRequest{
-		Description:          "test approval",
-		Kind:                 "test",
-		CanApproveForSession: false,
+		Description: "test approval",
+		Operation:   policy.OperationCommand,
 	}
 
 	resultCh := make(chan ApprovalOutcome)
@@ -466,7 +464,9 @@ func TestApprovalCancellationReleasesRequest(t *testing.T) {
 }
 
 // TestApprovalMessageSent: when Request is called, it sends an
-// ApprovalRequestedMsg to the TUI.
+// ApprovalRequestedMsg to the TUI, with Kind and CanApproveForSession both
+// derived from Operation — a command request renders as "command" and may
+// offer session approval.
 func TestApprovalMessageSent(t *testing.T) {
 	c := newCollector(1)
 	a := testApp(t, "repo-small", c)
@@ -474,9 +474,9 @@ func TestApprovalMessageSent(t *testing.T) {
 
 	ctx := context.Background()
 	req := ApprovalRequest{
-		Description:          "apply patch to main.go",
-		Kind:                 "patch",
-		CanApproveForSession: true,
+		Description: "run go test ./...",
+		Operation:   policy.OperationCommand,
+		Argv:        []string{"go", "test", "./..."},
 	}
 
 	go func() {
@@ -497,17 +497,110 @@ func TestApprovalMessageSent(t *testing.T) {
 		t.Fatalf("message is %T, want ApprovalRequestedMsg", msgs[0])
 	}
 
-	if msg.Description != "apply patch to main.go" {
+	if msg.Description != "run go test ./..." {
 		t.Errorf("description = %q", msg.Description)
 	}
-	if msg.Kind != "patch" {
-		t.Errorf("kind = %q", msg.Kind)
+	if msg.Kind != "command" {
+		t.Errorf("kind = %q, want %q (derived from Operation=OperationCommand)", msg.Kind, "command")
 	}
 	if !msg.CanApproveForSession {
-		t.Error("CanApproveForSession is false, want true")
+		t.Error("CanApproveForSession is false, want true (command requests may offer session approval)")
 	}
 	if msg.ID != 1 {
 		t.Errorf("ID = %d, want 1", msg.ID)
+	}
+}
+
+// TestApprovalPatchNeverOffersSessionApproval drives the real Request path —
+// not policy.CanApproveForSession in isolation — with a patch-originated
+// request, and asserts on what actually reaches the TUI in
+// ApprovalRequestedMsg. This is the regression test for the defect fixed in
+// this round: a prior revision let a caller set an independent Kind field
+// that disagreed with Operation, so a request could be labelled "patch" for
+// rendering while its Operation still read OperationCommand, and the [a]
+// button was offered. Kind is now derived from Operation inside Request, so
+// that disagreement can no longer be constructed.
+func TestApprovalPatchNeverOffersSessionApproval(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "apply patch to main.go",
+		Operation:   policy.OperationPatch,
+	}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		a.Resolve(1, ApprovalOutcomeOnce)
+	}()
+
+	a.Request(ctx, req)
+	msgs := c.wait(t, time.Second)
+
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+
+	msg, ok := msgs[0].(tui.ApprovalRequestedMsg)
+	if !ok {
+		t.Fatalf("message is %T, want ApprovalRequestedMsg", msgs[0])
+	}
+
+	if msg.Kind != "patch" {
+		t.Errorf("kind = %q, want %q", msg.Kind, "patch")
+	}
+	if msg.CanApproveForSession {
+		t.Error("CanApproveForSession is true for a patch-originated request, want false")
+	}
+}
+
+// TestApprovalPatchResolvedForSessionRecordsNoGrant drives the real Request
+// and Resolve path — not policy.Grant in isolation — with a patch-originated
+// request resolved as ApprovalOutcomeSession, and asserts via the real
+// policy's Grants() that nothing was recorded. internal/policy's own refusal
+// of OperationPatch (Grant) was correct from round 1; what rounds 2 and 3 got
+// wrong was getting the right Operation to that refusal in the first place —
+// this proves the whole path, not just the enforcement point in isolation.
+// Argv is deliberately populated even though no real apply_patch caller
+// would set it, to prove the refusal holds on Operation alone and is not
+// merely an accident of argv being empty.
+func TestApprovalPatchResolvedForSessionRecordsNoGrant(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	ctx := context.Background()
+	req := ApprovalRequest{
+		Description: "apply patch to main.go",
+		Operation:   policy.OperationPatch,
+		Argv:        []string{"go", "test"}, // deliberately present; must still be refused
+	}
+
+	resultCh := make(chan ApprovalOutcome)
+	go func() {
+		resultCh <- a.Request(ctx, req)
+	}()
+
+	// Wait for the ApprovalRequestedMsg rather than sleeping: Request
+	// registers the approval in a.approvals before it sends, so once the
+	// message has been observed, id 1 is guaranteed resolvable.
+	c.wait(t, time.Second)
+
+	a.Resolve(1, ApprovalOutcomeSession)
+
+	select {
+	case outcome := <-resultCh:
+		if outcome != ApprovalOutcomeSession {
+			t.Fatalf("outcome = %v, want ApprovalOutcomeSession", outcome)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Request did not return after Resolve")
+	}
+
+	if grants := a.pol.Grants(); len(grants) != 0 {
+		t.Errorf("Grants() = %v, want none for a patch-originated approval resolved for session", grants)
 	}
 }
 
@@ -523,9 +616,8 @@ func TestApprovalNoGoroutineLeakOnFullCycle(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		ctx := context.Background()
 		req := ApprovalRequest{
-			Description:          "test",
-			Kind:                 "test",
-			CanApproveForSession: false,
+			Description: "test",
+			Operation:   policy.OperationCommand,
 		}
 
 		resultCh := make(chan ApprovalOutcome)
@@ -619,9 +711,8 @@ func TestApprovalRootContextCancellation(t *testing.T) {
 
 	ctx := context.Background()
 	req := ApprovalRequest{
-		Description:          "test",
-		Kind:                 "test",
-		CanApproveForSession: false,
+		Description: "test",
+		Operation:   policy.OperationCommand,
 	}
 
 	resultCh := make(chan ApprovalOutcome)
