@@ -7,6 +7,7 @@ the automated suite actually covers, and how the security tooling is wired.
 |---|---|
 | [`manual/milestone-0.md`](manual/milestone-0.md) | Sitting down to check the TUI by hand |
 | [`manual/milestone-1.md`](manual/milestone-1.md) | Checking the workspace engine and read-only tools by hand |
+| [`manual/milestone-2.md`](manual/milestone-2.md) | Checking the approval flow and write tools by hand |
 | [`automated-tests.md`](automated-tests.md) | You want to know what the suite covers, and what it deliberately does not |
 | [`security.md`](security.md) | Running the security tooling, or triaging what it reports |
 

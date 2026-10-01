@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -1148,7 +1149,7 @@ func TestGrantsModalCKeyShowsConfirm(t *testing.T) {
 // TestApprovalsModalSanitisesGrants verifies that the /approvals command
 // sanitises grant text to strip ANSI escape sequences, OSC sequences, and
 // embedded newlines before displaying them in a modal. This is the regression
-// test for update.go's sanitizeSingleLine call in the /approvals arm.
+// test for update.go's SanitizeSingleLine call in the /approvals arm.
 func TestApprovalsModalSanitisesGrants(t *testing.T) {
 	m := New(Options{})
 
@@ -1329,5 +1330,82 @@ func TestClearGrantsViaKeypressInvokesCallbackAndEmptiesPolicy(t *testing.T) {
 	// Verification: the policy is now empty (callback did its job).
 	if len(m.GetGrants()) != 0 {
 		t.Errorf("after clear, GetGrants() = %v, want empty", m.GetGrants())
+	}
+}
+
+// TestApprovalElapsedReflectsRealTime verifies that resolved approval cards
+// show the actual elapsed time from request to resolution, not a constant.
+// Uses an injected fake clock so elapsed time can be exact.
+// Calibration: reverting the time.Since calculation in resolveApproval makes
+// the equality assertion fail.
+func TestApprovalElapsedReflectsRealTime(t *testing.T) {
+	// Inject a fake clock that we can advance
+	baseTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	fakeTime := baseTime
+	nowFn := func() time.Time {
+		return fakeTime
+	}
+
+	m := New(Options{Now: nowFn})
+
+	// Dispatch an ApprovalRequestedMsg
+	msg := ApprovalRequestedMsg{
+		ID:                   1,
+		Description:          "run a command",
+		Kind:                 "command",
+		CanApproveForSession: true,
+		Subject:              "go test",
+		Detail:               []string{"Running tests"},
+		GrantScope:           "go test",
+		Argv:                 []string{"go", "test", "./..."},
+	}
+
+	updatedModel, _ := m.Update(msg)
+	m = updatedModel.(Model)
+
+	// Find the approval card and verify RequestedAt was set
+	var card *ApprovalCard
+	for _, it := range m.tr.Items() {
+		if it.Kind == KindApproval && it.Approval != nil {
+			card = it.Approval
+			break
+		}
+	}
+	if card == nil {
+		t.Fatal("no approval card found")
+	}
+	if card.RequestedAt != baseTime {
+		t.Errorf("approval.RequestedAt = %v, want %v", card.RequestedAt, baseTime)
+	}
+
+	// Advance the fake clock by exactly 5 seconds
+	wantElapsed := 5 * time.Second
+	fakeTime = baseTime.Add(wantElapsed)
+
+	// Resolve the approval
+	updatedModel, _ = m.Update(key('y'))
+	m = updatedModel.(Model)
+
+	// Find the resolved card
+	var resolved *ApprovalCard
+	for _, it := range m.tr.Items() {
+		if it.Kind == KindApproval && it.Approval != nil && it.Approval.Outcome == Approved {
+			resolved = it.Approval
+			break
+		}
+	}
+	if resolved == nil {
+		t.Fatal("no resolved approval card found")
+	}
+
+	// Assert elapsed equals the known interval (exact assertion with injected clock)
+	if resolved.Elapsed != wantElapsed {
+		t.Errorf("approval.Elapsed = %v, want exactly %v", resolved.Elapsed, wantElapsed)
+	}
+
+	// Verify the rendered duration format is correct
+	rendered := formatDuration(resolved.Elapsed)
+	if rendered != "5.0s" {
+		t.Errorf("formatDuration(%v) = %q, want %q", resolved.Elapsed, rendered, "5.0s")
 	}
 }

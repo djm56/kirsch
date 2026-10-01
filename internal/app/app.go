@@ -361,6 +361,10 @@ func (a *App) WorkspaceInfo() tui.WorkspaceInfoMsg {
 // Delivery is abandoned once the root context is cancelled. Without that, a
 // tool that finishes just as the user quits blocks forever handing its result
 // to a program that has stopped reading.
+//
+// send is called only from tool goroutines spawned in RunTool. Those goroutines
+// need the delivery guarantee: they wait for the message to be accepted so they
+// know the result reached the TUI.
 func (a *App) send(msg tea.Msg) {
 	if a.sendFn != nil {
 		a.sendFn(msg)
@@ -377,6 +381,73 @@ func (a *App) send(msg tea.Msg) {
 	select {
 	case <-delivered:
 	case <-a.rootCtx.Done():
+	}
+}
+
+// sendAsyncSequence delivers multiple messages to the TUI in order, from a
+// single background goroutine, without blocking the caller.
+//
+// It is called from Resolve, which runs on the event loop goroutine and
+// must never block. A blocking send from Update would deadlock Bubble Tea:
+// Update cannot return until send returns, but send waits for the event loop
+// to read from an unbuffered channel, and the event loop cannot run until
+// Update returns.
+//
+// This is used when message ordering must be guaranteed (e.g., a notice
+// followed by a resolved message). Sending each message from its own
+// goroutine would let them race and arrive out of order; sendAsyncSequence
+// sends all messages from one goroutine instead, so they arrive in the
+// order provided.
+//
+// The non-blocking guarantee holds unconditionally, including when sendFn is
+// set: sendAsyncSequence always spawns one goroutine and returns immediately,
+// whether delivery goes through sendFn (tests) or program.Send (production).
+// An earlier version called sendFn synchronously on the caller's goroutine
+// when set, which was safe for the mutex-and-append collector in
+// app_test.go but not in general — internal/app/integration_test.go's
+// driveTUI wires sendFn to an unbuffered channel read from the same
+// goroutine that calls Resolve synchronously from Update, deliberately, to
+// catch this class of deadlock (see its comment). A synchronous sendFn call
+// from inside that call chain would deadlock the harness built to catch the
+// bug this mission exists to fix. Spawning unconditionally removes the
+// asymmetry rather than documenting around it.
+//
+// If the program is shutting down or no program is attached, messages are
+// abandoned silently.
+//
+// NOTE: The goroutine spawned here is not tracked by a.inFlight. The
+// program's context cancellation during shutdown prevents it from blocking
+// indefinitely (see Close and the program's event loop).
+func (a *App) sendAsyncSequence(msgs []tea.Msg) {
+	if len(msgs) == 0 {
+		return
+	}
+	if a.sendFn == nil && a.program == nil {
+		return
+	}
+	// Spawn a single goroutine to send all messages in order, whatever the
+	// delivery path. This ensures ordering and keeps the non-blocking
+	// guarantee true for both the test path (sendFn) and the real path
+	// (program.Send) — see deliverOne.
+	go func() {
+		for _, msg := range msgs {
+			a.deliverOne(msg)
+		}
+	}()
+}
+
+// deliverOne sends a single message via sendFn when a test has set one, or
+// via program.Send otherwise. It exists so sendAsyncSequence can call it
+// uniformly from inside its one goroutine without branching on the delivery
+// path at the call site, which is what let a synchronous sendFn branch creep
+// in previously (see sendAsyncSequence's docblock).
+func (a *App) deliverOne(msg tea.Msg) {
+	if a.sendFn != nil {
+		a.sendFn(msg)
+		return
+	}
+	if a.program != nil {
+		a.program.Send(msg)
 	}
 }
 
@@ -567,6 +638,7 @@ func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
 	// If the grant fails, the actual outcome is Rejected, not the user's choice.
 	confirmedOutcome := outcome
 	grantAttempted := false
+	var grantErr error
 	if outcome == ApprovalOutcomeSession {
 		grantAttempted = true
 		if err := a.pol.Grant(app.operation, app.argv); err != nil {
@@ -578,24 +650,33 @@ func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
 			a.log.Debug("grant rejected", "argv", app.argv, "err", err)
 			// Grant failed: the actual outcome is Rejected, not ApprovalOutcomeSession
 			confirmedOutcome = ApprovalOutcomeDeny
-			// Notify the TUI that the grant was refused
-			a.send(tui.NoticeMsg{
-				Text: fmt.Sprintf("Session grant denied: %s", err.Error()),
-			})
+			grantErr = err
 		}
 	}
 
 	// Send confirmation of the actual outcome to the TUI so it can update the card.
 	// This is only necessary when the outcome might differ from what the user chose,
 	// which happens when a session grant is attempted (and might fail).
+	// Use sendAsyncSequence to ensure messages arrive in the correct order.
+	// This avoids the race that would occur if each message were sent from
+	// its own goroutine, which would let them arrive out of order.
 	if grantAttempted {
+		var msgs []tea.Msg
+		// If the grant failed, queue a notice first.
+		if grantErr != nil {
+			msgs = append(msgs, tui.NoticeMsg{
+				Text: fmt.Sprintf("Session grant denied: %s", grantErr.Error()),
+			})
+		}
 		// Convert from app.ApprovalOutcome to tui.ApprovalOutcome. The numeric values
 		// don't match: app uses 0-3 but tui has an extra Unresolved(0) at the start,
 		// so we must use FromAppOutcome to map correctly.
-		a.send(tui.ApprovalResolvedMsg{
+		msgs = append(msgs, tui.ApprovalResolvedMsg{
 			ID:      id,
 			Outcome: tui.FromAppOutcome(int(confirmedOutcome)),
 		})
+		// Send all messages in sequence from a single goroutine, ensuring order.
+		a.sendAsyncSequence(msgs)
 	}
 
 	// Send on the buffered channel. If it already has a value, this is a
@@ -669,10 +750,37 @@ func (a *App) ResolveToolApproval(id int64, decision policy.Decision) {
 
 // describeInput picks the field worth showing on a tool card.
 func describeInput(input map[string]any) string {
+	// Check string fields first: path and query.
 	for _, key := range []string{"path", "query"} {
 		if v, ok := input[key]; ok {
 			if s, ok := v.(string); ok && s != "" {
 				return s
+			}
+		}
+	}
+
+	// For run_command, show argv as a space-separated string, sanitised to prevent
+	// terminal escape injection (internal/tui matches this approach for approval cards).
+	// argv comes from shellSplit in update.go, which returns []string.
+	if v, ok := input["argv"]; ok {
+		// Handle both []string (production) and []any (JSON decoding).
+		if strSlice, ok := v.([]string); ok && len(strSlice) > 0 {
+			cmdStr := strings.Join(strSlice, " ")
+			// Sanitise using the same function approval cards use (internal/tui/transcript.go).
+			return tui.SanitizeSingleLine(cmdStr)
+		}
+		if anySlice, ok := v.([]any); ok && len(anySlice) > 0 {
+			// Build a space-separated command string from argv.
+			var parts []string
+			for _, arg := range anySlice {
+				if s, ok := arg.(string); ok {
+					parts = append(parts, s)
+				}
+			}
+			if len(parts) > 0 {
+				cmdStr := strings.Join(parts, " ")
+				// Sanitise using the same function approval cards use (internal/tui/transcript.go).
+				return tui.SanitizeSingleLine(cmdStr)
 			}
 		}
 	}

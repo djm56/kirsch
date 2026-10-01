@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/djm56/kirsch/internal/config"
 	"github.com/djm56/kirsch/internal/patch"
 	"github.com/djm56/kirsch/internal/policy"
@@ -1787,4 +1789,167 @@ func TestFormatCommandDetailPopulatesDetailLines(t *testing.T) {
 	if !strings.Contains(detailStr, wantCmdStr) {
 		t.Errorf("detail missing command: want %q in %v", wantCmdStr, detail)
 	}
+}
+
+// TestDescribeInputExtractsArgvForRunCommand verifies that describeInput
+// returns the command argv for run_command tools. This is the target shown
+// on tool cards, so the operator can identify which command is running.
+// Calibration: removing the argv branch causes this test to fail.
+func TestDescribeInputExtractsArgvForRunCommand(t *testing.T) {
+	input := map[string]any{
+		"argv": []any{"cat", "go.mod"},
+	}
+	target := describeInput(input)
+	if target == "" {
+		t.Errorf("describeInput returned empty string for argv; target not extracted")
+	}
+	if !strings.Contains(target, "cat") {
+		t.Errorf("describeInput target %q does not contain 'cat'", target)
+	}
+	if !strings.Contains(target, "go.mod") {
+		t.Errorf("describeInput target %q does not contain 'go.mod'", target)
+	}
+}
+
+// TestDescribeInputSanitizesArgvEscapeSequences verifies that argv containing
+// ANSI escape sequences is sanitised before being returned as a target.
+// This prevents terminal escape injection into the transcript.
+// Input comes from shellSplit (internal/tui), which returns []string.
+// Calibration: removing the tui.SanitizeSingleLine call causes this test to fail.
+func TestDescribeInputSanitizesArgvEscapeSequences(t *testing.T) {
+	// Build argv as it comes from shellSplit: []string with an ESC byte.
+	// ESC sequences cannot come from keyboard input (ui-spec §11), but test the
+	// sanitisation gate: if shellSplit somehow returned escaped content, it would be safe.
+	input := map[string]any{
+		"argv": []string{"echo", "prefix\x1b[31mred\x1b[0msuffix"},
+	}
+	target := describeInput(input)
+
+	// The target should contain the command and the string content (minus escapes)
+	if !strings.Contains(target, "echo") {
+		t.Errorf("target %q missing 'echo'", target)
+	}
+	if !strings.Contains(target, "prefix") || !strings.Contains(target, "suffix") {
+		t.Errorf("target %q missing content around escape sequence", target)
+	}
+
+	// Verify no ESC byte in the output (sanitisation check)
+	if strings.Contains(target, "\x1b") {
+		t.Fatalf("target %q contains ESC byte 0x1b; not sanitised", target)
+	}
+}
+
+// TestRunCommandCardShowsCommand drives the real /run dispatch end to end and
+// asserts on what the operator would see.
+//
+// Order of events, as the test performs them:
+//  1. The characters "/run cat go.mod" and Enter are delivered to tui.Model
+//     through Update as tea.KeyMsg values.
+//  2. Model's slash dispatch (runSlash, then the "run" arm of the debug-command
+//     builder in internal/tui/update.go) calls shellSplit and builds the
+//     {"argv": []string} input map. Nothing in this test constructs argv.
+//  3. m.RunTool (App.RunTool) runs run_command, which asks for approval because
+//     cat is not allow-listed. App sends ApprovalRequestedMsg through sendFn.
+//  4. The test pumps App's messages into Update until the approval card is
+//     pending, sends the key "y", then keeps pumping until a result card
+//     exists.
+//  5. The assertion is on m.View(): the result card's head line (not the
+//     running card, not the approval card) must contain "run_command" and the
+//     command "cat go.mod". No message field is inspected.
+//
+// Polling runs against a deadline rather than a fixed sleep.
+// Calibration: reverting describeInput to its []any-only check, or renaming the
+// "argv" key in the /run arm of internal/tui/update.go, makes this fail.
+func TestRunCommandCardShowsCommand(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "repo-small"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.Detect(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := New(ws, config.Defaults(), telemetry.Disabled())
+	defer a.Close()
+
+	info := a.WorkspaceInfo()
+	m := tui.New(tui.Options{
+		Version: "0.1.0",
+		Caps:    tui.Caps{Colour: false, Unicode: true},
+		Session: tui.SessionInfo{Project: info.Project, Branch: info.Branch, Dirty: info.Dirty},
+	})
+	m.RunTool = a.RunTool
+	m.Cancel = a.CancelTurn
+	m.ResolveApproval = func(id int64, outcome tui.ApprovalOutcome) {
+		a.Resolve(id, ApprovalOutcome(tui.ToAppOutcome(outcome)))
+	}
+
+	// Only this goroutine touches m. sendFn runs on App's goroutines and hands
+	// messages over through the channel; done releases any sender left over.
+	inbox := make(chan tea.Msg, 100)
+	done := make(chan struct{})
+	defer close(done)
+	a.sendFn = func(msg any) {
+		if tm, ok := msg.(tea.Msg); ok {
+			select {
+			case inbox <- tm:
+			case <-done:
+			}
+		}
+	}
+	apply := func(msg tea.Msg) {
+		next, _ := m.Update(msg)
+		m = next.(tui.Model)
+	}
+
+	// pollView pumps App's messages into the model until the rendered view
+	// satisfies ok, or the deadline passes.
+	pollView := func(what string, ok func(view string) bool) string {
+		t.Helper()
+		deadline := time.After(5 * time.Second)
+		tick := time.NewTicker(10 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case msg := <-inbox:
+				apply(msg)
+			case <-tick.C:
+			case <-deadline:
+				t.Fatalf("timed out waiting for %s; last view:\n%s", what, m.View())
+			}
+			if v := m.View(); ok(v) {
+				return v
+			}
+		}
+	}
+
+	apply(tea.WindowSizeMsg{Width: 100, Height: 30})
+	for _, r := range "/run cat go.mod" {
+		apply(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	apply(tea.KeyMsg{Type: tea.KeyEnter})
+
+	pollView("the approval card", func(v string) bool { return strings.Contains(v, "approval") })
+	apply(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+
+	// The transcript holds three cards for this one command, and the command
+	// text appears on more than one of them: the running card, the approval card
+	// (whose head ends "approved"), and the result card. Only the result card's
+	// head comes from describeInput after the tool has run, so the predicate
+	// excludes the other two by their status words.
+	isResultHead := func(line string) bool {
+		return strings.Contains(line, "run_command") && strings.Contains(line, "cat go.mod") &&
+			!strings.Contains(line, "approved") && !strings.Contains(line, "running")
+	}
+	hasResultHead := func(v string) bool {
+		for _, line := range strings.Split(v, "\n") {
+			if isResultHead(line) {
+				return true
+			}
+		}
+		return false
+	}
+	// cat go.mod exits 1 in repo-small (no go.mod there); that is still a result
+	// card, and its head is what is under test.
+	pollView("a result card head naming the command", hasResultHead)
 }

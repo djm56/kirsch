@@ -174,7 +174,8 @@ type ApprovalCard struct {
 	GrantScope   string // argv prefix; must be empty for ApprovalPatch
 	Outcome      ApprovalOutcome
 	Elapsed      time.Duration
-	DiffFilename string // the filename shown in the diff modal (for patches only)
+	RequestedAt  time.Time // timestamp when approval was requested; zero if not yet set
+	DiffFilename string    // the filename shown in the diff modal (for patches only)
 	Diff         []string
 	Added        int
 	Removed      int
@@ -440,10 +441,12 @@ func sanitizeAndSplitLines(s string) []string {
 	return strings.Split(Sanitize(s), "\n")
 }
 
-// sanitizeSingleLine sanitises text for a single-row field, removing any
+// SanitizeSingleLine sanitises text for a single-row field, removing any
 // embedded newlines. A newline in a single-row field becomes a space, preserving
 // the text content while preventing the line from breaking the box rendering.
-func sanitizeSingleLine(s string) string {
+// This is exported so that tool cards can sanitise targets without exposing
+// ANSI escape sequences to the transcript.
+func SanitizeSingleLine(s string) string {
 	s = Sanitize(s)
 	// Remove any embedded newlines that Sanitize preserved
 	s = strings.ReplaceAll(s, "\n", " ")

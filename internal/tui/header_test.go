@@ -830,6 +830,57 @@ func TestModalFooterNamesTheWayOutAtEveryWidth(t *testing.T) {
 	}
 }
 
+// TestGrantsModalFooterNamesTheConfirmClearAtEveryWidth pins the grants modal's
+// footer ladder. The 'c' key does not clear immediately: it closes the modal and
+// shows a confirm prompt. The footer must signal this intervening step rather than
+// claiming 'c' clears outright. This test walks the width ladder to ensure the
+// clear instruction is present when it fits, and pins the floor behaviour where
+// the instruction is deliberately absent.
+// The footer "c to clear (confirm)" needs width 40+ to fit; it is absent at 38.
+func TestGrantsModalFooterNamesTheConfirmClearAtEveryWidth(t *testing.T) {
+	widthsWithInstruction := []int{40, 45, 50, 60, 80, 120, 200}
+	for _, w := range widthsWithInstruction {
+		m := headerModel(t, defaultSession(), w, 24)
+		// Use GrantsModalTitle constant to build the modal, matching the title
+		// that update.go:1108 assigns. This ensures the test exercises the same
+		// modal state that the real code produces.
+		m.openModal(ModalState{Kind: ModalContent, Title: GrantsModalTitle, Lines: []string{"grant1", "grant2"}})
+		lay := m.layout()
+		box, _, _ := m.modalBox(lay)
+		if len(box) < 2 {
+			t.Errorf("width=%d: box is %d row(s); no footer to read", w, len(box))
+			continue
+		}
+		footer := stripSGR(box[len(box)-2])
+		// At every width where the grants footer is rendered, it must include
+		// the clear confirmation instruction to signal the intervening confirmation step.
+		if !strings.Contains(footer, "to clear (confirm)") {
+			t.Errorf("width=%d: footer is %q, want it to contain %q", w, footer, "to clear (confirm)")
+		}
+	}
+
+	// At the narrow floor (around 30 columns), the clear confirmation instruction is
+	// deliberately absent due to space constraints. Verify the floor shows no
+	// inert bindings and includes the exit key.
+	floorWidth := 30
+	m := headerModel(t, defaultSession(), floorWidth, 24)
+	m.openModal(ModalState{Kind: ModalContent, Title: GrantsModalTitle, Lines: []string{"grant1", "grant2"}})
+	lay := m.layout()
+	box, _, _ := m.modalBox(lay)
+	if len(box) < 2 {
+		t.Errorf("width=%d (floor): box is %d row(s); no footer to read", floorWidth, len(box))
+	} else {
+		footer := stripSGR(box[len(box)-2])
+		// The floor shows the exit key and nothing else.
+		if strings.Contains(footer, "to clear (confirm)") {
+			t.Errorf("width=%d (floor): footer is %q, should not contain %q", floorWidth, footer, "to clear (confirm)")
+		}
+		if !strings.Contains(footer, "Esc") {
+			t.Errorf("width=%d (floor): footer is %q, should contain exit key %q", floorWidth, footer, "Esc")
+		}
+	}
+}
+
 // TestModalNamesNoInertBindingAtTheBodylessRung pins the other half of what the
 // footer is for. The rung above the notice keeps the footer and drops the body,
 // so the box is two borders and a footer over nothing — and the footer was still
@@ -1677,4 +1728,96 @@ func TestFrameKeepsAMarginAtBothEdges(t *testing.T) {
 			"a band it never reaches is a band it does not cover", ruledSeen, unpaddedSeen)
 	}
 	t.Logf("covered %d ruled frames and %d frames too narrow for a margin", ruledSeen, unpaddedSeen)
+}
+
+// TestHelpScrollingReachesDebugCommands verifies that `/run` is reachable by
+// scrolling in the help modal. The operator reported that `/run` was not visible
+// at their terminal height, but `/gitdiff  /patch` was. This test finds a
+// terminal height by rendering that shows `/patch` visible and `/run` off-screen,
+// then verifies that scrolling brings `/run` into view. No code change is expected;
+// this test pins real behaviour.
+func TestHelpScrollingReachesDebugCommands(t *testing.T) {
+	lines := helpLines()
+
+	// Find where /patch and /run are in the content
+	var patchIdx, runIdx int
+	for i, line := range lines {
+		if strings.Contains(line, "/patch") {
+			patchIdx = i
+		}
+		if strings.Contains(line, "/run") && !strings.Contains(line, "debug") {
+			runIdx = i
+		}
+	}
+
+	if patchIdx == 0 || runIdx == 0 {
+		t.Fatalf("could not find /patch (idx=%d) or /run (idx=%d) in help lines", patchIdx, runIdx)
+	}
+
+	if runIdx <= patchIdx {
+		t.Fatalf("/run at index %d should be after /patch at %d", runIdx, patchIdx)
+	}
+
+	// Find a terminal height by rendering: iterate upward from a minimum until
+	// we find a height where /patch is visible but /run is not (the operator's case).
+	var foundHeight int
+	for testHeight := 20; testHeight <= 50; testHeight++ {
+		m := headerModel(t, defaultSession(), 100, testHeight)
+		m.openModal(ModalState{
+			Kind:  ModalHelp,
+			Title: "help",
+			Lines: lines,
+		})
+
+		box, _, _ := m.modalBox(m.layout())
+		boxStr := strings.Join(box, "\n")
+
+		hasPatch := strings.Contains(boxStr, "/patch")
+		hasRun := strings.Contains(boxStr, "/run")
+
+		if hasPatch && !hasRun {
+			foundHeight = testHeight
+			break
+		}
+	}
+
+	if foundHeight == 0 {
+		t.Fatal("rendering at heights 20–50 found no height where /patch is visible and /run is not; " +
+			"cannot set up the test case the operator reported")
+	}
+
+	t.Logf("found height %d: /patch visible, /run off-screen", foundHeight)
+
+	// Create the model at the found height
+	m := headerModel(t, defaultSession(), 100, foundHeight)
+	m.openModal(ModalState{
+		Kind:  ModalHelp,
+		Title: "help",
+		Lines: lines,
+	})
+
+	// Verify precondition: /patch is visible, /run is not
+	box, _, _ := m.modalBox(m.layout())
+	boxStr := strings.Join(box, "\n")
+
+	if !strings.Contains(boxStr, "/patch") {
+		t.Fatal("at found height: /patch not visible before scroll (precondition failed)")
+	}
+	if strings.Contains(boxStr, "/run") {
+		t.Fatal("at found height: /run already visible before scroll (precondition failed)")
+	}
+
+	// Scroll down multiple times to bring /run into view
+	for i := 0; i < len(lines); i++ {
+		nextModel, _ := m.Update(keyType(tea.KeyDown))
+		m = nextModel.(Model)
+	}
+
+	// Verify /run is now visible after scrolling
+	box, _, _ = m.modalBox(m.layout())
+	boxStr = strings.Join(box, "\n")
+
+	if !strings.Contains(boxStr, "/run") {
+		t.Fatalf("after scrolling, /run still not visible:\n%s", boxStr)
+	}
 }

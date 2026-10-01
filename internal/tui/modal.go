@@ -14,6 +14,12 @@ const (
 	ModalHelp
 )
 
+// GrantsModalTitle is the title used for the session grants modal.
+// All three sites — the title assignment in update.go:1108,
+// the 'c' key handler gate in update.go:793-798, and the footer branch in modal.go:306 —
+// share this single identifier and cannot diverge.
+const GrantsModalTitle = "session grants"
+
 // ModalState is an open modal. One modal serves both the content and diff jobs.
 // ui-spec §4.1.
 type ModalState struct {
@@ -290,6 +296,26 @@ func (m Model) modalFooters(md *ModalState, scrollable bool) []string {
 	if m.pendingApproval != 0 {
 		exit = key + " back to approval"
 	}
+
+	// For the session grants modal, include the 'c' clear instruction.
+	// The footer is always shown even if content scrolls, so this instruction is never lost.
+	// Variants are progressively shorter to fit narrower modals; fitWidest picks the first
+	// that fits within the available width.
+	// "to clear (confirm)" signals that pressing 'c' opens a confirmation prompt, where 'y'
+	// answers the prompt and actually clears the grants. This distinguishes it from a direct clear.
+	if md.Kind == ModalContent && md.Title == GrantsModalTitle {
+		full := []string{
+			"j/k scroll" + dot + "g/G top/bottom" + dot + "c to clear (confirm)" + dot + exit,
+			"j/k scroll" + dot + "c to clear (confirm)" + dot + exit,
+			"c to clear (confirm)" + dot + exit,
+			key,
+		}
+		if !scrollable {
+			return full[2:] // no body rows; the scroll bindings would be inert
+		}
+		return full
+	}
+
 	full := []string{
 		"j/k scroll" + dot + "g/G top/bottom" + dot + exit,
 		"j/k scroll" + dot + exit,

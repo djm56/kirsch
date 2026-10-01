@@ -238,6 +238,110 @@ func TestRunCommandStdinIsDevNull(t *testing.T) {
 	}
 }
 
+// TestRunCommandCatApprovalGate verifies that 'cat' requires approval when no session grant exists.
+// This is a regression test for a consent-model defect where /run cat appeared to bypass
+// the approval gate entirely (see §9 of the manual test walkthrough).
+func TestRunCommandCatApprovalGate(t *testing.T) {
+	ctx := context.Background()
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New() // Fresh policy with no grants
+	approver := newFakeApprover(policy.DecisionAllow)
+
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// cat is not on the allowlist and no grant is active.
+	input := runCommandInput{
+		Argv: []string{"cat"},
+		Cwd:  ".",
+	}
+	raw, _ := json.Marshal(input)
+
+	res := tool.Invoke(ctx, raw)
+
+	// Verify that the approver was called (approval gate was reached).
+	if !approver.called {
+		t.Fatalf("approver should have been called for cat (not allowlisted, no grant)")
+	}
+
+	// Verify the approval request details.
+	if approver.lastReq.Operation != policy.OperationCommand {
+		t.Fatalf("approval request should have OperationCommand, got %d", approver.lastReq.Operation)
+	}
+	if len(approver.lastReq.Argv) != 1 || approver.lastReq.Argv[0] != "cat" {
+		t.Fatalf("approval request argv should be ['cat'], got %v", approver.lastReq.Argv)
+	}
+
+	// Verify the command succeeded (approver returned DecisionAllow).
+	if !res.OK {
+		t.Fatalf("cat command failed unexpectedly: %v", res.Error)
+	}
+}
+
+// TestRunCommandCatWithSessionGrant verifies that a command runs without approval
+// when a session grant covers it (prefix matching).
+func TestRunCommandCatWithSessionGrant(t *testing.T) {
+	ctx := context.Background()
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New() // Fresh policy
+	approver := newFakeApprover(policy.DecisionAllow)
+
+	// Grant "cat" (just the command name) to the session.
+	err := pol.Grant(policy.OperationCommand, []string{"cat"})
+	if err != nil {
+		t.Fatalf("failed to grant cat: %v", err)
+	}
+
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// Now invoke cat with the grant in place.
+	input := runCommandInput{
+		Argv: []string{"cat"},
+		Cwd:  ".",
+	}
+	raw, _ := json.Marshal(input)
+
+	res := tool.Invoke(ctx, raw)
+
+	// Verify that the approver was NOT called (grant covers it).
+	if approver.called {
+		t.Fatalf("approver should not have been called for cat (grant exists)")
+	}
+
+	// Verify the command succeeded.
+	if !res.OK {
+		t.Fatalf("cat command failed unexpectedly: %v", res.Error)
+	}
+}
+
+// TestRunCommandCatExitStatus verifies that 'cat' reading from /dev/null exits with status 0.
+// The tool is invoked through its real path and must assert the exit status, not merely
+// that it completes without hanging.
+func TestRunCommandCatExitStatus(t *testing.T) {
+	ctx := context.Background()
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New()
+	approver := newFakeApprover(policy.DecisionAllow)
+
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// Invoke 'cat' which will read from stdin (/dev/null) and exit with status 0.
+	input := runCommandInput{
+		Argv: []string{"cat"},
+		Cwd:  ".",
+	}
+	raw, _ := json.Marshal(input)
+
+	res := tool.Invoke(ctx, raw)
+
+	// Assert that the command succeeded.
+	if !res.OK {
+		t.Fatalf("cat command failed unexpectedly: %v", res.Error)
+	}
+}
+
 // TestRunCommandEnvironmentFiltering verifies that environment filtering works correctly.
 // A variable in both env_passthrough and a strip pattern should be stripped.
 func TestRunCommandEnvironmentFiltering(t *testing.T) {

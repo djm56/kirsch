@@ -428,7 +428,7 @@ func (m Model) receiveApprovalRequest(msg ApprovalRequestedMsg) (tea.Model, tea.
 	// Single-row fields must not contain newlines, which would break the box rendering.
 	grantScope := ""
 	if msg.CanApproveForSession && kind == ApprovalCommand {
-		grantScope = sanitizeSingleLine(msg.GrantScope)
+		grantScope = SanitizeSingleLine(msg.GrantScope)
 	}
 
 	// Sanitise each Detail line individually to preserve line structure,
@@ -443,12 +443,13 @@ func (m Model) receiveApprovalRequest(msg ApprovalRequestedMsg) (tea.Model, tea.
 		Kind: KindApproval,
 		Approval: &ApprovalCard{
 			Kind:         kind,
-			Title:        sanitizeSingleLine(msg.Description),
-			Subject:      sanitizeSingleLine(msg.Subject),
+			Title:        SanitizeSingleLine(msg.Description),
+			Subject:      SanitizeSingleLine(msg.Subject),
 			Detail:       sanitizedDetail,
 			GrantScope:   grantScope,
 			Outcome:      Unresolved,
-			DiffFilename: sanitizeSingleLine(msg.DiffFilename),
+			RequestedAt:  m.now(),
+			DiffFilename: SanitizeSingleLine(msg.DiffFilename),
 			Diff:         sanitizedDiff,
 			Added:        msg.DiffAdded,
 			Removed:      msg.DiffRemoved,
@@ -792,7 +793,7 @@ func (m Model) keyModal(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 		m.modal.Off = maxInt(0, len(m.modal.Lines)-1)
 	case "c":
 		// On grants modal, 'c' closes the modal and shows the clear confirmation
-		if m.modal.Kind == ModalContent && m.modal.Title == "session grants" {
+		if m.modal.Kind == ModalContent && m.modal.Title == GrantsModalTitle {
 			m.closeModal()
 			m.askConfirm(ConfirmState{Prompt: "Clear all session grants?", Action: ConfirmClearGrants})
 		}
@@ -908,7 +909,11 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 		return m
 	}
 	it.Approval.Outcome = o
-	it.Approval.Elapsed = 2400 * time.Millisecond
+	// Calculate the elapsed time from when the approval was requested to now.
+	// Use m.now() instead of time.Now() so tests can inject a fake clock.
+	if !it.Approval.RequestedAt.IsZero() {
+		it.Approval.Elapsed = m.now().Sub(it.Approval.RequestedAt)
+	}
 
 	// Call back to app.Resolve() to unblock the approval goroutine.
 	// Must never block. For ApprovedSession, the actual grant outcome will arrive
@@ -1101,11 +1106,11 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 			// Show the grants in a modal, sanitised for single-line display
 			sanitisedGrants := make([]string, len(grants))
 			for i, g := range grants {
-				sanitisedGrants[i] = sanitizeSingleLine(g)
+				sanitisedGrants[i] = SanitizeSingleLine(g)
 			}
 			m.openModal(ModalState{
 				Kind:  ModalContent,
-				Title: "session grants",
+				Title: GrantsModalTitle,
 				Lines: sanitisedGrants,
 			})
 		}
