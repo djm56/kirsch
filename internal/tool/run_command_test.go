@@ -425,9 +425,15 @@ func TestRunCommandOutputCapAt200KB(t *testing.T) {
 	tail := strings.Repeat("TAIL_", 10*1024)   // 50KB
 	largeString := head + middle + tail
 
-	// Use printf to generate the large output.
+	// Write to a file instead of passing as printf argument. Linux limits a single
+	// argv element to 128KB (MAX_ARG_STRLEN), so passing ~250KB directly to printf fails.
+	// Use cat to read the file instead.
+	if err := os.WriteFile(filepath.Join(ws.Root, "large-output.txt"), []byte(largeString), 0o644); err != nil {
+		t.Fatalf("failed to write large output file: %v", err)
+	}
+
 	input := runCommandInput{
-		Argv: []string{"printf", largeString},
+		Argv: []string{"cat", "large-output.txt"},
 		Cwd:  ".",
 	}
 	raw, _ := json.Marshal(input)
@@ -1058,8 +1064,15 @@ func TestRunCommandLargeOutputWithImmediateExit(t *testing.T) {
 	// Generate a large output (150KB) and exit immediately.
 	largeOutput := strings.Repeat("x", 150*1024)
 
+	// Write to a file instead of passing as printf argument. Linux limits a single
+	// argv element to 128KB (MAX_ARG_STRLEN), so passing 150KB directly to printf fails.
+	// Use cat to read the file instead.
+	if err := os.WriteFile(filepath.Join(ws.Root, "large-output.txt"), []byte(largeOutput), 0o644); err != nil {
+		t.Fatalf("failed to write large output file: %v", err)
+	}
+
 	input := runCommandInput{
-		Argv: []string{"printf", largeOutput},
+		Argv: []string{"cat", "large-output.txt"},
 		Cwd:  ".",
 	}
 	raw, _ := json.Marshal(input)

@@ -1,15 +1,16 @@
 # Kirsch
 
-> **Status: Milestones 0 and 1 complete; Milestone 2 (patches, commands,
-> approvals) is implemented and in acceptance.** Kirsch reads and searches a real
-> repository from inside the TUI, and, through the temporary `/patch` and `/run`
-> debug commands, can apply a patch or run a command: a patch always waits for
-> your approval, a command does unless it is on the short exact-match allowlist
-> or you have approved its prefix for the session, and shells always ask. Every
-> path crosses a containment check, the path denylist is enforced in one place,
-> and there is still no code that calls a model. The authoritative build spec is
-> [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in
-> [`plan/PROGRESS.md`](plan/PROGRESS.md).
+> **Status: Milestones 0 and 1 complete; Milestone 2 accepted with deferred
+> items (see [`plan/PROGRESS.md`](plan/PROGRESS.md)); Milestone 3 (the model)
+> is next.** Kirsch reads and searches a real repository from inside the
+> TUI, and, through the temporary `/patch` and `/run` debug commands, can
+> apply a patch or run a command: a patch always waits for your approval, a
+> command does unless it is on the short exact-match allowlist or you have
+> approved its prefix for the session, and shells always ask. Every path
+> crosses a containment check, the path denylist is enforced in one place,
+> and there is still no code that calls a model. The authoritative build
+> spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is
+> tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
 > ```
 > go run ./cmd/kirsch
@@ -101,7 +102,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 
 ## Progress
 
-Milestones 0 and 1 are complete. Milestone 2 (patches, commands, approvals) is implemented and in acceptance; its open items are listed in [`plan/milestones/milestone-2.md`](plan/milestones/milestone-2.md). Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+Milestones 0, 1 and 2 are complete. Milestone 2's deferred items are listed in [`plan/PROGRESS.md`](plan/PROGRESS.md), and Milestone 3 (provider and agent loop) is next. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 
 ## What works today
 

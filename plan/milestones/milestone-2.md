@@ -1,6 +1,6 @@
 # Milestone 2 — Instruction Set
 
-> **Status: Instruction set finalised. Implementation is in place; acceptance is not complete — see the open items after Task 9; 15 of 18 Task 9 boxes ticked (as of 2026-10-02).** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 1 completed 2026-09-12. This is the
+> **Status: Complete — accepted by the operator on 2026-10-02, with the items listed after Task 9 deferred; 15 of 18 Task 9 boxes ticked.** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 1 completed 2026-09-12. This is the
 > complete, ordered instruction set for Milestone 2 (patches, commands,
 > approvals). Execute tasks in order. This is the milestone where Kirsch first
 > changes something on disk, so the approval path is the point of the whole
@@ -430,9 +430,9 @@ wrong and gets updated in this milestone's commit.
 set to `☑ Complete`, and a commit tagged so Milestone 3 starts from a
 known point.
 
-**Status as of 2026-10-02.** Implementation is in place, but acceptance is not complete. These items are still open before the definition of done is met:
+**Status as of 2026-10-02: complete, with deferred items.** The operator tested Milestone 2 by hand and accepted it on 2026-10-02. The items below are deferred, not done. Each one is carried to *Carried from Milestone 2* in [`plan/PROGRESS.md`](../PROGRESS.md), to be picked up in Milestone 3 or a follow-up mission.
 
-- **CI has not run on any Milestone 2 code.** `main` is 12 commits ahead of `origin`. Every gate in the second-to-last box is clean locally: `go test -race ./...`, `golangci-lint fmt --diff` (`npm run fmt:check`), `go vet`, and `golangci-lint run` (0 issues), along with `npm run screens` and `npm run security`. The box stays open until CI is green after the push.
+- **CI.** The first CI run on Milestone 2 code (run 36985475148, commit `485e1dd`) failed only in two tests that passed a single argument over 128KB to `printf`, which Linux refuses. Mission-20261002-02 fixed them. Every other gate in the second-to-last box is clean locally. The box is ticked once CI is green on the operator's push of that fix.
 - **The timeout kill is not proven.**
   - `TestRunCommandTimeoutWithinDeadline` bounds the call at 1–2s after a 1s deadline, which is not the 500ms the box requires.
   - `TestRunCommandTimeoutProcessGroupDead` never checks that the process died. On timeout the result carries no content, so its PID parse fails and the test returns before its assertion (`internal/tool/run_command_test.go:~804`).
@@ -441,12 +441,12 @@ known point.
 - **The configured command timeout is ignored.** See the last item under *Where execution departed*.
 - **Two more settings and output streaming are not wired.** See *Where execution departed* (plan amendments 72 and 73).
 - **Some ticked boxes rest on the operator's walkthrough, not on a test that can fail.** The evidence table below says which. The tests that cannot detect a regression are listed under *Open defects*.
-- **Trailing-newline handling (Task 3.4) is suspect.** See *Open defects*. It should be reproduced, and fixed if it is real, before the tag.
-- **Four checks in the operator's walkthrough run are open** (`plan/testing/manual/user-testing/milestone-2-donovan.md`):
+- **Trailing-newline handling (Task 3.4) is suspect.** See *Open defects*. Deferred: reproduce it, and fix it if it is real, in a follow-up.
+- **Four checks in the operator's walkthrough run were not retested** (`plan/testing/manual/user-testing/milestone-2-donovan.md`); deferred:
   - `/run` in `/help` (§10). It was ❌ before this close-out; mission-20261002-01 fixed it, and it awaits retest.
   - The two `/patch` checks in §10.
   - The expand-with-Up check in §1. It was written before tool cards opened as previews.
-- **Release steps remain:** `plan/PROGRESS.md` set to `☑ Complete`, and the tag, which is the operator's. The CHANGELOG now carries the Milestone 2 entries.
+- **Release steps:** `plan/PROGRESS.md` is set to `☑ Complete`, and the CHANGELOG carries the Milestone 2 entries. The tag is the operator's.
 
 ### Evidence for Task 9
 
@@ -507,7 +507,7 @@ Each departure is recorded as a plan amendment in [`spec/kirsch-plan.md`](../spe
   - `applyModify` (`internal/patch/apply.go:~809–816`) decides the final newline from the last hunk's last line alone.
   - A file with no final newline gains one when a hunk stops short of the end.
   - A hunk that deletes the last line, with the `\ No newline` marker on the deleted line, drops the newline from the new last line.
-  - Either would break Task 3.4. Reproduce, and fix if real, before the tag.
+  - Either would break Task 3.4. Deferred: reproduce and fix if real, in a follow-up.
 - **Tests that cannot detect a regression:**
   - `TestRunCommandTimeoutProcessGroupDead` returns before its assertion.
   - `TestRunCommandCancellationProcessGroupDead` checks no PID.
