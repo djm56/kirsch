@@ -181,7 +181,7 @@ separators          both full-width "─" rules                    border    244
  ── you ───────────────────────────────────────────────────────────────────────
  Fix the Divide validation
 
- ▸ read_file calc/divide.go · 4ms · ✓ ok
+ ▾ read_file calc/divide.go · 4ms · ✓ ok
  ◐ run_command go test ./... · running
 
  I found it in calc/divide.go — the zero check runs after the division, so the
@@ -200,7 +200,7 @@ header.*            as screen 01
 speaker.rule        "── you ───…"                            border    244  #808080
 speaker.label       "you"                                    muted     248  #a8a8a8
 user.text           "Fix the Divide validation"              text      253  #dadada
-tool.glyph          "▸"                                      accent    117  #87d7ff
+tool.glyph          "▾" (preview/collapsed toggle)           accent    117  #87d7ff
 tool.glyph.running  "◐"                                      accent    117  #87d7ff
 tool.name           "read_file" / "run_command"    text 253 #dadada + BOLD
 tool.args+timing    " calc/divide.go · 4ms · "               muted     248  #a8a8a8
@@ -218,6 +218,8 @@ composer.prompt     ">" (disabled state)                     dim       245  #8a8
   status bar (`running go test`). §3.8.
 - Composer is dimmed and input-disabled while the turn is live; Esc cancels.
 - Assistant text soft-wraps at the viewport width. No horizontal scrolling in v0.1 (§2.2).
+- Tool cards show preview by default (glyph ▾ with first 10 lines of output if any); Enter toggles
+  to collapsed (head only, glyph ▸).
 
 ---
 
@@ -226,7 +228,7 @@ composer.prompt     ">" (disabled state)                     dim       245  #8a8
 ```text 80×17
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
- ▸ search_code "Divide(" · 3 matches · ✓ ok
+ ▾ search_code "Divide(" · 3 matches · ✓ ok
 
  ┃ ┌─ approval required ──────────────────────────────────────────────────────┐
  ┃ │ apply_patch — add input validation                                       │
@@ -247,7 +249,7 @@ composer.prompt     ">" (disabled state)                     dim       245  #8a8
 
 ```text
 header.*            as screen 01
-tool.glyph          "▸"                                      accent    117  #87d7ff
+tool.glyph          "▾" (preview/collapsed toggle)           accent    117  #87d7ff
 tool.name           "search_code"                  text 253 #dadada + BOLD
 tool.args           ' "Divide(" · 3 matches · '              muted     248  #a8a8a8
 tool.status.ok      "✓ ok"                                   success   120  #87ff87
@@ -323,7 +325,7 @@ status.grants       "1 grant"                                muted     248  #a8a
  ── you ─┌─ calc/divide.go ─────────────────────────────────── +12 −4 ┐────────
  Fix the │ @@ -12,7 +12,15 @@ func Divide(a, b float64) (float64, er⋯ │
          │  func Divide(a, b float64) (float64, error) {              │
- ▸ search│ -    return a / b, nil                                     │
+ ▾ search│ -    return a / b, nil                                     │
          │ +    if b == 0 {                                           │
  ┃ ┌─ app│ +        return 0, ErrDivideByZero                         │───────┐
  ┃ │ appl│ +    }                                                     │       │
@@ -375,33 +377,33 @@ status+composer     unchanged, still live                    muted     248  #a8a
 
 ## 06 · Help overlay
 
-```text 80×33
+```text 80×34
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
          ┌─ help ─────────────────────────────────────────────────────┐
- ▸ read_f│ composing                            approval              │
+ ▾ read_f│ composing                            approval              │
          │ Enter         send                   y         approve     │
          │ Shift+Enter   newline                a         + session   │
          │ Ctrl+J        newline (alt)          n         reject      │
-         │ Tab           complete /cmd          d         detail      │
-         │ ↑ at line 1   browse                                       │
-         │ Esc           cancel turn            modal                 │
-         │                                      j/k ↑/↓   scroll      │
-         │ browsing                             g/G       top/bottom  │
-         │ ↑/↓           select card            Esc       close       │
-         │ PgUp/PgDn     scroll                                       │
-         │ Enter         expand                 commands              │
-         │ d             diff / content         /help  /status        │
-         │ End           bottom, re-pin         /diff  /files         │
-         │ ?             help                   /approvals  /new      │
-         │                                      /compact  /quit       │
+         │ ↑/↓           history                d         detail      │
+         │ Shift+↑       cards                                        │
+         │ Tab           complete /cmd · cards  modal                 │
+         │ Esc           cancel turn            j/k ↑/↓   scroll      │
+         │                                      g/G       top/bottom  │
+         │ browsing                             Esc       close       │
+         │ ↑/↓           select card                                  │
+         │ PgUp/PgDn     scroll                 commands              │
+         │ Enter         toggle preview         /help  /status        │
+         │ d             diff / content         /diff  /files         │
+         │ End           bottom, re-pin         /approvals  /new      │
+         │ ?             help                   /compact  /quit       │
          │                                      /exit                 │
          │                                                            │
          │                                      debug (M1–M2)         │
+         │                                      /patch  /run          │
          │                                      /read  /ls            │
          │                                      /search  /gitstatus   │
-         │                                      /gitdiff  /patch      │
-         │                                      /run                  │
+         │                                      /gitdiff              │
          ├────────────────────────────────────────────────────────────┤
          │ kirsch v0.1.0-dev · docs: doc/usage.md · Esc or ? closes   │
          └────────────────────────────────────────────────────────────┘
@@ -409,6 +411,7 @@ status+composer     unchanged, still live                    muted     248  #a8a
  claude-sonnet-5 · idle · 12.4k tok
  ──────────────────────────────────────────────────────────────────────────────
  >
+
 ```
 
 **Colours**
@@ -428,9 +431,9 @@ BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8
 - Mode headings are `warning` (179); bindings are `muted` (244).
 - Two columns, both generated from the same binding table `update.go` dispatches on, so a
   binding cannot change behaviour while keeping its old description here.
-- **The overlay needs 33 rows.** §4.2 says one screen, no scrolling, and the content now
+- **The overlay needs 34 rows.** §4.2 says one screen, no scrolling, and the content now
   runs to 23 body lines plus four rows of modal chrome — a 27-row box. The frame spends
-  six more around it: the two-row header, the two rules, the status bar and the composer.
+  seven more around it: the two-row header, the two rules, the status bar, the composer and the key-hint row.
   The additional row accommodates M2 debug commands `/patch` and `/run` alongside the M1
   commands, requiring four rows of debug entries (two commands per line) instead of three.
   Below that height it scrolls rather than truncating silently, but the grid is drawn at
@@ -438,27 +441,32 @@ BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8
   leaves with the debug commands in M3, which buys back six rows — the blank spacer, the
   heading, and the four command rows beneath it. Body height is the taller of the two
   columns, so dropping them takes it from 23 to `max(left 15, right 17)` = 17, a 21-row
-  box and a 27-row screen. The right-hand column uses a narrower key field than the left
+  box and a 28-row screen. The right-hand column uses a narrower key field than the left
   because its keys are single characters — a shared field pushes its descriptions past the
   modal's edge at §2.2's 80% width.
 
 ---
 
-## 07 · Tool card expanded at the 200-line cap
+## 07 · Tool card in preview (10-line default)
 
-```text 80×17
+```text 80×22
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
- ┃   │     case 187: ok                                                       │
- ┃   │     case 188: ok                                                       │
- ┃   │     case 189: ok                                                       │
- ┃   │     case 190: ok                                                       │
- ┃   │     case 191: ok                                                       │
- ┃   │     case 192: ok                                                       │
- ┃   │     case 193: ok                                                       │
- ┃   │     case 194: ok                                                       │
+
+ ┃ ▾ run_command go test ./... · 2.4s · ✗ exit 1
+ ┃   ┌────────────────────────────────────────────────────────────────────────┐
+ ┃   │ === RUN   TestDivide                                                   │
+ ┃   │     divide_test.go:31: Divide(1, 0) = +Inf, want ErrDivideByZero       │
+ ┃   │ --- FAIL: TestDivide (0.00s)                                           │
+ ┃   │ === RUN   TestDivide_Table                                             │
+ ┃   │ --- PASS: TestDivide_Table (0.00s)                                     │
+ ┃   │     case 0: ok                                                         │
+ ┃   │     case 1: ok                                                         │
+ ┃   │     case 2: ok                                                         │
+ ┃   │     case 3: ok                                                         │
+ ┃   │     case 4: ok                                                         │
  ┃   └────────────────────────────────────────────────────────────────────────┘
- ┃   ‹200 of 4,176 lines — press d for full output›
+ ┃   ‹10 of 4,176 lines — d full output · Enter collapse›
 
  ──────────────────────────────────────────────────────────────────────────────
  claude-sonnet-5 · idle · 22.9k tok · 1 grant
@@ -470,28 +478,24 @@ BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8
 
 ```text
 gutter              "┃" on every card row                    accent    117  #87d7ff
-tool.glyph          "▾" (expanded)                           accent    117  #87d7ff
+tool.glyph          "▾" (preview/expanded)                   accent    117  #87d7ff
 tool.name           "run_command"                  text 253 #dadada + BOLD
 tool.args+timing    " go test ./... · 2.4s · "               muted     248  #a8a8a8
 tool.status.fail    "✗ exit 1"                               error     203  #ff5f5f
 output.border       inner "┌ ─ ┐ │ └ ┘"                      border    244  #808080
 output.bg           inner panel cells                 codeBg    235 #262626 (background)
 output.text         captured stdout/stderr verbatim          text      253  #dadada
-cap.marker          "‹200 of 4,181 lines — press d …›"       warning   215  #ffaf5f
+preview.marker      "‹10 of 4,176 lines — d full output · Enter collapse›"  muted  248  #a8a8a8
 card.bg             card interior (selected)         selectionBg 236 #303030 (background)
 NOTE                captured output is NOT syntax-coloured; ANSI is stripped (§5.1)
 ```
 
 - A command failure the model can handle stays a tool card with `✗` — it is **not** promoted
   to an error card. §3.6.
+- Tool cards show a preview of the first 10 lines by default. Enter toggles between preview
+  and collapsed (head only); there are only these two states. `d` opens the full output modal.
 - Output panel sits on `codeBg` (235) with indentation preserved.
-- Cap marker in `warning` (179). `d` opens the full output in a content modal.
-- **The grid shows the tail of the expansion, and that is not an omission.** A capped card
-  is 204 rows — head, border, 200 lines, border, marker — so at any usable terminal height
-  the head is above the fold. The earlier drawing showed a head, six output lines and the
-  `‹200 of …›` marker together, which no renderer can produce: six lines and a 200-line cap
-  are different claims. What you see here is what the state actually looks like, and the
-  marker — the thing this state exists to show — is in frame.
+- Preview marker shows the hidden line count when output exceeds 10 lines. Muted text (not warning).
 
 ---
 
@@ -541,12 +545,12 @@ NOTE                the error card sets NO background — border and title only
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
 
- ┃ ▸ read_file internal/session/store.go:1-120 · 3ms · ✓ ok
+ ┃ ▾ read_file internal/session/store.go:1-120 · 3ms · ✓ ok
 
  The lock is taken in Open, before auto-resume reads index.json, so a second
  instance starts a fresh session instead of adopting the first.
 
- ▸ git_diff · 2 files changed · 8ms · ✓ ok
+ ▾ git_diff · 2 files changed · 8ms · ✓ ok
                                                                         ↓ 3 new
  ──────────────────────────────────────────────────────────────────────────────
  claude-sonnet-5 · ⠼ thinking · 28.0k tok
@@ -559,7 +563,7 @@ NOTE                the error card sets NO background — border and title only
 ```text
 gutter              "┃" (selected card)                      accent    117  #87d7ff
 card.bg             selected card row               selectionBg 236 #303030 (background)
-tool.glyph          "▸"                                      accent    117  #87d7ff
+tool.glyph          "▾" (preview/collapsed toggle)           accent    117  #87d7ff
 tool.name           "read_file" / "git_diff"       text 253 #dadada + BOLD
 tool.args+timing    " internal/session/store.go:1-120 · 3ms · "  muted 248  #a8a8a8
 tool.status.ok      "✓ ok"                                   success   120  #87ff87
@@ -584,7 +588,7 @@ cursor              "▌"                                      dim       245  #8
 ```text 40×11
  Kirsch ───────────────────────────────
  my-project
- ▸ read_file calc/divide.go · ✓ ok
+ ▾ read_file calc/divide.go · ✓ ok
 
  Soft wrap only. No horizontal
  scrolling in v0.1. ▌
@@ -645,7 +649,7 @@ NOTE                no token changes at any width — only which SPANS are emitt
 ```text 80×17
  Kirsch -----------------------------------------------------------------------
  my-project - main *
- > search_code "Divide(" . 3 matches . [ok]
+ v search_code "Divide(" . 3 matches . [ok]
 
  | +- approval required ------------------------------------------------------+
  | | apply_patch - add input validation                                       |
@@ -725,7 +729,8 @@ Nothing sets a default background. `codeBg` and `selectionBg` apply only inside 
 
 ## Layout invariants
 
-1. Row order is always: header, transcript, status bar, composer. Only the transcript flexes.
+1. Row order is always: header, transcript, status bar, composer, then a key-hint row at
+   terminal height ≥ 24. Only the transcript flexes.
 2. The header is two rows — the wordmark and its rule, then the session line. The status bar
    and composer are one row each. The composer grows to a maximum of 5 rows on `Alt+Enter`,
    taking rows from the transcript. The header is shown or hidden **as a unit**, so the

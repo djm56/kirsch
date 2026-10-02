@@ -21,6 +21,12 @@ type renderCtx struct {
 	G        Glyphs
 	Frame    int
 	ShowDur  bool
+	// LinkedApprovalOutcome is set when a tool card is linked to an approval.
+	// It carries the approval's outcome so the badge can be rendered at draw time.
+	LinkedApprovalOutcome ApprovalOutcome
+	// LinkedApprovalScope is set when a tool card is linked to an approval
+	// with ApprovedSession outcome and a non-empty GrantScope.
+	LinkedApprovalScope string
 }
 
 // renderItem is the one place a transcript item becomes lines.
@@ -167,11 +173,24 @@ func renderTool(c *ToolCard, ctx renderCtx) []string {
 	if c.Target != "" {
 		head += " " + ctx.Sty.Muted(truncMid(c.Target, ctx.W/2, ctx.G.Trunc))
 	}
-	// Field order is glyph, name, target, summary, duration, status — §3.3 and
+	// Field order is glyph, name, target, summary, approval badge, duration, status — §3.3 and
 	// every grid. An errored command carries its summary with the ✗ instead, so
 	// the line reads "· 2.4s · ✗ exit 1" rather than repeating it.
 	if c.Summary != "" && c.State != StateError {
 		head += ctx.Sty.Muted(dot + c.Summary)
+	}
+	// Add approval badge if the linked approval is approved/approved for session.
+	switch ctx.LinkedApprovalOutcome {
+	case Approved:
+		head += ctx.Sty.Muted(dot + "approved")
+	case ApprovedSession:
+		head += ctx.Sty.Muted(dot + "approved for session")
+	case Unresolved, Rejected, Cancelled:
+		// Other outcomes don't get a badge.
+	}
+	// Add session scope if linked approval is for session with a scope.
+	if ctx.LinkedApprovalScope != "" {
+		head += ctx.Sty.Muted(dot + ctx.LinkedApprovalScope)
 	}
 	if ctx.ShowDur && c.Elapsed > 0 {
 		head += ctx.Sty.Muted(dot + formatDuration(c.Elapsed))
@@ -204,31 +223,38 @@ func renderTool(c *ToolCard, ctx renderCtx) []string {
 		return out
 	}
 
-	// Expanded: a fenced panel, capped at 200 rendered lines. The card keeps
-	// everything; the cap is a render decision so `d` can still show it all.
+	// Preview: a fenced panel showing the first 10 lines. Tool cards are in preview
+	// by default (ctx.Expanded = true). The `d` key opens the full output in a modal.
 	const indent = 2
 	outer := ctx.W - indent
 	inner := outer - 3 // borders plus the leading space
 	if inner < 8 {
 		inner = 8
 	}
+
 	shown := c.Out
-	if len(shown) > InlineExpandCap {
-		shown = shown[:InlineExpandCap]
+	if len(shown) > PreviewLines {
+		shown = shown[:PreviewLines]
 	}
+
 	body := make([]string, 0, len(shown))
 	for _, ln := range shown {
 		body = append(body, " "+ctx.Sty.CodeBg(pad(truncEnd(ln, inner, ctx.G.Trunc), inner)))
 	}
 	out = append(out, box(indent, "", body, outer, ctx.Sty.Border, ctx)...)
-	if len(c.Out) > InlineExpandCap {
-		out = append(out, strings.Repeat(" ", indent)+ctx.Sty.Warning(
-			fmt.Sprintf("‹%d of %s lines — press d for full output›", InlineExpandCap, comma(len(c.Out)))))
+	if len(c.Out) > PreviewLines {
+		out = append(out, strings.Repeat(" ", indent)+ctx.Sty.Muted(
+			fmt.Sprintf("‹%d of %s lines — d full output · Enter collapse›", PreviewLines, comma(len(c.Out)))))
 	}
 	return out
 }
 
 func renderApproval(a *ApprovalCard, ctx renderCtx) []string {
+	// Folded cards render zero rows and are skipped by navigation.
+	if a.Folded() {
+		return []string{}
+	}
+
 	// Once resolved the card collapses to a single tool-card-shaped line. Same
 	// item, same position — it is not rewritten, it renders its later state.
 	if a.Outcome != Unresolved {

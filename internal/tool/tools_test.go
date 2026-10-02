@@ -284,6 +284,30 @@ func TestReadFile(t *testing.T) {
 	})
 }
 
+func TestReadFileDisplaySummaryFormat(t *testing.T) {
+	dir := t.TempDir()
+	tmpFile := filepath.Join(dir, "test.txt")
+	content := "line 1\nline 2\nline 3"
+	if err := os.WriteFile(tmpFile, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tmpWS, err := workspace.Detect(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r := registryFor(tmpWS)
+	res := r.Invoke(context.Background(), "read_file",
+		mustJSON(t, map[string]any{"path": "test.txt"}))
+
+	if !res.OK {
+		t.Fatalf("read_file failed: %v", res.Error)
+	}
+	if res.DisplaySummary != "lines 1-3" {
+		t.Errorf("DisplaySummary = %q, want %q", res.DisplaySummary, "lines 1-3")
+	}
+}
+
 func TestListFiles(t *testing.T) {
 	ws := fixtureWS(t, "repo-small")
 	r := registryFor(ws)

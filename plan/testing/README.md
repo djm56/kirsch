@@ -78,9 +78,9 @@ The master walkthrough (`manual/milestone-N.md`) is always blank — it is the t
 
 **To run a walkthrough:**
 
-1. Copy the master to a named file: `cp manual/milestone-N.md manual/milestone-N-<yourname>.md`
+1. Copy the master to a named file: `cp manual/milestone-N.md manual/user-testing/milestone-N-<yourname>.md`
 2. Tick your copy as you verify each item.
-3. Commit both files: the blank master (if you re-created it) and your completed run.
+3. Commit both files: the blank master and your completed run in `user-testing/`.
 
 **Why this matters:**
 
@@ -89,16 +89,13 @@ The master walkthrough (`manual/milestone-N.md`) is always blank — it is the t
 - Completed runs are kept, not deleted. They are the record of what was verified and by whom.
 - Before you tick an item, you've actually checked it. A ticked box means "I tested this and it works".
 
-**Note:** The [`manual/milestone-1.md`](manual/milestone-1.md) file currently holds a completed run in the master template — it has 55 ticked items and 1 unticked. This violates the convention and should be split into a blank master plus a named copy for whoever ran it. That split is a decision for the operator, not something this step does.
-
 ## Outstanding Verification
 
-Eight manual walkthrough checks remain unticked despite Milestones 0 and 1 being marked complete:
+Seven manual walkthrough checks remain unticked from Milestone 0 testing:
 
-- `testing/manual/milestone-0-donovan.md` — seven unticked items: all are the `Ctrl+G` / `g` / `G` re-pin checks. These were added by a later mission that built the re-pin feature, so they postdate the original walkthrough run rather than having been skipped.
-- `testing/manual/milestone-1.md` — one unticked item: "Outside a repository it refuses with a message naming `--workspace`" — the failure path for workspace detection.
+- `testing/manual/user-testing/milestone-0-donovan.md` — seven unticked items: all are the `Ctrl+G` / `g` / `G` re-pin checks. These were added by a later mission that built the re-pin feature, so they postdate the original walkthrough run rather than having been skipped.
 
-This section exists to keep the gap visible rather than lost. The operator has confirmed Milestones 0 and 1 are tested and is moving forward; close these unticked items as part of Milestone 2's acceptance work or afterward as a cleanup step.
+The milestone-1 unticked item ("Outside a repository it refuses with a message naming `--workspace`") is the failure path for workspace detection. The operator has confirmed Milestones 0 and 1 are tested and is moving forward; close these unticked items as part of Milestone 2's acceptance work or afterward as a cleanup step.
 
 ## The One Rule Worth Repeating
 

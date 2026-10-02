@@ -159,7 +159,7 @@ func scenarios() []scenario {
 				Out: SanitizeLines(fakeTestOutput),
 			}})
 			m.sel = id
-			m.expanded[id] = true
+			// Tool cards show preview by default; no need to set expanded
 			m.status.Tokens = 22900
 			m.GetGrantCount = func() int { return 1 }
 		}},

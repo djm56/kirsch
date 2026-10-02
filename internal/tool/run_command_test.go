@@ -471,7 +471,7 @@ func TestRunCommandOutputCapAt200KB(t *testing.T) {
 		t.Fatalf("could not verify truncation structure in output")
 	}
 
-	if !(headIdx < markerIdx && markerIdx < tailIdx) {
+	if headIdx >= markerIdx || markerIdx >= tailIdx {
 		t.Fatalf("output structure incorrect: head(%d) < marker(%d) < tail(%d) is false", headIdx, markerIdx, tailIdx)
 	}
 }
@@ -775,7 +775,7 @@ func TestRunCommandTimeoutProcessGroupDead(t *testing.T) {
 echo "PID=$BASHPID"
 sleep 60`
 
-	if err := os.WriteFile(scriptPath, []byte(pidReportScript), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(pidReportScript), 0o755); err != nil {
 		t.Skipf("could not create test script: %v", err)
 	}
 
@@ -920,7 +920,7 @@ func TestRunCommandTerminateThenKill(t *testing.T) {
 trap "" TERM
 sleep 60`
 
-	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
 		t.Skipf("could not create test script: %v", err)
 	}
 
@@ -1035,7 +1035,7 @@ func TestRunCommandOutput200KBCapStreaming(t *testing.T) {
 	markerIdx := strings.Index(result.Content, "output truncated")
 	tailIdx := strings.LastIndex(result.Content, "TAIL_")
 
-	if !(headIdx < markerIdx && markerIdx < tailIdx) {
+	if headIdx >= markerIdx || markerIdx >= tailIdx {
 		t.Fatalf("truncation structure incorrect: head(%d) before marker(%d) before tail(%d)", headIdx, markerIdx, tailIdx)
 	}
 }
@@ -1108,7 +1108,7 @@ func TestRunCommandGrandchildCleanup(t *testing.T) {
 (echo $BASHPID > %s; sleep 60) &
 sleep 60`, pidFile)
 
-	if err := os.WriteFile(parentScript, []byte(parentCode), 0755); err != nil {
+	if err := os.WriteFile(parentScript, []byte(parentCode), 0o755); err != nil {
 		t.Skipf("could not create test script: %v", err)
 	}
 

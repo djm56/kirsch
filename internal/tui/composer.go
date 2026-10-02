@@ -18,6 +18,16 @@ type Composer struct {
 	Focused    bool   // the composer holds input capture
 	Onboarding bool   // nothing has been said yet: show the placeholder
 	Hint       string // dim inline hint for an unknown /command, §6
+
+	// History for command and message recall. Stores up to 100 entries,
+	// newest first (index 0 is the most recent submission).
+	history []string
+	// historyPos is the index into history for navigation. -1 means we're
+	// at the live draft (not in history). Used for ↑/↓ navigation.
+	historyPos int
+	// draftText holds the uncommitted text when navigating history, restored
+	// when returning to the live draft.
+	draftText string
 }
 
 func newComposer() Composer {
@@ -28,7 +38,11 @@ func newComposer() Composer {
 	ta.CharLimit = 0
 	ta.SetHeight(1)
 	ta.Focus()
-	return Composer{ta: ta}
+	return Composer{
+		ta:         ta,
+		history:    make([]string, 0, 100),
+		historyPos: -1,
+	}
 }
 
 // Value returns the composer's contents.
@@ -37,10 +51,11 @@ func (c *Composer) Value() string { return c.ta.Value() }
 // SetValue replaces the composer's contents.
 func (c *Composer) SetValue(s string) { c.ta.SetValue(s) }
 
-// Reset clears the composer and any pending hint.
+// Reset clears the composer and any pending hint, and resets history navigation.
 func (c *Composer) Reset() {
 	c.ta.Reset()
 	c.Hint = ""
+	c.resetHistory()
 }
 
 // InsertString inserts literal text at the cursor. Used for bracketed paste,
@@ -363,8 +378,9 @@ var SlashCommands = []string{
 // removed in M3. M1 commands (/read, /ls, /search, /gitstatus, /gitdiff) are read-only;
 // M2 commands (/patch, /run) apply patches and execute commands. Tab-completable
 // alongside the real set, but labelled (debug) in the help overlay.
+// M2 commands come first so they share a row in the help overlay.
 var DebugCommands = []string{
-	"/read", "/ls", "/search", "/gitstatus", "/gitdiff", "/patch", "/run",
+	"/patch", "/run", "/read", "/ls", "/search", "/gitstatus", "/gitdiff",
 }
 
 // completeSlash completes a unique prefix, returning the completion and whether
@@ -388,4 +404,76 @@ func trimSlashes(in []string) []string {
 		out[i] = strings.TrimPrefix(s, "/")
 	}
 	return out
+}
+
+// addHistory stores an entry in the history. Trims whitespace, deduplicates
+// against the newest entry, skips empty entries, and caps at 100 total.
+// Called inside submit().
+func (c *Composer) addHistory(text string) {
+	text = strings.TrimRight(text, "\n")
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	// Don't store if it's identical to the newest entry
+	if len(c.history) > 0 && c.history[0] == text {
+		return
+	}
+	// Insert at the front (newest first)
+	c.history = append([]string{text}, c.history...)
+	// Cap at 100 entries, dropping the oldest
+	if len(c.history) > 100 {
+		c.history = c.history[:100]
+	}
+}
+
+// historyUp navigates to the previous (older) entry. If at the live draft,
+// saves it first. Returns true if navigation happened, false if there was no history
+// or if already at the oldest entry.
+func (c *Composer) historyUp() bool {
+	if c.historyPos == -1 && len(c.history) > 0 {
+		// Save the current (live draft) text
+		c.draftText = c.ta.Value()
+		c.historyPos = 0
+	} else if c.historyPos >= 0 && c.historyPos < len(c.history)-1 {
+		// Move to the next older entry
+		c.historyPos++
+	} else {
+		// At the oldest entry or no history, do nothing
+		return false
+	}
+	// Load the entry and move cursor to end
+	if c.historyPos >= 0 && c.historyPos < len(c.history) {
+		c.ta.SetValue(c.history[c.historyPos])
+		c.ta.CursorEnd()
+	}
+	return true
+}
+
+// historyDown navigates to the next (newer) entry. If past the newest,
+// restores the saved draft. Returns true if navigation happened, false if at the
+// live draft.
+func (c *Composer) historyDown() bool {
+	if c.historyPos > 0 {
+		// Move to the next newer entry
+		c.historyPos--
+		c.ta.SetValue(c.history[c.historyPos])
+		c.ta.CursorEnd()
+		return true
+	} else if c.historyPos == 0 {
+		// Past the newest entry, restore the draft
+		c.historyPos = -1
+		c.ta.SetValue(c.draftText)
+		c.draftText = ""
+		c.ta.CursorEnd()
+		return true
+	}
+	// At live draft, do nothing
+	return false
+}
+
+// resetHistory clears the navigation state but preserves the history entries.
+// Called after submit().
+func (c *Composer) resetHistory() {
+	c.historyPos = -1
+	c.draftText = ""
 }

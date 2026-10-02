@@ -31,7 +31,7 @@ import (
 // scroll to.
 func scrolledUp(t *testing.T) Model {
 	t.Helper()
-	m := drive(newDrivenSize(t, 80, 12), key('y'), keyType(tea.KeyUp), keyType(tea.KeyPgUp))
+	m := drive(newDrivenSize(t, 80, 12), key('y'), keyType(tea.KeyShiftUp), keyType(tea.KeyPgUp))
 	if m.scroll.Pinned {
 		t.Fatalf("setup: PgUp did not unpin (%d lines, viewport %d)",
 			len(m.lines), m.layout().TranscriptH)

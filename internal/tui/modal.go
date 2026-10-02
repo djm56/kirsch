@@ -248,10 +248,23 @@ func (m Model) modalBox(lay Layout) (box []string, top, left int) {
 	}
 
 	if showRule {
-		box = append(box, m.sty.BorderFocus(m.gly.BoxLT+fill(m.gly.BoxH, w-2)+m.gly.BoxRT))
+		// Embed clipping marker when lines are hidden.
+		// No marker is drawn when the rule row is not drawn: the rule row holds the
+		// only representation of which lines are hidden and how many, so the marker
+		// is only meaningful when that row appears. When the marker is omitted
+		// (nothing hidden, or too narrow to fit) the plain rule is drawn whole in
+		// BorderFocus.
+		ruleRow := m.sty.BorderFocus(m.gly.BoxLT + fill(m.gly.BoxH, w-2) + m.gly.BoxRT)
+		if off > 0 || off+bodyH < len(md.Lines) {
+			if marker := m.buildClippingMarker(off, bodyH, len(md.Lines), w); marker != "" {
+				ruleRow = m.embedMarkerInRule(marker, w)
+			}
+		}
+		box = append(box, ruleRow)
 	}
 
-	footer := fitWidest(m.modalFooters(md, showBody), inner+1, m.gly.Trunc)
+	clipped := showBody && len(md.Lines) > bodyH
+	footer := fitWidest(m.modalFooters(md, showBody, clipped), inner+1, m.gly.Trunc)
 	box = append(box, m.sty.BorderFocus(m.gly.BoxV)+" "+
 		pad(m.sty.Muted(footer), inner+1)+
 		m.sty.BorderFocus(m.gly.BoxV))
@@ -276,15 +289,27 @@ func (m Model) modalBox(lay Layout) (box []string, top, left int) {
 // names three bindings that do nothing, and an inert binding is worse than a
 // short footer: it is the row the user trusts when the frame has stopped making
 // sense. So that rung starts one variant down, at the exit key alone. The help
-// family needs no such branch — none of its variants names a scroll binding.
+// family does not read `scrollable`; it reads `clipped` and names the scroll
+// keys only when the body shows fewer rows than the content has. `clipped` is
+// computed as `showBody && …`, so it is already false at the rung where the
+// body is withdrawn.
 //
 // Every literal naming the exit key comes from modalExit, including the floors.
 // Spelling it twice is how the footer and the notice row would come to disagree
 // about which key leaves this modal.
-func (m Model) modalFooters(md *ModalState, scrollable bool) []string {
+func (m Model) modalFooters(md *ModalState, scrollable bool, clipped bool) []string {
 	dot := " " + m.gly.Bullet + " "
 	key := m.modalExit(md)
 	if md.Kind == ModalHelp {
+		if clipped {
+			return []string{
+				"j/k scroll" + dot + "g/G top/bottom" + dot + "docs: doc/usage.md" + dot + key + " closes",
+				"j/k scroll" + dot + "g/G top/bottom" + dot + key + " closes",
+				"j/k scroll" + dot + key + " closes",
+				key + " closes",
+				key,
+			}
+		}
 		return []string{
 			"kirsch v" + m.sess.Version + dot + "docs: doc/usage.md" + dot + key + " closes",
 			"kirsch v" + m.sess.Version + dot + key + " closes",
@@ -649,6 +674,65 @@ func (m Model) styleHelpLine(raw string, inner int) string {
 		return m.sty.Warning(body)
 	}
 	return m.sty.Muted(body)
+}
+
+// buildClippingMarker constructs a clipping marker string when lines are hidden
+// above or below the visible region. Returns an empty string if no clipping.
+// Format: "↑ N above" or "↓ N more" or "↑ N above · ↓ M more".
+func (m Model) buildClippingMarker(off, bodyH, totalLines int, ruleWidth int) string {
+	hiddenAbove := off
+	hiddenBelow := totalLines - (off + bodyH)
+
+	var parts []string
+	if hiddenAbove > 0 {
+		parts = append(parts, fmt.Sprintf("%s %d above", m.gly.UpArrow, hiddenAbove))
+	}
+	if hiddenBelow > 0 {
+		parts = append(parts, fmt.Sprintf("%s %d more", m.gly.DownArrow, hiddenBelow))
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	sep := " " + m.gly.Bullet + " "
+	marker := strings.Join(parts, sep)
+
+	// Width contract: the marker must fit in the rule row with at least one BoxH
+	// cell on EACH side of it, so the marker never touches a corner.
+	// Rule is BoxLT + BoxH* + space + marker + space + BoxH* + BoxRT. The cells left
+	// for BoxH are markerSpace - cellWidth(marker); with the split in
+	// embedMarkerInRule (left = half, rounded down) both sides get at least one
+	// only when that is >= 2. If it doesn't fit, omit the marker (return empty
+	// string) so the rule row is plain.
+	markerSpace := ruleWidth - 2 - 2 // remove BoxLT and BoxRT, and 2 for spacing
+	if cellWidth(marker) > markerSpace-2 {
+		return ""
+	}
+
+	return marker
+}
+
+// embedMarkerInRule inserts the marker into the rule row, centered if possible,
+// with the marker text styled using Muted and borders styled with BorderFocus.
+// Assumes the marker has already been checked for fit by buildClippingMarker.
+// The rule it returns is BoxLT + BoxH* + " " + marker + " " + BoxH* + BoxRT, built
+// from scratch at ruleWidth cells.
+func (m Model) embedMarkerInRule(marker string, ruleWidth int) string {
+	// Calculate how much space we have for the marker plus padding
+	// We need: BoxLT (1) + space + marker + space + BoxH* + BoxRT (1)
+	markerSpace := ruleWidth - 2 - 2 // remove BoxLT and BoxRT, and 2 for spacing
+	availableForBoxH := markerSpace - cellWidth(marker)
+
+	// Distribute BoxH on left and right
+	leftBoxH := availableForBoxH / 2
+	rightBoxH := availableForBoxH - leftBoxH
+
+	// Build rule from separately styled segments: borders with BorderFocus,
+	// marker text with Muted.
+	return m.sty.BorderFocus(m.gly.BoxLT+fill(m.gly.BoxH, leftBoxH)+" ") +
+		m.sty.Muted(marker) +
+		m.sty.BorderFocus(" "+fill(m.gly.BoxH, rightBoxH)+m.gly.BoxRT)
 }
 
 func maxInt(a, b int) int {

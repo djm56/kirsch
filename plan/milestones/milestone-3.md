@@ -244,13 +244,13 @@ states; the §13 table's "not yet drawn" note is removed.
 
 1. The model now drives tools. **Delete the debug slash commands** from M1 and
    M2 (`/read`, `/ls`, `/search`, `/gitstatus`, `/gitdiff`, `/patch`, `/run`)
-   and the `debug (M1 only)` block from the help overlay. They were labelled as
+   and the `debug (M1–M2)` block from the help overlay. They were labelled as
    scaffolding precisely so this step is a deletion rather than a negotiation.
-   Screen 06 gets five rows back — the blank spacer, the heading, and the three
-   command rows — and shrinks from 80×32 to 80×27. (Body height is the taller of
-   the two columns: `max(left 15, right 17)` = 17, a 21-row box, plus the six
+   Screen 06 gets six rows back — the blank spacer, the heading, and the four
+   command rows — and shrinks from 80×34 to 80×28. (Body height is the taller of
+   the two columns: `max(left 15, right 17)` = 17, a 21-row box, plus the seven
    rows the frame spends around it — a two-row header, two separator rules, the
-   status bar and the composer.)
+   status bar, the composer and the key-hint row.)
 2. Token counts in the status bar come from real `Usage` events.
 3. Budget estimation per §6.3: chars/4, 4096-token output reserve, auto-compact
    above 75%. Compaction itself is M4; here, exceeding the budget surfaces

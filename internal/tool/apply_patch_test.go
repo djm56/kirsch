@@ -201,6 +201,56 @@ func TestApplyPatchConflictNoApproval(t *testing.T) {
 	}
 }
 
+// TestApplyPatchCRLFConvertingNoApproval verifies that CRLF-converting patches
+// are rejected during dry-run without calling the approver.
+func TestApplyPatchCRLFConvertingNoApproval(t *testing.T) {
+	ctx := context.Background()
+	ws := newTestWorkspace(t)
+
+	// Write the CRLF fixture file
+	crlfFixture, err := os.ReadFile("../../testdata/repo-patch/crlf.txt")
+	if err != nil {
+		t.Fatalf("failed to read crlf fixture: %v", err)
+	}
+	crlf := filepath.Join(ws.Root, "crlf.txt")
+	if err := os.WriteFile(crlf, crlfFixture, 0o644); err != nil {
+		t.Fatalf("failed to write crlf.txt: %v", err)
+	}
+
+	// Load the converting diff
+	diffContent, err := os.ReadFile("../../testdata/patches/crlf-converting.diff")
+	if err != nil {
+		t.Fatalf("failed to read crlf-converting.diff: %v", err)
+	}
+
+	approver := newFakeApprover(policy.DecisionAllow)
+	tool := &ApplyPatch{WS: ws, Approver: approver}
+
+	input := applyPatchInput{
+		Diff:        string(diffContent),
+		Description: "test",
+	}
+	raw, _ := json.Marshal(input)
+
+	result := tool.Invoke(ctx, raw)
+
+	if result.OK {
+		t.Fatalf("expected failure, got OK")
+	}
+	if result.Error.Kind != KindToolInputInvalid {
+		t.Fatalf("expected KindToolInputInvalid, got %s", result.Error.Kind)
+	}
+	if approver.called {
+		t.Fatalf("approver should not have been called for line ending conversion")
+	}
+
+	// Verify file is unchanged
+	actualBytes, _ := os.ReadFile(crlf)
+	if string(actualBytes) != string(crlfFixture) {
+		t.Errorf("file should be unchanged after rejection")
+	}
+}
+
 // TestApplyPatchDenialWritesNothing verifies that denial cleans up all temp files
 // and leaves the target file unchanged.
 func TestApplyPatchDenialWritesNothing(t *testing.T) {

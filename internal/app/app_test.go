@@ -1220,15 +1220,16 @@ func TestApprovalSessionGrantRefusedIsVisible(t *testing.T) {
 		t.Errorf("NoticeMsg.Text = %q, expected to contain 'denied'", noticeMsg.Text)
 	}
 
-	// Third message should be ApprovalResolvedMsg with Rejected outcome
+	// Third message should be ApprovalResolvedMsg with Approved outcome
 	resolvedMsg, ok := msgs[2].(tui.ApprovalResolvedMsg)
 	if !ok {
 		t.Fatalf("third message is %T, want tui.ApprovalResolvedMsg", msgs[2])
 	}
 
-	// The confirmed outcome should be Rejected because the grant was refused
-	if resolvedMsg.Outcome != tui.Rejected {
-		t.Errorf("ApprovalResolvedMsg.Outcome = %v, want tui.Rejected", resolvedMsg.Outcome)
+	// The confirmed outcome should be Approved because the tool runs allow-once
+	// when the session grant is refused. The tool runs, so the card shows approved.
+	if resolvedMsg.Outcome != tui.Approved {
+		t.Errorf("ApprovalResolvedMsg.Outcome = %v, want tui.Approved", resolvedMsg.Outcome)
 	}
 }
 
@@ -1939,7 +1940,8 @@ func TestRunCommandCardShowsCommand(t *testing.T) {
 	// excludes the other two by their status words.
 	isResultHead := func(line string) bool {
 		return strings.Contains(line, "run_command") && strings.Contains(line, "cat go.mod") &&
-			!strings.Contains(line, "approved") && !strings.Contains(line, "running")
+			(strings.Contains(line, "✓") || strings.Contains(line, "✗")) &&
+			!strings.Contains(line, "running")
 	}
 	hasResultHead := func(v string) bool {
 		for _, line := range strings.Split(v, "\n") {
@@ -1952,4 +1954,32 @@ func TestRunCommandCardShowsCommand(t *testing.T) {
 	// cat go.mod exits 1 in repo-small (no go.mod there); that is still a result
 	// card, and its head is what is under test.
 	pollView("a result card head naming the command", hasResultHead)
+}
+
+// TestToAppOutcomeMatchesAppConstants verifies the cross-package mapping between
+// TUI ApprovalOutcome values and app ApprovalOutcome values, ensuring that
+// tui.ToAppOutcome returns values that correspond to the expected app constants.
+func TestToAppOutcomeMatchesAppConstants(t *testing.T) {
+	testCases := []struct {
+		tuiName     string
+		tuiOutcome  tui.ApprovalOutcome
+		appName     string
+		appExpected ApprovalOutcome
+	}{
+		{"Approved", tui.Approved, "ApprovalOutcomeOnce", ApprovalOutcomeOnce},
+		{"ApprovedSession", tui.ApprovedSession, "ApprovalOutcomeSession", ApprovalOutcomeSession},
+		{"Rejected", tui.Rejected, "ApprovalOutcomeDeny", ApprovalOutcomeDeny},
+		{"Cancelled", tui.Cancelled, "ApprovalOutcomeCancelled", ApprovalOutcomeCancelled},
+		{"Unresolved", tui.Unresolved, "ApprovalOutcomeCancelled", ApprovalOutcomeCancelled},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.tuiName, func(t *testing.T) {
+			got := tui.ToAppOutcome(tc.tuiOutcome)
+			want := int(tc.appExpected)
+			if got != want {
+				t.Errorf("ToAppOutcome(tui.%s) = %d, want %d (app.%s)", tc.tuiName, got, want, tc.appName)
+			}
+		})
+	}
 }

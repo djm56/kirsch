@@ -36,7 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `plan/spec/kirsch-ui-screens.md` are parsed out of the markdown and compared
   against `View()` byte-for-byte on every test run, so a rendering change and a
   stale design document cannot drift apart.
-
 - **Instruction sets for Milestones 2, 3 and 4**, at deliberately decreasing
   fidelity (plan §11 amendment 50): M2 executable as written, M3 settled in
   shape but provisional in detail, M4 a scope statement identifying the hard
@@ -66,35 +65,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the lint findings, beside the formatting `npm run fmt` already applies.
 - **`internal/patch` — unified-diff parser, renderer, and atomic applier.**
   Standard library only, no in-module imports, so the parser stays a leaf and
-  error mapping onto tool kinds belongs to the tool layer later. Parsing
-  handles `git diff` output and hand-written header-less diffs, including
-  multi-file header-less input; validates hunk arithmetic at parse time;
-  preserves `\ No newline at end of file` in both directions; detects binary
-  diffs rather than failing on them; honours `100644` ↔ `100755` mode changes
-  and rejects any other; and leaves paths untouched beyond stripping `a/` and
-  `b/` prefixes, so containment stays the workspace's job. Round-trip
-  re-render is byte-for-byte on every well-formed corpus file, including two
-  carrying CRLF — the renderer preserves carriage returns inside hunk content
-  while keeping metadata lines LF-only. Applying is all-or-nothing: content is
-  staged to temp files beside their targets, every file validated before any
-  is committed, each target moved aside to a backup before its replacement
-  lands, and every committed entry restored from that backup if a later one
-  fails. Where a restore cannot complete, the error names each path left
-  inconsistent and where its content now sits, rather than reporting a
-  rollback that did not happen. Strict context matching with zero fuzz — a
-  conflict returns the offending hunk and the actual file content at that
-  location, enabling a model to re-read and retry rather than guess. Line
-  endings are detected by dominance and preserved; a patch that would convert
-  them is rejected. Trailing newlines are honoured both ways. Permissions
-  survive except a deliberate exec-bit change. Test fixtures:
-  `testdata/repo-patch/` (seven files across LF, CRLF, no-trailing-newline,
-  executable, nested, multi-byte and binary) and `testdata/patches/` (twenty
-  diffs, each named for the behaviour it pins). The rollback path is exercised
-  by injected commit failures rather than only by inspection — that distinction
-  cost this deliverable four fix rounds and is the thing most worth recording.
+  error mapping onto tool kinds belongs to the tool layer later. Parsing handles
+  `git diff` output and hand-written header-less diffs, including multi-file
+  header-less input; validates hunk arithmetic at parse time; preserves `\ No
+  newline at end of file` in both directions; detects binary diffs rather than
+  failing on them; honours `100644` ↔ `100755` mode changes and rejects any
+  other; and leaves paths untouched beyond stripping `a/` and `b/` prefixes, so
+  containment stays the workspace's job. Round-trip re-render is byte-for-byte
+  on every well-formed corpus file, including two carrying CRLF — the renderer
+  preserves carriage returns inside hunk content while keeping metadata lines
+  LF-only. Applying is all-or-nothing: content is staged to temp files beside
+  their targets, every file validated before any is committed, each target moved
+  aside to a backup before its replacement lands, and every committed entry
+  restored from that backup if a later one fails. Where a restore cannot
+  complete, the error names each path left inconsistent and where its content
+  now sits, rather than reporting a rollback that did not happen. Strict context
+  matching with zero fuzz — a conflict returns the offending hunk and the actual
+  file content at that location, enabling a model to re-read and retry rather
+  than guess. Line endings are detected by dominance: a mixed-ending file is
+  rewritten wholesale in its dominant ending (a tie becomes LF), and a patch
+  that would convert endings is rejected. Trailing newlines are honoured, with
+  two suspected edge cases open (`plan/milestones/milestone-2.md`, *Open
+  defects*). Permission bits survive except a deliberate exec-bit change; a
+  rename with edits keeps only the source's `Perm()` (no setuid, setgid or
+  sticky). Test
+  fixtures: `testdata/repo-patch/` (seven files across LF, CRLF,
+  no-trailing-newline, executable, nested, multi-byte and binary) and
+  `testdata/patches/` (twenty diffs, each named for the behaviour it pins). The
+  rollback path is exercised by injected commit failures rather than only by
+  inspection — that distinction cost this deliverable four fix rounds and is the
+  thing most worth recording.
+- **`internal/policy` — the command allowlist and session grants.** The default
+  allowlist is `go build`, `go test`, `git diff`, `git log` and `ls`, each
+  matched as that exact argv. Shells and anything whose job is to run another
+  program — `sh`, `bash`, `zsh`, `dash`, `env`, `xargs`, `nohup`, matched by
+  basename — always ask. `ForPatch` never allows, and no configuration changes
+  that. A session grant records an argv prefix; it is refused for a bare
+  wildcard, an empty prefix or a shell. The `allow_session_scoped_grants`,
+  `require_approval_for_patches` and `require_approval_for_commands` settings
+  are not yet read by the policy,
+  so grants are always available, patches always ask, and a command asks unless it is allowlisted or granted.
+- **The approval flow.** `App.Request` blocks the tool goroutine on a capacity-1
+  decision channel; `Resolve`, called from `Update`, never blocks; the first
+  answer on the channel wins; cancelling the turn resolves a pending approval as
+  cancelled within a second. A rejected patch or command comes back to the
+  caller as a `policy_denied` tool result.
+- **`apply_patch` and `run_command`, the first tools that change the world.**
+  `apply_patch` parses the diff, resolves every path through the workspace and
+  dry-runs the whole patch before it asks, so a patch that cannot apply never
+  produces a prompt. `run_command` takes an argv, never a shell string; builds
+  its environment from `PATH`, `HOME`, `LANG` and the configured passthrough,
+  then strips secret-shaped names; gives the child `/dev/null` for stdin; caps
+  output at 200KB, head and tail; and kills the whole process group on timeout
+  or cancellation. Its output appears in the card when the command finishes. Not
+  yet wired: the `policy.default_command_timeout_seconds` setting (an omitted
+  timeout defaults to 3600s with no maximum) and live output streaming.
+- **The approval surface in the TUI.** Approval cards render real requests;
+  `[a]` appears only when policy says a session grant is possible; the diff
+  modal shows the parsed diff with per-file `+n −m` counts; `/approvals` lists
+  grants and clears them through a confirm prompt; and two temporary debug
+  commands, `/patch` and `/run`, sit under `debug (M1–M2)` in `/help`.
 
 ### Changed
 
+- **Tool card preview mode.** Tool cards now open as a preview showing the first
+  10 lines by default, collapsible to the head with `Enter`. When lines are hidden,
+  a marker reads `‹10 of N lines — d full output · Enter collapse›`. `d` opens the
+  full output in a modal. The 200-line inline expansion is gone. Empty output shows
+  no box; the trailing empty output row is trimmed. The preview keeps the transcript
+  legible while tools are running.
+- **Approved approval cards fold away.** Once you approve a command or patch, the
+  approval card folds away and the tool card's head shows ` · approved` or ` · approved
+  for session`, plus `session grant: <scope>` when applicable. `d` on the folded patch
+  card opens the diff. Rejected and cancelled approvals keep their own card. A refused
+  session grant now confirms as approved (allow-once) because the command runs.
+- **Composer history navigation.** Up/Down arrow at the first/last line of the composer
+  now recalls previous/next entries from session history (up to 100 entries; consecutive
+  duplicates and blank entries are skipped), rather than moving to the transcript.
+  History survives `/new`. Shift+↑ and Tab move to the cards instead.
+- **Tab in slash-command completion.** While typing a command name with no whitespace
+  yet, Tab completes a unique slash-command prefix; an ambiguous or unknown prefix does
+  nothing. In any other text, including an empty prompt, Tab moves to the cards.
+- **Approval card release.** Any non-navigation key except y/a/n/d/? releases the card
+  and shows `approval pending — Tab to return to the card`. While released, those keys
+  do nothing until Tab or Shift+↑ re-arms the card. Navigation keys never release.
+  Bracketed paste is dropped and does not release. Esc/Ctrl+C cancel whether armed or
+  released.
+- **Modal clipping marker.** When a modal body is clipped, its rule row shows
+  `↑ N above` / `↓ N more` (ASCII `^`/`v`).
+- **Key-hint row.** At terminal height ≥ 24, the last row is a dim key-hint line
+  for the current focus (e.g. "↑↓ history · ⇧↑/Tab cards · /help" in composing
+  mode). It is blank under a modal or confirm, so the frame never reflows. The full-help
+  overlay minimum is now 80×34.
+- **`read_file` summary.** Now shows `lines N-M` instead of repeating the path.
 - **The header is two rows.** `Kirsch` and its rule on the first, the project
   name, branch, dirty marker and compaction note on the second. The single-row
   form spent most of a 40-column terminal on text rather than rule, and a long
@@ -161,6 +224,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Approving a command for the session froze Kirsch.** `app.Resolve` runs on
+  the event loop and sent its follow-up messages with a blocking send that
+  waited for that same loop. The whole sequence is now delivered from one
+  goroutine, and `internal/app/deadlock_test.go` drives a real `tea.Program`
+  through it.
+- **A `git diff` of a CRLF file could not be applied.** The parser kept each
+  hunk line's `\r` while the applier stripped it from the file, so every context
+  line mismatched. Lines are now compared without the trailing `\r`, added lines
+  are written in the file's own ending, and a patch that carries endings must
+  add lines in the file's ending or is rejected.
+- **A rename with edits left the new file at mode 0600.** The edited copy took
+  its mode from a temp file; it now takes the source file's permission bits.
+- **`/run` was hidden at the bottom of `/help`.** The Milestone 2 debug
+  commands now lead their section, so `/run` shares a row with `/patch`, and a
+  clipped help overlay's footer names the scroll keys.
+- **Lint and format had been failing.** Thirteen `golangci-lint` findings and
+  one formatting issue are fixed, none suppressed; one was a test whose
+  condition repeated itself.
 - **There was no way back to the bottom of the transcript from the composer.**
   Every re-pin reachable from Composing put something in the transcript first —
   sending a message, or submitting a slash command — so a reader who scrolled up

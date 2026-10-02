@@ -1,7 +1,10 @@
 package app
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -24,7 +27,7 @@ import (
 // App's messages straight into Update tests the thing that actually matters:
 // that an intent from the TUI reaches a tool, and that the tool's result comes
 // back as something the TUI can render.
-func driveTUI(t *testing.T, fixture string, typed string, settle time.Duration, expand bool) string {
+func driveTUI(t *testing.T, fixture string, typed string, settle time.Duration, collapse bool) string {
 	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", fixture))
 	if err != nil {
@@ -82,12 +85,11 @@ func driveTUI(t *testing.T, fixture string, typed string, settle time.Duration, 
 		case <-deadline:
 			mu.Lock()
 			defer mu.Unlock()
-			if expand {
-				// A tool card is collapsed until Enter (ui-spec §3.3), so the
-				// content is only on screen after focusing the transcript and
-				// expanding the card the result selected.
-				next, _ := m.Update(tea.KeyMsg{Type: tea.KeyUp})
-				m = next.(tui.Model)
+			// Select the card with Shift+Up
+			next, _ := m.Update(tea.KeyMsg{Type: tea.KeyShiftUp})
+			m = next.(tui.Model)
+			// If collapse=true, press Enter to collapse the card to head only
+			if collapse {
 				next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 				m = next.(tui.Model)
 			}
@@ -100,14 +102,14 @@ func driveTUI(t *testing.T, fixture string, typed string, settle time.Duration, 
 // repository, a debug command reads a file and renders it as a tool card.
 func TestDebugCommandReadsRealFile(t *testing.T) {
 	// Collapsed first: the card and its summary must be on screen.
-	out := driveTUI(t, "repo-go-module", "/read go.mod", 1500*time.Millisecond, false)
+	out := driveTUI(t, "repo-go-module", "/read go.mod", 1500*time.Millisecond, true)
 	for _, want := range []string{"read_file", "go.mod"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in the collapsed card:\n%s", want, out)
 		}
 	}
 	// Expanded: the file's contents, line-numbered.
-	out = driveTUI(t, "repo-go-module", "/read go.mod", 1500*time.Millisecond, true)
+	out = driveTUI(t, "repo-go-module", "/read go.mod", 1500*time.Millisecond, false)
 	for _, want := range []string{"module example.com/calc"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in rendered output:\n%s", want, out)
@@ -115,8 +117,66 @@ func TestDebugCommandReadsRealFile(t *testing.T) {
 	}
 }
 
+// TestReadFileHasNoEmptyLastRow verifies that tool output boxes do not render
+// an empty row before the bottom border, even though the real producer writes
+// content ending in \n.
+func TestReadFileHasNoEmptyLastRow(t *testing.T) {
+	out := driveTUI(t, "repo-go-module", "/read go.mod", 1500*time.Millisecond, false)
+
+	// Locate the read_file card by its head row: the row containing both
+	// read_file and go.mod.
+	rows := strings.Split(out, "\n")
+	var cardHeadIdx int
+	for i, row := range rows {
+		if strings.Contains(row, "read_file") && strings.Contains(row, "go.mod") {
+			cardHeadIdx = i
+			break
+		}
+	}
+	if cardHeadIdx == 0 && (len(rows) == 0 || !strings.Contains(rows[0], "read_file")) {
+		t.Fatalf("could not find read_file card head in output:\n%s", out)
+	}
+
+	// From that row, walk down to the first row containing └ (or the ASCII +).
+	// That row is this card's bottom border.
+	var cardBottomIdx int
+	for i := cardHeadIdx + 1; i < len(rows); i++ {
+		if strings.Contains(rows[i], "└") || strings.Contains(rows[i], "+") {
+			cardBottomIdx = i
+			break
+		}
+	}
+	if cardBottomIdx == 0 {
+		t.Fatalf("could not find read_file card bottom border from row %d:\n%s", cardHeadIdx, out)
+	}
+
+	// Assert that the row directly above the bottom border contains the last
+	// line of go.mod (which is 3 lines long, so last line is "go 1.25").
+	// Read the fixture file to get the expected last line.
+	fixturePath := filepath.Join("..", "..", "testdata", "repo-go-module", "go.mod")
+	fixtureBytes, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("could not read fixture file: %v", err)
+	}
+	lines := strings.Split(string(fixtureBytes), "\n")
+	// Remove the trailing empty string if the file ends with \n
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 0 {
+		t.Fatalf("fixture file is empty")
+	}
+	lastLine := lines[len(lines)-1]
+
+	// The row directly above the bottom border should contain the last line of the file
+	contentRowAboveBorder := rows[cardBottomIdx-1]
+	if !strings.Contains(contentRowAboveBorder, lastLine) {
+		t.Errorf("tool card content row above bottom border does not contain %q:\n%s", lastLine, contentRowAboveBorder)
+	}
+}
+
 func TestDebugCommandSearchesRealRepo(t *testing.T) {
-	out := driveTUI(t, "repo-go-module", "/search Divide", 1500*time.Millisecond, true)
+	out := driveTUI(t, "repo-go-module", "/search Divide", 1500*time.Millisecond, false)
 	for _, want := range []string{"search_code", "Divide", "calc/divide.go"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in rendered output:\n%s", want, out)
@@ -124,10 +184,36 @@ func TestDebugCommandSearchesRealRepo(t *testing.T) {
 	}
 }
 
+// TestReadFileDisplaySummaryFormat verifies that the read_file summary shows
+// "lines N-M" and the file path appears exactly once in the card head.
+func TestReadFileDisplaySummaryFormat(t *testing.T) {
+	out := driveTUI(t, "repo-go-module", "/read go.mod", 1500*time.Millisecond, false)
+
+	// Find the read_file card head
+	rows := strings.Split(out, "\n")
+	var cardHead string
+	for _, row := range rows {
+		if strings.Contains(row, "read_file") && strings.Contains(row, "go.mod") {
+			cardHead = row
+			break
+		}
+	}
+
+	if cardHead == "" {
+		t.Fatalf("could not find read_file card head in output:\n%s", out)
+	}
+
+	// The summary in the card head should match the "lines N-M" format
+	lineSummaryRegex := regexp.MustCompile(`lines 1-\d+`)
+	if !lineSummaryRegex.MatchString(cardHead) {
+		t.Errorf("card head summary should match 'lines 1-\\d+' format:\n%s", cardHead)
+	}
+}
+
 // TestDeniedPathRendersAsAToolCard is the other half of Task 9's check: a
 // denylisted path must render an error, not panic and not silently do nothing.
 func TestDeniedPathRendersAsAToolCard(t *testing.T) {
-	out := driveTUI(t, "repo-small", "/read .env", 1500*time.Millisecond, false)
+	out := driveTUI(t, "repo-small", "/read .env", 1500*time.Millisecond, true)
 	if !strings.Contains(out, "read_file") {
 		t.Errorf("no tool card rendered:\n%s", out)
 	}
@@ -140,7 +226,7 @@ func TestDeniedPathRendersAsAToolCard(t *testing.T) {
 }
 
 func TestHeaderShowsRealWorkspace(t *testing.T) {
-	out := driveTUI(t, "repo-node", "", 400*time.Millisecond, false)
+	out := driveTUI(t, "repo-node", "", 400*time.Millisecond, true)
 	if !strings.Contains(out, "repo-node") {
 		t.Errorf("header does not show the real project name:\n%s", out)
 	}
@@ -419,6 +505,180 @@ func TestRunCatWithSessionGrant(t *testing.T) {
 			return
 		}
 	}
+}
+
+// TestToolCardPreviewAppLevel verifies that the real /read tool shows a preview
+// of 10 lines by default. It reads a fixture file and asserts that lines 1–10
+// are visible, line 11 is absent, and the marker shows the correct count.
+func TestToolCardPreviewAppLevel(t *testing.T) {
+	out := driveTUI(t, "repo-go-module", "/read calc/divide_test.go", 1500*time.Millisecond, false)
+
+	// Read the fixture to get the line count
+	fixturePath := filepath.Join("..", "..", "testdata", "repo-go-module", "calc", "divide_test.go")
+	fixtureBytes, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("could not read fixture file: %v", err)
+	}
+	lines := tui.SanitizeLines(string(fixtureBytes))
+	// SanitizeLines may add trailing empty line; trim it if fixture ended with newline
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	lineCount := len(lines)
+
+	// Verify lines 1-10 are visible (using sanitized form)
+	for i := 1; i <= 10 && i <= lineCount; i++ {
+		if !strings.Contains(out, tui.Sanitize(lines[i-1])) {
+			t.Errorf("preview should show line %d; view:\n%s", i, out)
+		}
+	}
+
+	// Verify line 11 is NOT visible (if it exists, using same normalized form)
+	if lineCount >= 11 {
+		if strings.Contains(out, tui.Sanitize(lines[10])) {
+			t.Errorf("line 11 should not be visible in preview; view:\n%s", out)
+		}
+	}
+
+	// Verify the exact marker text with the correct line count
+	expectedMarker := fmt.Sprintf("‹10 of %d lines — d full output · Enter collapse›", lineCount)
+	if !strings.Contains(out, expectedMarker) {
+		t.Errorf("marker should be %q; view:\n%s", expectedMarker, out)
+	}
+}
+
+// TestOneCardAppCtxLink verifies that approval messages are linked to tool messages via context.
+func TestOneCardAppCtxLink(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "repo-small"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.Detect(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := New(ws, config.Defaults(), telemetry.Disabled())
+	defer a.Close()
+
+	info := a.WorkspaceInfo()
+	m := tui.New(tui.Options{
+		Version: "0.1.0",
+		Caps:    tui.Caps{Colour: false, Unicode: true},
+		Session: tui.SessionInfo{Project: info.Project, Branch: info.Branch, Dirty: info.Dirty},
+	})
+	m.RunTool = a.RunTool
+	m.Cancel = a.CancelTurn
+
+	var mu sync.Mutex
+	inbox := make(chan tea.Msg, 100)
+	var capturedTool *tui.ToolStartedMsg
+	var capturedApproval *tui.ApprovalRequestedMsg
+	done := make(chan struct{})
+
+	a.sendFn = func(msg any) {
+		select {
+		case <-done:
+			return
+		default:
+		}
+
+		if tm, ok := msg.(tea.Msg); ok {
+			// Capture ToolStartedMsg
+			if tool, ok := tm.(tui.ToolStartedMsg); ok {
+				mu.Lock()
+				if capturedTool == nil {
+					capturedTool = &tool
+				}
+				mu.Unlock()
+			}
+			// Capture ApprovalRequestedMsg
+			if approval, ok := tm.(tui.ApprovalRequestedMsg); ok {
+				mu.Lock()
+				if capturedApproval == nil {
+					capturedApproval = &approval
+				}
+				mu.Unlock()
+			}
+			select {
+			case inbox <- tm:
+			case <-done:
+			default:
+			}
+		}
+	}
+
+	apply := func(msg tea.Msg) {
+		next, _ := m.Update(msg)
+		m = next.(tui.Model)
+	}
+
+	apply(tea.WindowSizeMsg{Width: 100, Height: 30})
+	for _, r := range "/run cat" {
+		apply(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	apply(tea.KeyMsg{Type: tea.KeyEnter})
+
+	pumpUntil(time.After(1500*time.Millisecond), inbox, apply)
+	close(done)
+
+	// Verify both messages were captured
+	mu.Lock()
+	tool := capturedTool
+	approval := capturedApproval
+	mu.Unlock()
+
+	if tool == nil {
+		t.Fatal("no ToolStartedMsg received")
+	}
+	if approval == nil {
+		t.Fatal("no ApprovalRequestedMsg received")
+	}
+
+	// Assert ToolID is non-zero and equals tool ID
+	if tool.ID == 0 {
+		t.Error("tool ID should be non-zero")
+	}
+	if approval.ToolID == 0 {
+		t.Error("approval ToolID should be non-zero")
+	}
+	if approval.ToolID != tool.ID {
+		t.Errorf("approval.ToolID = %d, want %d (tool.ID)", approval.ToolID, tool.ID)
+	}
+
+	// Approve the tool with 'a' and check the final view
+	apply(key('a'))
+	apply(tui.ApprovalResolvedMsg{ID: approval.ID, Outcome: tui.ApprovedSession})
+	apply(tea.KeyMsg{Type: tea.KeyEnter})
+
+	view := m.View()
+
+	// Verify the final view has exactly one line containing both "run_command" and " · approved"
+	lines := strings.Split(view, "\n")
+	count := 0
+	for _, line := range lines {
+		if strings.Contains(line, "run_command") && strings.Contains(line, "· approved") {
+			count++
+		}
+	}
+
+	if count == 0 {
+		t.Error("view should contain a line with both 'run_command' and '· approved'")
+	}
+	if count > 1 {
+		t.Errorf("view should have exactly one line with 'run_command' and '· approved', got %d", count)
+	}
+
+	// Verify no line contains "✓ approved" (folded approval)
+	for _, line := range lines {
+		if strings.Contains(line, "✓ approved") {
+			t.Errorf("no line should contain '✓ approved' for folded approval: %s", line)
+		}
+	}
+}
+
+// Helper to create a KeyMsg for a rune (same as in view_smoke_test.go)
+func key(r rune) tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
 }
 
 // TestPumpUntilDrainsBufferedMessagesAfterDeadline checks that pumpUntil

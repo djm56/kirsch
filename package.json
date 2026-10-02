@@ -21,7 +21,7 @@
 
     "security": "npm run security:vuln && npm run security:sast && npm run security:secrets",
     "security:vuln": "bash scripts/go-tool.sh govulncheck ./...",
-    "security:sast": "bash scripts/go-tool.sh gosec -quiet -exclude-generated ./...",
+    "security:sast": "bash scripts/go-tool.sh gosec -quiet -exclude-generated -exclude-dir=.claude ./...",
     "security:secrets": "bash scripts/secret-scan.sh",
     "security:deps": "bash scripts/go-tool.sh osv-scanner scan source -r .",
 

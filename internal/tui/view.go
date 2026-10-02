@@ -375,6 +375,7 @@ type Layout struct {
 	ModalPct    int
 	TranscriptH int
 	ComposerH   int
+	HintH       int
 }
 
 // HeaderH is how many rows the header contributes to the frame: headerHeight
@@ -393,11 +394,15 @@ func (l Layout) HeaderH() int {
 
 // computeLayout resolves the frame geometry. ui-spec §2.1, §2.2.
 //
-// Chrome is header(2) + rule(1) + status(1) + rule(1) + composer(1..5) — six
-// rows with a header, four without. The bands in §2.2 follow from that budget,
-// and the degradation ladder below is the order they collapse in: composer and
-// status are never dropped, the two rules go as a pair so the bar is never
-// half-framed, then the header, and the transcript takes the remainder.
+// Chrome is header(2) + rule(1) + status(1) + rule(1) + composer(1..5) + hint(0..1).
+// With header and hint (h >= 24): 2 + 1 + 1 + 1 + (1..5) + 1 = 7..11 rows.
+// Without header but with hint: 1 + 1 + 1 + (1..5) + 1 = 5..9 rows.
+// Without header or hint: 1 + 1 + 1 + (1..5) = 4..8 rows.
+// The hint row is included in the chrome count at h >= 24, independent of
+// overlay state. The bands in §2.2 follow from that budget, and the degradation
+// ladder below is the order they collapse in: composer and status are never
+// dropped, the two rules go as a pair so the bar is never half-framed, then the
+// header, and the transcript takes the remainder.
 //
 // overlayOpen is the one input that is not terminal geometry, and it is here
 // rather than in the overlay because the region is what an overlay needs and
@@ -455,6 +460,11 @@ func computeLayout(w, h, composerLines int, overlayOpen bool) Layout {
 
 	l.ComposerH = clamp(composerLines, 1, 5)
 
+	// Hint line: allocated at h >= 24 regardless of overlay state.
+	if h >= 24 {
+		l.HintH = 1
+	}
+
 	// Height ladder.
 	switch {
 	case h >= 10:
@@ -479,6 +489,7 @@ func computeLayout(w, h, composerLines int, overlayOpen bool) Layout {
 			chrome += 2
 		}
 		chrome += l.ComposerH
+		chrome += l.HintH
 
 		l.TranscriptH = h - chrome
 		if l.TranscriptH >= need {
@@ -566,6 +577,11 @@ func (m Model) View() string {
 	comp.Focused = m.mode() == ModeComposing && !m.busy.Active
 	comp.Onboarding = m.tr.Len() == 0
 	rows = append(rows, comp.rows(lay, m.sty, m.gly, m.busy.Active)...)
+
+	// Hint line: appended at h >= 24, and blanked when an overlay is open.
+	if lay.HintH == 1 {
+		rows = append(rows, m.hintRow(lay))
+	}
 
 	// Modals overwrite the transcript region only; the status bar and composer
 	// stay visible. Layout invariant 3.
@@ -688,4 +704,108 @@ func (m Model) headerRows(lay Layout) []string {
 // side of it.
 func (m Model) ruleRow(lay Layout) string {
 	return m.sty.Border(fill(m.gly.Sep, lay.ContentW))
+}
+
+// hintRow renders the key hint line at the bottom of the frame. It changes
+// content based on the current mode and is padded to the content width.
+// If the hint is too wide, items are dropped from the end. When an overlay is
+// open, the row is blank padding only.
+func (m Model) hintRow(lay Layout) string {
+	// When an overlay is open, the hint row is blank.
+	if m.overlayOpen() {
+		return pad("", lay.ContentW)
+	}
+
+	var hint string
+
+	// Determine arrow and modifier glyphs based on Unicode capability
+	upDown := "↑↓"
+	shiftUp := "⇧↑"
+	if !m.gly.Unicode { // ASCII mode
+		upDown = "Up/Down"
+		shiftUp = "Shift+Up"
+	}
+
+	// Build hint text based on mode
+	switch m.mode() {
+	case ModeComposing:
+		// While busy, show a different hint
+		if m.busy.Active {
+			items := []string{
+				shiftUp + "/Tab cards",
+				"Esc cancel turn",
+			}
+			hint = strings.Join(items, " "+m.gly.Bullet+" ")
+		} else {
+			items := []string{
+				upDown + " history",
+				shiftUp + "/Tab cards",
+				"/help",
+			}
+			hint = strings.Join(items, " "+m.gly.Bullet+" ")
+		}
+
+	case ModeBrowsing:
+		items := []string{
+			upDown + " select",
+			"Enter preview",
+			"d detail",
+			"Tab/Esc prompt",
+		}
+		hint = strings.Join(items, " "+m.gly.Bullet+" ")
+
+	case ModeApprovalPending:
+		if m.approvalReleased {
+			hint = "Tab back to the card " + m.gly.Bullet + " Esc cancel"
+		} else {
+			// Check if pending approval offers session grant
+			items := []string{"y approve"}
+			if m.pendingApproval != 0 {
+				if it, _, ok := m.tr.Find(m.pendingApproval); ok {
+					if it.Approval.OffersSessionGrant() {
+						items = append(items, "a session")
+					}
+				}
+			}
+			items = append(items, "n reject", "d detail", "Esc cancel")
+			hint = strings.Join(items, " "+m.gly.Bullet+" ")
+		}
+
+	case ModeModal, ModeConfirm:
+		// The hint row is blank there by design.
+	}
+
+	// Truncate if too wide, dropping items from the end
+	if hint != "" && cellWidth(hint) > lay.ContentW {
+		hint = m.truncateHint(hint, lay.ContentW)
+	}
+
+	// Pad to content width
+	hint = pad(hint, lay.ContentW)
+
+	// Apply muted style
+	return m.sty.Muted(hint)
+}
+
+// truncateHint removes items from the end of a hint string to fit the given
+// width. Items are separated by " · " (or the appropriate separator).
+func (m Model) truncateHint(hint string, maxWidth int) string {
+	if cellWidth(hint) <= maxWidth {
+		return hint
+	}
+
+	sep := " " + m.gly.Bullet + " "
+	items := strings.Split(hint, sep)
+
+	// Drop items from the end until it fits
+	for len(items) > 1 && cellWidth(strings.Join(items, sep)) > maxWidth {
+		items = items[:len(items)-1]
+	}
+
+	// If even one item doesn't fit, return blank (keep row structure)
+	if cellWidth(strings.Join(items, sep)) > maxWidth {
+		return ""
+	}
+
+	return strings.Join(items, sep)
 }

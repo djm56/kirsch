@@ -417,8 +417,8 @@ func TestApprovalSendAsyncRealPathDeliveryAndOrder(t *testing.T) {
 	if resolvedMsg == nil {
 		t.Fatal("ApprovalResolvedMsg not received")
 	}
-	if resolvedMsg.Outcome != tui.Rejected {
-		t.Errorf("ApprovalResolvedMsg.Outcome = %v, want tui.Rejected", resolvedMsg.Outcome)
+	if resolvedMsg.Outcome != tui.Approved {
+		t.Errorf("ApprovalResolvedMsg.Outcome = %v, want tui.Approved", resolvedMsg.Outcome)
 	}
 
 	// Verify message ordering: NoticeMsg should come before ApprovalResolvedMsg

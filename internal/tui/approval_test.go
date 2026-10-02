@@ -1163,7 +1163,7 @@ func TestApprovalsModalSanitisesGrants(t *testing.T) {
 	// over-length truncation. Each is exercised below so the regression test
 	// for the /approvals sanitisation call site covers the whole function,
 	// not just the two escape families.
-	bareC1 := "gotest"                                     // NEL (C1), not a CSI/OSC sequence
+	bareC1 := "go\u0085test"                                // NEL (C1), not a CSI/OSC sequence
 	crOverwrite := "go build\rgo test"                      // bare \r: a terminal progress-bar overwrite
 	tabbed := "go\ttest"                                    // tab must expand, not survive as \t
 	overLong := "go " + strings.Repeat("x", 2200) + " test" // exceeds MaxRenderedLineWidth (2000 cols)

@@ -144,7 +144,13 @@ func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger, ws *workspac
 	// Deleting this assignment breaks the approval flow and causes Request to block indefinitely.
 	m.ResolveApproval = func(id int64, outcome tui.ApprovalOutcome) {
 		log.Debug("tui resolved approval", "id", id, "outcome", outcome)
-		a.Resolve(id, app.ApprovalOutcome(tui.ToAppOutcome(outcome)))
+		appOutcome := tui.ToAppOutcome(outcome)
+		// Defensive: ToAppOutcome returns 0..ApprovalOutcomeCancelled by construction; this bound satisfies G115 and fails safe to Cancelled.
+		if appOutcome < 0 || appOutcome > int(app.ApprovalOutcomeCancelled) {
+			log.Error("invalid approval outcome from TUI", "value", appOutcome)
+			appOutcome = int(app.ApprovalOutcomeCancelled)
+		}
+		a.Resolve(id, app.ApprovalOutcome(appOutcome))
 	}
 	// GetGrants wires the TUI's grant listing to the app's policy.
 	m.GetGrants = func() []string {
@@ -180,7 +186,7 @@ func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger, ws *workspac
 		if rel := ws.Rel(resolved); rel != patchFileDir && !strings.HasPrefix(rel, patchFileDir+"/") {
 			return "", fmt.Errorf("patch file %q is outside %s", filename, patchFileDir)
 		}
-		content, err := os.ReadFile(resolved)
+		content, err := os.ReadFile(resolved) // #nosec G304 -- path is contained to testdata/patches by ws.Resolve (internal/workspace) + the prefix check above
 		if err != nil {
 			return "", err
 		}

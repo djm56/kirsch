@@ -329,7 +329,7 @@ func TestModalEscReturnsToPreviousMode(t *testing.T) {
 func TestTypingDoesNotRepin(t *testing.T) {
 	// A viewport the fixture overflows, so there is something to scroll.
 	m := drive(newDrivenSize(t, 80, 12), key('y'))
-	m = drive(m, keyType(tea.KeyUp), keyType(tea.KeyPgUp))
+	m = drive(m, keyType(tea.KeyShiftUp), keyType(tea.KeyPgUp))
 	if m.scroll.Pinned {
 		t.Fatalf("PgUp did not unpin (%d lines, viewport %d)", len(m.lines), m.layout().TranscriptH)
 	}
@@ -361,7 +361,7 @@ func TestTypingDoesNotRepin(t *testing.T) {
 // TestPgUpDoesNotMoveSelection is the other half of §2.4: scrolling and
 // selection are separate concerns.
 func TestPgUpDoesNotMoveSelection(t *testing.T) {
-	m := drive(newDrivenSize(t, 80, 12), key('y'), keyType(tea.KeyUp))
+	m := drive(newDrivenSize(t, 80, 12), key('y'), keyType(tea.KeyShiftUp))
 	sel := m.sel
 	m = drive(m, keyType(tea.KeyPgUp), keyType(tea.KeyPgDown))
 	if m.sel != sel {
@@ -468,10 +468,10 @@ func TestClosingAModalRepaintsInTheSameFrame(t *testing.T) {
 			// Both keys are setup, not the thing under test: `y` approves the
 			// fixture's pending approval, since NewWithFixture starts in
 			// ModeApprovalPending and nothing else reaches the composer until it
-			// is resolved; Up then moves focus to the transcript, because `?` is
+			// is resolved; Shift+Up then moves focus to the transcript, because `?` is
 			// a literal character in the composer and only opens help from
 			// Browsing (§5.1).
-			m := drive(newDrivenColour(t, 80, 24), key('y'), keyType(tea.KeyUp))
+			m := drive(newDrivenColour(t, 80, 24), key('y'), keyType(tea.KeyShiftUp))
 			if m.mode() != ModeBrowsing {
 				t.Fatalf("mode = %v, want Browsing", m.mode())
 			}
@@ -617,9 +617,9 @@ func assertCacheRebuilt(t *testing.T, what string, m Model) {
 func TestOpeningAnOverlayRepaintsInTheSameFrame(t *testing.T) {
 	t.Run("modal", func(t *testing.T) {
 		// Setup, as in the closing test: `y` resolves the fixture's pending
-		// approval, Up moves focus off the composer so `?` is the help key
+		// approval, Shift+Up moves focus off the composer so `?` is the help key
 		// rather than a literal character (§5.1).
-		m := drive(newDrivenColour(t, 80, 24), key('y'), keyType(tea.KeyUp))
+		m := drive(newDrivenColour(t, 80, 24), key('y'), keyType(tea.KeyShiftUp))
 		if m.mode() != ModeBrowsing {
 			t.Fatalf("mode = %v, want Browsing", m.mode())
 		}
@@ -906,7 +906,7 @@ func TestQuittingHasNoKeyBinding(t *testing.T) {
 	})
 
 	t.Run("browsing", func(t *testing.T) {
-		m := drive(newDriven(t), key('y'), keyType(tea.KeyUp))
+		m := drive(newDriven(t), key('y'), keyType(tea.KeyShiftUp))
 		if m.mode() != ModeBrowsing {
 			t.Fatalf("mode = %v, want Browsing", m.mode())
 		}
@@ -1164,14 +1164,14 @@ func lastToolCard(m Model) (ToolCard, bool) {
 //
 // relayout draws the selection gutter beside m.sel and takes its columns out of
 // that item's content width, so moving the selection invalidates the cache. Most
-// handlers that move it relayout by hand — but keyComposing's Up arm moves it
+// handlers that move it relayout by hand — but keyComposing's Shift+↑ arm moves it
 // through setBase, which does not, and neither does the revealSelection call
 // beside it. With a selection of zero and a selectable card on screen, that arm
 // selects the card and leaves the frame showing no gutter until some later
 // keypress happens to rebuild.
 //
 // The setup reaches that state the way a user does: send a message, let one tool
-// card land, then press Up. Nothing in that path assigns m.sel.
+// card land, then press Shift+↑. Nothing in that path assigns m.sel.
 func TestEnteringBrowsingDrawsTheGutterInTheSameFrame(t *testing.T) {
 	m := newScriptedTurn(t)
 	m = advanceUntil(t, m, "a tool card", func(m Model) bool {
@@ -1179,16 +1179,17 @@ func TestEnteringBrowsingDrawsTheGutterInTheSameFrame(t *testing.T) {
 		return ok
 	})
 	if m.sel != 0 {
-		t.Fatalf("m.sel = %d before Up, want 0: this test needs the state where the Up arm "+
+		t.Fatalf("m.sel = %d before Shift+↑, want 0: this test needs the state where Shift+↑ "+
 			"is the thing that assigns the selection", m.sel)
 	}
 
-	m = drive(m, keyType(tea.KeyUp))
+	// Shift+↑ enters Browsing
+	m = drive(m, keyType(tea.KeyShiftUp))
 	if m.mode() != ModeBrowsing {
-		t.Fatalf("mode = %v after Up, want Browsing", m.mode())
+		t.Fatalf("mode = %v after Shift+↑, want Browsing", m.mode())
 	}
 	if m.sel == 0 {
-		t.Fatal("Up did not select a card, so there is no gutter for this test to look for")
+		t.Fatal("Shift+↑ did not select a card, so there is no gutter for this test to look for")
 	}
 	assertBandMatchesRebuild(t,
 		"the frame that entered Browsing is missing the selection gutter: the cache was "+
@@ -1200,8 +1201,8 @@ func TestEnteringBrowsingDrawsTheGutterInTheSameFrame(t *testing.T) {
 // simply having them in the command list — they must be visible in what View()
 // produces when the help modal is open.
 func TestDebugCommandsVisibleInHelpOverlay(t *testing.T) {
-	// Create a model at 80×33 (the minimum size needed to show all debug commands in help)
-	m := newDrivenSize(t, 80, 33)
+	// Create a model at 80×34 (the minimum size needed to show all debug commands in help)
+	m := newDrivenSize(t, 80, 34)
 	if m.mode() != ModeApprovalPending {
 		t.Fatalf("fixture should start in ApprovalPending, got %v", m.mode())
 	}

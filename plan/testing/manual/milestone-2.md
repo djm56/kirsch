@@ -27,35 +27,13 @@ cd /path/to/kirsch
 rm -f -- newfile.txt hostile.txt
 ```
 
-§2 and §4 create `newfile.txt` from the checkout. §11 now builds its own workspace, so it is unaffected either way.
+§2 and §4 create `newfile.txt` from the checkout. §11 builds its own workspace, so it is unaffected either way.
 
----
+**To run this walkthrough:**
 
-## Findings Summary
-
-**Code defects, now fixed:**
-- Pressing `a` to approve for the session froze Kirsch — reported in §1, §4 and §7. It was a deadlock in the approval flow, fixed in `mission-20260928-01` and covered by `internal/app/deadlock_test.go`.
-- Approval cards always showed a hardcoded `2.4s`. They now show the time from request to decision, using the model's clock (`resolveApproval`, `internal/tui/update.go`). Fixed in `mission-20261001-01`.
-- Command result cards never named the command, because `describeInput` in `internal/app/app.go` ignored `argv`. They now name it, sanitised through `tui.SanitizeSingleLine`. Fixed in `mission-20261001-01`.
-
-**Walkthrough wrong, corrected:**
-- §9 `/run cat`: the third item now describes the result card and the approval card separately.
-- §10 `/patch`: the setup now stands on its own instead of referring to §5, the containment item has a command behind it, and the first approval card is rejected before the second command is typed.
-- §11: the section builds its own workspace, because a `hostile.txt` left by an earlier run makes the new-file patch fail; the diff is opened with `d` before `y`; the result card is expanded before its body is checked.
-- §7 Part 2: notes that Part 1's grant already exists when both run in one session.
-
-**Environment:**
-- §10 `/help`: the help body clamps to the terminal height and `/run` sits alone on its last row, so at some heights it falls just below the fold. Scrolling reaches it.
-- §6: the pasted `no Go files` card is what a bare `go test` reports at the Kirsch checkout root.
-
-**Operator clarification:**
-- §9 `/run cat`: the operator reports that an approval card did appear and they pressed `y`. The approval gate was verified by test. Their ❌ on the first item is not explained by the code and stands until they retest.
-
-**Open questions, for the operator to decide:**
-- Command output stays collapsed until opened. Current behaviour matches `plan/spec/ui-spec-v0.1.md` §3.3.
-- One approved command produces two cards, the approval card and the result card.
-- The first Up after a command completes selects the result card, not the approval card.
-- An approval card's duration is the time taken to decide, shown where a result card shows its run time.
+1. Copy this file: `cp manual/milestone-2.md manual/user-testing/milestone-2-<yourname>.md`
+2. Mark each check ✅ or ❌ in your copy. A ❌ with a sentence about what you saw is worth more than a long report.
+3. The master stays blank. Commit both files: the blank master and your completed run.
 
 ---
 
@@ -67,12 +45,9 @@ A command not on the allowlist raises a card. An allowlisted one does not.
 /run echo hello
 ```
 
-- [✅] A card appears with the box title `approval required` and the command shown in the body
-- [✅] The card shows the exact command: `echo hello`
-- [✅] There are rendered choice buttons: `[y]` approve, `[a]` approve for session (when applicable), `[n]` reject, and `[d]` detail. The `Esc` key works everywhere without being drawn.
-
-Findings
-When I click a the whole app crashes and I have to restart the terminal and the Kirsh once again
+- [ ] A card appears with the box title `approval required` and the command shown in the body
+- [ ] The card shows the exact command: `echo hello`
+- [ ] There are rendered choice buttons: `[y]` approve, `[a]` approve for session (when applicable), `[n]` reject, and `[d]` detail. The `Esc` key works everywhere without being drawn.
 
 Press `n` to clear this card before typing the next command.
 
@@ -81,9 +56,9 @@ Press `n` to clear this card before typing the next command.
 # press y
 ```
 
-- [✅] The command runs
-- [✅] The output appears as the card's body
-- [✅] A new prompt is ready
+- [ ] The command runs
+- [ ] The output appears as the card's body
+- [ ] A new prompt is ready
 
 Now reject the command:
 
@@ -93,9 +68,9 @@ Now reject the command:
 # wait for the prompt
 ```
 
-- [✅] The command does **not** run
-- [✅] The card shows `rejected`
-- [✅] A new prompt is ready
+- [ ] The command does **not** run
+- [ ] The card shows `rejected`
+- [ ] A new prompt is ready
 
 Try an allowlisted command (the allowlist is: `go build`, `go test`, `git diff`, `git log`, `ls` — exact matches only):
 
@@ -103,13 +78,10 @@ Try an allowlisted command (the allowlist is: `go build`, `go test`, `git diff`,
 /run go test
 ```
 
-- [✅] No approval card appears at all
-- [✅] The command runs immediately
+- [ ] No approval card appears at all
+- [ ] The command runs immediately
   At the Kirsch checkout root a bare `go test` finds no Go files, so the card shows `✗ exit status 1`. That is expected: this check is only that no approval card appears.
-- [ ] The completed card appears collapsed, showing its head line; expand it by focusing the transcript (Up arrow) and pressing Enter (ui-spec §3.3)
-
-Findings
-I still have to go to the run_command and click eneter to view the command
+- [ ] The completed card is already open, showing its output without any key press (up to 10 lines; `d` opens the full output).
 
 ## 2 · The patch card
 
@@ -119,10 +91,10 @@ A patch always asks, regardless of policy.
 /patch create-file.diff
 ```
 
-- [✅] A card appears with the box title `approval required`
-- [✅] The card shows a file count: `[1 file]` or `[N files]`
-- [✅] The card lists the paths that will be changed
-- [✅] There are **exactly three rendered buttons**: `[y]` approve, `[n]` reject, `[d]` view diff. The `Esc` key works everywhere without being drawn.
+- [ ] A card appears with the box title `approval required`
+- [ ] The card shows a file count: `[1 file]` or `[N files]`
+- [ ] The card lists the paths that will be changed
+- [ ] There are **exactly three rendered buttons**: `[y]` approve, `[n]` reject, `[d]` view diff. The `Esc` key works everywhere without being drawn.
 
 Confirm that `[a]` never appears on a patch card, even though the command tool
 shows it.
@@ -140,9 +112,9 @@ Test each outcome on a command that requires approval. Start fresh each time:
 # press y
 ```
 
-- [✅] The command runs
-- [✅] A second `/run echo approval-once-test` still asks for approval
-- [✅] The approval status is not carried over
+- [ ] The command runs
+- [ ] A second `/run echo approval-once-test` still asks for approval
+- [ ] The approval status is not carried over
 
 Press `n` to clear the second card.
 
@@ -153,9 +125,9 @@ Press `n` to clear the second card.
 # press n
 ```
 
-- [✅] The command does not run
-- [✅] The card shows `rejected`
-- [✅] The prompt returns immediately
+- [ ] The command does not run
+- [ ] The card shows `rejected`
+- [ ] The prompt returns immediately
 
 **Outcome: `a` approves for the session**
 
@@ -164,9 +136,10 @@ Press `n` to clear the second card.
 # press a
 ```
 
-- [✅] The command runs
-- [✅] A second `/run echo session-approval-test` runs **without asking**
-- [✅] A third `/run echo session-approval-test` also runs without asking
+- [ ] Kirsch stays responsive after `a` — no freeze, and the next command can be typed
+- [ ] The command runs
+- [ ] A second `/run echo session-approval-test` runs **without asking**
+- [ ] A third `/run echo session-approval-test` also runs without asking
 
 
 **Outcome: `Esc` cancels**
@@ -176,16 +149,16 @@ Press `n` to clear the second card.
 # press Esc
 ```
 
-- [✅] The command does not run
-- [✅] The card shows a cancellation state
-- [✅] The prompt returns immediately
-- [✅] A second `/run echo cancellation-test` still asks for approval (not remembered)
+- [ ] The command does not run
+- [ ] The card shows a cancellation state
+- [ ] The prompt returns immediately
+- [ ] A second `/run echo cancellation-test` still asks for approval (not remembered)
 
 Press `n` to clear the second card.
 
 ## 4 · The `[a]` button (approval for session) is never on patches
 
-Start with a unapproved command that accepts `a`, then try it on a patch:
+Start with an unapproved command that accepts `a`, then try it on a patch:
 
 ```
 /run sleep 0.1
@@ -193,21 +166,15 @@ Start with a unapproved command that accepts `a`, then try it on a patch:
 /run sleep 0.1
 ```
 
-- [✅] The second command runs without asking
-
-Findings
-As above when clicking a the entire Kirsh crashes and I have to close the terminal
+- [ ] The second command runs without asking
 
 ```
 /patch create-file.diff
 ```
 
-- [✅] The patch card appears
-- [✅] There are **exactly three rendered buttons**: `[y]` approve, `[n]` reject, `[d]` view diff. The `Esc` key works everywhere without being drawn.
-- [✅] The `a` button is absent
-
-Findings
-I see the y , n and there is d for diff there is now escape
+- [ ] The patch card appears
+- [ ] There are **exactly three rendered buttons**: `[y]` approve, `[n]` reject, `[d]` view diff. The `Esc` key works everywhere without being drawn.
+- [ ] The `a` button is absent
 
 Press `n` to clear the card.
 
@@ -230,9 +197,6 @@ cp testdata/patches/modify-single-hunk.diff "$TESTWS/testdata/patches/"
 npm --prefix /path/to/kirsch run start -- -workspace "$TESTWS"
 ```
 
-**Note:** This setup was derived from the code at `cmd/kirsch/main.go` in the previous mission
-and has since been confirmed working by the operator's own pass through §5 above.
-
 Then in the running Kirsch session:
 
 ```
@@ -240,19 +204,19 @@ Then in the running Kirsch session:
 # press d
 ```
 
-- [✅] A modal appears with the filename in the title
-- [✅] The modal shows the line count in the header: `+N −M` (Unicode minus) for that file
-- [✅] The modal body shows the diff with its line prefixes (` ` for context, `+`
+- [ ] A modal appears with the filename in the title
+- [ ] The modal shows the line count in the header: `+N −M` (Unicode minus) for that file
+- [ ] The modal body shows the diff with its line prefixes (` ` for context, `+`
       for added, `-` for removed in the actual diff lines; the header uses Unicode `−`)
-- [✅] `Esc` closes the modal and returns to the card
-- [✅] The card is still visible and the buttons still work
+- [ ] `Esc` closes the modal and returns to the card
+- [ ] The card is still visible and the buttons still work
 
 Press `n` to clear the card. Then quit Kirsch with `/quit` and restart it from the checkout with `npm start` before §6, which needs the checkout as its workspace.
 
 ## 6 · The diff modal on a command card
 
 The detail view (pressed with `d`) appears only when a command card is in focus. After
-a tool completes, the focus is in the composer input field. Press Up arrow to move focus
+a tool completes, the focus is in the composer input field. Press Shift+↑ (or Tab) to move focus
 to the transcript (where the tool card sits), then press `d` to open the detail view.
 
 ```
@@ -260,36 +224,23 @@ to the transcript (where the tool card sits), then press `d` to open the detail 
 # An approval card appears
 # press y (approve the command)
 # Wait for the output to appear as a card
-# press Up arrow (moves focus from composer to transcript)
+# press Shift+↑ (moves focus from composer to transcript)
 # press d (opens detail view of the output)
 ```
 
-- [✅] An approval card appears because the command has extra arguments beyond the two-token `go test` pattern
-- [✅] After approval, the command runs and output appears as a card
-- [✅] A modal appears showing a detail view
-- [✅] `Esc` closes the modal and returns to the card
+- [ ] An approval card appears because the command has extra arguments beyond the two-token `go test` pattern
+- [ ] After approval, the command runs and output appears as a card
+- [ ] A modal appears showing a detail view
+- [ ] `Esc` closes the modal and returns to the card
 
 **Why approval is needed:** The allowlist entry for `go test` is exactly two tokens (`go` and `test`),
 non-extendable. Any command with additional arguments — like `-v ./internal/...` — raises an approval
 card before running.
 
-**Why the Up arrow is needed:** After a tool completes, the text input focus sits in the
+**Why Shift+↑ is needed:** After a tool completes, the text input focus sits in the
 composer at the prompt. Keyboard input would be inserted as text at the cursor. The `d`
 key only triggers a detail view when a message card has focus in the transcript — pressing
-Up moves focus there, so the key binding works.
-
-Findings
-I am seeing this
-
- ┃ ▾ run_command · 30ms · ✗ exit status 1
- ┃   ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
- ┃   │ # .                                                                                                                                        │
- ┃   │ no Go files in /Volumes/DATA/Github/kirsch                                                                                                 │
- ┃   │ FAIL    . [setup failed]
-
-Confirmed and documented: the original instructions were missing the navigation step required to reach the transcript and make the `d` key functional.
-
-**Status:** The card pasted above reads `no Go files in /Volumes/DATA/Github/kirsch`, which is what a bare `go test` reports at the Kirsch checkout root, where there are no Go files. It most likely came from §1's `/run go test` rather than this section's `go test -v ./internal/...` — an inference from the paste, not confirmed by rerunning. A bare `go test` failing there is expected and is not what this section tests.
+Shift+↑ (or Tab) moves focus there, so the key binding works.
 
 ## 7 · Session grants — listing and clearing
 
@@ -301,15 +252,9 @@ Confirmed and documented: the original instructions were missing the navigation 
 /run echo grant-test
 ```
 
-- [✅] The first command runs
-- [✅] A second `/run echo grant-test` runs without asking
-- [✅] A third `/run echo grant-test` also runs without asking
-
-Findings
-Preessing a crashes Kirsch
-
-**Status:** Previously reported as crashing. This was a deadlock in the approval flow,
-fixed in `mission-20260928-01`. Now covered by regression tests in `internal/app/deadlock_test.go`.
+- [ ] The first command runs
+- [ ] A second `/run echo grant-test` runs without asking
+- [ ] A third `/run echo grant-test` also runs without asking
 
 **Part 2: Clear grants and verify re-prompting**
 
@@ -320,39 +265,37 @@ The `c` key clears all grants. Test the full flow:
 /run echo grant-test
 # press a (approves for this session)
 /approvals
-# (a modal opens listing the grant)
+```
+
+- [ ] At 80 columns or wider, the `/approvals` modal footer names `c to clear (confirm)`
+
+```
 # press c (clears all grants)
 # press y to confirm
 ```
 
-- [✅] The modal closes
-- [✅] The grants list is now empty
-- [✅] A new `/run echo grant-test` asks for approval again
+- [ ] The modal closes
+- [ ] The grants list is now empty
+- [ ] A new `/run echo grant-test` asks for approval again
 
 Press `n` to clear the card.
 
-**Status:** The operator has since run this part and ticked all three items. If you have just run Part 1 in the same session, `echo grant-test` is already granted, so the first `/run echo grant-test` runs with no approval card and the `a` keypress lands in the composer. Run Part 2 in a fresh session, or skip straight to `/approvals`.
+**Note:** If you have just run Part 1 in the same session, `echo grant-test` is already granted, so the first `/run echo grant-test` runs with no approval card. Run Part 2 in a fresh session, or skip straight to `/approvals`.
 
-**Note:** The footer renders `c to clear (confirm)` in progressively shorter variants as the terminal narrows (`internal/tui/modal.go:308-310`).
-At 39 columns and above, some variant of the instruction fits; as the terminal widens, more scroll bindings appear alongside it.
-Below 39 columns, no variant carrying the instruction fits, and the footer shows only the exit key (`Esc`), read from `modalExit` at line 311.
-The `c` key does not appear in any help binding.
-
-Findings
-Maybe the c should appear in the modal so we know how to clear the session approvals
+Below 39 columns, the footer has room only for the exit key (`Esc`).
 
 ## 8 · The boundary — patch directory containment
 
 A patch whose path escapes the patch directory (`testdata/patches/`) is refused before any prompt appears.
 Note that `../escape.txt` resolves to `testdata/escape.txt`, which is outside `testdata/patches/`,
-triggering the containment check at `cmd/kirsch/main.go:180-182`:
+triggering the containment check:
 
 ```
 /patch ../escape.txt
 ```
 
-- [✅] A card or message appears **without an approval prompt**
-- [✅] It explains that the path is outside the patch directory
+- [ ] A card or message appears **without an approval prompt**
+- [ ] It explains that the path is outside the patch directory
 
 A shell-escaping command always asks, even if it is on the allowlist:
 
@@ -360,8 +303,8 @@ A shell-escaping command always asks, even if it is on the allowlist:
 /run sh -c "echo hello"
 ```
 
-- [✅] An approval card appears
-- [✅] The command text shows `sh -c "echo hello"`
+- [ ] An approval card appears
+- [ ] The command text shows `sh -c "echo hello"`
 
 Press `n` to clear the card.
 
@@ -374,31 +317,31 @@ Grants match with `extendable: true`, so any argv that begins with the granted p
 /run echo grant-demo with more args
 ```
 
-- [✅] The first command is approved for the session
-- [✅] The second command runs without asking (prefix match — both start with `echo grant-demo`)
+- [ ] The first command is approved for the session
+- [ ] The second command runs without asking (prefix match — both start with `echo grant-demo`)
 
 ```
 /run sh -c "echo test"
 ```
 
-- [✅] An approval card appears (shells are never granted, regardless of prior grants)
+- [ ] An approval card appears (shells are never granted, regardless of prior grants)
 
 Press `n` to clear the card.
 
 ## 9 · The command tool — timeout and process handling
 
-A command that runs longer than its timeout has its process group killed:
+A command that runs longer than its timeout has its process group killed. In this example, pressing Esc on an approval card cancels the request before any process starts:
 
 ```
 /run sleep 10
 # immediately (before it finishes) press Esc on the card
 ```
 
-- [✅] The card shows a cancellation state
-- [✅] Control returns to the prompt promptly
-- [✅] No `sleep` process is left behind (`ps aux | grep sleep`)
+- [ ] The card shows a cancellation state
+- [ ] Control returns to the prompt promptly
+- [ ] No `sleep` process is left behind (`ps aux | grep sleep`)
 
-**Status:** `sleep` is not on the allowlist, so this command raises an approval card, and Esc on that card cancels the request before any process starts. These items check that cancelling an approval works. They do not exercise the timeout kill this section's heading describes, and nothing else in this walkthrough does either.
+**Note:** `sleep` is not on the allowlist, so this command raises an approval card, and Esc on that card cancels the request before any process starts. This demonstrates that cancelling an approval works. The timeout kill is covered by automated tests (`TestRunCommandTimeoutProcessGroupDead` in `internal/tool/run_command_test.go`), not by this walkthrough.
 
 A command that reads from standard input gets `/dev/null` and exits immediately:
 
@@ -407,14 +350,10 @@ A command that reads from standard input gets `/dev/null` and exits immediately:
 # press y
 ```
 
-- [✅] An approval card appears (cat is not allowlisted)
-- [✅] The command does not block
-- [✅] After `y`, the result card reads `▸ run_command cat · completed · <duration> · ✓ ok`: it names the command and carries no `✗`. It is a separate card from the approval card, which collapses to `▸ run_command cat · <duration> · ✓ approved`.
-- [✅] The prompt returns
-
-**Status:** On 2026-10-01 the operator confirmed that an approval card did appear for `/run cat` and that they pressed `y`, so the approval gate held. Their ❌ on the first item stands until they retest it. The third item was rewritten: before this mission the result card never named the command, because `describeInput` in `internal/app/app.go` ignored `argv`, and the approval card always showed a hardcoded `2.4s`. Both are fixed. One approved command produces two cards: the result card is assembled by `renderTool` in `internal/tui/cards.go` and carries the `completed` summary and the `✓ ok` badge; the approval card is assembled by `renderApproval` and carries `✓ approved` with no summary. The operator had marked the original third item ❌. It is blank because its text changed.
-
-**Why no exit status is shown:** On success `run_command.go` sets the summary to `completed` and records no exit code; the string `exit status N` is produced only on the failure branch, so an exit code is never visible in a successful run.
+- [ ] An approval card appears (cat is not allowlisted)
+- [ ] The command does not block
+- [ ] After `y`, one card appears: it names the command and shows `completed · approved · <duration> · ✓ ok` 
+- [ ] The prompt returns
 
 Shells always require approval, even if a command itself is allowlisted. The `/run`
 debug command's argument parser handles double quotes but not single quotes or
@@ -427,12 +366,11 @@ backslash escapes — those are parsed as literal characters:
 # verify the grant works and the extension does not ask
 ```
 
-- [✅] The first command is approved for the session
-- [✅] The second command runs without asking (prefix match — the grant covers any argv starting with `echo hello`)
+- [ ] The first command is approved for the session
+- [ ] The second command runs without asking (prefix match — the grant covers any argv starting with `echo hello`)
 
 A command with a variable named `*_KEY`, `*_TOKEN`, `*_SECRET`, or `AWS_*` does not pass that
-variable to the child, even if allowlisted or approved. This filtering is applied unconditionally
-in `internal/tool/run_command.go:374-381`. The test must allowlist a secret-shaped variable to demonstrate that it is stripped regardless of allowlisting.
+variable to the child, even if allowlisted or approved. This filtering is applied unconditionally. The test must allowlist a secret-shaped variable to demonstrate that it is stripped regardless of allowlisting.
 
 Create a test workspace with a Kirsch config file:
 
@@ -457,25 +395,18 @@ export ORDINARY_VAR="test-ordinary"
 npm --prefix /path/to/kirsch run start -- -workspace "$TESTWS"
 ```
 
-Config file location and structure (read from `internal/config/config.go:50` and `internal/config/config.go:301`):
-- **Location:** `.kirsch/config.toml` in the workspace root
-- **TOML key:** `env_passthrough` under `[policy]` section
-- **Default:** empty list `[]`
-
-The `env_passthrough` list (built at `internal/tool/run_command.go:365-372`) is combined with the permanent allowlist (`PATH`, `HOME`, `LANG`), then the secret patterns are applied at lines 374–381.
-
 Then in the running Kirsch session:
 
 ```
 /run env
-# press y (shell commands require approval; isShell() in internal/policy/policy.go)
+# press y (shell commands require approval)
 ```
 
-- [✅] An approval card appears
-- [✅] The environment output appears in a card
-- [✅] `ORDINARY_VAR` is visible in the output (proving the allowlist mechanism works)
-- [✅] `SECRET_KEY` is absent from the output (stripped by pattern `*_KEY` even though allowlisted)
-- [✅] Other variables like `PATH` and `HOME` are visible (permanent allowlist items)
+- [ ] An approval card appears
+- [ ] The environment output appears in a card
+- [ ] `ORDINARY_VAR` is visible in the output (proving the allowlist mechanism works)
+- [ ] `SECRET_KEY` is absent from the output (stripped by pattern `*_KEY` even though allowlisted)
+- [ ] Other variables like `PATH` and `HOME` are visible (permanent allowlist items)
 
 **Why the ordinary variable is present:** It demonstrates that the passthrough mechanism is working — the variable reaches the subprocess because it is allowlisted and not secret-shaped. If `ORDINARY_VAR` were absent, the test would not be discriminating: a secret's absence could be either the strip or a broken allowlist. With both variables allowlisted and only the secret stripped, the test proves the stripping code is active and effective.
 
@@ -483,19 +414,14 @@ Quit Kirsch with `/quit` and restart it from the checkout with `npm start` befor
 
 ## 10 · Debug commands
 
-The debug commands are labelled `debug (M1–M2)` in `/help`, rendered by `helpLines()` at `internal/tui/modal.go:585`. The help modal displays two columns of bindings; the debug commands sit at the bottom of the right-hand column.
+The debug commands are labelled `debug (M1–M2)` in `/help`. The help modal displays two columns of bindings; the debug commands sit at the bottom. The `/run` command may fall below the fold if your terminal is short, requiring scrolling to reach it.
 
 ```
 /help
 ```
 
-- [✅] `/patch` appears with the label `debug (M1–M2)`
-- [❌] `/run` appears with the label `debug (M1–M2)` (scroll with `j`/`k`, `g`/`G`, or PgUp/PgDn if the modal clamps content to available height — see Known Limitations)
-
-Findings
-No I am not seeing debug (M1–M2) I am seeing M1-M2 with patch only, also I am not seeing anything with run
-
-**Status:** `helpLines()` in `internal/tui/modal.go` renders the label as `debug (M1–M2)` with an en dash, which can read as a hyphen. It lays the debug commands two to a row, so `/patch` shares a row with `/gitdiff` and `/run` sits alone on the last row of the help body. At some terminal heights the fold falls between those two rows, so the label and `/patch` show and `/run` does not. `TestHelpScrollingReachesDebugCommands` in `internal/tui/header_test.go` reproduces this and confirms scrolling brings `/run` into view. The ❌ above is the operator's, and it stands until they retest with scrolling.
+- [ ] `/patch` appears with a label containing the text `M1–M2` (or `M1-M2`)
+- [ ] `/run` appears with a label containing the text `M1–M2` (scroll with `j`/`k`, `g`/`G`, or PgUp/PgDn if the modal clamps content to available height)
 
 Patch commands need the workspace setup from §5 to work correctly. Close the help modal with `Esc`, then quit Kirsch with `/quit` before running the setup below.
 
@@ -526,19 +452,6 @@ Then in the running Kirsch session:
 - [ ] An approval card appears listing `plain.txt` as the file the patch changes
 - [ ] `/patch ../escape.txt` raises no approval card; the hint at the composer reads `patch: patch file "../escape.txt" is outside testdata/patches`
 
-Findings
-
- ┃ ▾ apply_patch · 0ms · ✗ file not found during patch: cannot read file: open /Volumes/DATA/Github/kirsch/plain.txt: no such file or directory
- ┃   ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
- ┃   │                                                                                                                                        │
- ┃   └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- Same result again
-
- I see this at the bottom > Ask anything (Enter to send, /help for help)
-   patch: open /private/var/folders/nb/46t8bdcd3050lnvz_6066k_40000gn/T/tmp.0Mgkak3Qu5/testdata/patches/modify-single-hunl.diff: no such file or di
-
-**Status:** The operator's output shows the patch was not found at the Kirsch checkout root because the workspace setup from §5 was not repeated. The workspace setup above (using `TESTWS_SEC10`) ensures both the patch file and its target are in the correct locations relative to the workspace root, which should resolve this path-resolution issue. The operator's retest will confirm it. The operator had marked both of this section's original patch items ❌. Those items were replaced by the two above, which are blank for retest.
-
 Test the `/run` debug command's quote handling:
 
 Each of these commands raises an approval card. Press `y` on each card before typing the next command. The card and its output show how the argument was parsed.
@@ -549,20 +462,19 @@ Each of these commands raises an approval card. Press `y` on each card before ty
 /run echo back\slash
 ```
 
-- [✅] Double quotes work as expected
-- [✅] Single quotes are treated as literal characters, not quote delimiters
-- [✅] Backslash escapes are treated as literal backslash followed by the
+- [ ] Double quotes work as expected
+- [ ] Single quotes are treated as literal characters, not quote delimiters
+- [ ] Backslash escapes are treated as literal backslash followed by the
       character, not as escape sequences
 
 ## 11 · Hostile content — terminal escapes and injection
 
 Create a patch file with escape sequences in the content. Keyboard input produces literal
 characters only — `\033` at the prompt is four literal characters, never an ESC byte.
-A real ESC byte must come from a file:
+A real ESC byte must come from a file.
 
 This section builds its own workspace. A new-file patch is refused when its target already
-exists, and an earlier run of this section leaves `hostile.txt` behind, so it must not run
-in a directory where that file may already be.
+exists, so it must not run in a directory where that file may already be.
 
 Quit the current Kirsch session with `/quit` before running the setup below.
 
@@ -584,36 +496,227 @@ Then in the running Kirsch session:
 # press d (opens the diff while the approval is still pending)
 # press Esc (closes the diff and returns to the approval card)
 # press y (approves; the patch applies)
-# press Up (moves focus to the transcript; the result card is selected)
-# press Enter (expands the result card to show its body)
 ```
 
-- [✅] An approval card appears (patches always ask, regardless of content)
-- [✅] A detail modal opens showing the diff with the title `hostile.txt`
-- [✅] In the diff, the added line shows `+red text` with no visible escape sequences and no terminal colour rendering
-- [✅] After `y`, a card appears showing `applied · ok`
-- [✅] The result card body shows `patch applied` without escape codes or colour changes
+- [ ] An approval card appears (patches always ask, regardless of content)
+- [ ] A detail modal opens showing the diff with the title `hostile.txt`
+- [ ] In the diff, the added line shows `+red text` with no visible escape sequences and no terminal colour rendering
+- [ ] After `y`, a card appears showing `applied · ok`
+- [ ] The result card body shows `patch applied` without escape codes or colour changes
 
-**What happens to escape bytes:** The code strips ANSI sequences at `internal/tui/transcript.go:413`,
-matching patterns CSI (`\x1b\[[0-?]*[ -/]*[@-~]`), OSC, and two-byte escapes. The sequences
+**What happens to escape bytes:** The code strips ANSI sequences from patch content, matching patterns for CSI escape sequences and related forms. The sequences
 are removed entirely by `Sanitize`, so patch content of `+\033[31mred text\033[0m` reaches the operator as
-`+red text` — legible, unmangled, and posing no terminal-control risk. Approval cards' detail modals are opened via `keyApproval` at `internal/tui/update.go:722–724`, which sets the selection to the approval card and calls `openDetail`; the approval card's `Diff` field carries the sanitised lines.
+`+red text` — legible, unmangled, and posing no terminal-control risk.
 
-Findings
-I am not sure what I am looking for here but this is what I am seeing
+---
 
- ▾ apply_patch · applied · 5.3s · ✓ ok
-   ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-   │ patch applied                                                                                                                                │
-   └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+## 12 · UX pass (terminal width and height)
 
- ┃ ▸ apply_patch 1 file changed · 2.4s · ✓ approved
+Run this section in a fresh session from the Kirsch checkout (`npm start`). The terminal must be
+at least **120 columns wide** and **between 24 and 33 rows tall**; check with `stty size` (it
+prints rows, then columns) before starting. Some card heads checked below are wider than 80
+columns, and Kirsch cuts a line at the right edge without an ellipsis, so a narrower terminal
+would hide the text being checked.
 
-**Status:** This section now builds its own workspace. A new-file patch is refused when its target already exists (`applyCreate`, `internal/patch/apply.go`), and an earlier run left `hostile.txt` in the Kirsch checkout, so running here would fail before any approval card appeared. Because the setup and the key sequence changed, all five items are blank for retest. The operator had ticked three of the original four items and marked the fourth ❌. The diff is opened with `d` while the approval is pending (`keyApproval`, `internal/tui/update.go:722–724`); a result card's body stays hidden until the card is expanded with Enter (`KeyEnter`, `internal/tui/update.go`). The `2.4s` on the operator's pasted card is the old hardcoded duration, since fixed.
+### 12.1 · Card preview
 
+The line count below is `go.mod`'s as of 2026-10-01. If `wc -l < go.mod` now prints a
+different number, expect that number wherever `54` appears.
 
+In the prompt:
 
+```
+/read go.mod
+```
 
+- [ ] The card opens without any key press, glyph `▾`, showing the first 10 lines of `go.mod`
+- [ ] Under the box a dim line reads `‹10 of 54 lines — d full output · Enter collapse›`
+- [ ] The card head reads `read_file go.mod · lines 1-54 …` — the path appears once
+
+```
+# press Shift+↑ (focus moves to the cards; the go.mod card is selected)
+# press Enter
+```
+
+- [ ] The card collapses to its head line only, glyph `▸`
+
+```
+# press Enter again
+```
+
+- [ ] The 10-line preview and its marker return
+
+```
+# press d
+```
+
+- [ ] A modal opens showing all 54 lines (scroll with `j`/`k`)
+
+```
+# press Esc (closes the modal), then Tab (focus returns to the prompt)
+```
+
+### 12.2 · No empty last row
+
+In the prompt (`ls` with an argument is not allowlisted, so an approval card appears):
+
+```
+/run ls cmd
+# press y
+```
+
+- [ ] The output box holds exactly one row, `kirsch`, directly above its bottom border — no
+      empty row between them
+
+### 12.3 · Command history
+
+In the prompt, type each line and press Enter (each shows `unknown command …`):
+
+```
+/zz1
+/zz2
+```
+
+Then press ↑, ↑, ↓, ↓, checking the prompt after each press.
+
+- [ ] The first ↑ fills the prompt with `/zz2`
+- [ ] The second ↑ shows `/zz1`
+- [ ] The first ↓ shows `/zz2` again
+- [ ] The second ↓ leaves the prompt empty
+
+Type `abc` without pressing Enter, press ↑, then ↓.
+
+- [ ] ↑ shows `/zz2`
+- [ ] ↓ brings `abc` back
+
+Press Esc to clear the prompt.
+
+### 12.4 · Moving between the prompt and the cards
+
+The `┃` gutter marks the selected card whichever part has focus, so it does not show where
+focus is; the bottom row does.
+
+In the prompt, with the prompt empty, press Shift+↑:
+
+- [ ] Focus moves to the cards — the bottom row reads
+      `↑↓ select · Enter preview · d detail · Tab/Esc prompt`
+
+Press Tab:
+
+- [ ] Focus returns to the prompt — the bottom row reads `↑↓ history · ⇧↑/Tab cards · /help`
+
+Press Shift+↑, then Esc:
+
+- [ ] Focus returns to the prompt again, with the same bottom row
+
+In the prompt, type `/ru` and press Tab:
+
+- [ ] It completes to `/run` and focus stays in the prompt
+
+Press Esc to clear it, type `hello`, then press Tab:
+
+- [ ] Focus moves to the cards — the bottom row reads
+      `↑↓ select · Enter preview · d detail · Tab/Esc prompt`
+
+Press Tab to return, then Esc to clear `hello`.
+
+### 12.5 · One card per approved command
+
+In the prompt (`echo` is not allowlisted, so an approval card appears):
+
+```
+/run echo one-card
+# press y
+```
+
+- [ ] One card remains for this command; its head reads
+      `run_command echo one-card · completed · approved · <duration> · ✓ ok`
+- [ ] No separate `✓ approved` line is left in the transcript
+
+```
+/run echo grant-ux
+# press a
+```
+
+- [ ] One card remains for this command, with no separate approval line
+- [ ] Its head contains `approved for session · session grant: echo grant-ux`
+- [ ] A second `/run echo grant-ux` runs with no approval card
+
+```
+/run echo reject-ux
+# press n
+```
+
+- [ ] The approval card stays and reads `rejected`
+- [ ] The command's own card is shown as well — two cards for this command
+
+### 12.6 · A stray key cannot resolve a pending card
+
+In the prompt:
+
+```
+/run echo release-ux
+# an approval card appears
+# type x
+```
+
+- [ ] The prompt area shows `approval pending — Tab to return to the card`
+- [ ] Pressing `y` now does nothing — the card stays pending
+
+Press Tab:
+
+- [ ] The pending message disappears
+
+Press `n`:
+
+- [ ] The card is rejected
+
+### 12.7 · Key-hint line
+
+At 24 rows or more:
+
+- [ ] In the prompt, the bottom row reads `↑↓ history · ⇧↑/Tab cards · /help`
+- [ ] After Shift+↑ (the cards), it reads `↑↓ select · Enter preview · d detail · Tab/Esc prompt`
+
+Press Tab to return to the prompt.
+
+```
+/run echo hint-ux
+# an approval card appears — do not resolve it yet
+```
+
+- [ ] The bottom row reads `y approve · a session · n reject · d detail · Esc cancel`
+- [ ] Type `x`: it changes to `Tab back to the card · Esc cancel`
+
+Press Tab, then `n`, to clear the card. This leaves a rejected approval card and the command's own card in the transcript; that is expected.
+
+```
+/help
+```
+
+- [ ] With help open, the bottom row is blank
+- [ ] Nothing else on the screen moves up or down when help opens
+
+Press Esc. Shrink the terminal to about 20 rows:
+
+- [ ] The key-hint row disappears
+
+Restore the terminal to between 24 and 33 rows.
+
+### 12.8 · Help clipping marker
+
+The terminal should be between 24 and 33 rows tall: help needs 34 rows to fit without clipping.
+In the prompt:
+
+```
+/help
+```
+
+- [ ] The line just above the help footer shows `↓ N more`
+- [ ] Press `G`: that line now shows `↑ N above`
+- [ ] It no longer shows `↓`
+
+Press Esc.
 
 ---
 
@@ -622,10 +725,10 @@ I am not sure what I am looking for here but this is what I am seeing
 The following are not bugs; they are recorded limitations of the current
 implementation:
 
-- The help overlay clamps its body to the terminal height with nothing on
-  screen to say content is below the fold. At 80×24 neither debug command is
-  visible. The overlay does scroll, but no footer names the keys.
-- A tool card's target is sanitised through `describeInput` and `SanitizeSingleLine` (`internal/app/app.go:770` and `internal/tui/transcript.go:449`), removing ANSI escapes and newlines. The tool card's name (`c.Name`) and the `path` and `query` fields for other tool types are not sanitised, and remain unsanitised for a later milestone.
+- The help overlay is taller than the terminal below 34 rows. It scrolls, and a marker on
+  its rule row (`↓ N more`, `↑ N above`) shows that content is clipped, but no footer names
+  the scroll keys.
+- A tool card's target is sanitised, removing ANSI escapes and newlines. The tool card's name and the `path` and `query` fields for other tool types are not sanitised, and remain unsanitised for a later milestone.
 - The box builder does not bound a row against its own width, so a very long
   path can overrun a card's right border.
 

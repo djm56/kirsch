@@ -968,6 +968,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     22 lines, a 26-row box — but every *screen* height in this entry is one row
     short of current: the header is two rows now, so the overlay needs **32**
     rows and screen 06 is drawn at 80×32, and the M3 figure becomes 80×27.
+    Superseded again by amendment 67: six rows, and screen 06 goes from 80×34 to 80×28.
 
 60. **The header is two rows, the frame has a one-column side margin, `Ctrl+G`
     re-pins from the composer, and the onboarding tagline truncates with a
@@ -1016,12 +1017,95 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     accent it uses is 117, not the 111 the text said while the colour map beside
     it said 117).
 
+**Milestone 2 execution (2026-09-21 to 2026-10-02)**
+
+61. **An approval answer from `Update` never blocks.** `app.Resolve` runs on
+    Bubble Tea's event loop, and the session-grant path sent its follow-up
+    messages with a blocking send that waited for that same loop, so pressing
+    `a` froze the terminal (mission-20260928-01). The whole message sequence is
+    now delivered from one goroutine (`sendAsyncSequence`), and
+    `internal/app/deadlock_test.go` drives a real `tea.Program` through it.
+62. **The command allowlist is exact-match.** `plan/milestones/milestone-2.md`
+    Task 4 describes argv-prefix patterns with a trailing `*`. The shipped
+    entries carry an `extendable` flag that is false for every default entry —
+    `go build`, `go test`, `git diff`, `git log`, `ls` — so `go test ./...` asks.
+    Session grants are still prefix matches. Stricter than the instruction set;
+    kept by the operator on 2026-10-02.
+63. **Secret stripping is case-sensitive.** `run_command` strips `*_TOKEN`,
+    `*_KEY`, `*_SECRET` and `AWS_*` by exact-case match, so lower-case names such
+    as `my_token` pass through. Recorded rather than changed by the operator on
+    2026-10-02.
+64. **A renamed shell is documented, not blocked.** Shell detection is by
+    basename (`sh`, `bash`, `zsh`, `dash`, `env`, `xargs`, `nohup`); a shell
+    binary copied under another name is not detected
+    (`TestRunCommandRenamedShellLimitationDocumented`).
+65. **Tool cards open as a 10-line preview, and the 200-line inline cap is
+    gone.** Enter toggles preview and collapsed, `d` opens the full output, and
+    the marker reads `‹10 of N lines — d full output · Enter collapse›`
+    (mission-20261001-02). This supersedes the 200-line cap described in
+    amendments 23, 24 and 38, and settles the open question below about it.
+    Screen 07 is redrawn as a preview at 80×22.
+66. **The rest of the Milestone 2 UX pass** (mission-20261001-02). `↑`/`↓` on
+    the composer's first or last row recall up to 100 history entries; Shift+↑
+    or Tab moves to the cards; an approved command shows one card, the approval
+    folded into the tool card's head; a stray key releases a pending approval
+    card instead of answering it, and Tab or Shift+↑ re-arms it; Esc on a
+    pending approval resolves as Cancelled, not Rejected; a key-hint row is
+    drawn at 24 rows or more and blanked under overlays; a clipped modal shows
+    `↑ N above · ↓ N more` on its rule row.
+67. **The help overlay needs 34 rows.** The key-hint row adds one row to the
+    frame and the help body is 23 lines, so the 32 recorded by amendment 59,
+    as corrected there, becomes 34, and screen 06 is drawn at 80×34. The debug
+    commands now lead with `/patch  /run` so `/run` is visible whenever `/patch`
+    is, and a clipped help overlay's footer names `j/k scroll · g/G top/bottom`
+    (mission-20261002-01). The M3 projection in amendments 59 and 60 and in
+    `milestone-3.md` Task 7 changes with it: the debug block is now six rows
+    (spacer, heading, four command rows), so removing it takes screen 06 from
+    80×34 to 80×28.
+68. **CRLF patching.** A `git diff` of a CRLF file could not be applied: the
+    parser keeps a hunk line's trailing `\r` while the applier strips it from the
+    file, so every context line mismatched. Lines are now compared without the
+    trailing `\r` and added lines are written in the file's own ending. A patch
+    whose hunk lines carry `\r` must add lines in the file's ending or it is
+    rejected with `line_ending_mismatch`; a `+` line directly followed by
+    `\ No newline at end of file` is exempt. A file with mixed endings is still
+    rewritten wholesale in its dominant ending (a tie becomes LF), which departs
+    from Task 3.3's "preserve" rule (mission-20261002-01).
+69. **Rename-with-edit preserves the source file's permission bits.** It had
+    left every renamed-and-edited file at mode 0600, inherited from its temp
+    copy. Only `Perm()` is carried: setuid, setgid and sticky are not, while a
+    plain modify and a pure rename keep them (mission-20261002-01).
+70. **`run_command` ignores the configured timeout default.**
+    `policy.default_command_timeout_seconds` (default 60) is validated by
+    `internal/config` but never read by `run_command`, which falls back to 3600
+    seconds and enforces no maximum, while its schema tells the model
+    "Maximum 3600". §3 specifies a default of 60 and a maximum of 300. Recorded
+    as an open defect for the operator, not changed in Milestone 2.
+71. **A command reading stdin sees EOF; it does not error.** `run_command` gives
+    the child `/dev/null`, so a reader such as `cat` exits at once, normally
+    with success. §3.2 and Milestone 2 Task 9 say such a command must "fail
+    immediately"; the delivered guarantee is that it never hangs.
+72. **Three policy settings are not read.** `allow_session_scoped_grants`,
+    `require_approval_for_patches` and `require_approval_for_commands` exist in
+    `internal/config` with defaults, but nothing passes them to the policy:
+    `internal/app` builds it with `policy.New()`, which always enables session
+    grants. Setting `allow_session_scoped_grants = false` therefore does not
+    disable grants, and Milestone 2 Task 4.5 is not met. The defaults match the
+    shipped behaviour, so only a user who changes them is affected. Recorded as
+    an open defect, not changed in Milestone 2.
+73. **`run_command` output is not streamed.** `RunCommand.ProgressSink` exists
+    and is unit-tested (`TestProgressSinkReceivesChunks`), but `internal/app`
+    registers the tool without it and no progress message reaches the TUI, so
+    a command's output appears only when it finishes. §3 and Milestone 2
+    Task 5.2 call for incremental output. Recorded as an open defect.
+
 **Still open (not blocking Milestone 0)**
 
 - Exact figures for the §5 model table — fill from published provider docs at M3.
 - Whether `/approvals` needs its own key binding or only the slash command.
-- Whether 200 lines is the right inline cap — the last open §14 risk. Both key
-  detection and spinner rendering are settled by amendments 40 and 42.
+- ~~Whether 200 lines is the right inline cap~~ — settled by amendment 65: tool
+  cards show a 10-line preview. Key detection and spinner rendering were settled
+  by amendments 40 and 42.
 - Session file rotation for very long sessions (ADR 0002 flagged this; still deferred).
 - Screen 14 (onboarding) in `plan/spec/kirsch-ui-screens.md` — drawn at M3 with the
   provider onboarding path, per amendment 24.
@@ -1029,6 +1113,6 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
   binding ships; the overlay does not name it. Screen 06 is a byte-for-byte test
   oracle, so this is a redraw plus a `bindingGroups` entry — but it costs no
   height: body height is the taller column, and the row lands in the left one at
-  15 rows against the right's 22. `max(16, 22)` is still 22, and after the debug
-  block leaves at M3 `max(16, 17)` is still 17. The 80×32 grid and the 80×27
+  15 rows against the right's 23. `max(16, 23)` is still 23, and after the debug
+  block leaves at M3 `max(16, 17)` is still 17. The 80×34 grid and the 80×28
   projection both survive it.

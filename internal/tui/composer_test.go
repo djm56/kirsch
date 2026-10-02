@@ -18,7 +18,7 @@ func composerRow(t *testing.T, m Model, n int) string {
 	t.Helper()
 	lines := strings.Split(stripSGR(m.View()), "\n")
 	lay := m.layout()
-	first := len(lines) - lay.ComposerH
+	first := len(lines) - lay.ComposerH - lay.HintH
 	if first < 0 || n >= lay.ComposerH {
 		t.Fatalf("composer row %d does not exist: frame has %d rows, composer is %d",
 			n, len(lines), lay.ComposerH)

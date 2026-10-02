@@ -206,6 +206,274 @@ func TestApplyCRLFPreservation(t *testing.T) {
 	}
 }
 
+// TestApplyGitStyleCRLFDiffPreservesCRLF applies a git-style CRLF diff to a
+// CRLF file and verifies the file is correctly modified with CRLF preserved.
+func TestApplyGitStyleCRLFDiffPreservesCRLF(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "crlf.txt")
+
+	// Copy the fixture file byte-for-byte
+	fixtureContent, err := os.ReadFile("../../testdata/repo-patch/crlf.txt")
+	if err != nil {
+		t.Fatalf("failed to read fixture crlf.txt: %v", err)
+	}
+	if err := os.WriteFile(testFile, fixtureContent, 0o644); err != nil {
+		t.Fatalf("failed to copy fixture to temp: %v", err)
+	}
+
+	// Load the git-style CRLF diff
+	diffContent, err := os.ReadFile("../../testdata/patches/crlf-preserving.diff")
+	if err != nil {
+		t.Fatalf("failed to read crlf-preserving.diff: %v", err)
+	}
+
+	changes, err := Parse(diffContent)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+
+	changes[0].Path = testFile
+
+	// Apply the patch
+	err = ApplyToAbsPath(changes)
+	if err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Verify the result
+	result, _ := os.ReadFile(testFile)
+	expected := "First line\r\nModified second line\r\nThird line\r\n"
+	if string(result) != expected {
+		t.Errorf("expected %q, got %q", expected, string(result))
+	}
+}
+
+// TestApplyCRLFConvertingPatchRejected applies a converting diff (CRLF lines
+// on an LF file, or vice versa) and expects ErrLineEnding rejection.
+func TestApplyCRLFConvertingPatchRejected(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "crlf.txt")
+
+	// Copy the fixture file byte-for-byte
+	fixtureContent, err := os.ReadFile("../../testdata/repo-patch/crlf.txt")
+	if err != nil {
+		t.Fatalf("failed to read fixture crlf.txt: %v", err)
+	}
+	if err := os.WriteFile(testFile, fixtureContent, 0o644); err != nil {
+		t.Fatalf("failed to copy fixture to temp: %v", err)
+	}
+
+	// Load the converting diff (CRLF in patch but will have LF added lines)
+	diffContent, err := os.ReadFile("../../testdata/patches/crlf-converting.diff")
+	if err != nil {
+		t.Fatalf("failed to read crlf-converting.diff: %v", err)
+	}
+
+	changes, err := Parse(diffContent)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+
+	changes[0].Path = testFile
+
+	// Apply the patch - should fail with ErrLineEnding
+	err = ApplyToAbsPath(changes)
+	if err == nil {
+		t.Fatal("expected ErrLineEnding, but apply succeeded")
+	}
+
+	applyErr, ok := err.(*ApplyError)
+	if !ok {
+		t.Fatalf("expected ApplyError, got %T", err)
+	}
+
+	if applyErr.Kind != ErrLineEnding {
+		t.Errorf("expected ErrLineEnding, got %v", applyErr.Kind)
+	}
+
+	// Verify file is unchanged
+	result, _ := os.ReadFile(testFile)
+	if string(result) != string(fixtureContent) {
+		t.Errorf("file should be unchanged after rejection")
+	}
+}
+
+// TestApplyLFFileRejectsCRLFAddedLine applies a patch with CRLF-ending added
+// lines to an LF file and expects ErrLineEnding rejection.
+func TestApplyLFFileRejectsCRLFAddedLine(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "lf.txt")
+
+	// Create an LF file
+	if err := os.WriteFile(testFile, []byte("a\nb\nc\n"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Build an inline diff with context lines (no \r) but a + line with \r
+	diff := "--- a/lf.txt\n+++ b/lf.txt\n@@ -1,3 +1,3 @@\n a\n-b\n+" +
+		"b" + "\r" + "\n c\n"
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+
+	changes[0].Path = testFile
+
+	// Apply - should fail with ErrLineEnding
+	err = ApplyToAbsPath(changes)
+	if err == nil {
+		t.Fatal("expected ErrLineEnding, but apply succeeded")
+	}
+
+	applyErr, ok := err.(*ApplyError)
+	if !ok {
+		t.Fatalf("expected ApplyError, got %T", err)
+	}
+
+	if applyErr.Kind != ErrLineEnding {
+		t.Errorf("expected ErrLineEnding, got %v", applyErr.Kind)
+	}
+
+	// Verify file is unchanged
+	result, _ := os.ReadFile(testFile)
+	if string(result) != "a\nb\nc\n" {
+		t.Errorf("file should be unchanged after rejection, got %q", string(result))
+	}
+}
+
+// TestApplyGitStyleCRLFEditsLastLineWithoutNewline applies a git-style CRLF diff
+// that edits the last line of a CRLF file when that line has no final newline.
+// The diff emits the + line without \r and then a "\ No newline at end of file"
+// marker, which should not be rejected as a converting patch.
+func TestApplyGitStyleCRLFEditsLastLineWithoutNewline(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "crlf-noeol.txt")
+
+	// Create file with CRLF endings, last line has no newline
+	if err := os.WriteFile(testFile, []byte("a"+"\r"+"\n"+"b"+"\r"+"\n"+"last"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Diff that edits the last line (no newline). The + line has no \r because
+	// it's not followed by a line ending; only context and - lines have \r.
+	diff := "--- a/crlf-noeol.txt\n+++ b/crlf-noeol.txt\n@@ -1,3 +1,3 @@\n " +
+		"a" + "\r" + "\n " + "b" + "\r" + "\n" +
+		"-last\n" +
+		"\\ No newline at end of file\n" +
+		"+new last\n" +
+		"\\ No newline at end of file\n"
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+
+	changes[0].Path = testFile
+
+	// Apply should succeed (+ line without \r is exempt because it's before a marker)
+	err = ApplyToAbsPath(changes)
+	if err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Verify the result
+	result, _ := os.ReadFile(testFile)
+	expected := "a" + "\r" + "\n" + "b" + "\r" + "\n" + "new last"
+	if string(result) != expected {
+		t.Errorf("expected %q, got %q", expected, string(result))
+	}
+}
+
+// TestApplyGitStyleCRLFAppendsAfterLastLineWithoutNewline applies a git-style
+// CRLF diff that appends to a CRLF file after a line without a final newline.
+// The original last line has no newline; the diff removes it, adds it back with
+// a newline (now with \r), then adds another line.
+func TestApplyGitStyleCRLFAppendsAfterLastLineWithoutNewline(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "crlf-noeol-append.txt")
+
+	// Create file with CRLF on first line, last line has no newline
+	if err := os.WriteFile(testFile, []byte("a"+"\r"+"\n"+"b"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Diff that removes the last line (no newline), then adds it back with a
+	// newline (so with \r), then adds another line.
+	diff := "--- a/crlf-noeol-append.txt\n+++ b/crlf-noeol-append.txt\n@@ -1,2 +1,3 @@\n " +
+		"a" + "\r" + "\n" +
+		"-b\n" +
+		"\\ No newline at end of file\n" +
+		"+b" + "\r" + "\n" +
+		"+c\n" +
+		"\\ No newline at end of file\n"
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+
+	changes[0].Path = testFile
+
+	// Apply should succeed
+	err = ApplyToAbsPath(changes)
+	if err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Verify the result
+	result, _ := os.ReadFile(testFile)
+	expected := "a" + "\r" + "\n" + "b" + "\r" + "\n" + "c"
+	if string(result) != expected {
+		t.Errorf("expected %q, got %q", expected, string(result))
+	}
+}
+
+// TestApplyGitStyleCRLFRenameWithEdit applies a rename-with-edit whose hunks
+// carry \r, applied to a CRLF source. The renamed file keeps CRLF with no \r\r.
+func TestApplyGitStyleCRLFRenameWithEdit(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	oldFile := filepath.Join(tmpDir, "src.txt")
+	// Write CRLF content to source
+	if err := os.WriteFile(oldFile, []byte("Keep this line\r\nOld content\r\n"), 0o644); err != nil {
+		t.Fatalf("failed to create source file: %v", err)
+	}
+
+	newFile := filepath.Join(tmpDir, "dst.txt")
+
+	// Build a git-style diff with CRLF in hunks
+	diff := "diff --git a/src.txt b/dst.txt\nrename from src.txt\nrename to dst.txt\n" +
+		"--- a/src.txt\n+++ b/dst.txt\n@@ -1,2 +1,2 @@\n Keep this line\r\n" +
+		"-Old content\r\n+New content\r\n"
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = newFile
+	changes[0].OldPath = oldFile
+
+	if err := ApplyToAbsPath(changes); err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Verify src is gone
+	if _, err := os.Stat(oldFile); err == nil {
+		t.Error("src.txt should no longer exist after rename")
+	}
+
+	// Verify new file has correct content (CRLF, not \r\r\n)
+	result, err := os.ReadFile(newFile)
+	if err != nil {
+		t.Fatalf("dst.txt should exist after rename: %v", err)
+	}
+	expected := "Keep this line\r\nNew content\r\n"
+	if string(result) != expected {
+		t.Errorf("expected %q, got %q", expected, string(result))
+	}
+}
+
 // TestApplyExecBitPreservation tests that executable bit is preserved.
 func TestApplyExecBitPreservation(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -1340,5 +1608,285 @@ func TestEmptyChangeSetStillCommits(t *testing.T) {
 	// Second Commit should fail (handle already committed)
 	if err := handle.Commit(); err == nil {
 		t.Fatal("expected second Commit to fail on empty set, but it succeeded")
+	}
+}
+
+// TestApplyRenameWithEditPreservesExecBit tests that a rename-with-edit operation
+// preserves the executable bit (0755) on the renamed file.
+func TestApplyRenameWithEditPreservesExecBit(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	oldFile := filepath.Join(tmpDir, "src.sh")
+	content := []byte("#!/bin/bash\necho hello\n")
+	if err := os.WriteFile(oldFile, content, 0o755); err != nil {
+		t.Fatalf("failed to create source file: %v", err)
+	}
+	// Ensure the mode is set (umask-safe)
+	if err := os.Chmod(oldFile, 0o755); err != nil {
+		t.Fatalf("failed to chmod source file: %v", err)
+	}
+	// Verify the mode took
+	info, err := os.Stat(oldFile)
+	if err != nil {
+		t.Fatalf("failed to stat source file: %v", err)
+	}
+	if info.Mode().Perm() != 0o755 {
+		t.Skipf("filesystem does not support the exec bit: got %v", info.Mode().Perm())
+	}
+
+	newFile := filepath.Join(tmpDir, "dst.sh")
+
+	diff := `diff --git a/src.sh b/dst.sh
+rename from src.sh
+rename to dst.sh
+--- a/src.sh
++++ b/dst.sh
+@@ -1,2 +1,2 @@
+ #!/bin/bash
+-echo hello
++echo goodbye
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = newFile
+	changes[0].OldPath = oldFile
+
+	if err := ApplyToAbsPath(changes); err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Verify the renamed file preserves the exec bit
+	info, err = os.Stat(newFile)
+	if err != nil {
+		t.Fatalf("dst.sh should exist after rename: %v", err)
+	}
+	if info.Mode().Perm() != 0o755 {
+		t.Errorf("expected exec bit (0755), got %o", info.Mode().Perm())
+	}
+
+	// Verify edited content
+	result, err := os.ReadFile(newFile)
+	if err != nil {
+		t.Fatalf("failed to read dst.sh: %v", err)
+	}
+	expected := "#!/bin/bash\necho goodbye\n"
+	if string(result) != expected {
+		t.Errorf("expected content %q, got %q", expected, string(result))
+	}
+
+	// Verify src no longer exists
+	if _, err := os.Stat(oldFile); err == nil {
+		t.Error("src.sh should no longer exist after rename")
+	}
+}
+
+// TestApplyRenameWithEditPreservesMode0644 tests that a rename-with-edit operation
+// preserves the regular file mode (0644) on the renamed file.
+func TestApplyRenameWithEditPreservesMode0644(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	oldFile := filepath.Join(tmpDir, "src.txt")
+	content := []byte("Line 1\nLine 2\n")
+	if err := os.WriteFile(oldFile, content, 0o644); err != nil {
+		t.Fatalf("failed to create source file: %v", err)
+	}
+	// Ensure the mode is set (umask-safe)
+	if err := os.Chmod(oldFile, 0o644); err != nil {
+		t.Fatalf("failed to chmod source file: %v", err)
+	}
+	// Verify the mode took
+	info, err := os.Stat(oldFile)
+	if err != nil {
+		t.Fatalf("failed to stat source file: %v", err)
+	}
+	if info.Mode().Perm() != 0o644 {
+		t.Fatalf("filesystem does not support the required file mode")
+	}
+
+	newFile := filepath.Join(tmpDir, "dst.txt")
+
+	diff := `diff --git a/src.txt b/dst.txt
+rename from src.txt
+rename to dst.txt
+--- a/src.txt
++++ b/dst.txt
+@@ -1,2 +1,2 @@
+ Line 1
+-Line 2
++Line 2 modified
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = newFile
+	changes[0].OldPath = oldFile
+
+	if err := ApplyToAbsPath(changes); err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Verify the renamed file preserves the 0644 mode (catches the 0600 defect)
+	info, err = os.Stat(newFile)
+	if err != nil {
+		t.Fatalf("dst.txt should exist after rename: %v", err)
+	}
+	if info.Mode().Perm() != 0o644 {
+		t.Errorf("expected mode 0644, got %o", info.Mode().Perm())
+	}
+
+	// Verify edited content
+	result, err := os.ReadFile(newFile)
+	if err != nil {
+		t.Fatalf("failed to read dst.txt: %v", err)
+	}
+	expected := "Line 1\nLine 2 modified\n"
+	if string(result) != expected {
+		t.Errorf("expected content %q, got %q", expected, string(result))
+	}
+
+	// Verify src no longer exists
+	if _, err := os.Stat(oldFile); err == nil {
+		t.Error("src.txt should no longer exist after rename")
+	}
+}
+
+// TestApplyRenameWithEditAppliesModeChange tests that a rename-with-edit operation
+// that also carries a mode change applies the new mode to the file.
+func TestApplyRenameWithEditAppliesModeChange(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	oldFile := filepath.Join(tmpDir, "src.sh")
+	content := []byte("#!/bin/bash\necho hello\n")
+	if err := os.WriteFile(oldFile, content, 0o644); err != nil {
+		t.Fatalf("failed to create source file: %v", err)
+	}
+	// Ensure the mode is set (umask-safe)
+	if err := os.Chmod(oldFile, 0o644); err != nil {
+		t.Fatalf("failed to chmod source file: %v", err)
+	}
+	// Verify the mode took
+	info, err := os.Stat(oldFile)
+	if err != nil {
+		t.Fatalf("failed to stat source file: %v", err)
+	}
+	if info.Mode().Perm() != 0o644 {
+		t.Fatalf("filesystem does not support the required file mode")
+	}
+
+	newFile := filepath.Join(tmpDir, "dst.sh")
+
+	diff := `diff --git a/src.sh b/dst.sh
+old mode 100644
+new mode 100755
+rename from src.sh
+rename to dst.sh
+--- a/src.sh
++++ b/dst.sh
+@@ -1,2 +1,2 @@
+ #!/bin/bash
+-echo hello
++echo goodbye
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = newFile
+	changes[0].OldPath = oldFile
+
+	if err := ApplyToAbsPath(changes); err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Verify the renamed file has the new mode (0755)
+	info, err = os.Stat(newFile)
+	if err != nil {
+		t.Fatalf("dst.sh should exist after rename: %v", err)
+	}
+	if info.Mode().Perm() != 0o755 {
+		t.Errorf("expected mode 0755 from mode change, got %o", info.Mode().Perm())
+	}
+
+	// Verify edited content
+	result, err := os.ReadFile(newFile)
+	if err != nil {
+		t.Fatalf("failed to read dst.sh: %v", err)
+	}
+	expected := "#!/bin/bash\necho goodbye\n"
+	if string(result) != expected {
+		t.Errorf("expected content %q, got %q", expected, string(result))
+	}
+
+	// Verify src no longer exists
+	if _, err := os.Stat(oldFile); err == nil {
+		t.Error("src.sh should no longer exist after rename")
+	}
+}
+
+// TestApplyModifyPreservesExecBit tests that a plain modify operation
+// (without rename) preserves the executable bit (0755) on the modified file.
+func TestApplyModifyPreservesExecBit(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	srcFile := filepath.Join(tmpDir, "script.sh")
+	content := []byte("#!/bin/bash\necho hello\n")
+	if err := os.WriteFile(srcFile, content, 0o755); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	// Ensure the mode is set (umask-safe)
+	if err := os.Chmod(srcFile, 0o755); err != nil {
+		t.Fatalf("failed to chmod file: %v", err)
+	}
+	// Verify the mode took
+	info, err := os.Stat(srcFile)
+	if err != nil {
+		t.Fatalf("failed to stat file: %v", err)
+	}
+	if info.Mode().Perm() != 0o755 {
+		t.Skipf("filesystem does not support the exec bit: got %v", info.Mode().Perm())
+	}
+
+	diff := `diff --git a/script.sh b/script.sh
+--- a/script.sh
++++ b/script.sh
+@@ -1,2 +1,2 @@
+ #!/bin/bash
+-echo hello
++echo modified
+`
+
+	changes, err := Parse([]byte(diff))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	changes[0].Path = srcFile
+
+	if err := ApplyToAbsPath(changes); err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+
+	// Verify the modified file preserves the exec bit
+	info, err = os.Stat(srcFile)
+	if err != nil {
+		t.Fatalf("file should exist after modify: %v", err)
+	}
+	if info.Mode().Perm() != 0o755 {
+		t.Errorf("expected exec bit (0755) preserved on modify, got %o", info.Mode().Perm())
+	}
+
+	// Verify edited content
+	result, err := os.ReadFile(srcFile)
+	if err != nil {
+		t.Fatalf("failed to read script.sh: %v", err)
+	}
+	expected := "#!/bin/bash\necho modified\n"
+	if string(result) != expected {
+		t.Errorf("expected content %q, got %q", expected, string(result))
 	}
 }

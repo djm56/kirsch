@@ -26,6 +26,23 @@ import (
 	"github.com/djm56/kirsch/internal/workspace"
 )
 
+// toolIDKey is the context key for carrying tool ID through the approval request.
+type toolIDKey struct{}
+
+// withToolID adds a tool ID to the context.
+func withToolID(ctx context.Context, id int64) context.Context {
+	return context.WithValue(ctx, toolIDKey{}, id)
+}
+
+// toolIDFrom reads the tool ID from context. Returns zero if not set.
+func toolIDFrom(ctx context.Context) int64 {
+	id, ok := ctx.Value(toolIDKey{}).(int64)
+	if !ok {
+		return 0
+	}
+	return id
+}
+
 // ApprovalRequest describes what is being asked for approval.
 //
 // There is deliberately no Kind field here. An earlier revision carried an
@@ -162,17 +179,19 @@ func computeDiffDisplay(changes []patch.FileChange) (filename string, diffLines 
 		// Special case: backslash prefix (\ ) is followed by a space before content.
 		for _, line := range hunk.Lines {
 			var prefixedLine string
-			if line.Prefix == '\\' {
+			switch line.Prefix {
+			case '\\':
 				prefixedLine = `\ ` + line.Content
-			} else {
+			default:
 				prefixedLine = string(line.Prefix) + line.Content
 			}
 			diffLines = append(diffLines, prefixedLine)
 
 			// Count added and removed lines.
-			if line.Prefix == '+' {
+			switch line.Prefix {
+			case '+':
 				added++
-			} else if line.Prefix == '-' {
+			case '-':
 				removed++
 			}
 		}
@@ -514,6 +533,7 @@ func (a *App) RunTool(name string, input map[string]any) {
 		}
 
 		start := time.Now()
+		ctx = withToolID(ctx, id)
 		res := a.reg.Invoke(ctx, name, raw)
 		elapsed := time.Since(start)
 
@@ -571,17 +591,21 @@ func (a *App) Request(ctx context.Context, req ApprovalRequest) (ApprovalOutcome
 	var diffLines []string
 	var diffAdded, diffRemoved int
 
-	if req.Operation == policy.OperationPatch {
+	switch req.Operation {
+	case policy.OperationPatch:
 		subject, detail = formatPatchDisplay(req.Changes)
 		diffFilename, diffLines, diffAdded, diffRemoved = computeDiffDisplay(req.Changes)
-	} else if req.Operation == policy.OperationCommand {
+	case policy.OperationCommand:
 		subject, grantScope = formatCommandDisplay(req.Argv)
 		detail = formatCommandDetail(req.Description, req.Argv)
+	case policy.OperationUnspecified:
+		// Unspecified operation should not occur in practice.
 	}
 
 	// Send the approval message to the TUI.
 	a.send(tui.ApprovalRequestedMsg{
 		ID:                   id,
+		ToolID:               toolIDFrom(ctx),
 		Description:          req.Description,
 		Kind:                 kindString(req.Operation),
 		CanApproveForSession: canApproveForSession,
@@ -635,7 +659,7 @@ func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
 	// If approving for session, try to record a grant. Route all approvals through
 	// Grant so every validation failure is handled the same way (no bypass checks here).
 	// Use the real operation from the request, not a bare literal.
-	// If the grant fails, the actual outcome is Rejected, not the user's choice.
+	// If the grant fails, the actual outcome is Approved (allow-once), not the user's choice.
 	confirmedOutcome := outcome
 	grantAttempted := false
 	var grantErr error
@@ -648,8 +672,8 @@ func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
 			app.grantError = err
 			a.approveMu.Unlock()
 			a.log.Debug("grant rejected", "argv", app.argv, "err", err)
-			// Grant failed: the actual outcome is Rejected, not ApprovalOutcomeSession
-			confirmedOutcome = ApprovalOutcomeDeny
+			// Grant failed: the command runs allow-once, not for session.
+			confirmedOutcome = ApprovalOutcomeOnce
 			grantErr = err
 		}
 	}
@@ -742,6 +766,9 @@ func (a *App) ResolveToolApproval(id int64, decision policy.Decision) {
 	case policy.DecisionSession:
 		outcome = ApprovalOutcomeSession
 	case policy.DecisionDeny:
+		outcome = ApprovalOutcomeDeny
+	case policy.DecisionAskUser:
+		// AskUser is not a resolution, so it resolves as deny.
 		outcome = ApprovalOutcomeDeny
 	}
 

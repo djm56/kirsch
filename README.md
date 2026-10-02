@@ -1,11 +1,15 @@
 # Kirsch
 
-> **Status: Milestones 0 and 1 complete.** Kirsch reads and searches a real
-> repository from inside the TUI, safely: every path crosses a containment
-> check, the path denylist is enforced in one place, and there is no code
-> anywhere that writes a file, runs an arbitrary command, or calls a model. The
-> authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md);
-> progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+> **Status: Milestones 0 and 1 complete; Milestone 2 (patches, commands,
+> approvals) is implemented and in acceptance.** Kirsch reads and searches a real
+> repository from inside the TUI, and, through the temporary `/patch` and `/run`
+> debug commands, can apply a patch or run a command: a patch always waits for
+> your approval, a command does unless it is on the short exact-match allowlist
+> or you have approved its prefix for the session, and shells always ask. Every
+> path crosses a containment check, the path denylist is enforced in one place,
+> and there is still no code that calls a model. The authoritative build spec is
+> [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in
+> [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
 > ```
 > go run ./cmd/kirsch
@@ -97,7 +101,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 
 ## Progress
 
-Milestones 0 and 1 are complete. Milestone 2 is next, with its instruction set ready to execute. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+Milestones 0 and 1 are complete. Milestone 2 (patches, commands, approvals) is implemented and in acceptance; its open items are listed in [`plan/milestones/milestone-2.md`](plan/milestones/milestone-2.md). Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 
 ## What works today
 
@@ -106,14 +110,17 @@ go run ./cmd/kirsch
 ```
 
 Kirsch opens on a real repository, shows its project name, branch and dirty
-state, and can read, list, search and diff it from inside the TUI. Every path
-crosses a containment check before anything touches the filesystem, and the
-path denylist (`.env`, `*.pem`, `*.key`, `.git/**`, `.kirsch/**`) is enforced in
-one place so no tool can forget it.
+state, and can read, list, search and diff it from inside the TUI — and, through
+the temporary `/patch` and `/run` debug commands, apply a patch or run a command
+once you approve it. Every path crosses a containment check before anything
+touches the filesystem, and the path denylist (`.env`, `*.pem`, `*.key`, `.git/**`,
+`.kirsch/**`) is enforced in one place so no tool can forget it.
 
-There is deliberately **no** code anywhere in the binary that writes a file,
-runs an arbitrary command, or calls a model. The only subprocesses are read-only
-`git` and `rg`.
+There is deliberately **no** code that calls a model. Kirsch writes a file or
+runs a command only through the temporary `/patch` and `/run` debug commands: a
+patch always asks, and a command asks unless it is on the exact-match allowlist
+or you have approved its prefix for the session. Apart from commands run through
+`/run`, the only subprocesses are read-only `git` and `rg`.
 
 ## Verifying it
 

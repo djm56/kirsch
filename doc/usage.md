@@ -105,9 +105,10 @@ changes only by an explicit key.
 | `Shift+Enter` | Newline, where the terminal sends `ESC`+`CR` for it |
 | `Alt+Enter` | Newline, same decode path — **Option+Enter on a Mac keyboard produces nothing** |
 | `Ctrl+J` | Newline — the one form every terminal can produce |
-| `Tab` | Complete a unique slash-command prefix |
+| `Tab` | While typing a slash-command name (no space yet), complete a unique prefix; an ambiguous or unknown prefix does nothing. In any other text, move to the cards (→ Browsing) |
 | `Ctrl+G` | Scroll back to the bottom of the transcript and re-pin it |
-| `↑` on the first line | Move focus to the transcript (→ Browsing) |
+| `↑` / `↓` on the first / last row | Previous / next entry from this session's history (up to 100); past the newest, back to your unsent draft. Ignored while a turn is running |
+| `Shift+↑` | Move focus to the cards (→ Browsing) |
 | `Esc` / `Ctrl+C` | Cancel the running turn; if nothing is running, clear the composer |
 | `Ctrl+C` twice within 1s | Force quit |
 
@@ -123,7 +124,9 @@ selection and the mode are all left exactly as they were. `End` would have been
 the obvious key and is not available: the text area already uses it for
 end-of-line, as it uses `Ctrl+End` for end-of-input.
 
-### Browsing — after `↑`
+**The key-hint line.** On a terminal at least 24 rows tall, the bottom row lists the keys that act in the current focus — `↑↓ history · ⇧↑/Tab cards · /help` in the composer, for example. It goes blank while a modal or confirm prompt is open, and is dropped on shorter terminals.
+
+### Browsing — after `Shift+↑` or `Tab`
 
 | Key | Action |
 |---|---|
@@ -131,10 +134,10 @@ end-of-line, as it uses `Ctrl+End` for end-of-input.
 | `PgUp` / `PgDn` | Scroll without moving the selection |
 | `Home` / `End` | Top / bottom — `End` re-pins |
 | `g` / `G` | Top / bottom, for terminals that swallow `Home` and `End` |
-| `Enter` | Expand or collapse the selected card |
+| `Enter` | Tool cards: switch between the 10-line preview and the head line only |
 | `d` | Open the full content or diff in a modal |
 | `?` | Help overlay |
-| `Esc` | Back to the composer — does **not** move the view |
+| `Tab` / `Esc` | Back to the composer — does **not** move the view |
 | `↓` past the last card | Back to the composer |
 
 Scrolling and selection are separate: `PgUp`/`PgDn` move the view and leave the
@@ -154,11 +157,15 @@ that on the way in, so both pairs work; `g`/`G` are the belt to that braces.
 | `n` | Reject |
 | `d` | Open the detail or diff |
 | `?` | Help overlay |
-| `Esc` / `Ctrl+C` | Cancel the turn — counts as a rejection |
+| `Esc` / `Ctrl+C` | Cancel the turn — recorded as cancelled, not rejected |
+| `Tab` / `Shift+↑` | Re-arm a card that a stray key released |
 
-Every other key is swallowed. Nothing reaches the composer while an approval is
-up, which is deliberate: an approval is the one moment where a keystroke meant
-for something else must not be interpreted as an answer.
+Every other key is swallowed, and none reaches the composer. A key that is not one of the
+above and not a navigation key also *releases* the card: the composer shows
+`approval pending — Tab to return to the card`, and `y`, `a` and `n` do nothing until `Tab`
+or `Shift+↑` re-arms it. That is deliberate: typing a command while a card waits — the `n`
+in `/run` — must not be read as an answer. Navigation keys never release; pasted text is
+dropped.
 
 ### A modal is open
 
@@ -281,11 +288,11 @@ Every tool call appears in the transcript as a card, collapsed by default:
 ▸ read_file calc/divide.go · 4ms · ok
 ```
 
-Glyph, tool name, what it acted on, the result, and how long it took. `Enter`
-expands it inline, capped at 200 rendered lines with a
-`‹200 of 4,181 lines — press d for full output›` marker at the cut; `d` opens
-the whole thing in a modal. The cap is there because an unbounded expansion
-makes the scrollback unusable, which is worse than truncating it.
+Glyph, tool name, what it acted on, the result, and how long it took. By default,
+a tool card opens as a preview showing the first 10 lines. When lines are hidden,
+a marker reads `‹10 of 4,181 lines — d full output · Enter collapse›`. `Enter`
+toggles between preview and collapsed (head only). `d` opens the whole thing in a
+modal. The 10-line preview keeps the scrollback legible while tools are running.
 
 Where a cap was hit further upstream — a 200KB read, a 4000-token result — the
 card says so in the same shape: `‹truncated — 200KB cap›`.

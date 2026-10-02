@@ -615,7 +615,7 @@ func applyCreate(change *FileChange) (string, error) {
 	if change.CreateMode != 0 {
 		_ = os.Chmod(tmpFile.Name(), change.CreateMode)
 	} else {
-		_ = os.Chmod(tmpFile.Name(), 0o644)
+		_ = os.Chmod(tmpFile.Name(), 0o644) // #nosec G302 -- created by CreateTemp in filepath.Dir(change.Path); change.Path is workspace-resolved by resolve(t.WS, …) in internal/tool/apply_patch.go before Stage; 0644 is the mode for a new source file
 	}
 
 	return tmpFile.Name(), nil
@@ -679,7 +679,7 @@ func applyModify(change *FileChange) (string, error) {
 						Content: strings.Join(lines[startLine:], lineSep(le)),
 					}
 				}
-				expected := line.Content
+				expected := strings.TrimSuffix(line.Content, "\r")
 				actual := lines[oldIdx]
 				if expected != actual {
 					return "", &ApplyError{
@@ -701,7 +701,7 @@ func applyModify(change *FileChange) (string, error) {
 						Content: strings.Join(lines[startLine:], lineSep(le)),
 					}
 				}
-				expected := line.Content
+				expected := strings.TrimSuffix(line.Content, "\r")
 				actual := lines[oldIdx]
 				if expected != actual {
 					return "", &ApplyError{
@@ -734,7 +734,7 @@ func applyModify(change *FileChange) (string, error) {
 			case '-':
 				oldIdx++
 			case '+':
-				newLines = append(newLines, line.Content)
+				newLines = append(newLines, strings.TrimSuffix(line.Content, "\r"))
 			case '\\':
 				// Marker: don't add as a line, handled separately
 			}
@@ -751,6 +751,59 @@ func applyModify(change *FileChange) (string, error) {
 
 		// Update offset for next hunk
 		offset += len(newLines) - hunk.OldLines
+	}
+
+	// Conversion check. A patch "carries endings" if any ' ', '-' or '+' line
+	// ends in \r, as a git diff of a CRLF file does. Such a patch must add lines
+	// in the file's own ending:
+	//   - CRLF file: every '+' line must end in \r
+	//   - LF file: no '+' line may end in \r
+	// A '+' line directly followed by "\ No newline at end of file" has no line
+	// terminator at all, so it is exempt. A patch with no \r anywhere (the form a
+	// model writes, or a git diff of an LF file) is not checked: its added lines
+	// take the file's ending. What is rejected: a CRLF-file patch that mixes \r
+	// and bare added lines, and an added line ending in \r on an LF file.
+	patchCarriesEndings := false
+	for _, hunk := range change.Hunks {
+		for _, line := range hunk.Lines {
+			if line.Prefix == ' ' || line.Prefix == '-' || line.Prefix == '+' {
+				if strings.HasSuffix(line.Content, "\r") {
+					patchCarriesEndings = true
+					break
+				}
+			}
+		}
+		if patchCarriesEndings {
+			break
+		}
+	}
+
+	if patchCarriesEndings {
+		isCRLFFile := le == LineEndingCRLF
+		for _, hunk := range change.Hunks {
+			for i, line := range hunk.Lines {
+				if line.Prefix == '+' {
+					// Skip this line if it's followed by a "\ No newline at end of file" marker.
+					// Such a line has no terminator, so it cannot violate the ending rule.
+					if i+1 < len(hunk.Lines) && hunk.Lines[i+1].Prefix == '\\' {
+						continue
+					}
+					hasEnding := strings.HasSuffix(line.Content, "\r")
+					if isCRLFFile && !hasEnding {
+						return "", &ApplyError{
+							Kind:    ErrLineEnding,
+							Message: fmt.Sprintf("patch adds line without CRLF ending to CRLF file: %q", line.Content),
+						}
+					}
+					if !isCRLFFile && hasEnding {
+						return "", &ApplyError{
+							Kind:    ErrLineEnding,
+							Message: fmt.Sprintf("patch adds line with CRLF ending to LF file: %q", line.Content),
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Check for trailing newline marker in last hunk
@@ -771,7 +824,9 @@ func applyModify(change *FileChange) (string, error) {
 		}
 	}
 
-	// Verify line ending would not change
+	// Backstop check: verify line ending did not change.
+	// The explicit conversion check above rejects converting patches before
+	// writing; this block is a safety backstop to catch any unexpected changes.
 	if len(change.Hunks) > 0 {
 		// Check if applying the patch would change the line ending style
 		newContent := result.Bytes()
@@ -873,12 +928,34 @@ func applyRename(change *FileChange) (string, error) {
 		}
 	}
 
-	err = os.WriteFile(tmpFile.Name(), oldContent, 0o644)
+	err = os.WriteFile(tmpFile.Name(), oldContent, 0o644) // #nosec G703,G306 -- tmpFile already exists (CreateTemp, 0600) so the perm argument is inert; path is CreateTemp in filepath.Dir(change.Path), workspace-resolved by resolve(t.WS, …) in internal/tool/apply_patch.go before Stage; the copy's mode is set explicitly below
 	if err != nil {
 		_ = os.Remove(tmpFile.Name())
 		return "", &ApplyError{
 			Kind:    "io_error",
 			Message: fmt.Sprintf("failed to write temp file: %v", err),
+		}
+	}
+
+	// CreateTemp makes the copy 0600, and applyModify copies whatever mode the
+	// copy has, so set the source file's permission bits on the copy first. Only
+	// Perm() is carried: an edit written through apply_patch does not carry
+	// setuid, setgid or sticky forward, unlike a plain modify or a pure rename.
+	info, err := os.Stat(change.OldPath)
+	if err != nil {
+		_ = os.Remove(tmpFile.Name())
+		return "", &ApplyError{
+			Kind:    "io_error",
+			Message: fmt.Sprintf("failed to stat old file for permissions: %v", err),
+		}
+	}
+
+	err = os.Chmod(tmpFile.Name(), info.Mode().Perm())
+	if err != nil {
+		_ = os.Remove(tmpFile.Name())
+		return "", &ApplyError{
+			Kind:    "io_error",
+			Message: fmt.Sprintf("failed to set file permissions: %v", err),
 		}
 	}
 

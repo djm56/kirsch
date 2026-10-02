@@ -280,10 +280,11 @@ func Divide(a, b float64) (float64, error) {
 	return a / b, nil
 }`
 
-// fakeTestOutput is long enough to exercise the 200-line inline cap and the
-// "‹200 of N lines›" marker beneath it. On its own it sanitises to 4,176
-// lines, which is what screen 07's grid pins; loadFixture's run_command card
-// prepends fakeDirtyOutput's five lines and so renders 4,181.
+// fakeTestOutput is long enough to exercise the 10-line preview cap and the
+// "‹10 of N lines›" marker beneath it. On its own it sanitises to 4,176
+// lines. When used in screen 07's golden test scenario, those 4,176 lines are
+// rendered in preview mode, showing the first 10 lines with a marker.
+// loadFixture prepends fakeDirtyOutput's five lines for other uses.
 var fakeTestOutput = func() string {
 	var b strings.Builder
 	b.WriteString("=== RUN   TestDivide\n")

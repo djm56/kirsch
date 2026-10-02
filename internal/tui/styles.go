@@ -26,9 +26,9 @@ const (
 // PasteWarnBytes is the paste size above which the user is asked first. §7.2.
 const PasteWarnBytes = 8 << 10
 
-// InlineExpandCap is the maximum number of lines a card expands to inline
-// before the `d` modal takes over. ui-spec §3.3.
-const InlineExpandCap = 200
+// PreviewLines is the number of lines shown in a tool card preview. When a tool
+// card has more output, a marker shows the hidden count. ui-spec §3.3.
+const PreviewLines = 10
 
 // MaxRenderedLineWidth caps a single rendered line. ui-spec §7.1.
 const MaxRenderedLineWidth = 2000
@@ -204,7 +204,9 @@ type Glyphs struct {
 
 	BoxTL, BoxTR, BoxBL, BoxBR string
 	BoxH, BoxV, BoxLT, BoxRT   string
+	UpArrow, DownArrow         string // ↑ / ^ and ↓ / v  for modal clipping markers
 
+	Unicode bool     // true for Unicode glyphs, false for ASCII fallback
 	Spinner []string // status-bar animation frames
 }
 
@@ -230,6 +232,8 @@ func NewGlyphs(unicode bool) Glyphs {
 			Bullet: ".", Sep: "-",
 			BoxTL: "+", BoxTR: "+", BoxBL: "+", BoxBR: "+",
 			BoxH: "-", BoxV: "|", BoxLT: "+", BoxRT: "+",
+			UpArrow: "^", DownArrow: "v",
+			Unicode: false,
 			Spinner: spinnerASCII,
 		}
 	}
@@ -241,6 +245,8 @@ func NewGlyphs(unicode bool) Glyphs {
 		Bullet: "·", Sep: "─",
 		BoxTL: "┌", BoxTR: "┐", BoxBL: "└", BoxBR: "┘",
 		BoxH: "─", BoxV: "│", BoxLT: "├", BoxRT: "┤",
+		UpArrow: "↑", DownArrow: "↓",
+		Unicode: true,
 		Spinner: spinnerUTF8,
 	}
 }

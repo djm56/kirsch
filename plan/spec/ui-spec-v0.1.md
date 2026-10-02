@@ -77,8 +77,8 @@ nothing else paints an outer border.
 ### 2.1 Sizing rules
 
 - The header is fixed at **2 lines**; the status bar and each separator rule are
-  fixed at 1. Composer is its content height clamped to 1–5. Transcript takes
-  everything left over.
+  fixed at 1. Composer is its content height clamped to 1–5. A key-hint row appears
+  at terminal height ≥ 24, fixed at 1. Transcript takes everything left over.
 - **Frame margin.** The frame keeps **one blank column at its left edge and one
   at its right**, and none at the top or bottom. Horizontal only, and
   deliberately so: the chrome budget in §2.2 spends every row the terminal has,
@@ -247,17 +247,19 @@ summaries:
 
 | Tool | Summary |
 |---|---|
-| `read_file` | path + line range |
+| `read_file` | `lines N-M` |
 | `list_files` | path + `n files` |
 | `search_code` | query + `n matches` |
 | `apply_patch` | `n files changed` + status |
 | `run_command` | command + exit status |
 | `git_status` / `git_diff` | changed-file count |
 
-**Expanded (`Enter`):** full output inline, **capped at 200 rendered lines**
-with a `‹200 of 4,181 lines — press d for full output›` marker. `d` opens the
-content modal (§4.1) for everything. An unbounded inline expansion makes the
-scrollback unusable, which is a worse failure than truncating it.
+**Preview (default):** first 10 lines in a fenced panel. When lines are hidden, a
+muted marker reads `‹10 of 4,181 lines — d full output · Enter collapse›`. `Enter`
+toggles between preview and collapsed (head only). `d` opens the content modal
+(§4.1) for everything. An unbounded inline expansion makes the scrollback unusable,
+which is a worse failure than truncating it. Empty output shows no box. The trailing
+empty output row is trimmed.
 
 Truncation markers where caps were hit upstream: `‹truncated — 200KB cap›`,
 `‹truncated — 4000 tok›`.
@@ -282,11 +284,15 @@ Truncation markers where caps were hit upstream: `‹truncated — 200KB cap›`
   [y] approve   [a] approve for session   [n] reject   [d] detail
   ```
 
-- `y` → approved; card collapses to `✓ approved`.
+- `y` → approved; once you approve, the approval card folds away. The result card's
+  head shows ` · approved` or ` · approved for session`, plus `session grant: <scope>`.
+  `d` on the folded patch card opens the diff. Rejected and cancelled approvals keep
+  their own card.
 - `a` → approved **and** a session grant recorded for the argv prefix shown on
   the card (plan §4). Collapses to `✓ approved · session grant: go test`.
   **Never offered for `apply_patch`**, never for `sh -c`.
 - `n` → rejected; returned to the model as a tool result so it can adapt.
+- A refused session grant now confirms as approved (allow-once), because the command runs.
 - Only one approval is pending at a time; input capture is exclusive (§5.1).
 
 ### 3.5 Thinking card
@@ -329,9 +335,11 @@ Every card moves through: `pending` → `running` → one terminal state.
 | cancelled | `⊘` dim | Turn cancelled mid-tool |
 | truncated | `⋯` warning | Suffix on `ok`, not a state of its own |
 
-A card never disappears or is rewritten in place once terminal. Partial
-assistant text from a cancelled turn **stays** in the transcript, marked
-cancelled — erasing what the user watched arrive is worse than leaving it.
+A card never disappears or is rewritten in place once terminal, except an
+approved approval card that is linked to its tool card: it folds away when the
+approval is resolved as approved or approved for session. Partial assistant text
+from a cancelled turn **stays** in the transcript, marked cancelled — erasing what
+the user watched arrive is worse than leaving it.
 
 ### 3.9 Selection
 
@@ -364,7 +372,8 @@ card.
 ### 4.2 Help overlay (`?`)
 
 Single screen: key bindings grouped by mode (§5.2), then slash commands (§6),
-then a footer with version and the docs path. `Esc` or `?` closes.
+then a footer with version and the docs path. `Esc` or `?` closes. The minimum
+terminal for the full-help overlay is 80×34.
 
 ### 4.3 Confirm prompt
 
@@ -386,7 +395,7 @@ to lose and a confirm-on-quit is a tax on every exit.
                  │ ApprovalPending  │◄──────────┘  exclusive capture
                  └───────▲──────────┘
       approval requested │ │ y/a/n resolves
-                 ┌───────┴─▼────────┐   ↑ at top      ┌──────────┐
+                 ┌───────┴─▼────────┐   ⇧↑ / Tab      ┌──────────┐
                  │    Composing     │────────────────►│ Browsing │
                  │ (composer focus) │◄────────────────│(card sel)│
                  └──────────────────┘   ↓ at bottom   └──────────┘
@@ -420,9 +429,10 @@ Two consequences worth stating because they are easy to get wrong:
 | `Shift+Enter` | Newline, where the terminal sends `ESC`+`CR` for it |
 | `Alt+Enter` | Newline, same decode path — **not produced by Option on a Mac keyboard** |
 | `Ctrl+J` | Newline — the one binding that is always representable |
-| `Tab` | Complete a unique slash-command prefix |
+| `↑` / `↓` | On the first / last visual row: recall previous / next entry from history (up to 100 entries per session; consecutive duplicates and blank entries skipped); past the newest, back to the unsent draft. Ignored while a turn is running |
+| `Shift+↑` | Move to the cards |
+| `Tab` | While typing a slash-command name (no whitespace yet), complete a unique prefix; an ambiguous or unknown prefix does nothing. In any other text, move to the cards |
 | `Ctrl+G` | Re-pin the transcript to the bottom — works during a live turn (§2.4) |
-| `↑` at first line | Focus transcript (→ Browsing) |
 | `Esc` / `Ctrl+C` | Cancel the in-flight turn if busy; otherwise clear composer |
 | `Ctrl+C` ×2 within 1s | Force quit |
 
@@ -456,10 +466,10 @@ see plan amendment 40.
 | `PgUp` / `PgDn` | Scroll without moving selection |
 | `Home` / `End` | Top / bottom (`End` re-pins) |
 | `g` / `G` | Top / bottom — the keyboard-reachable form of `Home` / `End` (`G` re-pins) |
-| `Enter` | Expand / collapse selected card |
+| `Enter` | Tool card: toggle between the 10-line preview and collapsed |
 | `d` | Open content or diff modal for selected card |
 | `?` | Help overlay |
-| `Esc` | Return to Composing (does **not** re-pin — §2.4) |
+| `Tab` / `Esc` | Return to Composing (does **not** re-pin — §2.4) |
 | `↓` at last card | Return to Composing |
 
 **On `g` / `G`.** They mirror the modal's own `g`/`G` rather than inventing a second
@@ -475,14 +485,16 @@ rather than a code change. The overlay is a one-screen summary, not this table: 
 
 | Key | Action |
 |---|---|
-| `y` | Approve once |
-| `a` | Approve + session grant (`run_command` only) |
-| `n` | Reject |
-| `d` | Open detail / diff modal |
-| `?` | Help overlay |
-| `Esc` / `Ctrl+C` | Cancel the turn (counts as rejection) |
+| `y` / `n` / `a` / `d` / `?` | Act immediately |
+| Navigation keys (`↑` `↓` `←` `→` `PgUp` `PgDn` `Home` `End`) | Never release |
+| `Tab` / `Shift+↑` | Re-arm a released card |
+| `Esc` / `Ctrl+C` | Cancel the turn (resolves as Cancelled, not Rejected) |
+| Any other non-navigation key | Release the card and show `approval pending — Tab to return to the card`. While released, `y`/`a`/`n` do nothing until the card is re-armed. |
+| Bracketed paste | Dropped, does not release |
 
-All other keys are swallowed with no effect — never forwarded to the composer.
+When armed, `y`, `a`, and `n` act immediately. `a` is inert unless the approval
+offers a session grant. When released, `d`, `?`, `Tab`/`Shift+↑` (re-arm) and
+`Esc`/`Ctrl+C` (cancel) act; `y`/`a`/`n` and every other non-navigation key are ignored.
 
 **Modal**
 
@@ -612,7 +624,7 @@ The prototype implements everything above with **fake data**:
   `apply_patch` without `[a]`, one `run_command` with `[a]`), 1 error card,
   1 system notice.
 - Working: composer typing, the full mode state machine (§5.1), card selection
-  and expansion including the 200-line inline cap, approval `y`/`a`/`n` flow,
+  and expansion including the 10-line preview mode, approval `y`/`a`/`n` flow,
   content/diff modal, help overlay, confirm prompt, resize, quit paths,
   scroll/pin behaviour, all §10 styling with both fallbacks.
 - **No** LLM, file, shell, or session code. No real policy. Spinner states and
@@ -634,7 +646,7 @@ modals, resize, and quit all work with no panic or visual corruption.
 - **Syntax highlighting:** out of scope for v0.1.
 - **Mouse support:** out of scope for v0.1.
 - **Transcript search:** deferred to v0.2.
-- **Inline expansion cap:** 200 lines, full content via the modal.
+- **Inline preview:** 10 lines by default, full content via the modal (`d`).
 - **`?` in the composer is a literal character**, not a help key.
 - **Typing never re-pins** a scrolled-up transcript.
 - **No bare-key quit.** `q` is an ordinary character in the composer. Quitting is
@@ -650,7 +662,6 @@ modals, resize, and quit all work with no panic or visual corruption.
 **Open questions (not blocking Milestone 0):**
 
 - Whether `/approvals` deserves a direct key binding.
-- Whether the 200-line inline cap should be configurable.
 
 ---
 
@@ -775,7 +786,7 @@ implementation renders:
 | 4 | Approval pending — `run_command` variant (with `[a]`) | [04](kirsch-ui-screens.md#04--approval--run_command-with-a) |
 | 5 | Content modal open over a pending approval | [05](kirsch-ui-screens.md#05--diff-modal-over-a-pending-approval) |
 | 6 | Help overlay open | [06](kirsch-ui-screens.md#06--help-overlay) |
-| 7 | Card expanded at the 200-line cap | [07](kirsch-ui-screens.md#07--tool-card-expanded-at-the-200-line-cap) |
+| 7 | Tool card in preview (10-line default) | [07](kirsch-ui-screens.md#07--tool-card-in-preview-10-line-default) |
 | 8 | Error card and system notice | [08](kirsch-ui-screens.md#08--error-card--system-notices) |
 | 9 | Narrow width (40 cols) and very narrow (38 cols, transcript hidden) | [10](kirsch-ui-screens.md#10--narrow-and-short-terminals) — first two grids |
 | 10 | Short height (6 rows) | [10](kirsch-ui-screens.md#10--narrow-and-short-terminals) — third grid |
@@ -831,7 +842,9 @@ Named so they are watched, not discovered:
 - **~~Braille spinner glyphs~~ — settled, amendment 42.** They render correctly in
   the target terminals. The ASCII cycle stays as the non-UTF-8 fallback, not as a
   default.
-- **200-line inline cap** is a guess at the right number. M0 is the moment to
-  find out whether it feels right with real-shaped content.
+- **10-line preview mode** — tool cards open as a preview by default, collapsible
+  to the head, and expandable to a modal. Approved approval cards fold away,
+  linking to their tool card. These changes keep the transcript legible while
+  tools are running.
 - **Exclusive approval capture** is correct but can feel abrupt when an
   approval interrupts scrollback reading. Watch for it during M2.

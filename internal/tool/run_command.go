@@ -151,7 +151,7 @@ func (t *RunCommand) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	defer cancel()
 
 	// Create the command with explicit argv (no shell).
-	cmd := exec.CommandContext(cmdCtx, in.Argv[0], in.Argv[1:]...)
+	cmd := exec.CommandContext(cmdCtx, in.Argv[0], in.Argv[1:]...) // #nosec G204 -- argv[0] gated by policy.ForCommand (internal/policy/policy.go): allowlist match (exact, or prefix for extendable entries), session grant, or explicit user approval; shells always ask; no shell is used; cmd.Dir resolved within the workspace
 	cmd.Dir = absDir
 	cmd.Env = env
 
@@ -160,7 +160,8 @@ func (t *RunCommand) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	if devNullErr != nil {
 		return Fail(KindInternal, "failed to open /dev/null: %v", devNullErr)
 	}
-	defer devNull.Close()
+	// The file is /dev/null opened read-only, so a close error carries no information.
+	defer func() { _ = devNull.Close() }()
 	cmd.Stdin = devNull
 
 	// Set up process group for cancellation: Setpgid makes the process a leader,

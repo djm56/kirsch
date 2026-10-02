@@ -1,6 +1,6 @@
 # Milestone 2 — Instruction Set
 
-> **Status: Ready for execution.** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 1 completed 2026-09-12. This is the
+> **Status: Instruction set finalised. Implementation is in place; acceptance is not complete — see the open items after Task 9; 15 of 18 Task 9 boxes ticked (as of 2026-10-02).** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 1 completed 2026-09-12. This is the
 > complete, ordered instruction set for Milestone 2 (patches, commands,
 > approvals). Execute tasks in order. This is the milestone where Kirsch first
 > changes something on disk, so the approval path is the point of the whole
@@ -402,33 +402,123 @@ wrong and gets updated in this milestone's commit.
 
 ## Task 9 — Final acceptance
 
-- [ ] Every diff corpus file parses to the expected structure; malformed ones
+- [x] Every diff corpus file parses to the expected structure; malformed ones
       name their problem
-- [ ] A three-file patch whose second file conflicts leaves the tree
+- [x] A three-file patch whose second file conflicts leaves the tree
       byte-identical
-- [ ] CRLF files survive patching; a line-ending-converting patch is rejected
-- [ ] The executable bit survives, and can be changed deliberately
-- [ ] Applying the same patch twice fails the second time with `patch_conflict`
-- [ ] Every path in a diff is containment- and denylist-checked **before** the
+- [x] CRLF files survive patching; a line-ending-converting patch is rejected
+- [x] The executable bit survives, and can be changed deliberately
+- [x] Applying the same patch twice fails the second time with `patch_conflict`
+- [x] Every path in a diff is containment- and denylist-checked **before** the
       approval prompt
-- [ ] `apply_patch` never offers `[a]`, and no config makes it allow
-- [ ] Command allowlist matches correctly; `sh -c` and its evasions always ask
-- [ ] A session grant for `go test` matches `go test ./...` and never `sh -c`
+- [x] `apply_patch` never offers `[a]`, and no config makes it allow
+- [x] Command allowlist matches correctly; `sh -c` and its evasions always ask
+- [x] A session grant for `go test` matches `go test ./...` and never `sh -c`
 - [ ] Command timeout kills the process group within 500ms of the deadline
 - [ ] A cancelled command's process is actually gone, not merely detached
-- [ ] A command reading stdin fails immediately
-- [ ] Env filtering strips `*_KEY`/`*_TOKEN` even when allowlisted
-- [ ] Approve, reject and approve-for-session all work from the TUI
-- [ ] Cancelling a turn with an approval pending returns within 1s and leaves
+- [x] A command reading stdin fails immediately
+- [x] Env filtering strips `*_KEY`/`*_TOKEN` even when allowlisted
+- [x] Approve, reject and approve-for-session all work from the TUI
+- [x] Cancelling a turn with an approval pending returns within 1s and leaves
       no parked goroutine
-- [ ] Golden screens still match, or the reference is updated in this commit
+- [x] Golden screens still match, or the reference is updated in this commit
 - [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`,
       `golangci-lint run`, CI all clean
-- [ ] **No provider, agent, or session code exists anywhere in the repo**
+- [x] **No provider, agent, or session code exists anywhere in the repo**
 
 **Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md`
 set to `☑ Complete`, and a commit tagged so Milestone 3 starts from a
 known point.
+
+**Status as of 2026-10-02.** Implementation is in place, but acceptance is not complete. These items are still open before the definition of done is met:
+
+- **CI has not run on any Milestone 2 code.** `main` is 12 commits ahead of `origin`. Every gate in the second-to-last box is clean locally: `go test -race ./...`, `golangci-lint fmt --diff` (`npm run fmt:check`), `go vet`, and `golangci-lint run` (0 issues), along with `npm run screens` and `npm run security`. The box stays open until CI is green after the push.
+- **The timeout kill is not proven.**
+  - `TestRunCommandTimeoutWithinDeadline` bounds the call at 1–2s after a 1s deadline, which is not the 500ms the box requires.
+  - `TestRunCommandTimeoutProcessGroupDead` never checks that the process died. On timeout the result carries no content, so its PID parse fails and the test returns before its assertion (`internal/tool/run_command_test.go:~804`).
+  - To close this, fix that test (record the PID out of band) and tighten the bound, or relax the requirement.
+- **Cancelled-process death is not proven.** Walkthrough §9 cancels an approval card before any process starts (`plan/testing/manual/user-testing/milestone-2-donovan.md:411`), and `TestRunCommandCancellationProcessGroupDead` has no PID check. To close this, record the PID out of band and assert `ESRCH` after cancelling, then tick the box.
+- **The configured command timeout is ignored.** See the last item under *Where execution departed*.
+- **Two more settings and output streaming are not wired.** See *Where execution departed* (plan amendments 72 and 73).
+- **Some ticked boxes rest on the operator's walkthrough, not on a test that can fail.** The evidence table below says which. The tests that cannot detect a regression are listed under *Open defects*.
+- **Trailing-newline handling (Task 3.4) is suspect.** See *Open defects*. It should be reproduced, and fixed if it is real, before the tag.
+- **Four checks in the operator's walkthrough run are open** (`plan/testing/manual/user-testing/milestone-2-donovan.md`):
+  - `/run` in `/help` (§10). It was ❌ before this close-out; mission-20261002-01 fixed it, and it awaits retest.
+  - The two `/patch` checks in §10.
+  - The expand-with-Up check in §1. It was written before tool cards opened as previews.
+- **Release steps remain:** `plan/PROGRESS.md` set to `☑ Complete`, and the tag, which is the operator's. The CHANGELOG now carries the Milestone 2 entries.
+
+### Evidence for Task 9
+
+| Check | Proven by |
+|---|---|
+| Corpus parses; malformed ones name their problem | `TestParseCorpusFiles`, `TestRoundTrip` (`internal/patch/patch_test.go`) |
+| Three-file partial failure leaves the tree byte-identical | `TestApplyMultiFileAtomicity`, `TestApplyMultiFileAtomicityPhase2Failure` |
+| CRLF survives; converting patch rejected | `TestApplyGitStyleCRLFDiffPreservesCRLF`, `TestApplyCRLFPreservation`, `TestApplyCRLFConvertingPatchRejected`, `TestApplyLFFileRejectsCRLFAddedLine`, `TestApplyPatchCRLFConvertingNoApproval` |
+| Exec bit survives and can be changed | `TestApplyExecBitPreservation`, `TestModeChangeExecBit`, `TestApplyRenameWithEditPreservesExecBit` |
+| Same patch twice fails with `patch_conflict` | `TestApplySamePatchTwiceFails` |
+| Paths checked before the approval prompt | `TestApplyPatchWorkspaceViolationTargetNoApproval`, `TestApplyPatchRenameSourceEscapeNoApproval`, `TestApplyPatchConflictNoApproval`; `TestEveryPathTakingToolRefusesEscapes` (its `apply_patch` target and rename-source subtests cover `.env` and `../`, and check the approver is not called) |
+| `apply_patch` never offers `[a]` | `TestForPatchNeverAllows`, `TestForPatchNoConfigurationAllows`, `TestApprovalPatchNeverOffersSessionApproval`; walkthrough §4 |
+| Allowlist; `sh -c` and evasions ask | `TestShellsCanNeverBeAllowlisted`, `TestShellDetectionByBasename`, `TestRunCommandShellCommandRequiresApproval` |
+| `go test` grant scope | `TestGrantSemantics`, `TestGrantRefusesInvalidPrefixes` |
+| Cancelled process is gone | **Not proven — box open.** Walkthrough §9 cancels an approval card before any process starts (`milestone-2-donovan.md:411`). `TestRunCommandCancellationProcessGroupDead` checks only the error kind and a 3s return |
+| A command reading stdin fails immediately | Walkthrough §9 (`/run cat`, approved: "The command does not block"); `TestRunCommandStdinIsDevNull` shows a stdin-reading command returns at once. A stdin reader sees EOF and exits; it does not error. The test would also pass without the explicit `/dev/null` assignment, because `exec` reads `/dev/null` when `Stdin` is nil |
+| Env stripping even when allowlisted | `TestRunCommandEnvironmentFiltering` (`*_TOKEN`, with a real environment and passthrough); walkthrough §9 (`SECRET_KEY` stripped although allowlisted). `*_SECRET` and `AWS_*` have no test |
+| Approve, reject and grant from the TUI | Walkthrough §3 and §7 (operator run). `TestApprovalSessionGrantDeadlock` drives a real `tea.Program` with a stub model and proves only that resolving does not deadlock |
+| Cancel with an approval pending returns within 1s | `TestApprovalCancellationReleasesRequest` cancels the context passed to `Request` and asserts `Cancelled` within 1s. By inspection, `Request` parks only in its `select` (`internal/app/app.go:~626–643`), so that return releases it. No test drives an Esc-cancelled turn or asserts goroutine count or `a.approvals` cleanup; the "no parked goroutine" half rests on that reasoning, not on a test that can fail |
+| Golden screens | `TestMatchesScreenReference`; screens 06 and 07 updated |
+| No provider, agent or session code | `TestImportRules` (`internal/arch`) |
+
+### Where execution departed from this document
+
+Each departure is recorded as a plan amendment in [`spec/kirsch-plan.md`](../spec/kirsch-plan.md) §11 (amendments 61–73).
+
+- **The allowlist is exact-match.** Task 4 describes argv-prefix patterns with a trailing `*`. The shipped default entries (`go build`, `go test`, `git diff`, `git log`, `ls`) match only that exact argv, so `go test ./...` and `ls cmd` ask for approval. Session grants remain prefix matches. This is stricter than the document, and the operator kept it on 2026-10-02.
+- **Secret stripping is case-sensitive.** `*_TOKEN`, `*_KEY`, `*_SECRET` and `AWS_*` match upper-case names only, so `my_token` passes through. On 2026-10-02 the operator chose to record this rather than change it.
+- **Renamed shells are documented, not blocked.** Shell detection is by basename, so a shell copied under another name is not detected (`TestRunCommandRenamedShellLimitationDocumented`).
+- **Mixed line endings are normalised.** A file with mixed endings is rewritten wholesale in its dominant ending, and a tie becomes LF. That includes lines the patch did not touch. A bare `\r` is treated as a line break. This departs from Task 3.3's "preserve" rule.
+- **Rename-with-edit keeps permission bits only.** It carries the source file's `Perm()` but not setuid, setgid or sticky. A plain modify and a pure rename keep all of them.
+- **A patch that carries line endings is checked.** A patch's hunk lines can carry `\r`, as a `git diff` of a CRLF file does. Such a patch must add lines in the file's own ending, or it is rejected with `line_ending_mismatch`. A `+` line directly followed by `\ No newline at end of file` is exempt, because it has no terminator. A patch with no `\r` anywhere takes the file's ending.
+- **The `run_command` timeout ignores the configured default.** `policy.default_command_timeout_seconds` (default 60) is validated by `internal/config/config.go:~273` but never read by `run_command`. When `timeout_seconds` is omitted, the tool falls back to 3600 (`internal/tool/run_command.go:~143–146`) and enforces no maximum, while its schema tells the model "Maximum 3600" (`run_command.go:~83`). Plan §3 specifies a default of 60 and a maximum of 300.
+- **A command reading stdin sees EOF; it does not error.** `run_command` gives the child `/dev/null`, so a reader such as `cat` exits at once, normally with success. The Task 9 box and plan §3.2 say "fails immediately"; the delivered guarantee is that it never hangs. Rewording the box is the operator's decision.
+- **Three policy settings are not read.** `allow_session_scoped_grants`, `require_approval_for_patches` and `require_approval_for_commands` exist in `internal/config` but nothing passes them to the policy, which always enables session grants (`internal/app/app.go:~305`). Task 4.5's "`allow_session_scoped_grants = false` disables `Grant` entirely" is not met.
+- **Command output is not streamed.** `RunCommand.ProgressSink` is never set in production (`internal/app/app.go:~316`), so output appears when the command finishes. Task 5.2's incremental streaming is not met.
+
+### Added beyond this document
+
+- **The approval deadlock fix** (mission-20260928-01). `app.Resolve` runs on the event loop, so the session-grant path now delivers its message sequence from one goroutine (`sendAsyncSequence`). `internal/app/deadlock_test.go` holds the first tests to drive a real `tea.Program`.
+- **Walkthrough fixes** (missions 20260930-01 and 20261001-01): the `c` clear instruction in the grants modal, real approval elapsed time, and command cards that name their command.
+- **The UX pass** (mission-20261001-02):
+  - tool cards open as a 10-line preview;
+  - ↑/↓ give composer history, and Shift+↑ or Tab reach the cards;
+  - an approved command shows one card;
+  - a key-hint row;
+  - a pending approval card that stray typing releases rather than answers;
+  - a clipping marker on modals.
+- **The close-out** (mission-20261002-01):
+  - `/run` shares the first debug row with `/patch` in `/help`, and the clipped help footer names the scroll keys;
+  - lint and format are clean, with 13 findings fixed and none suppressed;
+  - rename-with-edit no longer leaves files at 0600;
+  - real `git diff` output for CRLF files now applies.
+
+### Open defects and notes for Milestone 3
+
+- **Trailing-newline handling: found by reading the code, not yet reproduced by a test.**
+  - `applyModify` (`internal/patch/apply.go:~809–816`) decides the final newline from the last hunk's last line alone.
+  - A file with no final newline gains one when a hunk stops short of the end.
+  - A hunk that deletes the last line, with the `\ No newline` marker on the deleted line, drops the newline from the new last line.
+  - Either would break Task 3.4. Reproduce, and fix if real, before the tag.
+- **Tests that cannot detect a regression:**
+  - `TestRunCommandTimeoutProcessGroupDead` returns before its assertion.
+  - `TestRunCommandCancellationProcessGroupDead` checks no PID.
+  - `TestRunCommandStdinIsDevNull` passes without the code it names.
+- **Untested secret patterns:** `*_SECRET` and `AWS_*` stripping, and `*_KEY` outside the walkthrough.
+- **Unverified blank approval card:** an approval request with an unspecified operation sends empty `Subject` and `Detail`. Whether the card renders blank is unverified.
+- **A comment contradicts behaviour:** `internal/tool/run_command.go:~316–321` and `~336–337` say the grace poll always waits the full 2s. `TestRunCommandTimeoutWithinDeadline` (`run_command_test.go:~755`) bounds a 1s timeout at 2s, so the poll must exit early once `Wait` reaps the process. The comment is probably wrong; confirm and fix.
+- **The configured command timeout is ignored:** wire `policy.default_command_timeout_seconds` into `run_command`, enforce a ceiling, and make the schema text match.
+- **Unwired policy settings and streaming:** wire `allow_session_scoped_grants` and the two `require_approval_for_*` keys into the policy and `ProgressSink` into `internal/app`, or remove the keys and the requirement.
+- **No regeneration flag for screen grids:** `golden_test.go` has no `-update` flag, so screen grids must be regenerated from the renderer by hand.
+- **Help overlay height:** the help overlay needs 34 rows to show without scrolling.
 
 ---
 

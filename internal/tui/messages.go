@@ -73,6 +73,7 @@ func (CancelIntent) isIntent() {}
 // correlates it with the Resolve call that answers it.
 type ApprovalRequestedMsg struct {
 	ID                   int64    // Unique approval ID
+	ToolID               int64    // App-side tool ID (non-zero if linked to a tool)
 	Description          string   // What is being asked for approval
 	Kind                 string   // "command", "patch", etc. for the renderer
 	CanApproveForSession bool     // Whether [a] button should be shown

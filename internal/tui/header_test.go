@@ -119,39 +119,45 @@ func TestChromeBudgetAtHeightBands(t *testing.T) {
 		header     bool
 		rules      bool
 		transcript int
+		hint       int
 		why        string
 	}{
 		{
-			h: 24, composer: 1, header: true, rules: true, transcript: 18,
-			why: "chrome = header 2 + rules 2 + status 1 + composer 1",
+			h: 24, composer: 1, header: true, rules: true, transcript: 17, hint: 1,
+			why: "chrome = header 2 + rules 2 + status 1 + composer 1 + hint 1",
 		},
-		{h: 12, composer: 1, header: true, rules: true, transcript: 6, why: "12 - 6"},
+		{h: 23, composer: 1, header: true, rules: true, transcript: 17, hint: 0, why: "at h=23, hint is 0"},
+		{h: 12, composer: 1, header: true, rules: true, transcript: 6, hint: 0, why: "12 - 6"},
 		{
-			h: 11, composer: 1, header: true, rules: true, transcript: 5,
+			h: 11, composer: 1, header: true, rules: true, transcript: 5, hint: 0,
 			why: "11 - 6; the old five-row floor now needs one more row",
 		},
 		{
-			h: 10, composer: 1, header: true, rules: true, transcript: 4,
+			h: 10, composer: 1, header: true, rules: true, transcript: 4, hint: 0,
 			why: "the band boundary stays at 10; the floor drops from 5 to 4",
 		},
 		{
-			h: 9, composer: 1, header: false, rules: true, transcript: 5,
+			h: 9, composer: 1, header: false, rules: true, transcript: 5, hint: 0,
 			why: "header gone frees 2 rows, so the transcript grows across the boundary",
 		},
 		{
-			h: 6, composer: 1, header: false, rules: true, transcript: 2,
+			h: 6, composer: 1, header: false, rules: true, transcript: 2, hint: 0,
 			why: "unchanged: no header in this band",
 		},
 		{
-			h: 5, composer: 1, header: false, rules: true, transcript: 1,
+			h: 5, composer: 1, header: false, rules: true, transcript: 1, hint: 0,
 			why: "unchanged: no header in this band",
 		},
 		{
-			h: 4, composer: 1, header: false, rules: false, transcript: 2,
+			h: 4, composer: 1, header: false, rules: false, transcript: 2, hint: 0,
 			why: "unchanged: below 5 the rules go as a pair",
 		},
 		{
-			h: 10, composer: 5, header: true, rules: true, transcript: 0,
+			h: 34, composer: 1, header: true, rules: true, transcript: 27, hint: 1,
+			why: "at h=34, hint is 1; screen 06 uses this height",
+		},
+		{
+			h: 10, composer: 5, header: true, rules: true, transcript: 0, hint: 0,
 			why: "a full composer spends the whole budget; nothing degrades because nothing is negative",
 		},
 	}
@@ -165,9 +171,13 @@ func TestChromeBudgetAtHeightBands(t *testing.T) {
 			t.Errorf("80x%d composer=%d: TranscriptH=%d, want %d (%s)",
 				c.h, c.composer, lay.TranscriptH, c.transcript, c.why)
 		}
+		if lay.HintH != c.hint {
+			t.Errorf("80x%d composer=%d: HintH=%d, want %d (%s)",
+				c.h, c.composer, lay.HintH, c.hint, c.why)
+		}
 		// The budget has to agree with the frame it produces, or the arithmetic
 		// above is only checking itself.
-		wantChrome := 1 + lay.HeaderH() + lay.ComposerH
+		wantChrome := 1 + lay.HeaderH() + lay.ComposerH + c.hint
 		if lay.ShowRules {
 			wantChrome += 2
 		}
@@ -501,9 +511,10 @@ func TestModalStaysInsideTranscriptRegion(t *testing.T) {
 // with itself.
 //
 // The composer rows are excluded: opening a modal moves input capture off the
-// composer, so its row legitimately differs between the two renders. Everything
-// else below the region — the rules and the status bar — must be byte-identical
-// with the modal open and closed, and so must the header above it.
+// composer, so its row legitimately differs between the two renders. The hint row
+// is also excluded: it is blanked when an overlay is open. Everything else below
+// the region — the rules and the status bar — must be byte-identical with the modal
+// open and closed, and so must the header above it.
 func TestModalLeavesTheRowsOutsideTheRegionUntouched(t *testing.T) {
 	for _, size := range [][2]int{{80, 10}, {40, 10}, {80, 11}, {80, 24}, {80, 32}} {
 		w, h := size[0], size[1]
@@ -511,23 +522,32 @@ func TestModalLeavesTheRowsOutsideTheRegionUntouched(t *testing.T) {
 		withModal := plain
 		withModal.openModal(ModalState{Kind: ModalHelp, Title: "help", Lines: helpLines()})
 
-		lay := plain.layout()
+		plainLay := plain.layout()
 		before := strings.Split(plain.View(), "\n")
 		after := strings.Split(withModal.View(), "\n")
 		if len(before) != len(after) {
 			t.Fatalf("%dx%d: %d rows without the modal, %d with it", w, h, len(before), len(after))
 		}
-		regionEnd := lay.HeaderH() + lay.TranscriptH
+
+		plainRegionEnd := plainLay.HeaderH() + plainLay.TranscriptH
 		for i := range before {
 			switch {
-			case i >= lay.HeaderH() && i < regionEnd:
+			case i >= plainLay.HeaderH() && i < plainRegionEnd:
 				continue // the region is the modal's to overwrite
-			case i >= len(before)-lay.ComposerH:
-				continue // input capture moved; the composer row is expected to change
+			case i >= len(before)-plainLay.ComposerH-plainLay.HintH:
+				// Composer rows (and hint row if present) — input capture moved
+				if plainLay.HintH == 1 && i == len(before)-plainLay.HintH {
+					// This is the hint row (the very last row). When an overlay is open, it should be blank.
+					if strings.TrimSpace(after[i]) != "" {
+						t.Errorf("%dx%d row %d (hint row under overlay): expected blank, got %q",
+							w, h, i, after[i])
+					}
+				}
+				continue
 			case before[i] != after[i]:
 				t.Errorf("%dx%d row %d is outside the transcript region [%d,%d) but the "+
 					"modal changed it:\n without: %q\n    with: %q",
-					w, h, i, lay.HeaderH(), regionEnd, before[i], after[i])
+					w, h, i, plainLay.HeaderH(), plainRegionEnd, before[i], after[i])
 			}
 		}
 	}
@@ -1730,94 +1750,516 @@ func TestFrameKeepsAMarginAtBothEdges(t *testing.T) {
 	t.Logf("covered %d ruled frames and %d frames too narrow for a margin", ruledSeen, unpaddedSeen)
 }
 
-// TestHelpScrollingReachesDebugCommands verifies that `/run` is reachable by
-// scrolling in the help modal. The operator reported that `/run` was not visible
-// at their terminal height, but `/gitdiff  /patch` was. This test finds a
-// terminal height by rendering that shows `/patch` visible and `/run` off-screen,
-// then verifies that scrolling brings `/run` into view. No code change is expected;
-// this test pins real behaviour.
+// TestHelpScrollingReachesDebugCommands verifies that at 80×24 the debug rows
+// are below the fold, and G brings /run into view. The test asserts that /run
+// is not visible before scrolling and becomes visible after pressing G to jump
+// to the bottom.
 func TestHelpScrollingReachesDebugCommands(t *testing.T) {
-	lines := helpLines()
+	m := newDrivenSize(t, 80, 24)
+	if m.mode() != ModeApprovalPending {
+		t.Fatalf("fixture should start in ApprovalPending, got %v", m.mode())
+	}
 
-	// Find where /patch and /run are in the content
-	var patchIdx, runIdx int
-	for i, line := range lines {
-		if strings.Contains(line, "/patch") {
-			patchIdx = i
+	// Open help by key dispatch
+	m = drive(m, key('?'))
+	if m.mode() != ModeModal {
+		t.Fatalf("? did not open a modal: mode = %v", m.mode())
+	}
+
+	// Get the overlay rows from the modal box
+	lay := m.layout()
+	box, _, _ := m.modalBox(lay)
+
+	// Before scrolling, assert that no overlay row contains /run.
+	// If one does, the precondition is not reached.
+	for _, row := range box {
+		if strings.Contains(stripSGR(row), "/run") {
+			t.Fatalf("before scrolling, overlay row already contains /run; precondition not reached")
 		}
-		if strings.Contains(line, "/run") && !strings.Contains(line, "debug") {
-			runIdx = i
-		}
 	}
 
-	if patchIdx == 0 || runIdx == 0 {
-		t.Fatalf("could not find /patch (idx=%d) or /run (idx=%d) in help lines", patchIdx, runIdx)
-	}
+	// Press G to jump to the bottom
+	m = drive(m, key('G'))
 
-	if runIdx <= patchIdx {
-		t.Fatalf("/run at index %d should be after /patch at %d", runIdx, patchIdx)
-	}
+	// Get the overlay rows after scrolling
+	box, _, _ = m.modalBox(m.layout())
 
-	// Find a terminal height by rendering: iterate upward from a minimum until
-	// we find a height where /patch is visible but /run is not (the operator's case).
-	var foundHeight int
-	for testHeight := 20; testHeight <= 50; testHeight++ {
-		m := headerModel(t, defaultSession(), 100, testHeight)
-		m.openModal(ModalState{
-			Kind:  ModalHelp,
-			Title: "help",
-			Lines: lines,
-		})
-
-		box, _, _ := m.modalBox(m.layout())
-		boxStr := strings.Join(box, "\n")
-
-		hasPatch := strings.Contains(boxStr, "/patch")
-		hasRun := strings.Contains(boxStr, "/run")
-
-		if hasPatch && !hasRun {
-			foundHeight = testHeight
+	// Assert an overlay row contains /run
+	var found bool
+	for _, row := range box {
+		if strings.Contains(stripSGR(row), "/run") {
+			found = true
 			break
 		}
 	}
-
-	if foundHeight == 0 {
-		t.Fatal("rendering at heights 20–50 found no height where /patch is visible and /run is not; " +
-			"cannot set up the test case the operator reported")
+	if !found {
+		t.Fatalf("after pressing G, /run not visible in overlay rows")
 	}
 
-	t.Logf("found height %d: /patch visible, /run off-screen", foundHeight)
+	// Assert the rule row contains ↑ and an "above" marker
+	if len(box) < 3 {
+		t.Fatalf("modal box has %d rows; expected at least 3", len(box))
+	}
+	ruleRow := stripSGR(box[len(box)-3])
+	if !strings.Contains(ruleRow, "↑") {
+		t.Errorf("rule row does not contain ↑: %q", ruleRow)
+	}
+	if !strings.Contains(ruleRow, "above") {
+		t.Errorf("rule row does not contain 'above': %q", ruleRow)
+	}
+}
 
-	// Create the model at the found height
-	m := headerModel(t, defaultSession(), 100, foundHeight)
-	m.openModal(ModalState{
-		Kind:  ModalHelp,
-		Title: "help",
-		Lines: lines,
-	})
+// TestHelpRunSharesRowWithPatch verifies that after reordering DebugCommands,
+// /patch and /run appear on the same line in the help overlay at multiple
+// terminal sizes and heights.
+func TestHelpRunSharesRowWithPatch(t *testing.T) {
+	for _, w := range []int{80, 120} {
+		for h := 24; h <= 40; h++ {
+			m := newDrivenSize(t, w, h)
+			if m.mode() != ModeApprovalPending {
+				t.Fatalf("%dx%d: fixture should start in ApprovalPending, got %v", w, h, m.mode())
+			}
 
-	// Verify precondition: /patch is visible, /run is not
+			// Open help by key dispatch
+			m = drive(m, key('?'))
+			if m.mode() != ModeModal {
+				t.Fatalf("%dx%d: ? did not open a modal: mode = %v", w, h, m.mode())
+			}
+
+			// Check if help modal is actually open
+			if m.modal.Kind != ModalHelp {
+				t.Fatalf("%dx%d: modal kind is %v, not ModalHelp", w, h, m.modal.Kind)
+			}
+
+			// Search only the overlay rows from m.modalBox(m.layout())
+			lay := m.layout()
+			box, _, _ := m.modalBox(lay)
+			overlayRows := make([]string, len(box))
+			for i, row := range box {
+				overlayRows[i] = stripSGR(row)
+			}
+
+			// Find the line containing /patch and verify /run is on the same line
+			var foundPatchLine bool
+			for _, line := range overlayRows {
+				if strings.Contains(line, "/patch") {
+					foundPatchLine = true
+					if !strings.Contains(line, "/run") {
+						t.Errorf("%dx%d: line contains /patch but not /run: %q", w, h, line)
+					}
+					break
+				}
+			}
+
+			// Assert /patch is visible at height >= 33
+			if h >= 33 && !foundPatchLine {
+				t.Errorf("%dx%d: /patch not visible in help overlay at height >= 33", w, h)
+			}
+		}
+	}
+}
+
+// TestHelpFooterNamesScrollKeysWhenClipped verifies that the help footer
+// includes "j/k scroll" when the content is taller than the viewport
+// (clipped), and omits it when the full content fits.
+func TestHelpFooterNamesScrollKeysWhenClipped(t *testing.T) {
+	for _, w := range []int{80, 120} {
+		for _, h := range []int{30, 33, 34, 40} {
+			m := newDrivenSize(t, w, h)
+			if m.mode() != ModeApprovalPending {
+				t.Fatalf("%dx%d: fixture should start in ApprovalPending, got %v", w, h, m.mode())
+			}
+
+			// Open help by key dispatch
+			m = drive(m, key('?'))
+			if m.mode() != ModeModal {
+				t.Fatalf("%dx%d: ? did not open a modal: mode = %v", w, h, m.mode())
+			}
+
+			// Assert on the footer row only: box[len(box)-2] of m.modalBox(m.layout())
+			lay := m.layout()
+			box, _, _ := m.modalBox(lay)
+			if len(box) < 2 {
+				t.Fatalf("%dx%d: modal box has %d rows; cannot access footer at index -2", w, h, len(box))
+			}
+
+			footerRow := stripSGR(box[len(box)-2])
+
+			// Confirm it is the footer by checking that it contains "closes"
+			if !strings.Contains(footerRow, "closes") {
+				t.Errorf("%dx%d: row at index -2 does not contain 'closes', so it is not the footer: %q",
+					w, h, footerRow)
+			}
+
+			// Determine if clipped based on height
+			clipped := h == 30 || h == 33
+
+			// Check for j/k scroll in footer
+			hasScrollHint := strings.Contains(footerRow, "j/k scroll")
+
+			if clipped && !hasScrollHint {
+				t.Errorf("%dx%d (clipped): footer should contain 'j/k scroll' but doesn't: %q",
+					w, h, footerRow)
+			}
+			if !clipped && hasScrollHint {
+				t.Errorf("%dx%d (not clipped): footer should not contain 'j/k scroll' but does: %q",
+					w, h, footerRow)
+			}
+
+			// At 120×30, assert the footer contains "docs: doc/usage.md"
+			if w == 120 && h == 30 {
+				if !strings.Contains(footerRow, "docs: doc/usage.md") {
+					t.Errorf("%dx%d (clipped, wide): footer should contain 'docs: doc/usage.md' but got: %q",
+						w, h, footerRow)
+				}
+			}
+		}
+	}
+}
+
+// TestHelpFooterNoScrollKeysWhenBodyWithdrawn verifies that when the help
+// modal opens with no body rows, the footer does not contain "j/k scroll".
+// Bodyless boxes have exactly 3 rows: top border, footer, bottom border.
+func TestHelpFooterNoScrollKeysWhenBodyWithdrawn(t *testing.T) {
+	var count int
+	var firstSize, lastSize string
+
+	for w := 40; w <= 120; w++ {
+		for h := 5; h <= 12; h++ {
+			m := newDrivenSize(t, w, h)
+			m = drive(m, key('?'))
+			if m.mode() != ModeModal {
+				continue
+			}
+
+			box, _, _ := m.modalBox(m.layout())
+			if len(box) == 3 {
+				// Bodyless box: exactly 3 rows (top, footer, bottom).
+				footerRow := stripSGR(box[1])
+				if strings.Contains(footerRow, "j/k scroll") {
+					t.Errorf("%dx%d: bodyless footer should not contain 'j/k scroll': %q",
+						w, h, footerRow)
+				}
+				// Verify the footer is actually a footer (contains exit key or "closes").
+				if !strings.Contains(footerRow, "closes") && !strings.Contains(footerRow, m.modalExit(m.modal)) {
+					t.Errorf("%dx%d: footer row missing exit indication: %q", w, h, footerRow)
+				}
+				count++
+				size := fmt.Sprintf("%dx%d", w, h)
+				if firstSize == "" {
+					firstSize = size
+				}
+				lastSize = size
+			}
+		}
+	}
+
+	if count == 0 {
+		t.Fatalf("no bodyless help box (3 rows) found in 40–120 × 5–12; the modalBox ladder or the frame chrome changed — widen the sweep")
+	}
+	t.Logf("found %d bodyless help boxes; first at %s, last at %s", count, firstSize, lastSize)
+}
+
+// The clipping-marker tests below share one oracle. Everything the marker is
+// expected to say is spelled here as literals, independent of m.gly and of
+// buildClippingMarker, so a glyph table or a count that drifts from the spec
+// fails a test instead of being echoed back by the code that produced it.
+
+// markerGlyphs is the literal vocabulary of one rendering mode.
+type markerGlyphs struct {
+	up, down, bullet string // marker text
+	lt, h, rt        string // rule row: left tee, fill, right tee
+}
+
+var (
+	markerUnicode = markerGlyphs{up: "↑", down: "↓", bullet: "·", lt: "├", h: "─", rt: "┤"}
+	markerASCII   = markerGlyphs{up: "^", down: "v", bullet: ".", lt: "+", h: "-", rt: "+"}
+)
+
+// wantMarker is the marker text for a body of bodyH rows at offset off over
+// total lines: "<up> N above", "<down> M more", or both joined by the bullet.
+func wantMarker(g markerGlyphs, off, bodyH, total int) string {
+	var parts []string
+	if off > 0 {
+		parts = append(parts, fmt.Sprintf("%s %d above", g.up, off))
+	}
+	if below := total - (off + bodyH); below > 0 {
+		parts = append(parts, fmt.Sprintf("%s %d more", g.down, below))
+	}
+	return strings.Join(parts, " "+g.bullet+" ")
+}
+
+// clippedModal opens a modal of the given kind on a model whose terminal height
+// clips lines, and sets its scroll offset. It searches heights 20–50 and FAILS
+// when none clips: a test that fell through with an unclipped model would
+// assert about a modal that has no marker to find.
+func clippedModal(t *testing.T, unicode, colour bool, ms ModalState, off int) Model {
+	t.Helper()
+	for h := 20; h <= 50; h++ {
+		m := New(Options{
+			Version: fixtureVersion,
+			Caps:    Caps{Unicode: unicode, Colour: colour},
+			Session: defaultSession(),
+			Status:  Status{Model: "claude-sonnet-5", Family: "sonnet-5"},
+		})
+		mm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: h})
+		m = mm.(Model)
+		m.openModal(ms)
+		box, _, _ := m.modalBox(m.layout())
+		if len(ms.Lines) > len(box)-4 { // top border, rule, footer, bottom border
+			m.modal.Off = off
+			return m
+		}
+	}
+	t.Fatalf("no terminal height in 20–50 clips %d lines; cannot set up a clipped %v modal", len(ms.Lines), ms.Kind)
+	return Model{}
+}
+
+// ruleOf returns the modal's rule row, with and without SGR, together with the
+// body height and box width it implies. The rule is addressed by position —
+// third from the bottom, above the footer and the bottom border — because in
+// ASCII mode its first cell is "+", exactly as the top border's is, and
+// matching on glyphs would find the wrong row there.
+func ruleOf(t *testing.T, box []string, g markerGlyphs) (raw, styled string, bodyH, w int) {
+	t.Helper()
+	if len(box) < 5 {
+		t.Fatalf("modal box has %d rows; expected a top border, body, rule, footer and bottom border", len(box))
+	}
+	styled = box[len(box)-3]
+	raw = stripSGR(styled)
+	bodyH = len(box) - 4
+	w = cellWidth(box[0])
+	if !strings.HasPrefix(raw, g.lt) || !strings.HasSuffix(raw, g.rt) {
+		t.Fatalf("row %d is not the rule row (want %q…%q): %q", len(box)-3, g.lt, g.rt, raw)
+	}
+	if cellWidth(raw) != w {
+		t.Fatalf("rule row is %d cells; the box is %d wide: %q", cellWidth(raw), w, raw)
+	}
+	return raw, styled, bodyH, w
+}
+
+// assertMarkerRule requires the rule row to be exactly
+// lt + h×l + " " + marker + " " + h×r + rt with l, r >= 1, and the marker to
+// occur once. Nothing else may be on the row, so a stray arrow or a count for
+// the wrong side fails here.
+func assertMarkerRule(t *testing.T, g markerGlyphs, raw, marker string) {
+	t.Helper()
+	span := " " + marker + " "
+	idx := strings.Index(raw, span)
+	if idx < 0 {
+		t.Fatalf("rule row %q does not contain %q", raw, marker)
+	}
+	if n := strings.Count(raw, marker); n != 1 {
+		t.Errorf("rule row %q holds the marker %d times, want 1", raw, n)
+	}
+	left, right := raw[:idx], raw[idx+len(span):]
+	l, r := cellWidth(left)-1, cellWidth(right)-1
+	if l < 1 || r < 1 {
+		t.Errorf("rule row %q has %d fill cells left and %d right of the marker; each side needs at least 1", raw, l, r)
+	}
+	if want := g.lt + strings.Repeat(g.h, l); left != want {
+		t.Errorf("left of the marker is %q, want %q", left, want)
+	}
+	if want := strings.Repeat(g.h, r) + g.rt; right != want {
+		t.Errorf("right of the marker is %q, want %q", right, want)
+	}
+}
+
+// TestModalClippingMarkerHelpClippedBelow verifies that a help modal at offset 0
+// shows exactly "↓ N more", N being the lines below the body, and no "above".
+func TestModalClippingMarkerHelpClippedBelow(t *testing.T) {
+	lines := helpLines()
+	m := clippedModal(t, true, false, ModalState{Kind: ModalHelp, Title: "help", Lines: lines}, 0)
+
+	raw, _, bodyH, _ := ruleOf(t, mustBox(m), markerUnicode)
+	want := wantMarker(markerUnicode, 0, bodyH, len(lines))
+	if want == "" || strings.Contains(want, "above") {
+		t.Fatalf("oracle produced %q; expected a below-only marker", want)
+	}
+	assertMarkerRule(t, markerUnicode, raw, want)
+}
+
+// mustBox is the modal's box at the model's own layout.
+func mustBox(m Model) []string {
 	box, _, _ := m.modalBox(m.layout())
-	boxStr := strings.Join(box, "\n")
+	return box
+}
 
-	if !strings.Contains(boxStr, "/patch") {
-		t.Fatal("at found height: /patch not visible before scroll (precondition failed)")
+// TestModalClippingMarkerMiddleOffsetWithExactCounts verifies a body clipped on
+// both sides shows "↑ N above · ↓ M more" with both counts exact.
+func TestModalClippingMarkerMiddleOffsetWithExactCounts(t *testing.T) {
+	lines := helpLines()
+	m := clippedModal(t, true, false, ModalState{Kind: ModalHelp, Title: "help", Lines: lines}, len(lines)/3)
+
+	raw, _, bodyH, _ := ruleOf(t, mustBox(m), markerUnicode)
+	off := len(lines) / 3
+	if off <= 0 || len(lines)-(off+bodyH) <= 0 {
+		t.Fatalf("offset %d with body %d over %d lines is not clipped on both sides", off, bodyH, len(lines))
 	}
-	if strings.Contains(boxStr, "/run") {
-		t.Fatal("at found height: /run already visible before scroll (precondition failed)")
+	assertMarkerRule(t, markerUnicode, raw, wantMarker(markerUnicode, off, bodyH, len(lines)))
+}
+
+// TestModalClippingMarkerFitsEntireContent verifies that when everything fits,
+// the rule row is the plain rule and nothing else.
+func TestModalClippingMarkerFitsEntireContent(t *testing.T) {
+	m := headerModel(t, defaultSession(), 100, 30)
+	m.openModal(ModalState{Kind: ModalContent, Title: "test", Lines: []string{"short", "content", "list"}})
+
+	raw, _, _, w := ruleOf(t, mustBox(m), markerUnicode)
+	if want := "├" + strings.Repeat("─", w-2) + "┤"; raw != want {
+		t.Errorf("fits-entire rule row = %q, want the plain rule %q", raw, want)
+	}
+}
+
+// TestModalClippingMarkerContentModal verifies that a content modal clipped
+// below shows exactly "↓ N more".
+func TestModalClippingMarkerContentModal(t *testing.T) {
+	lines := helpLines()
+	m := clippedModal(t, true, false, ModalState{Kind: ModalContent, Title: "some content", Lines: lines}, 0)
+
+	raw, _, bodyH, _ := ruleOf(t, mustBox(m), markerUnicode)
+	assertMarkerRule(t, markerUnicode, raw, wantMarker(markerUnicode, 0, bodyH, len(lines)))
+	if strings.Contains(raw, "above") {
+		t.Errorf("a modal at offset 0 must not claim lines above: %q", raw)
+	}
+}
+
+// TestModalClippingMarkerContentModalAtBottom verifies the opposite edge: scrolled
+// to the end, only "↑ N above" shows, with the count the offset implies.
+func TestModalClippingMarkerContentModalAtBottom(t *testing.T) {
+	lines := helpLines()
+	m := clippedModal(t, true, false, ModalState{Kind: ModalContent, Title: "some content", Lines: lines}, len(lines))
+
+	raw, _, bodyH, _ := ruleOf(t, mustBox(m), markerUnicode)
+	off := len(lines) - bodyH // modalBox clamps the offset to the last full body
+	assertMarkerRule(t, markerUnicode, raw, wantMarker(markerUnicode, off, bodyH, len(lines)))
+	if strings.Contains(raw, "more") {
+		t.Errorf("a modal scrolled to the end must not claim lines below: %q", raw)
+	}
+}
+
+// TestModalClippingMarkerDiffModal verifies that a diff modal clipped below
+// shows exactly "↓ N more".
+func TestModalClippingMarkerDiffModal(t *testing.T) {
+	diffLines := make([]string, 100)
+	for i := range diffLines {
+		if i%2 == 0 {
+			diffLines[i] = fmt.Sprintf("+ added line %d", i)
+		} else {
+			diffLines[i] = fmt.Sprintf("- removed line %d", i)
+		}
+	}
+	m := clippedModal(t, true, false, ModalState{
+		Kind: ModalDiff, Title: "diff", Lines: diffLines, Added: 50, Removed: 50,
+	}, 0)
+
+	raw, _, bodyH, _ := ruleOf(t, mustBox(m), markerUnicode)
+	assertMarkerRule(t, markerUnicode, raw, wantMarker(markerUnicode, 0, bodyH, len(diffLines)))
+}
+
+// TestModalClippingMarkerASCII renders a clipped modal with Unicode off and
+// requires the ASCII rule row: "+", "-" fill, "+", and the marker "^ N above . v M more".
+func TestModalClippingMarkerASCII(t *testing.T) {
+	lines := helpLines()
+	off := len(lines) / 3
+	m := clippedModal(t, false, false, ModalState{Kind: ModalHelp, Title: "help", Lines: lines}, off)
+
+	raw, _, bodyH, _ := ruleOf(t, mustBox(m), markerASCII)
+	if len(lines)-(off+bodyH) <= 0 {
+		t.Fatalf("offset %d with body %d over %d lines is not clipped below", off, bodyH, len(lines))
+	}
+	want := wantMarker(markerASCII, off, bodyH, len(lines))
+	if !strings.Contains(want, "^ ") || !strings.Contains(want, "v ") {
+		t.Fatalf("oracle produced %q; expected both ASCII arrows", want)
+	}
+	assertMarkerRule(t, markerASCII, raw, want)
+	for _, r := range raw {
+		if r > 0x7f {
+			t.Errorf("ASCII rule row contains non-ASCII %q: %q", r, raw)
+			break
+		}
+	}
+}
+
+// TestModalClippingMarkerStyling verifies the marker is Muted while the rule
+// around it stays BorderFocus. The model is built with Caps.Colour=true, which
+// makes NewStyles emit real SGR (the default test model is colourless, where
+// every style is the identity and nothing could be told apart).
+func TestModalClippingMarkerStyling(t *testing.T) {
+	lines := helpLines()
+	off := len(lines) / 3
+	m := clippedModal(t, true, true, ModalState{Kind: ModalContent, Title: "test", Lines: lines}, off)
+
+	const probe = "probe"
+	mutedProbe, borderProbe := m.sty.Muted(probe), m.sty.BorderFocus(probe)
+	if !strings.Contains(mutedProbe, "\x1b[") || !strings.Contains(borderProbe, "\x1b[") {
+		t.Fatalf("styles emit no SGR (muted %q, border %q); a colour test would pass vacuously", mutedProbe, borderProbe)
+	}
+	mutedOpen := mutedProbe[:strings.Index(mutedProbe, probe)]
+	borderOpen := borderProbe[:strings.Index(borderProbe, probe)]
+	if mutedOpen == borderOpen {
+		t.Fatalf("Muted and BorderFocus open with the same sequence %q; the test cannot tell them apart", mutedOpen)
 	}
 
-	// Scroll down multiple times to bring /run into view
-	for i := 0; i < len(lines); i++ {
-		nextModel, _ := m.Update(keyType(tea.KeyDown))
-		m = nextModel.(Model)
+	raw, styled, bodyH, _ := ruleOf(t, mustBox(m), markerUnicode)
+	marker := wantMarker(markerUnicode, off, bodyH, len(lines))
+	assertMarkerRule(t, markerUnicode, raw, marker)
+
+	if !strings.Contains(styled, mutedOpen+"↑") {
+		t.Errorf("Muted opening %q does not immediately precede the marker's first glyph in %q", mutedOpen, styled)
+	}
+	if want := strings.Replace(mutedProbe, probe, marker, 1); !strings.Contains(styled, want) {
+		t.Errorf("marker is not wrapped whole in Muted: want %q in %q", want, styled)
+	}
+	if strings.Contains(styled, borderOpen+"↑") || strings.Contains(styled, borderOpen+"↓") {
+		t.Errorf("a marker glyph is styled BorderFocus: %q", styled)
+	}
+	if !strings.Contains(styled, borderOpen+"├") {
+		t.Errorf("the rule's left tee is not styled BorderFocus: %q", styled)
+	}
+}
+
+// TestModalClippingMarkerNarrowWidth drives the width contract at its boundary.
+// The marker needs its own width plus the two corner cells, two spaces and at
+// least one fill cell on each side: cw+6. At that width it shows; one column
+// narrower it is omitted, and the rule row still spans the whole box.
+// The box width is set through the layout (ContentW = w+2, 100%) so the boundary
+// is hit exactly rather than via the terminal's width bands.
+func TestModalClippingMarkerNarrowWidth(t *testing.T) {
+	lines := helpLines()
+	off := len(lines) / 3
+	m := clippedModal(t, true, false, ModalState{Kind: ModalContent, Title: "test", Lines: lines}, off)
+
+	_, _, bodyH, _ := ruleOf(t, mustBox(m), markerUnicode)
+	marker := wantMarker(markerUnicode, off, bodyH, len(lines))
+	if !strings.Contains(marker, "above") || !strings.Contains(marker, "more") {
+		t.Fatalf("oracle produced %q; the boundary test needs the two-sided marker", marker)
+	}
+	fit := cellWidth(marker) + 6
+	if fit-2 < 20 {
+		t.Fatalf("boundary width %d leaves no room below it above modalBox's 20-cell floor", fit)
 	}
 
-	// Verify /run is now visible after scrolling
-	box, _, _ = m.modalBox(m.layout())
-	boxStr = strings.Join(box, "\n")
+	at := func(w int) (string, int) {
+		lay := m.layout()
+		lay.ContentW, lay.ModalPct = w+2, 100
+		raw, _, _, got := ruleOf(t, func() []string { b, _, _ := m.modalBox(lay); return b }(), markerUnicode)
+		return raw, got
+	}
 
-	if !strings.Contains(boxStr, "/run") {
-		t.Fatalf("after scrolling, /run still not visible:\n%s", boxStr)
+	raw, got := at(fit)
+	if got != fit {
+		t.Fatalf("box is %d wide, expected %d", got, fit)
+	}
+	assertMarkerRule(t, markerUnicode, raw, marker)
+
+	for _, w := range []int{fit - 1, fit - 2} {
+		raw, got := at(w)
+		if got != w {
+			t.Fatalf("box is %d wide, expected %d", got, w)
+		}
+		if want := "├" + strings.Repeat("─", w-2) + "┤"; raw != want {
+			t.Errorf("at width %d (marker needs %d) the rule row = %q, want the plain full-width rule %q", w, fit, raw, want)
+		}
 	}
 }

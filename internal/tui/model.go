@@ -90,7 +90,8 @@ type Model struct {
 
 	tr         Transcript
 	sel        ItemID
-	expanded   map[ItemID]bool
+	expanded   map[ItemID]bool // true = expanded (for non-tool items)
+	collapsed  map[ItemID]bool // true = collapsed (for tool items); zero value means preview
 	scroll     Scroll
 	lines      []string  // flattened transcript, styled
 	plainLines []string  // the same lines with identity styles
@@ -100,6 +101,7 @@ type Model struct {
 	base              BaseMode
 	pendingApproval   ItemID // transcript item ID of the pending approval card
 	pendingApprovalID int64  // app-side approval ID for resolving
+	approvalReleased  bool   // true when a stray key released the card; cleared by Tab/Shift+↑
 	modal             *ModalState
 	confirm           *ConfirmState
 
@@ -178,6 +180,7 @@ func New(o Options) Model {
 		sty:           NewStyles(rend, o.Caps.Colour),
 		gly:           NewGlyphs(o.Caps.Unicode),
 		expanded:      map[ItemID]bool{},
+		collapsed:     map[ItemID]bool{},
 		toolCards:     map[int64]ItemID{},
 		approvalCards: map[int64]ItemID{},
 		scroll:        Scroll{Pinned: true},
@@ -341,6 +344,7 @@ func (m *Model) relayout(lay Layout) {
 	// every grid follows — screen 02's two tool cards sit together, screen 08's
 	// two notices sit together, but a collapsed card followed by a boxed one is
 	// always separated (screens 03, 04).
+	// Skip any item whose rendered body has zero rows (e.g., a folded approval).
 	items := m.tr.Items()
 	prevKind := ItemKind(0)
 	prevLines := 0
@@ -353,16 +357,34 @@ func (m *Model) relayout(lay Layout) {
 		ctx := renderCtx{
 			W:        w,
 			Gutter:   gutter,
-			Expanded: m.expanded[it.ID],
+			Expanded: m.computeExpanded(it),
 			Selected: it.ID == m.sel,
 			G:        m.gly,
 			Frame:    m.frame,
 			ShowDur:  lay.ShowDuration,
 		}
+
+		// If this is a tool card with a linked approval, resolve the approval's outcome.
+		// When the approval is approved for session, also set the scope text.
+		if it.Kind == KindTool && it.Tool != nil && it.Tool.ApprovalItem != 0 {
+			if approvalIt, _, found := m.tr.Find(it.Tool.ApprovalItem); found && approvalIt.Kind == KindApproval && approvalIt.Approval != nil {
+				ctx.LinkedApprovalOutcome = approvalIt.Approval.Outcome
+				// Set the scope note at render time (do not mutate stored state).
+				if approvalIt.Approval.Outcome == ApprovedSession && approvalIt.Approval.GrantScope != "" {
+					ctx.LinkedApprovalScope = "session grant: " + approvalIt.Approval.GrantScope
+				}
+			}
+		}
+
 		ctx.Sty = sty
 		body := renderItem(it, ctx)
 		ctx.Sty = plainSty
 		plainBody := renderItem(it, ctx)
+
+		// Skip items with zero rows (e.g., folded approvals).
+		if len(body) == 0 {
+			continue
+		}
 
 		grouped := prevLines == 1 && len(body) == 1 && prevKind == it.Kind
 		if i > 0 && !grouped {
@@ -391,6 +413,18 @@ func (m *Model) rowFor(id ItemID) (itemRow, bool) {
 		}
 	}
 	return itemRow{}, false
+}
+
+// computeExpanded returns true if an item should be expanded. For tool cards,
+// it returns the inverse of the collapsed state (showing preview by default).
+// For other items, it returns the expanded state directly.
+func (m *Model) computeExpanded(it Item) bool {
+	if it.Kind == KindTool {
+		// Tool cards: collapsed=true means fully collapsed (head only)
+		// collapsed=false or missing means preview (first 10 lines)
+		return !m.collapsed[it.ID]
+	}
+	return m.expanded[it.ID]
 }
 
 // revealSelection scrolls the minimum distance needed to bring the selected

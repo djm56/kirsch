@@ -12,6 +12,9 @@ import (
 	"github.com/muesli/cancelreader"
 )
 
+// approvalReleaseHint is shown when the approval card is released.
+const approvalReleaseHint = "approval pending — Tab to return to the card"
+
 // Binding documents one key. The help overlay is built from this table, so the
 // two cannot drift apart.
 type Binding struct{ Key, Desc string }
@@ -42,14 +45,15 @@ var bindingGroups = []BindingGroup{
 		{"Enter", "send"},
 		{"Shift+Enter", "newline"},
 		{"Ctrl+J", "newline (alt)"},
-		{"Tab", "complete /cmd"},
-		{"↑ at line 1", "browse"},
+		{"↑/↓", "history"},
+		{"Shift+↑", "cards"},
+		{"Tab", "complete /cmd · cards"},
 		{"Esc", "cancel turn"},
 	}},
 	{"browsing", []Binding{
 		{"↑/↓", "select card"},
 		{"PgUp/PgDn", "scroll"},
-		{"Enter", "expand"},
+		{"Enter", "toggle preview"},
 		{"d", "diff / content"},
 		{"End", "bottom, re-pin"},
 		{"?", "help"},
@@ -232,6 +236,16 @@ func tickStream() tea.Cmd {
 	return tea.Tick(StreamCoalesce, func(time.Time) tea.Msg { return streamTickMsg{} })
 }
 
+// clearApprovalRelease clears the approval release flag and the approval hint if
+// it is currently showing. If a different hint is displayed (e.g., "unknown
+// command"), it is left unchanged.
+func (m *Model) clearApprovalRelease() {
+	m.approvalReleased = false
+	if m.comp.Hint == approvalReleaseHint {
+		m.comp.Hint = ""
+	}
+}
+
 // Update is the single entry point for all state change. architecture.md §3
 // rule 4: TUI state is mutated only here.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -324,7 +338,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 //     is m.sel or m.pendingApproval, and takes its two columns out of that item's
 //     content width — so moving either one rewraps two cards and cannot be a
 //     cache hit. The two halves of this check are not the same kind of thing. The
-//     m.sel half fixes a live defect: keyComposing's Up arm moves the selection
+//     m.sel half fixes a live defect: keyComposing's Shift+↑ arm moves the selection
 //     through setBase, which does not relayout, and neither does the
 //     revealSelection call beside it — so entering Browsing drew a frame with no
 //     gutter until some later keypress happened to rebuild.
@@ -378,7 +392,13 @@ func (m Model) applyToolResult(msg ToolCompletedMsg) (tea.Model, tea.Cmd) {
 
 	m.tr.MutateTool(cardID, func(c *ToolCard) {
 		c.Elapsed = msg.Elapsed
-		c.Out = SanitizeLines(msg.Content)
+		out := trimTrailingEmpty(SanitizeLines(msg.Content), msg.Content)
+		// If the trimmed result is a single empty string, store nil so the box doesn't render
+		if len(out) == 1 && out[0] == "" {
+			c.Out = nil
+		} else {
+			c.Out = out
+		}
 		switch {
 		case msg.OK:
 			c.State = StateOK
@@ -453,11 +473,32 @@ func (m Model) receiveApprovalRequest(msg ApprovalRequestedMsg) (tea.Model, tea.
 			Diff:         sanitizedDiff,
 			Added:        msg.DiffAdded,
 			Removed:      msg.DiffRemoved,
+			ToolItem:     0, // Will be set below if linked to a tool
 		},
 	})
 
+	// Link the approval to its tool if ToolID is set and the tool exists.
+	// Linking must be all-or-nothing: only set the approval's ToolItem if
+	// MutateTool succeeds in setting the tool's ApprovalItem.
+	if msg.ToolID != 0 {
+		if toolItemID, ok := m.toolCards[msg.ToolID]; ok {
+			// Set the tool's ApprovalItem reference via the mutation helper.
+			// MutateTool returns false if the tool is in a terminal state.
+			if m.tr.MutateTool(toolItemID, func(tc *ToolCard) {
+				tc.ApprovalItem = cardID
+			}) {
+				// Only set the approval's ToolItem if the tool was successfully mutated.
+				if it, _, found := m.tr.Find(cardID); found && it.Kind == KindApproval {
+					it.Approval.ToolItem = toolItemID
+				}
+			}
+		}
+	}
+
 	m.pendingApproval = cardID
 	m.pendingApprovalID = msg.ID
+	m.clearApprovalRelease()
+	m.comp.Hint = ""
 	m.approvalCards[msg.ID] = cardID
 
 	m.relayout(m.layout())
@@ -543,11 +584,21 @@ func (m Model) keyComposing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyTab:
-		if cmd, _, ok := parseSlash(m.comp.Value()); ok {
+		value := m.comp.Value()
+		// Check if this is a slash command with no whitespace yet (name-only).
+		if strings.HasPrefix(value, "/") && !strings.ContainsAny(value, " \t\n") {
+			// Try to complete a unique prefix.
+			cmd := strings.TrimPrefix(value, "/")
 			if full, unique := completeSlash(cmd); unique {
 				m.comp.SetValue("/" + full)
+				return m, nil
 			}
+			// Ambiguous or no match: stay in Composing
+			return m, nil
 		}
+		// Otherwise, Tab moves to Browsing (like Shift+↑)
+		m.setBase(BaseBrowsing)
+		m.revealSelection(lay.TranscriptH)
 		return m, nil
 
 	case tea.KeyCtrlG:
@@ -591,11 +642,30 @@ func (m Model) keyComposing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 		m.relayout(lay)
 		return m, nil
 
+	case tea.KeyShiftUp:
+		// Shift+↑ enters Browsing (the old ↑ behavior)
+		m.setBase(BaseBrowsing)
+		m.revealSelection(lay.TranscriptH)
+		return m, nil
+
 	case tea.KeyUp:
-		if m.comp.ta.Line() == 0 {
-			m.setBase(BaseBrowsing)
-			m.revealSelection(lay.TranscriptH)
-			return m, nil
+		if !m.busy.Active && m.comp.ta.Line() == 0 && m.comp.ta.LineInfo().RowOffset == 0 {
+			// At logical line 0, first visual row, and not busy: try history
+			if m.comp.historyUp() {
+				return m, nil
+			}
+			// History did nothing, let the textarea handle it (move cursor up)
+		}
+
+	case tea.KeyDown:
+		// LineCount() is 1-indexed (minimum 1), Line() is 0-indexed
+		li := m.comp.ta.LineInfo()
+		if !m.busy.Active && m.comp.ta.Line() == m.comp.ta.LineCount()-1 && li.RowOffset == li.Height-1 {
+			// At logical last line, last visual row, and not busy: try history
+			if m.comp.historyDown() {
+				return m, nil
+			}
+			// History did nothing, let the textarea handle it (move cursor down)
 		}
 	}
 
@@ -614,8 +684,8 @@ func (m Model) keyComposing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 
 func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	switch k.Type {
-	case tea.KeyEsc:
-		// Esc hands focus back to the composer and leaves the viewport exactly
+	case tea.KeyEsc, tea.KeyTab:
+		// Esc and Tab both hand focus back to the composer and leave the viewport exactly
 		// where it is. It used to re-pin as well, and that made §2.4's "typing
 		// does not re-pin" unreachable in practice: Esc is the only way back to
 		// the composer that does not first walk the selection past the last
@@ -664,8 +734,22 @@ func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 
 	case tea.KeyEnter:
 		if m.sel != 0 {
-			m.expanded[m.sel] = !m.expanded[m.sel]
-			m.relayout(lay)
+			// Get the item to check if it's a tool card
+			it, _, ok := m.tr.Find(m.sel)
+			if ok && it.Kind == KindTool {
+				// For tool cards, toggle collapsed (false = preview, true = head only)
+				m.collapsed[m.sel] = !m.collapsed[m.sel]
+				m.relayout(lay)
+				// After collapsing, clamp scroll offset to the new maximum so no blank rows
+				// pad the pane. This is especially important when unpinned.
+				if !m.scroll.Pinned {
+					m.scroll.setOffset(m.scroll.Offset, len(m.lines), lay.TranscriptH)
+				}
+			} else {
+				// For other items, toggle expanded
+				m.expanded[m.sel] = !m.expanded[m.sel]
+				m.relayout(lay)
+			}
 			m.revealSelection(lay.TranscriptH)
 		}
 		return m, nil
@@ -700,34 +784,81 @@ func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// keyApproval handles keys while an approval card is pending.
+//
+// Esc and Ctrl+C cancel the turn, whether the card is armed or released.
+// Tab and Shift+↑ re-arm a released card; on an armed card they do nothing.
+// ? and d act in both armed and released states.
+// y, a, and n act only when armed. a acts only on a card that offers a session grant.
+// Every other key that is not a navigation key releases the card. That includes
+// control keys such as Ctrl+J. Navigation keys (Up, Down, Left, Right, PgUp, PgDown,
+// Home, End) never release the card. Bracketed paste is dropped earlier by handlePaste
+// and never reaches this function.
 func (m Model) keyApproval(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
+	// Esc/Ctrl+C cancels the turn; the approval is not approved.
+	// This resolves as Cancelled rather than Rejected to distinguish
+	// from the user explicitly pressing 'n' to deny. Works armed or released.
 	if k.Type == tea.KeyEsc || k.Type == tea.KeyCtrlC {
-		// Esc/Ctrl+C cancels the turn; the approval is not approved.
-		// This resolves as Cancelled rather than Rejected to distinguish
-		// from the user explicitly pressing 'n' to deny.
 		return m.resolveApproval(Cancelled, lay), nil
 	}
-	switch string(k.Runes) {
-	case "y":
-		return m.resolveApproval(Approved, lay), nil
-	case "a":
-		// Inert unless the card offers a grant. Enforced here and not only in
-		// the renderer — otherwise a keyboard user could grant a patch. ADR 0006.
-		if it, _, ok := m.tr.Find(m.pendingApproval); ok && it.Approval.OffersSessionGrant() {
-			return m.resolveApproval(ApprovedSession, lay), nil
+
+	// Tab or Shift+↑: if released, re-arm. If not released, do nothing.
+	if k.Type == tea.KeyTab || k.Type == tea.KeyShiftUp {
+		if m.approvalReleased {
+			m.clearApprovalRelease()
 		}
 		return m, nil
-	case "n":
-		return m.resolveApproval(Rejected, lay), nil
-	case "d":
-		m.sel = m.pendingApproval
-		return m.openDetail(lay), nil
-	case "?":
+	}
+
+	// Help: show help modal, armed or released.
+	if string(k.Runes) == "?" {
 		m.openModal(ModalState{Kind: ModalHelp, Title: "help", Lines: helpLines()})
 		return m, nil
 	}
-	// Every other key is swallowed, never forwarded to the composer. §5.2.
+
+	// Detail: open detail modal, armed or released.
+	if string(k.Runes) == "d" {
+		m.sel = m.pendingApproval
+		return m.openDetail(lay), nil
+	}
+
+	// y/a/n: act only when not released. When released, do nothing.
+	if !m.approvalReleased {
+		switch string(k.Runes) {
+		case "y":
+			return m.resolveApproval(Approved, lay), nil
+		case "a":
+			// Inert unless the card offers a grant. Enforced here and not only in
+			// the renderer — otherwise a keyboard user could grant a patch. ADR 0006.
+			if it, _, ok := m.tr.Find(m.pendingApproval); ok && it.Approval.OffersSessionGrant() {
+				return m.resolveApproval(ApprovedSession, lay), nil
+			}
+			return m, nil
+		case "n":
+			return m.resolveApproval(Rejected, lay), nil
+		}
+	}
+
+	// Any non-navigation key releases the card if it is not already released.
+	isNavigation := isNavigationKey(k)
+	if !isNavigation {
+		// This is a typed key. Release the card if not already released.
+		m.approvalReleased = true
+		m.comp.Hint = approvalReleaseHint
+	}
+
 	return m, nil
+}
+
+// isNavigationKey reports whether k is a navigation key that should not release
+// the approval card. Exactly eight keys: Up, Down, Left, Right, PgUp, PgDown, Home, End.
+func isNavigationKey(k tea.KeyMsg) bool {
+	switch k.Type {
+	case tea.KeyUp, tea.KeyDown, tea.KeyLeft, tea.KeyRight,
+		tea.KeyPgUp, tea.KeyPgDown, tea.KeyHome, tea.KeyEnd:
+		return true
+	}
+	return false
 }
 
 func (m Model) keyConfirm(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
@@ -835,7 +966,9 @@ func (m Model) applyConfirm(c *ConfirmState, lay Layout) Model {
 	case ConfirmNewSession:
 		m.tr = Transcript{}
 		m.sel, m.pendingApproval = 0, 0
+		m.clearApprovalRelease()
 		m.expanded = map[ItemID]bool{}
+		m.collapsed = map[ItemID]bool{}
 		m.busy = Busy{}
 		m.scroll.repin() // re-pin: a new session starts at the bottom
 		// No relayout here: every path that reaches this arm already rebuilds
@@ -865,18 +998,32 @@ func (m Model) openDetail(lay Layout) Model {
 	}
 	switch it.Kind {
 	case KindTool:
+		// If this tool has a linked folded approval that is a patch, open the diff modal.
+		if it.Tool.ApprovalItem != 0 {
+			if approvalIt, _, found := m.tr.Find(it.Tool.ApprovalItem); found && approvalIt.Kind == KindApproval && approvalIt.Approval != nil {
+				approval := approvalIt.Approval
+				if approval.Folded() && approval.Kind == ApprovalPatch && len(approval.Diff) > 0 {
+					m.openModal(ModalState{
+						Kind: ModalDiff, Title: approval.DiffFilename, Source: approvalIt.ID,
+						Lines: approval.Diff, Added: approval.Added, Removed: approval.Removed,
+					})
+					return m
+				}
+			}
+		}
 		m.openModal(ModalState{
 			Kind: ModalContent, Title: it.Tool.Name + " " + it.Tool.Target,
 			Source: it.ID, Lines: it.Tool.Out,
 		})
 	case KindApproval:
-		if it.Approval.Kind == ApprovalPatch {
+		switch it.Approval.Kind {
+		case ApprovalPatch:
 			// Patch approvals show a diff modal
 			m.openModal(ModalState{
 				Kind: ModalDiff, Title: it.Approval.DiffFilename, Source: it.ID,
 				Lines: it.Approval.Diff, Added: it.Approval.Added, Removed: it.Approval.Removed,
 			})
-		} else if it.Approval.Kind == ApprovalCommand {
+		case ApprovalCommand:
 			// Command approvals show a content modal with detail lines
 			m.openModal(ModalState{
 				Kind: ModalContent, Title: "approval detail",
@@ -906,6 +1053,7 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 		// makes items removable would need to account for both here too.
 		m.pendingApproval = 0
 		m.pendingApprovalID = 0
+		m.clearApprovalRelease()
 		return m
 	}
 	it.Approval.Outcome = o
@@ -913,6 +1061,12 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 	// Use m.now() instead of time.Now() so tests can inject a fake clock.
 	if !it.Approval.RequestedAt.IsZero() {
 		it.Approval.Elapsed = m.now().Sub(it.Approval.RequestedAt)
+	}
+
+	// If this approval is being folded (Approved or ApprovedSession with a linked tool),
+	// and m.sel is pointing at this approval card, move selection to the linked tool.
+	if (o == Approved || o == ApprovedSession) && it.Approval.ToolItem != 0 && m.sel == m.pendingApproval {
+		m.sel = it.Approval.ToolItem
 	}
 
 	// Call back to app.Resolve() to unblock the approval goroutine.
@@ -930,13 +1084,14 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 	// never run for this approval ID, so its correlation entry would sit in
 	// approvalCards for the rest of the process. Remove it here instead, while
 	// a session grant's entry is left for updateApprovalOutcome to delete once
-	// the confirmation arrives (it may still fail and resolve to Rejected).
+	// the confirmation arrives (it may still fail and resolve to Approved (allow-once)).
 	if o != ApprovedSession {
 		delete(m.approvalCards, m.pendingApprovalID)
 	}
 
 	m.pendingApproval = 0
 	m.pendingApprovalID = 0
+	m.clearApprovalRelease()
 	m.tr.rev++
 	m.relayout(lay)
 	return m
@@ -944,8 +1099,8 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 
 // updateApprovalOutcome updates a pending approval card's outcome when the
 // confirmed outcome arrives from app. This is necessary because a refused
-// session grant still has outcome ApprovalOutcomeSession from the user's
-// keypress, but the card should show Rejected when the grant fails.
+// session grant still has outcome ApprovedSession from the user's
+// keypress, but the card should show Approved (allow-once) when the grant fails.
 //
 // The card is now matched by m.approvalCards, keyed by the app-side approval
 // ID and populated in receiveApprovalRequest when the card is created — the
@@ -990,6 +1145,7 @@ func (m Model) updateApprovalOutcome(msg ApprovalResolvedMsg) Model {
 	it.Approval.Outcome = msg.Outcome
 
 	m.tr.rev++
+	m.relayout(m.layout())
 	return m
 }
 
@@ -1033,10 +1189,12 @@ func (m Model) submit(lay Layout) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if cmd, args, ok := parseSlash(v); ok {
+		m.comp.addHistory(v)
 		m.comp.Reset()
 		return m.runSlash(cmd, args, lay)
 	}
 	m.appendBlock(Item{Kind: KindUser, Text: &TextBlock{Lines: SanitizeLines(v)}})
+	m.comp.addHistory(v)
 	m.comp.Reset()
 	m.scroll.repin() // re-pin: sending returns to the bottom
 	m.busy = Busy{Active: true, Verb: "thinking"}

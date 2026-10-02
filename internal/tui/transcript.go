@@ -84,18 +84,20 @@ type TextBlock struct {
 	Cancelled bool // partial text from a cancelled turn stays, marked
 }
 
-// ToolCard is one tool invocation. Out holds the full output: the 200-line cap
-// is applied at render, never to the stored data, because the transcript is
-// "what the user saw" and the user can always open the modal.
+// ToolCard is one tool invocation. Out holds the full output: the preview is
+// capped at PreviewLines (10 lines) at render time, never to the stored data,
+// because the transcript is "what the user saw" and the user can always open
+// the modal to see the full output.
 type ToolCard struct {
-	Name    string // rendered bold, as is an approval card's tool name
-	Target  string
-	Summary string
-	State   CardState
-	Elapsed time.Duration // zero when not applicable (a running card has none)
-	Trunc   string        // upstream cap note, e.g. "truncated — 200KB cap"
-	Out     []string
-	Note    string // e.g. "session grant: go test"
+	Name         string // rendered bold, as is an approval card's tool name
+	Target       string
+	Summary      string
+	State        CardState
+	Elapsed      time.Duration // zero when not applicable (a running card has none)
+	Trunc        string        // upstream cap note, e.g. "truncated — 200KB cap"
+	Out          []string
+	Note         string // e.g. "session grant: go test"
+	ApprovalItem ItemID // linked approval card; zero if unlinked
 }
 
 // ApprovalKind distinguishes the two approval variants, which differ in whether
@@ -179,6 +181,7 @@ type ApprovalCard struct {
 	Diff         []string
 	Added        int
 	Removed      int
+	ToolItem     ItemID // linked tool card; zero if unlinked
 }
 
 // OffersSessionGrant reports whether [a] appears on this card.
@@ -297,7 +300,13 @@ func (t *Transcript) AppendText(id ItemID, s string) bool {
 
 // nextSelectable walks to the next selectable item in the given direction,
 // reporting false at the ends so the caller can transfer focus.
+// It skips folded approval cards (those linked to an approved tool).
 func (t *Transcript) nextSelectable(from ItemID, dir int) (ItemID, bool) {
+	// isFolded checks if an item is a folded approval card.
+	isFolded := func(it Item) bool {
+		return it.Kind == KindApproval && it.Approval != nil && it.Approval.Folded()
+	}
+
 	start := -1
 	for i, it := range t.items {
 		if it.ID == from {
@@ -309,31 +318,44 @@ func (t *Transcript) nextSelectable(from ItemID, dir int) (ItemID, bool) {
 		// No current selection: enter from the appropriate end.
 		if dir < 0 {
 			for i := len(t.items) - 1; i >= 0; i-- {
-				if t.items[i].Selectable() {
+				if t.items[i].Selectable() && !isFolded(t.items[i]) {
 					return t.items[i].ID, true
 				}
 			}
 		}
 		for _, it := range t.items {
-			if it.Selectable() {
+			if it.Selectable() && !isFolded(it) {
 				return it.ID, true
 			}
 		}
 		return 0, false
 	}
 	for i := start + dir; i >= 0 && i < len(t.items); i += dir {
-		if t.items[i].Selectable() {
+		if t.items[i].Selectable() && !isFolded(t.items[i]) {
 			return t.items[i].ID, true
 		}
 	}
 	return 0, false
 }
 
-// lastSelectable returns the final selectable item, or zero.
+// Folded reports whether an approval card is folded (linked to a tool and
+// resolved as approved or approved for session). Folded cards render zero rows
+// and are skipped by navigation.
+func (a *ApprovalCard) Folded() bool {
+	return (a.Outcome == Approved || a.Outcome == ApprovedSession) && a.ToolItem != 0
+}
+
+// lastSelectable returns the final selectable item, or zero, skipping folded
+// approval cards.
 func (t *Transcript) lastSelectable() ItemID {
 	for i := len(t.items) - 1; i >= 0; i-- {
-		if t.items[i].Selectable() {
-			return t.items[i].ID
+		it := t.items[i]
+		if it.Selectable() {
+			// Skip folded approval cards.
+			if it.Kind == KindApproval && it.Approval != nil && it.Approval.Folded() {
+				continue
+			}
+			return it.ID
 		}
 	}
 	return 0
@@ -433,6 +455,18 @@ func Sanitize(s string) string {
 // SanitizeLines is Sanitize, split ready for storage.
 func SanitizeLines(s string) []string {
 	return strings.Split(Sanitize(s), "\n")
+}
+
+// trimTrailingEmpty drops exactly one trailing empty element when the original
+// content ended with a newline. This mirrors the line-writing contract in
+// internal/tool: each line is written with fmt.Fprintf("%d\t%s\n"), so content
+// always ends in \n, and Split keeps a trailing "" that should not render as a
+// blank row at the bottom of the box.
+func trimTrailingEmpty(lines []string, original string) []string {
+	if len(lines) > 0 && strings.HasSuffix(original, "\n") && lines[len(lines)-1] == "" {
+		return lines[:len(lines)-1]
+	}
+	return lines
 }
 
 // sanitizeAndSplitLines sanitises text and splits it into one element per line.

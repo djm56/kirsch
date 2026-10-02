@@ -127,7 +127,7 @@ func (t *ReadFile) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	content, cut := Truncate(b.String(), MaxFileBytes)
 	truncated = truncated || cut
 
-	summary := fmt.Sprintf("%s:%d-%d", in.Path, start, end)
+	summary := fmt.Sprintf("lines %d-%d", start, end)
 	if truncated {
 		summary += fmt.Sprintf(" (of %d lines)", len(lines))
 	}
