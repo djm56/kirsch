@@ -1172,6 +1172,15 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     120s. The qwen models were not reached. ADR 0008 and Milestone 3 Task 2 are
     updated.
 
+81. **The toolchain pin moves to 1.25.13** (2026-10-03, mission-20261003-01).
+    Four standard-library advisories were published against go1.25.12, all
+    fixed in go1.25.13: `GO-2026-6218` (`net/url`), `GO-2026-6090`
+    (`crypto/tls`), `GO-2026-5972` (`encoding/asn1`) and `GO-2026-5026`
+    (`net/http`). `npm run security` failed on them. The pin stays a `go` line
+    rather than a `toolchain` line, as in amendment 52: a contributor on an older
+    local toolchain gets a refusal or an automatic download, never a build
+    against the vulnerable standard library.
+
 **Still open (not blocking Milestone 0)**
 
 - ~~Exact figures for the §5 model table~~ — Anthropic rows filled by amendment 79; the `opencode` row is recorded by amendment 80 (`minimax-m3`); its figures stay `—` until OpenCode publishes them.

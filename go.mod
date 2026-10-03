@@ -1,6 +1,6 @@
 module github.com/djm56/kirsch
 
-go 1.25.12
+go 1.25.13
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0

@@ -1,0 +1,8 @@
+@@ -99,6 +99,7 @@
+ 			} else {
+ 				// Non-redacted blocks emit at least one delta and then done.
+ 				text := thinking.Text
++				thinking.Signature = "" // BREAK
+ 				if len(text) > 0 {
+ 					// Split text into at least 2 fragments if it's 2+ bytes long.
+ 					for len(text) > 0 {

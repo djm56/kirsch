@@ -125,6 +125,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   modal shows the parsed diff with per-file `+n −m` counts; `/approvals` lists
   grants and clears them through a confirm prompt; and two temporary debug
   commands, `/patch` and `/run`, sit under `debug (M1–M2)` in `/help`.
+- **Milestone 3, m3-d1 — provider interface and fake.** `internal/provider` holds
+  the provider-neutral contract the agent loop is tested against: `Provider`,
+  request and message types (text, thinking with an opaque signature or redacted
+  data, tool calls, tool results), streaming events, and the plan §5 model table
+  with its unknown-model fallback. `provider.Fake` replays scripted turns — text,
+  tool calls, thinking, mid-stream errors and a turn that blocks until cancelled —
+  and records deep copies of every request, so tests can check what a second
+  request echoed back. No vendor name appears in the package.
 
 ### Changed
 
@@ -270,5 +278,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that far. The action is now v9, the linter pin v2.13.2. Both are concrete
   versions rather than floating tags, so a linter release cannot turn a green
   branch red on its own.
+
+### Security
+
+- **Go toolchain pinned to 1.25.13.** `govulncheck` reported four standard-library
+  advisories against go1.25.12, all fixed in go1.25.13: GO-2026-6218 (`net/url`),
+  GO-2026-6090 (`crypto/tls`), GO-2026-5972 (`encoding/asn1`) and GO-2026-5026
+  (`net/http`). Two were reachable from existing code (`internal/tool`,
+  `internal/patch`) and two through `cmd/kirsch-probe`. `go.mod` now reads
+  `go 1.25.13`; CI follows it through `go-version-file`.
 
 [Unreleased]: https://github.com/djm56/kirsch/commits/main

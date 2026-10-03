@@ -1,0 +1,376 @@
+package provider
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"sync"
+)
+
+// Turn describes one turn of a scripted response.
+//
+// FailAfter and Err control error handling:
+//   - Err != nil && FailAfter == 0: emit EventError immediately, before any other event, then return Err.
+//   - Err != nil && FailAfter > 0: emit at most FailAfter events, then EventError, then return Err.
+//     If the turn has fewer events than FailAfter, emit them all, then EventError, then return Err.
+//     Never emit MessageDone when Err is set.
+//   - Err == nil && FailAfter > 0: this is a script error; return an error naming it, with no events.
+type Turn struct {
+	Thinking         []Thinking // emitted first, in order
+	Text             string
+	ToolCalls        []ToolCall // Input must be valid JSON
+	Usage            Usage
+	StopReason       StopReason // zero value: StopToolUse if ToolCalls, else StopEndTurn
+	FailAfter        int        // >0 with Err: emit this many events, then EventError, then return Err
+	Err              error
+	BlockUntilCancel bool // emit nothing; return ctx.Err() when ctx is done
+}
+
+// Fake is a fake provider that replays scripted turns.
+type Fake struct {
+	mu       sync.Mutex
+	turns    []Turn
+	requests []Request
+	index    int
+}
+
+// Verify Fake satisfies Provider.
+var _ Provider = (*Fake)(nil)
+
+// NewFake creates a new fake provider with the given turns.
+func NewFake(turns ...Turn) *Fake {
+	return &Fake{
+		turns: turns,
+	}
+}
+
+// Stream replays the next turn, recording a deep copy of the request.
+func (f *Fake) Stream(ctx context.Context, req Request, onEvent func(StreamEvent)) error {
+	f.mu.Lock()
+
+	if f.index >= len(f.turns) {
+		f.mu.Unlock()
+		return fmt.Errorf("fake provider exhausted: scripted with %d turns, received request %d", len(f.turns), f.index+1)
+	}
+
+	turn := f.turns[f.index]
+	f.index++
+
+	// Record a deep copy of the request before unlocking.
+	reqCopy := deepCopyRequest(req)
+	f.requests = append(f.requests, reqCopy)
+
+	f.mu.Unlock()
+
+	// If this turn is set to block, wait for context cancellation.
+	if turn.BlockUntilCancel {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+
+	// Handle Err != nil && FailAfter == 0 case: emit error immediately.
+	if turn.Err != nil && turn.FailAfter == 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		onEvent(StreamEvent{
+			Type: EventError,
+			Err:  turn.Err,
+		})
+		return turn.Err
+	}
+
+	// Handle Err == nil && FailAfter > 0 case: this is a script error.
+	if turn.Err == nil && turn.FailAfter > 0 {
+		return fmt.Errorf("script error: FailAfter > 0 requires Err to be set")
+	}
+
+	// Emit events in order, respecting FailAfter.
+	eventCount := 0
+
+	// Helper to emit events safely with FailAfter check.
+	emit := func(e StreamEvent) bool {
+		if turn.FailAfter > 0 && eventCount >= turn.FailAfter {
+			return false // Stop emitting
+		}
+		if err := ctx.Err(); err != nil {
+			return false // Context cancelled
+		}
+		onEvent(e)
+		eventCount++
+		return true
+	}
+
+	// Helper to check if we should stop.
+	shouldStop := func() bool {
+		if turn.FailAfter > 0 && eventCount >= turn.FailAfter {
+			return true
+		}
+		if err := ctx.Err(); err != nil {
+			return true
+		}
+		return false
+	}
+
+	// 1. Thinking blocks: at least one ThinkingDelta per block, then ThinkingDone.
+	for _, thinking := range turn.Thinking {
+		if shouldStop() {
+			break
+		}
+
+		if thinking.Redacted {
+			// Redacted blocks emit only ThinkingDone.
+			if !emit(StreamEvent{
+				Type:     EventThinkingDone,
+				Thinking: &thinking,
+			}) {
+				break
+			}
+		} else {
+			// Non-redacted blocks emit at least one delta and then done.
+			text := thinking.Text
+			if len(text) > 0 {
+				// Split text into at least 2 fragments if it's 2+ bytes long.
+				for len(text) > 0 {
+					if shouldStop() {
+						break
+					}
+					frag := nextRuneFrag(text)
+					if !emit(StreamEvent{
+						Type: EventThinkingDelta,
+						Text: frag,
+					}) {
+						break
+					}
+					text = text[len(frag):]
+				}
+			}
+			if !shouldStop() {
+				if !emit(StreamEvent{
+					Type:     EventThinkingDone,
+					Thinking: &thinking,
+				}) {
+					break
+				}
+			}
+		}
+	}
+
+	// 2. Text deltas: at least 2 fragments when 2+ bytes long.
+	if !shouldStop() && turn.Text != "" {
+		text := turn.Text
+		if len([]rune(text)) == 1 {
+			// Single rune: emit as one delta.
+			emit(StreamEvent{
+				Type: EventTextDelta,
+				Text: text,
+			})
+		} else {
+			// Multi-rune: split into at least 2 fragments.
+			for len(text) > 0 {
+				if shouldStop() {
+					break
+				}
+				frag := nextRuneFrag(text)
+				if !emit(StreamEvent{
+					Type: EventTextDelta,
+					Text: frag,
+				}) {
+					break
+				}
+				text = text[len(frag):]
+			}
+		}
+	}
+
+	// 3. Tool calls: one start, at least 2 delta fragments (when 2+ bytes), one end.
+	for _, toolCall := range turn.ToolCalls {
+		if shouldStop() {
+			break
+		}
+
+		// Emit tool call start.
+		if !emit(StreamEvent{
+			Type: EventToolCallStart,
+			ToolCall: &ToolCall{
+				ID:   toolCall.ID,
+				Name: toolCall.Name,
+			},
+		}) {
+			break
+		}
+
+		// Emit tool call input as deltas (at least 2 fragments when 2+ bytes).
+		input := string(toolCall.Input)
+		if len([]rune(input)) == 1 {
+			// Single rune: emit as one delta.
+			if !emit(StreamEvent{
+				Type: EventToolCallDelta,
+				Text: input,
+			}) {
+				break
+			}
+		} else if len(input) > 0 {
+			// Multi-rune: split into at least 2 fragments.
+			for len(input) > 0 {
+				if shouldStop() {
+					break
+				}
+				frag := nextRuneFrag(input)
+				if !emit(StreamEvent{
+					Type: EventToolCallDelta,
+					Text: frag,
+				}) {
+					break
+				}
+				input = input[len(frag):]
+			}
+		}
+
+		// Emit tool call end with complete call.
+		if !shouldStop() {
+			if !emit(StreamEvent{
+				Type:     EventToolCallEnd,
+				ToolCall: &toolCall,
+			}) {
+				break
+			}
+		}
+	}
+
+	// 4. Message done or error with resolved stop reason.
+	if turn.FailAfter > 0 && eventCount >= turn.FailAfter {
+		// We've hit FailAfter, emit error and return.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		onEvent(StreamEvent{
+			Type: EventError,
+			Err:  turn.Err,
+		})
+		return turn.Err
+	}
+
+	stopReason := turn.StopReason
+	if stopReason == "" {
+		// Default: tool_use if there are tool calls, else end_turn.
+		if len(turn.ToolCalls) > 0 {
+			stopReason = StopToolUse
+		} else {
+			stopReason = StopEndTurn
+		}
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	onEvent(StreamEvent{
+		Type:       EventMessageDone,
+		Usage:      &turn.Usage,
+		StopReason: stopReason,
+	})
+
+	return nil
+}
+
+// Requests returns deep copies of every request received, in order.
+func (f *Fake) Requests() []Request {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	// Return a deep copy of the slice to prevent external mutation.
+	result := make([]Request, len(f.requests))
+	for i, r := range f.requests {
+		result[i] = deepCopyRequest(r)
+	}
+	return result
+}
+
+// Remaining returns the number of turns not yet consumed.
+func (f *Fake) Remaining() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.turns) - f.index
+}
+
+// deepCopyRequest returns a deep copy of a Request.
+func deepCopyRequest(req Request) Request {
+	result := Request{
+		Model:     req.Model,
+		MaxTokens: req.MaxTokens,
+		Thinking:  req.Thinking,
+	}
+
+	// Copy system blocks.
+	if len(req.System) > 0 {
+		result.System = make([]SystemBlock, len(req.System))
+		for i, sb := range req.System {
+			result.System[i] = SystemBlock{
+				Text:  sb.Text,
+				Cache: sb.Cache,
+			}
+		}
+	}
+
+	// Copy messages with deep copy of blocks.
+	if len(req.Messages) > 0 {
+		result.Messages = make([]Message, len(req.Messages))
+		for i, msg := range req.Messages {
+			result.Messages[i] = Message{Role: msg.Role}
+			if len(msg.Content) > 0 {
+				result.Messages[i].Content = make([]Block, len(msg.Content))
+				for j, block := range msg.Content {
+					result.Messages[i].Content[j] = Block{
+						Kind: block.Kind,
+						Text: block.Text,
+					}
+					if block.Thinking != nil {
+						t := *block.Thinking
+						result.Messages[i].Content[j].Thinking = &t
+					}
+					if block.ToolCall != nil {
+						tc := *block.ToolCall
+						// Deep copy Input
+						if len(block.ToolCall.Input) > 0 {
+							tc.Input = bytes.Clone(block.ToolCall.Input)
+						}
+						result.Messages[i].Content[j].ToolCall = &tc
+					}
+					if block.ToolResult != nil {
+						tr := *block.ToolResult
+						result.Messages[i].Content[j].ToolResult = &tr
+					}
+				}
+			}
+		}
+	}
+
+	// Copy tools.
+	if len(req.Tools) > 0 {
+		result.Tools = make([]ToolDef, len(req.Tools))
+		for i, tool := range req.Tools {
+			result.Tools[i] = ToolDef{
+				Name:        tool.Name,
+				Description: tool.Description,
+			}
+			if len(tool.InputSchema) > 0 {
+				result.Tools[i].InputSchema = bytes.Clone(tool.InputSchema)
+			}
+		}
+	}
+
+	return result
+}
+
+// nextRuneFrag returns the next rune from the string as a fragment.
+// If the string is more than 1 rune, it tries to split roughly in half.
+func nextRuneFrag(s string) string {
+	runes := []rune(s)
+	if len(runes) <= 1 {
+		return s
+	}
+
+	// Split roughly in half to ensure at least 2 fragments for multi-rune strings.
+	mid := (len(runes) + 1) / 2
+	fragRunes := runes[:mid]
+	return string(fragRunes)
+}

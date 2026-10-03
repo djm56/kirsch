@@ -2,7 +2,7 @@
 
 **Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is next.
 
-**What's next:** Milestone 3 is ready to start with m3-d1 (provider interface and fake). `plan/milestones/milestone-3.md` is refined against the code and ADR 0008, and the live probe of OpenCode Go has run: the `opencode` default model is `minimax-m3` (mission-20261002-03). Kirsch first calls a model at m3-d2's live smoke test; the first conversation in the TUI is at m3-d6.
+**What's next:** m3-d1 (provider interface and fake, `internal/provider`) is done (mission-20261003-02). m3-d2 (Messages adapter and endpoint config) and m3-d3 (agent state machine) can now start; both depend only on m3-d1 and can run in either order. Kirsch first calls a model at m3-d2's live smoke test; the first conversation in the TUI is at m3-d6.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -13,7 +13,7 @@ This file is the single source of truth for live state — what is in progress a
 | 0 | Repo skeleton + static TUI prototype | ☑ Complete |
 | 1 | Workspace engine + read-only tools | ☑ Complete |
 | 2 | Patches, commands, approvals | ☑ Complete (operator-accepted 2026-10-02, deferred items below) |
-| 3 | Provider + agent loop | ☐ Not started |
+| 3 | Provider + agent loop | ◐ In progress (m3-d1 done) |
 | 4 | Real task loop + sessions | ☐ Not started |
 | 5 | Polish + release (v0.1.0) | ☐ Not started |
 
@@ -34,7 +34,7 @@ Definitions are in `plan/milestones/milestone-3.md`. The live probe ran on 2026-
 
 | ID | Title | Status | Owner | Waits on |
 |---|---|---|---|---|
-| m3-d1 | Provider interface and fake | pending | — | — |
+| m3-d1 | Provider interface and fake | done | — | — |
 | m3-d2 | Messages adapter and endpoint config | pending | — | m3-d1 |
 | m3-d3 | Agent state machine | pending | — | m3-d1 |
 | m3-d4 | System prompt and thinking | pending | — | m3-d2, m3-d3 |
