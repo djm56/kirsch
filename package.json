@@ -9,6 +9,7 @@
     "build": "go build -o bin/kirsch ./cmd/kirsch",
     "start": "go run ./cmd/kirsch",
     "start:debug": "go run ./cmd/kirsch --debug",
+    "probe": "go run ./cmd/kirsch-probe",
 
     "test": "go test ./...",
     "test:race": "go test -race -timeout 5m ./...",

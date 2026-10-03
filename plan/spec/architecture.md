@@ -100,7 +100,7 @@ place adapters can live. It owns four jobs and nothing else:
    provider, session store, agent, and the Bubble Tea program.
 2. **Adapting** — turn `tool.Registry` into `agent.Tools`, `provider.Provider`
    into `agent.Model`, `session.Store` into `agent.Recorder`, and itself into
-   `agent.Approver`.
+   `tool.Approver` (`approvalAdapter`), which the write tools call.
 3. **Routing** — TUI intents in, typed messages out via `program.Send`.
 4. **Context ownership** — the hierarchy in §5.
 
@@ -139,20 +139,16 @@ type Tools interface {
 }
 ```
 
-**`agent.Approver`** — the seam that makes approval testable, and the least
-obvious piece of the design:
-
-```go
-type Approver interface {
-    Request(ctx context.Context, req ApprovalRequest) (Decision, error)
-}
-```
-
-The agent blocks on this call. `app` implements it by sending an approval
-message to the TUI and waiting on a reply channel; `ctx` cancellation unblocks
-it when the user hits `Esc`. In tests, a fake `Approver` answers instantly with
-a scripted decision. Without this interface, approval flow can only be tested
-through the UI, which is how approval bugs reach users.
+**`tool.Approver`** — the seam that makes approval testable, and the least
+obvious piece of the design. Approval lives inside the tools that need it, not
+in the agent: `apply_patch` and `run_command` call
+`Approver.Request(ctx, tool.ApprovalRequest) policy.Decision`
+(`internal/tool/apply_patch.go:22`), and a rejection reaches the agent as an
+ordinary tool result of kind `policy_denied`. `app` implements the interface
+with `approvalAdapter`, which sends an approval message to the TUI and waits on
+a reply channel; `ctx` cancellation unblocks it when the user hits `Esc`. In
+tests, a fake `Approver` answers instantly with a scripted decision. The agent
+needs no approval interface of its own (plan §11, amendment 78).
 
 **`tool.Tool`** — one envelope for every tool (plan §3):
 
@@ -183,7 +179,7 @@ There are exactly five kinds of goroutine, and each owns its state exclusively:
 | **Session writer** (one, for the process) | The JSONL file handle and buffer | Exist twice |
 
 **The deadlock this design is avoiding:** the turn runner blocks on
-`Approver.Request`, which waits on the TUI to answer. If the TUI could block
+`tool.Approver.Request` inside a write tool, which waits on the TUI to answer. If the TUI could block
 waiting on the turn runner, the two would wedge permanently and the only
 recovery would be `kill`. Hence rule: *the TUI never blocks.* It sends on
 buffered channels or not at all, and every wait lives on a non-TUI goroutine.
@@ -251,13 +247,14 @@ The canonical flow. Every arrow crosses a package boundary listed in §3.
    the budget; compacts first if over (§6.3).
 4. **Provider** — streams. `TextDelta`s flow back through app to the TUI as
    coalesced repaints. Thinking deltas render as a dimmed card.
-5. **Agent** — on `ToolCallEnd`, asks policy via app: allowed, needs approval,
-   or denied.
-6. **App** — if approval is needed, sends an approval card to the TUI and blocks
-   the turn runner on `Approver.Request`. The TUI captures input exclusively
-   until the user answers `y` / `a` / `n` / `d`.
-7. **App** — on approval, runs the tool on a tool-runner goroutine under
-   `toolCtx`. Incremental output streams into the card.
+5. **Agent** — on `ToolCallEnd`, invokes the tool through `agent.Tools` on a
+   tool-runner goroutine under `toolCtx`. A write tool asks policy itself:
+   allowed, needs approval, or denied.
+6. **App** — if approval is needed, `approvalAdapter` sends an approval card to
+   the TUI and blocks the tool call, and with it the turn runner, on
+   `tool.Approver.Request`. The TUI captures input exclusively until the user
+   answers `y` / `a` / `n` / `d`.
+7. **Tool** — on approval, proceeds. Incremental output streams into the card.
 8. **Agent** — receives the `ToolResult`, appends it to the conversation,
    returns to step 4. Multiple tool calls in one message run **sequentially**,
    and every requested call gets a result even if an earlier one was rejected —
@@ -315,7 +312,7 @@ The architecture exists to make this table short and cheap:
 | Seam | Fake | Buys |
 |---|---|---|
 | `agent.Model` | `provider.Fake` with scripted turns | Agent loop tested offline, deterministically, free (ADR 0003) |
-| `agent.Approver` | Scripted decisions | Approval gating and rejection paths without driving the UI |
+| `tool.Approver` | Scripted decisions | Approval gating and rejection paths without driving the UI |
 | `agent.Tools` | In-memory fake tools | Tool-call handling without touching disk |
 | `tool.Tool` | Panicking / slow / huge-output fakes | Registry robustness, truncation, cancellation |
 | Bubble Tea `Update` | Synthetic `tea.KeyMsg` + golden `View()` | UI behaviour and rendering without a terminal |

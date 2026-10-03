@@ -1,6 +1,6 @@
 # ADR 0003 — Provider abstraction with a fake for tests
 
-- **Status:** Accepted (planning phase; no code yet)
+- **Status:** Accepted, superseded in part by [ADR 0008](0008-provider-endpoints.md) (v0.1 targets one wire format with two configured endpoints, not one provider; 429 handling revised)
 - **Date:** 2026-09-11
 - **Deciders:** Project owner
 

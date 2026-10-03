@@ -1,0 +1,42 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"070ef11eff1947a50f04ece373a2566c","type":"message","role":"assistant","stop_reason":null,"stop_sequence":null,"model":"minimax-m2.7","content":[],"usage":{"input_tokens":52,"output_tokens":0}}}
+
+event: ping
+data: {"type":"ping"}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The user"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" asks: \"What is 17 × 23? Answer briefly.\" This is a straightforward multiplication. 17 * 23 = (20 * 23) - (3 * 23"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":") = 460 - 69 = 391. Or compute directly: 17 * 23 = 391.\n\nThus answer: 391.\n\nWe must obey no disallowed content. This"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" is a safe request. So respond with \"391\". The user wants brief answer.\n\nThus answer: 391."}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"a1407abee8e70092a8cafc1245618918dfcf55008742d35f5ad992a1d11a6fee"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"391"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":52,"output_tokens":106,"output_tokens_details":{"thinking_tokens":104}}}
+
+event: message_stop
+data: {"type":"message_stop"}
+

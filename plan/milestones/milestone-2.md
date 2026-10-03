@@ -1,6 +1,6 @@
 # Milestone 2 — Instruction Set
 
-> **Status: Complete — accepted by the operator on 2026-10-02, with the items listed after Task 9 deferred; 15 of 18 Task 9 boxes ticked.** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 1 completed 2026-09-12. This is the
+> **Status: Complete — accepted by the operator on 2026-10-02, with the items listed after Task 9 deferred; 16 of 18 Task 9 boxes ticked.** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 1 completed 2026-09-12. This is the
 > complete, ordered instruction set for Milestone 2 (patches, commands,
 > approvals). Execute tasks in order. This is the milestone where Kirsch first
 > changes something on disk, so the approval path is the point of the whole
@@ -422,7 +422,7 @@ wrong and gets updated in this milestone's commit.
 - [x] Cancelling a turn with an approval pending returns within 1s and leaves
       no parked goroutine
 - [x] Golden screens still match, or the reference is updated in this commit
-- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`,
+- [x] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`,
       `golangci-lint run`, CI all clean
 - [x] **No provider, agent, or session code exists anywhere in the repo**
 
@@ -432,7 +432,7 @@ known point.
 
 **Status as of 2026-10-02: complete, with deferred items.** The operator tested Milestone 2 by hand and accepted it on 2026-10-02. The items below are deferred, not done. Each one is carried to *Carried from Milestone 2* in [`plan/PROGRESS.md`](../PROGRESS.md), to be picked up in Milestone 3 or a follow-up mission.
 
-- **CI.** The first CI run on Milestone 2 code (run 36985475148, commit `485e1dd`) failed only in two tests that passed a single argument over 128KB to `printf`, which Linux refuses. Mission-20261002-02 fixed them. Every other gate in the second-to-last box is clean locally. The box is ticked once CI is green on the operator's push of that fix.
+- **CI.** The first CI run on Milestone 2 code (run 36985475148, commit `485e1dd`) failed only in two tests that passed a single argument over 128KB to `printf`, which Linux refuses. Mission-20261002-02 fixed them, and CI run 36988404863 on commit `3c7ce2c` is green. The box is ticked.
 - **The timeout kill is not proven.**
   - `TestRunCommandTimeoutWithinDeadline` bounds the call at 1–2s after a 1s deadline, which is not the 500ms the box requires.
   - `TestRunCommandTimeoutProcessGroupDead` never checks that the process died. On timeout the result carries no content, so its PID parse fails and the test returns before its assertion (`internal/tool/run_command_test.go:~804`).

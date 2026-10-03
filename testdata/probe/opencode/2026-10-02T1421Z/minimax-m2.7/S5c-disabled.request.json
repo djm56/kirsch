@@ -1,0 +1,1 @@
+{"max_tokens":2048,"messages":[{"content":"What is 17 × 23? Answer briefly.","role":"user"}],"model":"minimax-m2.7","stream":true,"thinking":{"type":"disabled"}}

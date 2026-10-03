@@ -14,7 +14,7 @@ This document is the complete spec for v0.1. Build milestones in order. Each mil
 | Language | Go |
 | UI | Bubble Tea full-screen TUI (primary); non-interactive `kirsch run` later |
 | License | MIT |
-| Providers | One only for v0.1 (Anthropic) |
+| Providers | One wire format for v0.1 (Anthropic Messages), two configured endpoints: OpenCode Go (default) and Anthropic (ADR 0008) |
 | Storage | JSONL session events, local disk only |
 | First user | Solo developer on real projects (WordPress/PHP, Go) |
 | CLI | stdlib `flag` + hand-rolled subcommand dispatch (no cobra) |
@@ -31,7 +31,7 @@ This document is the complete spec for v0.1. Build milestones in order. Each mil
 
 ### Explicitly out of scope for v0.1
 
-Multiple providers, `git commit`/`git push` tools, MCP, LSP, subagents, plugins, OS keychain, web UI, session branching/search, automatic compaction UI tuning.
+Multiple wire formats (OpenAI-format adapters), `git commit`/`git push` tools, MCP, LSP, subagents, plugins, OS keychain, web UI, session branching/search, automatic compaction UI tuning.
 
 ---
 
@@ -210,15 +210,26 @@ Context hierarchy: `rootCtx` (app) → `sessionCtx` → `turnCtx` (per user mess
 ## 5. Configuration
 
 ```toml
-# ~/.config/kirsch/config.toml (global) — overridden by <workspace>/.kirsch/config.toml
+# ~/.config/kirsch/config.toml (global). A project file, <workspace>/.kirsch/config.toml,
+# may set only [context].project_files — see "Project config" below.
 [provider]
-default = "anthropic"
+default = "opencode"
 
-[provider.anthropic]
-model = "claude-sonnet-5"
-api_key_env = "ANTHROPIC_API_KEY"
+[provider.opencode]
+base_url = "https://opencode.ai/zen/go/v1"
+auth = "x-api-key"
+api_key_env = "OPENCODE_API_KEY"
+model = "minimax-m3"
 prompt_caching = true
 thinking = "off"            # "off" | "low" | "medium" | "high"
+
+[provider.anthropic]
+base_url = "https://api.anthropic.com/v1"
+auth = "x-api-key"
+api_key_env = "ANTHROPIC_API_KEY"
+model = "claude-sonnet-5-5"
+prompt_caching = true
+thinking = "off"
 
 [policy]
 default_command_timeout_seconds = 60
@@ -228,7 +239,7 @@ allow_session_scoped_grants = true
 env_passthrough = []        # extra env var names permitted for run_command
 
 [context]
-project_files = ["AGENTS.md", "CLAUDE.md", ".kirsch/context.md"]
+project_files = ["AGENTS.md", "CLAUDE.md"]
 max_project_context_bytes = 32768
 
 [session]
@@ -241,19 +252,25 @@ debug_log = false           # or KIRSCH_DEBUG=1
 
 Precedence: built-in defaults → global config → project config → command-line flags. Unknown keys produce a warning, never a startup failure. A missing config file is not an error; every key has a default.
 
-API key resolution: `KIRSCH_ANTHROPIC_API_KEY` → `ANTHROPIC_API_KEY` → fail with clear onboarding message. If both are set, `KIRSCH_ANTHROPIC_API_KEY` wins silently (the prefixed variant lets users run Kirsch alongside other tools that use `ANTHROPIC_API_KEY`). **Never** read keys from config files; refuse and warn if one appears there.
+**Project config is an allowlist** (operator ruling, 2026-10-02; amendment 76). A project file may set only `[context].project_files`, and each entry must resolve inside the workspace (§6.2). Every other key in a project file, in any table, is ignored with a warning naming it. The one exception is a credential-shaped key such as `api_key`, which `checkSecrets` refuses outright, because it runs first. A setting added later is global-only unless it is deliberately added to the allowlist. A repository is untrusted input (ADR 0007), and a project file overrides the global one, so anything a project file could set, a hostile repository could set. Endpoint rules, including `https://` only, literal loopback, and no redirects, are in ADR 0008.
+
+API key resolution: each endpoint names its key variable in `api_key_env`. Kirsch reads `KIRSCH_` + that name first, then the name itself. For `opencode` that is `KIRSCH_OPENCODE_API_KEY` → `OPENCODE_API_KEY`; for `anthropic`, `KIRSCH_ANTHROPIC_API_KEY` → `ANTHROPIC_API_KEY`. A missing key fails with a clear onboarding message. If both are set, the prefixed variable wins silently, which lets users run Kirsch alongside other tools that use the unprefixed name. `/status` names the variable that supplied the key, never its value. **Never** read keys from config files; refuse and warn if one appears there.
+
+**OpenCode Go client requirements** (live probe, 2026-10-02; amendment 80). The `opencode` endpoint takes its key in `x-api-key`; `Authorization: Bearer` is rejected with 401 "Missing API key.". Every request carries Kirsch's own User-Agent (`kirsch/<version>`) and an `x-opencode-session` header holding one random ID per Kirsch session, reused when the session is resumed; without it the gateway returns 400 `MissingSessionID` (https://opencode.ai/docs/go/#where-can-i-use-it). The session ID is not a secret and is never derived from the key.
 
 ### Model table
 
 `internal/provider` ships a table of known models, because two separate features need it: §6.3's budget maths needs the context window, and the status bar's cost display needs pricing.
 
-| Model | Context window | Max output | In $/Mtok | Out $/Mtok |
-|---|---|---|---|---|
-| `claude-opus-5` | — | — | — | — |
-| `claude-sonnet-5` (default) | — | — | — | — |
-| `claude-haiku-4-5-20251001` | — | — | — | — |
+| Model | Endpoint | Context window | Max output | In $/Mtok | Out $/Mtok |
+|---|---|---|---|---|---|
+| `claude-sonnet-5-5` (`anthropic` default) | `anthropic` | 1M | 128K | 2 | 10 |
+| `claude-opus-5-5` | `anthropic` | 1M | 128K | 4 | 20 |
+| `claude-fable-5-1` | `anthropic` | 1M | 128K | 10 | 50 |
+| `claude-haiku-4-5-20251001` (retirement not sooner than 2026-10-15) | `anthropic` | 200K | 64K | 1 | 5 |
+| `minimax-m3` (`opencode` default) | `opencode` | — | — | flat rate | flat rate |
 
-Fill these from the provider's published documentation at Milestone 3. **Do not guess figures.** An unknown model id falls back to a conservative default (128k context, 4k output reserve, cost rendered as `?`) and logs a warning rather than refusing to start — a new model release must never brick the tool.
+Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview and the pricing page, read 2026-10-02. Cache reads are billed at 10% of the input price (5% on `claude-opus-5-5`, 2.5% on `claude-fable-5-1`). The legacy `claude-sonnet-5` and `claude-opus-5` are not listed. OpenCode Go publishes model IDs only, so its rows stay `—` until a sourced figure exists. Until then the unknown-model fallback applies. **Do not guess figures.** An unknown model ID falls back to a conservative default (128k context, 4k output reserve, cost rendered as `?`) and logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
 
 Token/cost: track input/output/cache tokens per turn and cumulative per session; show in status bar; persist totals to `~/.local/share/kirsch/usage.json`.
 
@@ -276,10 +293,10 @@ The system prompt and tool definitions carry a prompt-cache breakpoint. They are
 
 ### 6.2 Project context injection
 
-On session start, Kirsch loads the first existing file from `[context].project_files` (default `AGENTS.md`, `CLAUDE.md`, `.kirsch/context.md`) at the workspace root and injects it into the system prompt.
+On session start, Kirsch loads the first existing file from `[context].project_files` (default `AGENTS.md`, `CLAUDE.md`) at the workspace root and injects it into the system prompt.
 
 - Capped at `max_project_context_bytes` (default 32KB); over the cap, truncate at a line boundary and mark it truncated.
-- Subject to workspace containment, but deliberately **not** to the path denylist — these files are project-authored on purpose.
+- Subject to workspace containment **and** the path denylist (amendment 77). A project file may set `project_files` (§5), so an exemption from the denylist would let a repository inject `.env` into the system prompt.
 - Fenced and labelled untrusted, per §6.1 rule 4.
 - Read once per session. Re-read on `/new`, never mid-session.
 - `/status` reports which file was loaded and its size.
@@ -303,16 +320,16 @@ Compaction is itself a model call, which has consequences worth pinning down:
 - On failure (provider error, or a summary that would itself overflow), Kirsch does **not** silently continue with an oversized request. It surfaces `context_overflow` and tells the user to `/new`.
 - A `compaction.applied` event records the replaced event range and the summary text, so resume reconstructs the *compacted* view rather than replaying the full pre-compaction history.
 
-### 6.5 Extended thinking
+### 6.5 Thinking
 
-`StreamEvent` includes `ThinkingDelta` and `ThinkingDone` from Milestone 3, whether or not thinking is enabled. When it is enabled via `[provider.anthropic].thinking`, thinking blocks are:
+`StreamEvent` includes `ThinkingDelta` and `ThinkingDone` from Milestone 3. Current Claude models think by default, so thinking blocks can arrive at every `thinking` setting, including `off` (ADR 0008, amendment 75). Every thinking block is:
 
 - rendered in the transcript as a collapsed, dimmed card, expandable like a tool card;
-- **preserved verbatim and echoed back** in subsequent requests within the same turn — required once thinking is interleaved with tool use, and the reason the plumbing cannot be bolted on later;
+- **preserved verbatim and echoed back**, signature included, in subsequent requests within the same turn — at every setting, from the first tool turn;
 - persisted to JSONL as `assistant.thinking` (with its signature) so resume rebuilds a valid message array;
 - excluded from compaction summaries — dropped, not summarised.
 
-Default is `off` for v0.1. Enabling it must be a config change, not a refactor.
+`off` maps to `thinking: {type: "between_tools"}` on `claude-sonnet-5-5`, with effort held at `high` or below; `claude-sonnet-5-5` rejects `"disabled"` and `"enabled"` with `budget_tokens`. `low | medium | high` are mapped at Milestone 3 against the documentation. On `minimax-m3` (the `opencode` default, amendment 80), thinking blocks only appear with `enabled` or `between_tools`, and none with `disabled` or no `thinking` field.
 
 ---
 
@@ -389,7 +406,7 @@ Tasks:
 - `.gitignore`-aware file walker + built-in ignore list.
 - Implement `read_file`, `list_files`, `search_code` (rg + pure-Go fallback), `git_status`, `git_diff` per §3 contracts.
 - `internal/app`: the wiring layer — owns the root context, routes typed messages between TUI and tools. Created **here**, not in M3: the TUI must never import `internal/tool` (§2 hard rules), so the moment the TUI drives a real tool, `app` must exist.
-- `internal/config`: TOML loading, defaults → global → project → flags precedence, `.kirsch/` discovery. Only the keys that exist at this milestone need consuming; unknown keys warn and are ignored.
+- `internal/config`: TOML loading, defaults → global → project → flags precedence (project layer superseded by amendment 76: allowlist), `.kirsch/` discovery. Only the keys that exist at this milestone need consuming; unknown keys warn and are ignored.
 - `internal/telemetry`: structured debug log behind `--debug` / `KIRSCH_DEBUG=1`, written to `~/.local/state/kirsch/debug.log`. **Never to stdout or stderr** — that corrupts the TUI. Token/cost tracking is added to this same package in M4.
 - Import-rule CI check (§2) wired up now that there is more than one internal package.
 - Tool-card rendering in TUI: collapsed summary line, `Enter` to expand full output, truncation markers.
@@ -422,9 +439,9 @@ Tasks:
 
 - Provider interface: `Stream(ctx, req, onEvent)` with provider-neutral `StreamEvent` (TextDelta, ThinkingDelta, ThinkingDone, ToolCallStart/Delta/End, MessageDone, Error). `ToolCall*` events carry the provider's tool-call `id`; `MessageDone` carries usage (input, output, cache read, cache write). All provider-specific delta accumulation lives inside the Anthropic adapter.
 - Prompt caching: cache breakpoint on the system prompt + tool definitions (§6.1); cache read/write token counts recorded in `usage` events and shown in `/status`.
-- Extended-thinking plumbing per §6.5 — blocks preserved, echoed back, persisted. Default `off`.
+- Thinking round-trip per §6.5 — blocks preserved, echoed back at every setting, persisted (ADR 0008).
 - Model table (§5) for context window and pricing; unknown model degrades with a warning, never a hard failure.
-- Anthropic streaming client with retry: 3x exponential backoff on 5xx/network, `Retry-After` on 429, immediate clear failure on 401/403 (onboarding message) and 400 (log full request — bug).
+- Messages-format streaming client for the configured endpoint (ADR 0008), with retry: 3 retries (4 requests) with exponential back-off on 5xx/network; a usage-limit 429 surfaced as a lockout, otherwise `Retry-After` on 429 (exponential back-off when the header is absent); immediate clear failure on 401/403 (onboarding message) and 400 (log full request — bug); a 3xx is an error, never followed.
 - Agent state machine: user task → build request → stream → tool calls (policy check → approval → execute → result to model) → final answer / cancellation / error / max-turn guard (default 25 tool rounds).
 - **Multiple tool calls in one assistant message** are executed **sequentially, in the order returned**. A rejection or error short-circuits the remainder; the short-circuited calls return `policy_denied` / `cancelled` so that *every* requested call gets a result — the API rejects a message that answers only some of them.
 - System prompt assembled per §6.1 from an embedded, reviewable `system.md`; project context injection per §6.2.
@@ -432,7 +449,7 @@ Tasks:
 - `provider.Fake` with scripted turns for deterministic agent tests.
 - API key from env only; first-run onboarding screen when key missing or not in a Git repo.
 
-**Acceptance:** Fake-provider tests pass: tool-call-then-answer flow; cancellation mid-tool returns within 1s and leaves the session resumable; a hallucinated tool name gets `tool_input_invalid` and self-corrects; a scripted turn returning two tool calls executes both in order, and when the first is rejected the second still returns a result rather than being omitted; injected project context appears in the request exactly once; a thinking-enabled scripted turn round-trips its thinking block without an API-shape error. Live: from the TUI, Kirsch answers a read-only investigation question using `search_code`/`read_file` on a real repo with evidence, and `/status` shows a non-zero cache read on the second turn.
+**Acceptance:** Fake-provider tests pass: tool-call-then-answer flow; cancellation mid-tool returns within 1s and leaves the session resumable; a hallucinated tool name gets `tool_input_invalid` and self-corrects; a scripted turn returning two tool calls executes both in order, and when the first is rejected the second still returns a result rather than being omitted; injected project context appears in the request exactly once; a scripted turn whose response contains a thinking block, replayed at each of `off`, `low`, `medium` and `high`, carries the block byte-identical, signature included, in the second request. Live: from the TUI, Kirsch answers a read-only investigation question using `search_code`/`read_file` on a real repo with evidence, and, on an endpoint whose live probe showed cache reporting, `/status` shows a non-zero cache read on the second turn.
 
 ### Milestone 4 — Real task loop + sessions
 
@@ -530,8 +547,8 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 
 18. **Session-scoped approval grants** (§4) — `a` key, `run_command` prefixes only, never patches, cleared on `/new`. Lands M2, persisted M4.
 19. **Prompt caching** (§6.1) — cache breakpoint on system prompt + tools. Lands M3.
-20. **Extended thinking** (§6.5) — plumbing present from M3, default `off`.
-21. **Project context injection** (§6.2) — `AGENTS.md` / `CLAUDE.md` / `.kirsch/context.md`, capped and fenced as untrusted. Lands M3.
+20. **Extended thinking** (§6.5) — plumbing present from M3, default `off` (superseded by amendment 75: thinking blocks round-trip at every setting).
+21. **Project context injection** (§6.2) — `AGENTS.md` / `CLAUDE.md` (`.kirsch/context.md` removed by amendment 77), capped and fenced as untrusted. Lands M3.
 
 **Design docs completed (2026-09-11)**
 
@@ -1099,9 +1116,65 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     a command's output appears only when it finishes. §3 and Milestone 2
     Task 5.2 call for incremental output. Recorded as an open defect.
 
+74. **One Messages-format adapter, two configured endpoints** (ADR 0008,
+    2026-10-02). v0.1 speaks the Anthropic Messages wire format to a configured
+    endpoint: `opencode` (OpenCode Go, default, flat-rate) or `anthropic`. §1,
+    §5 and §8 are updated. ADR 0003 is superseded in part — its "one provider"
+    line and its 429 handling, since a usage-limit 429 is a lockout, not a
+    transient back-off. The whole `[provider]` section is honoured only from
+    global config and flags.
+
+75. **Thinking round-trips at every setting** (ADR 0008). Current Claude models
+    think by default, and `claude-sonnet-5-5` rejects both `"disabled"` and
+    `"enabled"` with `budget_tokens`. §6.5's "Default is `off`" and §8's
+    "Default `off`" are replaced: blocks are preserved and echoed back at every
+    setting, including `off`, which maps to `"between_tools"`.
+
+76. **Project config is an allowlist** (operator ruling, 2026-10-02). A project
+    file may set only `[context].project_files`, confined to the workspace;
+    every other key is ignored with a warning naming it, and a credential-shaped
+    key is refused. `mergeFile` decoded a project file over the whole `Config`,
+    so a repository could relax approval, add `env_passthrough` variables
+    (already read by `run_command` in M2), point project context outside the
+    workspace, or enable a debug log that records request bodies. §5 is
+    updated. Milestone 1's "defaults → global → project → flags" line describes
+    what was built then; this entry supersedes it for the project layer.
+
+77. **`.kirsch/context.md` is no longer a default context file.** §6.2 exempted
+    project-context files from the path denylist so that this file could load.
+    Once `project_files` is project-settable, that exemption would let a
+    repository inject `.env`. Project context is now subject to the denylist,
+    and `.kirsch/**` is denylisted, so the default list becomes `AGENTS.md`,
+    `CLAUDE.md`. Reversible if a denylist-safe home for Kirsch-specific context
+    is chosen later.
+
+78. **No `agent.Approver`.** Approval lives inside the tools that need it since
+    M2: `tool.Approver` (`internal/tool/apply_patch.go:22`), implemented by
+    `approvalAdapter` (`internal/app/app.go:236`). A rejection reaches the agent
+    as a `policy_denied` tool result. `plan/spec/architecture.md` is updated;
+    the agent declares `agent.Model`, `agent.Tools` and `agent.Recorder`.
+
+79. **§5 model table filled** for the Anthropic models from published
+    documentation (2026-10-02). The `opencode` default model is recorded after
+    the live probe; its figures stay `—` and the unknown-model fallback applies.
+
+80. **OpenCode Go live probe** (2026-10-02, `cmd/kirsch-probe`; fixtures in
+    `testdata/probe/opencode/2026-10-02T1421Z/`). The operator chose
+    `minimax-m3` as the `opencode` default. The key travels in `x-api-key`
+    (`Authorization: Bearer` returned 401 "Missing API key."). Every request must
+    carry the client's own User-Agent and an `x-opencode-session` ID that is
+    stable per conversation; without it the gateway returns 400
+    `MissingSessionID`. `anthropic-version` is accepted and not required.
+    `minimax-m3` streamed text, a tool call and the tool-result round trip,
+    reported cache reads (5,699 tokens on a repeated prompt), and thought only
+    when asked (`enabled`, `between_tools`). `minimax-m2.7` always thought,
+    accepted an echoed thinking block with its signature, and timed out once at
+    120s. The qwen models were not reached. ADR 0008 and Milestone 3 Task 2 are
+    updated.
+
 **Still open (not blocking Milestone 0)**
 
-- Exact figures for the §5 model table — fill from published provider docs at M3.
+- ~~Exact figures for the §5 model table~~ — Anthropic rows filled by amendment 79; the `opencode` row is recorded by amendment 80 (`minimax-m3`); its figures stay `—` until OpenCode publishes them.
 - Whether `/approvals` needs its own key binding or only the slash command.
 - ~~Whether 200 lines is the right inline cap~~ — settled by amendment 65: tool
   cards show a 10-line preview. Key detection and spinner rendering were settled

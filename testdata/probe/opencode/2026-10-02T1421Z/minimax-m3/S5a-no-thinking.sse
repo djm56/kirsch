@@ -1,0 +1,24 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"070ef0f248c5a134d4cbcfd8d926ce65","type":"message","role":"assistant","stop_reason":null,"stop_sequence":null,"model":"minimax-m3","content":[],"usage":{"input_tokens":32,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":142}}}
+
+event: ping
+data: {"type":"ping"}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"17"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" × 23 = 391"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":32,"output_tokens":7,"cache_read_input_tokens":142}}
+
+event: message_stop
+data: {"type":"message_stop"}
+

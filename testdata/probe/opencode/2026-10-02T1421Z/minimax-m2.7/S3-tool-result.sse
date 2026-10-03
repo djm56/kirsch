@@ -1,0 +1,42 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"070ef1068a1f6722241182d2db8d2fb9","type":"message","role":"assistant","stop_reason":null,"stop_sequence":null,"model":"minimax-m2.7","content":[],"usage":{"input_tokens":280,"output_tokens":0}}}
+
+event: ping
+data: {"type":"ping"}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The README"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":".md file contains just a simple description: \"A terminal coding agent.\" for a project called Kirsch. This is a very brief"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" README."}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"53336fdfca0ac75dbb965f10e1cb24b677bee2799fb7cd032973b9112562ea69"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"The README.md file contains a simple description:\n\n**# Kirsch**\n"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"A terminal coding agent.\n\nThis appears to be a minimal README for a project called \"Kirsch\" which is described as a terminal coding agent."}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":280,"output_tokens":77,"output_tokens_details":{"thinking_tokens":33}}}
+
+event: message_stop
+data: {"type":"message_stop"}
+

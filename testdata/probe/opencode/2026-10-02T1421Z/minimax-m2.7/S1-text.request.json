@@ -1,0 +1,1 @@
+{"max_tokens":64,"messages":[{"content":"Reply with exactly the word: pong","role":"user"}],"model":"minimax-m2.7","stream":true,"system":"You are a helpful assistant."}

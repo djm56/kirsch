@@ -1,0 +1,32 @@
+{
+  "Cache-Control": [
+    "no-cache"
+  ],
+  "Cf-Placement": [
+    "remote-ORD"
+  ],
+  "Cf-Ray": [
+    "a4445a960897748d-MIA"
+  ],
+  "Content-Type": [
+    "text/event-stream"
+  ],
+  "Date": [
+    "Fri, 02 Oct 2026 14:21:30 GMT"
+  ],
+  "Server": [
+    "cloudflare"
+  ],
+  "X-Opencode-Endpoint-Id": [
+    "minimax.an"
+  ],
+  "X-Opencode-Log-Id": [
+    "9367a997-5ed1-4aa1-8a6d-826e59dd9f6d"
+  ],
+  "X-Opencode-Upstream-Model-Id": [
+    "MiniMax-M3"
+  ],
+  "X-Zen-Model": [
+    "minimax-m3"
+  ]
+}

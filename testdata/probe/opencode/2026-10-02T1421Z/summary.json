@@ -1,0 +1,305 @@
+{
+  "auth": "x-api-key",
+  "models": 5,
+  "results": {
+    "minimax-m2.7": {
+      "S1-text": {
+        "redacted_thinking": 0,
+        "session": "22ddf92033bceb0a80adb92f980858dd",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 1763,
+        "ttfb_ms": 1194,
+        "usage": {
+          "input_tokens": 27,
+          "output_tokens": 42,
+          "output_tokens_details": {
+            "thinking_tokens": 40
+          }
+        }
+      },
+      "S2-tool-call": {
+        "redacted_thinking": 0,
+        "session": "9934a9b90ad96e17bc386a2ad4813ef3",
+        "status": 200,
+        "stop_reason": "tool_use",
+        "thinking_blocks": 1,
+        "tool_use_ok": true,
+        "total_ms": 1737,
+        "ttfb_ms": 1254,
+        "usage": {
+          "input_tokens": 191,
+          "output_tokens": 50,
+          "output_tokens_details": {
+            "thinking_tokens": 25
+          }
+        }
+      },
+      "S3-tool-result": {
+        "redacted_thinking": 0,
+        "session": "9934a9b90ad96e17bc386a2ad4813ef3",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 3100,
+        "ttfb_ms": 1817,
+        "usage": {
+          "input_tokens": 280,
+          "output_tokens": 77,
+          "output_tokens_details": {
+            "thinking_tokens": 33
+          }
+        }
+      },
+      "S4-cache-1": {
+        "redacted_thinking": 0,
+        "session": "1efb245ebc720336310172088ad09927",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 2439,
+        "ttfb_ms": 1541,
+        "usage": {
+          "cache_creation_input_tokens": 5571,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 0,
+          "output_tokens": 43,
+          "output_tokens_details": {
+            "thinking_tokens": 25
+          }
+        }
+      },
+      "S4-cache-2": {
+        "redacted_thinking": 0,
+        "session": "1efb245ebc720336310172088ad09927",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 8769,
+        "ttfb_ms": 1537,
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 5571,
+          "input_tokens": 0,
+          "output_tokens": 63,
+          "output_tokens_details": {
+            "thinking_tokens": 27
+          }
+        }
+      },
+      "S5a-no-thinking": {
+        "redacted_thinking": 0,
+        "session": "6aeb0a9396fcb54ce14c2b301967121f",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 2762,
+        "ttfb_ms": 1181,
+        "usage": {
+          "input_tokens": 52,
+          "output_tokens": 102,
+          "output_tokens_details": {
+            "thinking_tokens": 100
+          }
+        }
+      },
+      "S5b-between-tools": {
+        "redacted_thinking": 0,
+        "session": "624431c41715f47d264a4a1c4a097885",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 2431,
+        "ttfb_ms": 1345,
+        "usage": {
+          "input_tokens": 52,
+          "output_tokens": 79,
+          "output_tokens_details": {
+            "thinking_tokens": 77
+          }
+        }
+      },
+      "S5c-disabled": {
+        "redacted_thinking": 0,
+        "session": "9ab5fda8abc896832de8a500e43928dc",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 2730,
+        "ttfb_ms": 1226,
+        "usage": {
+          "input_tokens": 52,
+          "output_tokens": 106,
+          "output_tokens_details": {
+            "thinking_tokens": 104
+          }
+        }
+      },
+      "S5d-enabled": {
+        "error": "Post \"https://opencode.ai/zen/go/v1/messages\": context deadline exceeded",
+        "session": "3e9501a924e311483dc1503209081d76",
+        "status": 0
+      }
+    },
+    "minimax-m3": {
+      "S1-text": {
+        "redacted_thinking": 0,
+        "session": "25834fa4a0f8e50280bf379959760d13",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 1131,
+        "ttfb_ms": 1116,
+        "usage": {
+          "cache_read_input_tokens": 128,
+          "input_tokens": 42,
+          "output_tokens": 2
+        }
+      },
+      "S2-tool-call": {
+        "redacted_thinking": 0,
+        "session": "88e26a0879531e65ef0e4284d3ff8582",
+        "status": 200,
+        "stop_reason": "tool_use",
+        "thinking_blocks": 0,
+        "tool_use_ok": true,
+        "total_ms": 2700,
+        "ttfb_ms": 2567,
+        "usage": {
+          "cache_read_input_tokens": 128,
+          "input_tokens": 284,
+          "output_tokens": 28
+        }
+      },
+      "S3-tool-result": {
+        "redacted_thinking": 0,
+        "session": "88e26a0879531e65ef0e4284d3ff8582",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 1554,
+        "ttfb_ms": 1227,
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 174,
+          "input_tokens": 284,
+          "output_tokens": 21
+        }
+      },
+      "S4-cache-1": {
+        "redacted_thinking": 0,
+        "session": "745bf8fe2c32f40998e0f7c87c31f280",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 2552,
+        "ttfb_ms": 2457,
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 131,
+          "input_tokens": 5583,
+          "output_tokens": 9
+        }
+      },
+      "S4-cache-2": {
+        "redacted_thinking": 0,
+        "session": "745bf8fe2c32f40998e0f7c87c31f280",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 1320,
+        "ttfb_ms": 1182,
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 5699,
+          "input_tokens": 15,
+          "output_tokens": 9
+        }
+      },
+      "S5a-no-thinking": {
+        "redacted_thinking": 0,
+        "session": "ac95baf38159835cb170d36a27e3cb9a",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 1135,
+        "ttfb_ms": 1082,
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 142,
+          "input_tokens": 32,
+          "output_tokens": 7
+        }
+      },
+      "S5b-between-tools": {
+        "redacted_thinking": 0,
+        "session": "146c0919f3c9dc95c4b9546fb07153b6",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 1553,
+        "ttfb_ms": 1247,
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 156,
+          "input_tokens": 31,
+          "output_tokens": 39,
+          "output_tokens_details": {
+            "thinking_tokens": 38
+          }
+        }
+      },
+      "S5c-disabled": {
+        "redacted_thinking": 0,
+        "session": "cbc7bb50b3ba0343dbe7162805e616df",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 1693,
+        "ttfb_ms": 1617,
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 142,
+          "input_tokens": 32,
+          "output_tokens": 1
+        }
+      },
+      "S5d-enabled": {
+        "redacted_thinking": 0,
+        "session": "0522d7260bcd37097a5a3820a27f26e0",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 2072,
+        "ttfb_ms": 1750,
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 156,
+          "input_tokens": 31,
+          "output_tokens": 55,
+          "output_tokens_details": {
+            "thinking_tokens": 47
+          }
+        }
+      },
+      "S6-no-version-header": {
+        "redacted_thinking": 0,
+        "session": "87d69645386471571a8be12dc6ae9df3",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 2273,
+        "ttfb_ms": 2181,
+        "usage": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 142,
+          "input_tokens": 28,
+          "output_tokens": 1
+        }
+      }
+    }
+  },
+  "scenarios": 47,
+  "timestamp": "2026-10-02T14:24:25Z"
+}
