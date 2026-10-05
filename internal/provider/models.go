@@ -83,6 +83,13 @@ var models = map[string]ModelInfo{
 		MaxOutput:     4096,   // fallback
 		Pricing:       PricingFlat,
 	},
+	"minimax-m2.7": {
+		ID:            "minimax-m2.7",
+		Known:         true,
+		ContextWindow: 128000, // fallback
+		MaxOutput:     4096,   // fallback
+		Pricing:       PricingFlat,
+	},
 }
 
 // LookupModel returns information about a model ID.

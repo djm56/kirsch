@@ -1,8 +1,8 @@
 # Progress — Kirsch
 
-**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is next.
+**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is in progress: m3-d1 and m3-d2 are done.
 
-**What's next:** m3-d1 (provider interface and fake, `internal/provider`) is done (mission-20261003-02). m3-d2 (Messages adapter and endpoint config) and m3-d3 (agent state machine) can now start; both depend only on m3-d1 and can run in either order. Kirsch first calls a model at m3-d2's live smoke test; the first conversation in the TUI is at m3-d6.
+**What's next:** m3-d3 (agent state machine) can start now; it depends only on m3-d1. m3-d4 and m3-d5 wait on m3-d3, and the first conversation in the TUI is at m3-d6. m3-d2's carried items are listed under *Carried from m3-d2*.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -13,7 +13,7 @@ This file is the single source of truth for live state — what is in progress a
 | 0 | Repo skeleton + static TUI prototype | ☑ Complete |
 | 1 | Workspace engine + read-only tools | ☑ Complete |
 | 2 | Patches, commands, approvals | ☑ Complete (operator-accepted 2026-10-02, deferred items below) |
-| 3 | Provider + agent loop | ◐ In progress (m3-d1 done) |
+| 3 | Provider + agent loop | ◐ In progress (m3-d1, m3-d2 done) |
 | 4 | Real task loop + sessions | ☐ Not started |
 | 5 | Polish + release (v0.1.0) | ☐ Not started |
 
@@ -30,16 +30,30 @@ This file is the single source of truth for live state — what is in progress a
 
 ## Milestone 3 — deliverables
 
-Definitions are in `plan/milestones/milestone-3.md`. The live probe ran on 2026-10-02; the `opencode` default is `minimax-m3` (plan §11 amendment 80).
+Definitions are in `plan/milestones/milestone-3.md`. The live probe ran on 2026-10-02, and the `opencode` default was `minimax-m3` (plan §11 amendment 80). On 2026-10-05 the endpoint refused `minimax-m3`; the live smoke test ran on `qwen3.7-plus` (amendment 82), and the default became `minimax-m2.7` (amendment 83).
 
 | ID | Title | Status | Owner | Waits on |
 |---|---|---|---|---|
 | m3-d1 | Provider interface and fake | done | — | — |
-| m3-d2 | Messages adapter and endpoint config | pending | — | m3-d1 |
+| m3-d2 | Messages adapter and endpoint config | done | — | m3-d1 |
 | m3-d3 | Agent state machine | pending | — | m3-d1 |
 | m3-d4 | System prompt and thinking | pending | — | m3-d2, m3-d3 |
 | m3-d5 | Onboarding screens | pending | — | m3-d1, m3-d2, m3-d3 |
 | m3-d6 | Wiring and integration | pending | — | all |
+
+## Carried from m3-d2
+
+Recorded done on 2026-10-05 at the operator's decision. Details are in plan amendment 82.
+
+- **Live turn-two `cache_read` check:** not built; carried to m3-d6, where the first real conversation has a second turn.
+- **401/403 message:** every 401 or 403 is reported as "rejected the API key", even when the server's reason differs.
+- **Thinking on `qwen3.7-plus`:** `between_tools` returned 400 in the probe; m3-d4's thinking checks need a model that accepts each mode they test.
+- **400 debug log:** a 400 writes the full request body to the debug log, as the plan specifies. Clipping it is the operator's decision.
+- **Config review items:** the project-warning dedupe keys on the key only, uses an unstable sort, and has no test forcing a duplicate; `[[context]]` gets the list-of-strings message; `UnmarshalTOML`'s doc comment is thin; the endpoint field-key sort is uncalibrated; a `nolint:misspell` sits on a verbatim test line.
+- **Wire-format review items:** usage outside int64 fails instead of clamping; a start event without `content_block`; a duplicated object check in `encode.go`; test and doc gaps; thin calibration for the cancel guard, the messageDone bypass and parseIndex's leading-zero check.
+- **Live-test review items:** two unrecorded calibration mutants in `livemodel_test.go`; `live_test.go`'s comment does not say the override is checked only once a key is present.
+- **Thinking on `minimax-m2.7`:** the default thinks on every request, so m3-d4's `off` check must accept a thinking block on it.
+- **Default-model review items:** no calibration mutant targets `minimax-m2.7`'s context or output figures; `config_test.go:57` overrides the model to the new default, so its model check cannot fail; two comments over-reach (`models_test.go:47` names the opencode default, and `models.go:36` says the figures are sourced from documentation).
 
 ## Carried from Milestone 2
 
@@ -61,6 +75,8 @@ Deferred by the operator on 2026-10-02, when Milestone 2 was accepted. Details a
 
 | Completed | Deliverable | What landed |
 |---|---|---|
+| 2026-10-05 | opencode default model | `mission-20261005-01`. The `opencode` default is `minimax-m2.7` (amendment 83): `config.Defaults()`, a known flat-rate `minimax-m2.7` row in the model table, and a 256-token limit on the live smoke test. The `minimax-m3` row stays. |
+| 2026-10-05 | m3-d2 Messages adapter and endpoint config | `mission-20261003-03`. `internal/provider/anthropic`: Messages request encoding, SSE decoding, and a streaming HTTP client with retry, lockout, redirect refusal and error mapping, tested against the recorded probe streams. `internal/config`: the endpoint map (`opencode` default, `anthropic`), `base_url` validation and the project-file allowlist. An opt-in live smoke test (`npm run test:live`), which the operator passed on `qwen3.7-plus` through `KIRSCH_LIVE_MODEL` because the endpoint refused `minimax-m3` (amendment 82). The live turn-two `cache_read` check is carried to m3-d6. |
 | 2026-10-02 | M2 close-out, from the operator's review of milestone-2.md | `mission-20261002-01`. `/run` is visible in `/help` (it shares a row with `/patch`), and a clipped help footer names the scroll keys. `npm run lint` and `npm run fmt:check` are clean: 13 findings fixed, none suppressed. A rename with edits keeps the source file's permission bits. A real `git diff` of a CRLF file now applies, and a patch that would change line endings is rejected before the approval prompt. `plan/milestones/milestone-2.md` now records evidence for every Task 9 box (15 of 18 ticked), the departures from the instruction set (plan amendments 61–73) and the open defects. **Uncommitted** on top of `7c0133d`. |
 | 2026-10-01 | M2 UX pass, from the operator's request | `mission-20261001-02`. Tool cards open as a 10-line preview: Enter collapses, `d` opens the full output. In the prompt, ↑/↓ recall history, and Shift+↑ or Tab move to the cards. An approved command shows one card with `· approved` on its head. A stray key releases a pending approval card instead of answering it. Terminals 24 or more rows tall get a key-hint row. Clipped modals show a `↓ N more` / `↑ N above` marker. `read_file` heads no longer repeat the path, and trailing empty output rows are trimmed. A refused session grant now confirms as approved, because the command runs. `npm run security` is clean. Walkthrough §12 has been added for retest. **Uncommitted:** all changes sit in the working tree on top of `7c0133d`. |
 | 2026-10-01 | M2 walkthrough defects, from the operator's manual run | Three missions answered the operator's run of `plan/testing/manual/milestone-2.md`. `mission-20260928-01` fixed a deadlock that froze Kirsch when a command was approved for the session with `a`, with regression tests driving a real `tea.Program` in `internal/app/deadlock_test.go`. `mission-20260930-01` added the `c to clear (confirm)` instruction to the grants modal footer. `mission-20261001-01` replaced the hardcoded `2.4s` on approval cards with the real time from request to decision, and made command result cards name their command: `describeInput` now reads `argv`, sanitised. A test confirms `/run` is reachable by scrolling `/help`. Each mission also corrected the walkthrough against the code. **Uncommitted:** all three missions' changes, including the untracked `internal/app/deadlock_test.go`, are in the working tree only. **Open for the operator:** the retest of the items left blank for it, and the open questions in the walkthrough's Findings Summary. |

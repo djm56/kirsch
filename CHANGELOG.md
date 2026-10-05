@@ -133,9 +133,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool calls, thinking, mid-stream errors and a turn that blocks until cancelled —
   and records deep copies of every request, so tests can check what a second
   request echoed back. No vendor name appears in the package.
+- **Milestone 3, m3-d2 — Messages adapter and endpoint config.** `internal/provider/anthropic`
+  speaks the Messages wire format: request encoding, SSE decoding with event
+  framing and bounded buffers, and a streaming HTTP client that refuses redirects,
+  retries 5xx, network errors and transient 429s with `Retry-After` back-off,
+  surfaces a usage-limit 429 as a lockout, fails a 401 or 403 at once, and logs a
+  400's request body, never the key, to the debug log. Its tests replay the
+  recorded probe streams. `internal/config` gains the endpoint map with two
+  built-ins (`opencode`, the default, and `anthropic`), `base_url` validation
+  (https, or http on a literal loopback host; userinfo and IPv4-mapped forms
+  refused) and a project-file allowlist: only `[context].project_files` is
+  honoured, every other key is ignored with a warning, and a credential-shaped
+  key is refused. An opt-in live smoke test (`npm run test:live`, build tag
+  `live`) sends one streamed request through the adapter; `KIRSCH_LIVE_MODEL`
+  points it at another Messages-format model.
 
 ### Changed
 
+- **The `opencode` default model is `minimax-m2.7`** (plan amendment 83). The endpoint refused `minimax-m3` for the operator's account on 2026-10-05, and `minimax-m2.7` passed the live smoke test through the adapter. The model table gains a known, flat-rate `minimax-m2.7` row; the `minimax-m3` row stays. The live smoke test allows 256 output tokens, because `minimax-m2.7` thinks before every answer.
 - **Tool card preview mode.** Tool cards now open as a preview showing the first
   10 lines by default, collapsible to the head with `Enter`. When lines are hidden,
   a marker reads `‹10 of N lines — d full output · Enter collapse›`. `d` opens the

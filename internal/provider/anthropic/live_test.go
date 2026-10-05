@@ -19,12 +19,22 @@ import (
 // endpoint through Kirsch's own adapter and checks that it completes and
 // reports usage. It is compiled only with -tags live and is run by hand
 // (npm run test:live); go test ./... and CI never build it. The key is read
-// from the environment by config's own lookup and is never printed.
+// from the environment by config's own lookup and is never printed. The model
+// name defaults to the opencode endpoint's configured default model and can be
+// overridden by the KIRSCH_LIVE_MODEL environment variable, which is useful
+// when the default model is disabled on the upstream endpoint. If
+// KIRSCH_LIVE_MODEL is set but invalid (empty or containing whitespace or
+// control characters), the test fails with a validation error before any
+// network request is made.
 func TestLiveOpencodeSmoke(t *testing.T) {
 	ep := config.Defaults().Provider.Endpoints["opencode"]
 	key, source := ep.ResolveKey(os.Getenv)
 	if key == "" {
 		t.Skipf("set KIRSCH_%s or %s to run the live smoke test", ep.APIKeyEnv, ep.APIKeyEnv)
+	}
+	model, modelSource, err := liveModel(os.LookupEnv, ep.Model)
+	if err != nil {
+		t.Fatalf("invalid model override: %v", err)
 	}
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -40,7 +50,7 @@ func TestLiveOpencodeSmoke(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	req := provider.Request{
-		Model: ep.Model, MaxTokens: 64,
+		Model: model, MaxTokens: 256,
 		Messages: []provider.Message{userText("Reply with the single word: pong")},
 	}
 	var text strings.Builder
@@ -65,6 +75,6 @@ func TestLiveOpencodeSmoke(t *testing.T) {
 	if strings.TrimSpace(text.String()) == "" {
 		t.Fatal("no text streamed")
 	}
-	t.Logf("endpoint=opencode model=%s key_source=%s text_bytes=%d stop=%s usage=%+v",
-		ep.Model, source, text.Len(), done.StopReason, *done.Usage)
+	t.Logf("endpoint=opencode model=%s model_source=%s key_source=%s text_bytes=%d stop=%s usage=%+v",
+		model, modelSource, source, text.Len(), done.StopReason, *done.Usage)
 }

@@ -28,7 +28,7 @@ func TestDefaultsEndpoints(t *testing.T) {
 	}
 	oc, ok := d.Provider.Endpoints["opencode"]
 	if !ok || oc.BaseURL != "https://opencode.ai/zen/go/v1" || oc.Auth != "x-api-key" ||
-		oc.APIKeyEnv != "OPENCODE_API_KEY" || oc.Model != "minimax-m3" {
+		oc.APIKeyEnv != "OPENCODE_API_KEY" || oc.Model != "minimax-m2.7" {
 		t.Fatalf("opencode = %+v", oc)
 	}
 	an, ok := d.Provider.Endpoints["anthropic"]
@@ -36,7 +36,7 @@ func TestDefaultsEndpoints(t *testing.T) {
 		t.Fatalf("anthropic = %+v", an)
 	}
 	d.Provider.Endpoints["opencode"] = EndpointConfig{}
-	if Defaults().Provider.Endpoints["opencode"].Model != "minimax-m3" {
+	if Defaults().Provider.Endpoints["opencode"].Model != "minimax-m2.7" {
 		t.Fatal("Defaults shares its map between calls")
 	}
 	if err := d.Validate(); err == nil {

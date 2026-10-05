@@ -219,7 +219,7 @@ default = "opencode"
 base_url = "https://opencode.ai/zen/go/v1"
 auth = "x-api-key"
 api_key_env = "OPENCODE_API_KEY"
-model = "minimax-m3"
+model = "minimax-m2.7"
 prompt_caching = true
 thinking = "off"            # "off" | "low" | "medium" | "high"
 
@@ -268,9 +268,10 @@ API key resolution: each endpoint names its key variable in `api_key_env`. Kirsc
 | `claude-opus-5-5` | `anthropic` | 1M | 128K | 4 | 20 |
 | `claude-fable-5-1` | `anthropic` | 1M | 128K | 10 | 50 |
 | `claude-haiku-4-5-20251001` (retirement not sooner than 2026-10-15) | `anthropic` | 200K | 64K | 1 | 5 |
-| `minimax-m3` (`opencode` default) | `opencode` | — | — | flat rate | flat rate |
+| `minimax-m2.7` (`opencode` default) | `opencode` | — | — | flat rate | flat rate |
+| `minimax-m3` | `opencode` | — | — | flat rate | flat rate |
 
-Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview and the pricing page, read 2026-10-02. Cache reads are billed at 10% of the input price (5% on `claude-opus-5-5`, 2.5% on `claude-fable-5-1`). The legacy `claude-sonnet-5` and `claude-opus-5` are not listed. OpenCode Go publishes model IDs only, so its rows stay `—` until a sourced figure exists. Until then the unknown-model fallback applies. **Do not guess figures.** An unknown model ID falls back to a conservative default (128k context, 4k output reserve, cost rendered as `?`) and logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
+Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview and the pricing page, read 2026-10-02. Cache reads are billed at 10% of the input price (5% on `claude-opus-5-5`, 2.5% on `claude-fable-5-1`). The legacy `claude-sonnet-5` and `claude-opus-5` are not listed. OpenCode Go publishes per-token prices that count against a flat monthly allowance, but no context window or output limit (opencode.ai/docs/go, read 2026-10-05), so its size columns stay `—`. Until then the unknown-model fallback applies. **Do not guess figures.** An unknown model ID falls back to a conservative default (128k context, 4k output reserve, cost rendered as `?`) and logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
 
 Token/cost: track input/output/cache tokens per turn and cumulative per session; show in status bar; persist totals to `~/.local/share/kirsch/usage.json`.
 
@@ -1181,9 +1182,39 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     local toolchain gets a refusal or an automatic download, never a build
     against the vulnerable standard library.
 
+82. **The live smoke test runs on a chosen model** (2026-10-05, mission-20261003-03).
+    The live endpoint refused `minimax-m3` with HTTP 403 "Upstream request failed:
+    Model access is disabled"; the key was accepted (`/models` returned 200). A
+    probe the same day returned 200 on every `minimax-m2.7` scenario, and on every
+    `qwen3.7-plus` scenario except S5b, where `thinking: between_tools` returned
+    400 with an empty error body. The live smoke test now reads `KIRSCH_LIVE_MODEL`,
+    a test-only override defined in `internal/provider/anthropic/livemodel_test.go`.
+    When it is unset, the test uses the endpoint's default; an empty value, or one
+    containing whitespace or control characters, fails before any request is sent.
+    The operator's walkthrough passed on `qwen3.7-plus`. The `opencode` default
+    stays `minimax-m3` (amendment 80) pending the operator's decision. m3-d2's live
+    turn-two `cache_read` check was not built and is carried to m3-d6, where the
+    first real conversation has a second turn (operator decision, 2026-10-05).
+    Kirsch reports every 401 or 403 as "rejected the API key", which was wrong for
+    this 403; the walkthrough's known limitations say so.
+
+83. **The `opencode` default model is `minimax-m2.7`** (2026-10-05, mission-20261005-01).
+    The endpoint refuses `minimax-m3` for the operator's account (amendment 82). On
+    2026-10-05 the operator's probe returned 200 on every `minimax-m2.7` scenario, with
+    cache reads of 5,571 tokens, and the live smoke test passed through Kirsch's adapter
+    with 48 input and 55 output tokens. OpenCode Go prices `minimax-m2.7` the same as
+    `minimax-m3` ($0.30 input, $1.20 output and $0.06 cached read per million tokens),
+    with the same Go-plan allowance ($60 a month) and a larger Go Plus allowance ($240
+    against $180; opencode.ai/docs/go, read 2026-10-05). `minimax-m2.7` thinks on every
+    request, including with thinking disabled, so `off` cannot suppress thinking on it;
+    m3-d4 must still carry each thinking block back with its signature. `config.Defaults()`,
+    the §5 model table, ADR 0008 and Milestone 3's Task 3 and Task 8 text change; the
+    `minimax-m3` row stays, should access return. The live smoke test now allows 256
+    output tokens.
+
 **Still open (not blocking Milestone 0)**
 
-- ~~Exact figures for the §5 model table~~ — Anthropic rows filled by amendment 79; the `opencode` row is recorded by amendment 80 (`minimax-m3`); its figures stay `—` until OpenCode publishes them.
+- ~~Exact figures for the §5 model table~~ — Anthropic rows filled by amendment 79; the `opencode` default row is `minimax-m2.7` since amendment 83 (`minimax-m3` from amendment 80); its size figures stay `—` until OpenCode publishes them.
 - Whether `/approvals` needs its own key binding or only the slash command.
 - ~~Whether 200 lines is the right inline cap~~ — settled by amendment 65: tool
   cards show a 10-line preview. Key detection and spinner rendering were settled

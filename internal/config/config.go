@@ -89,7 +89,7 @@ func Defaults() Config {
 				"opencode": {
 					BaseURL: "https://opencode.ai/zen/go/v1", Auth: "x-api-key",
 					APIKeyEnv: "OPENCODE_API_KEY", // #nosec G101 -- variable name, not a secret
-					Model:     "minimax-m3", PromptCaching: true, Thinking: "off",
+					Model:     "minimax-m2.7", PromptCaching: true, Thinking: "off",
 				},
 				"anthropic": {
 					BaseURL: "https://api.anthropic.com/v1", Auth: "x-api-key",

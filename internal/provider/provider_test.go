@@ -856,6 +856,7 @@ func TestModelTable(t *testing.T) {
 		{"claude-fable-5-1", true, 1000000, 128000, PricingPerToken, 10.0},
 		{"claude-haiku-4-5-20251001", true, 200000, 64000, PricingPerToken, 1.0},
 		{"minimax-m3", true, 128000, 4096, PricingFlat, 0.0},
+		{"minimax-m2.7", true, 128000, 4096, PricingFlat, 0.0},
 		{"unknown-model", false, 128000, 4096, PricingUnknown, 0.0},
 	}
 

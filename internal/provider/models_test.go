@@ -25,7 +25,8 @@ func TestUnknownModelFallback(t *testing.T) {
 	}
 }
 
-// TestMinimaxM3 verifies the opencode default model uses fallback sizing.
+// TestMinimaxM3 verifies that minimax-m3 is a known model with PricingFlat
+// and the configured fallback dimensions of 128000 context and 4096 output.
 func TestMinimaxM3(t *testing.T) {
 	m := LookupModel("minimax-m3")
 
@@ -33,13 +34,33 @@ func TestMinimaxM3(t *testing.T) {
 		t.Error("minimax-m3 should be Known = true")
 	}
 	if m.Pricing != PricingFlat {
-		t.Errorf("minimax-m3 Pricing = %v, want PricingFlat", m.Pricing)
+		t.Errorf("minimax-m3: Pricing = %v, want PricingFlat", m.Pricing)
 	}
 	if m.ContextWindow != 128000 {
-		t.Errorf("minimax-m3 uses fallback ContextWindow = %d, want 128000", m.ContextWindow)
+		t.Errorf("minimax-m3: ContextWindow = %d, want 128000", m.ContextWindow)
 	}
 	if m.MaxOutput != 4096 {
-		t.Errorf("minimax-m3 uses fallback MaxOutput = %d, want 4096", m.MaxOutput)
+		t.Errorf("minimax-m3: MaxOutput = %d, want 4096", m.MaxOutput)
+	}
+}
+
+// TestMinimaxM2_7 verifies that minimax-m2.7 (the opencode default model) is
+// a known model with PricingFlat and the configured fallback dimensions of
+// 128000 context and 4096 output.
+func TestMinimaxM2_7(t *testing.T) {
+	m := LookupModel("minimax-m2.7")
+
+	if !m.Known {
+		t.Error("minimax-m2.7 should be Known = true")
+	}
+	if m.Pricing != PricingFlat {
+		t.Errorf("minimax-m2.7: Pricing = %v, want PricingFlat", m.Pricing)
+	}
+	if m.ContextWindow != 128000 {
+		t.Errorf("minimax-m2.7: ContextWindow = %d, want 128000", m.ContextWindow)
+	}
+	if m.MaxOutput != 4096 {
+		t.Errorf("minimax-m2.7: MaxOutput = %d, want 4096", m.MaxOutput)
 	}
 }
 

@@ -37,7 +37,7 @@ runnable steps as each deliverable lands.
 
 ## Model for this run
 
-The `opencode` default model is `minimax-m2.7` (plan amendment 83). The endpoint refused the earlier default, `minimax-m3`, on 2026-10-05 (HTTP 403, "Upstream request failed: Model access is disabled"). §1 runs the live test on the default. To try another Messages-format model, set the test-only variable `KIRSCH_LIVE_MODEL`, for example `export KIRSCH_LIVE_MODEL=qwen3.7-plus`.
+The default model, `minimax-m3`, is refused by the OpenCode Go endpoint at present (HTTP 403, "Upstream request failed: Model access is disabled", seen 2026-10-05). This walkthrough runs the live test on `qwen3.7-plus`, chosen with the test-only variable `KIRSCH_LIVE_MODEL`. When `KIRSCH_LIVE_MODEL` is unset, the live test uses the default model. Kirsch's own default model and configuration are unchanged.
 
 ---
 
@@ -89,8 +89,8 @@ unset OPENCODE_API_KEY
 ## 1 · Live smoke test (m3-d2)
 
 A text-only request through Kirsch's adapter to the `opencode` endpoint confirms
-that the Messages adapter and endpoint configuration are working. This run uses the
-default model, `minimax-m2.7` (see **Model for this run**).
+that the Messages adapter and endpoint configuration are working. This run uses
+`qwen3.7-plus` (see **Model for this run**).
 
 **Without the API key:** the test skips and names both key variables.
 
@@ -99,24 +99,25 @@ unset OPENCODE_API_KEY KIRSCH_OPENCODE_API_KEY
 npm run test:live
 ```
 
-- [ ] Output includes `--- SKIP: TestLiveOpencodeSmoke`
-- [ ] The skip message reads `set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY to run the live smoke test`
+- [✅] Output includes `--- SKIP: TestLiveOpencodeSmoke`
+- [✅] The skip message reads `set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY to run the live smoke test`
 
-**With the API key, on the default model:**
+**With the API key, on `qwen3.7-plus`:**
 
 ```bash
 read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
+export KIRSCH_LIVE_MODEL=qwen3.7-plus
 npm run test:live 2>&1 | tee "$T_STATE/live.txt"
 ```
 
 The test sends one streamed request and confirms usage is reported. The log
 line starts with `endpoint=opencode`:
 
-- [ ] `--- PASS: TestLiveOpencodeSmoke`
-- [ ] `model=minimax-m2.7` in the log line
-- [ ] `model_source=default` in the log line
-- [ ] `key_source=OPENCODE_API_KEY` in the log line
-- [ ] Non-zero `InputTokens` and `OutputTokens` in the `usage=` part of the log line
+- [✅] `--- PASS: TestLiveOpencodeSmoke`
+- [✅] `model=qwen3.7-plus` in the log line
+- [✅] `model_source=KIRSCH_LIVE_MODEL` in the log line
+- [✅] `key_source=OPENCODE_API_KEY` in the log line
+- [✅] Non-zero `InputTokens` and `OutputTokens` in the `usage=` part of the log line
 
 Check that the key is not in the saved output:
 
@@ -124,7 +125,7 @@ Check that the key is not in the saved output:
 grep -c -- "$OPENCODE_API_KEY" "$T_STATE/live.txt"
 ```
 
-- [ ] `grep` prints `0` (key not found)
+- [✅] `grep` prints `0` (key not found)
 
 **An invalid model name is refused before any request is sent:**
 
@@ -132,7 +133,7 @@ grep -c -- "$OPENCODE_API_KEY" "$T_STATE/live.txt"
 KIRSCH_LIVE_MODEL=' qwen3.7-plus' npm run test:live 2>&1 | grep 'invalid model override'
 ```
 
-- [ ] Output reads `invalid model override: KIRSCH_LIVE_MODEL contains invalid characters: " qwen3.7-plus"`
+- [✅] Output reads `invalid model override: KIRSCH_LIVE_MODEL contains invalid characters: " qwen3.7-plus"`
 
 **If the run fails with HTTP 403:** Kirsch reports every 401 or 403 as
 `rejected the API key`, even when the server gave a different reason. To see the
@@ -140,9 +141,11 @@ server's reason, probe the same model and print the refused response. The key
 must still be set. Use a new `-out` folder for each probe run.
 
 ```bash
-npm run probe -- -run -models minimax-m2.7 -out "$T_STATE/probe"
+npm run probe -- -run -models qwen3.7-plus -out "$T_STATE/probe"
 for f in $(grep -l '^4' "$T_STATE"/probe/*/*.status); do echo "== $f"; head -c 500 "${f%.status}.sse"; echo; done
 ```
+
+A 400 on `S5b-between-tools` is expected for `qwen3.7-plus` and is not a failure.
 
 Clean up:
 
@@ -171,7 +174,7 @@ go run ./cmd/kirsch --workspace "$WORKSPACE"
 # Quit with /quit
 ```
 
-- [ ] Kirsch opens the TUI; quit with `/quit`
+- [✅] Kirsch opens the TUI; quit with `/quit`
 
 **Case: Global config with [provider.opencode] only**
 
@@ -185,7 +188,7 @@ go run ./cmd/kirsch --workspace "$WORKSPACE"
 # Quit with /quit
 ```
 
-- [ ] Kirsch opens the TUI; quit with `/quit`
+- [✅]] Kirsch opens the TUI; quit with `/quit`
 
 **Case: User-defined endpoint missing a required field**
 
@@ -204,8 +207,8 @@ EOF
 go run ./cmd/kirsch --workspace "$WORKSPACE" 2>&1 | head -2
 ```
 
-- [ ] Startup fails immediately
-- [ ] Error message reads: `kirsch: provider.mine.api_key_env is required`
+- [✅] Startup fails immediately
+- [✅] Error message reads: `kirsch: provider.mine.api_key_env is required`
 
 **Case: User-defined endpoint with all required fields**
 
@@ -222,7 +225,7 @@ go run ./cmd/kirsch --workspace "$WORKSPACE"
 # Quit with /quit
 ```
 
-- [ ] Kirsch opens the TUI; quit with `/quit`
+- [✅] Kirsch opens the TUI; quit with `/quit`
 
 **Case: Credential in global config (refused)**
 
@@ -237,8 +240,8 @@ EOF
 go run ./cmd/kirsch --workspace "$WORKSPACE" 2>&1 | head -2
 ```
 
-- [ ] Startup fails immediately
-- [ ] Error message names the file and says `key "provider.opencode.api_key" looks like a credential`
+- [✅] Startup fails immediately
+- [✅] Error message names the file and says `key "provider.opencode.api_key" looks like a credential`
 
 **Case: base_url validation — non-loopback http**
 
@@ -257,7 +260,7 @@ EOF
 go run ./cmd/kirsch --workspace "$WORKSPACE" 2>&1 | grep -o "http is allowed only.*"
 ```
 
-- [ ] Error message: `http is allowed only on localhost or loopback addresses`
+- [✅] Error message: `http is allowed only on localhost or loopback addresses`
 
 **Case: base_url with userinfo (refused)**
 
@@ -275,7 +278,7 @@ EOF
 go run ./cmd/kirsch --workspace "$WORKSPACE" 2>&1 | head -2
 ```
 
-- [ ] Error message: `kirsch: provider.mine.base_url: base_url must not include userinfo`
+- [✅] Error message: `kirsch: provider.mine.base_url: base_url must not include userinfo`
 
 **Case: IPv4-mapped loopback (refused)**
 
@@ -293,7 +296,7 @@ EOF
 go run ./cmd/kirsch --workspace "$WORKSPACE" 2>&1 | head -2
 ```
 
-- [ ] Error message: `kirsch: provider.mine.base_url: http is allowed only on loopback addresses`
+- [✅] Error message: `kirsch: provider.mine.base_url: http is allowed only on loopback addresses`
 
 **Case: Hostname resolving to loopback (refused)**
 
@@ -313,7 +316,7 @@ EOF
 go run ./cmd/kirsch --workspace "$WORKSPACE" 2>&1 | head -2
 ```
 
-- [ ] Error message: `kirsch: provider.mine.base_url: http is allowed only on localhost or loopback addresses`
+- [✅] Error message: `kirsch: provider.mine.base_url: http is allowed only on localhost or loopback addresses`
 
 **Case: base_url validation — accepted loopback forms**
 
@@ -333,7 +336,7 @@ go run ./cmd/kirsch --workspace "$WORKSPACE"
 # Quit with /quit
 ```
 
-- [ ] Kirsch opens the TUI; quit with `/quit`
+- [✅] Kirsch opens the TUI; quit with `/quit`
 
 ```bash
 # Test 2: http://127.0.0.2
@@ -349,7 +352,7 @@ go run ./cmd/kirsch --workspace "$WORKSPACE"
 # Quit with /quit
 ```
 
-- [ ] Kirsch opens the TUI; quit with `/quit`
+- [✅] Kirsch opens the TUI; quit with `/quit`
 
 ```bash
 # Test 3: http://[::1]
@@ -365,7 +368,7 @@ go run ./cmd/kirsch --workspace "$WORKSPACE"
 # Quit with /quit
 ```
 
-- [ ] Kirsch opens the TUI; quit with `/quit`
+- [✅] Kirsch opens the TUI; quit with `/quit`
 
 ---
 
@@ -415,9 +418,9 @@ Kirsch starts normally. Run with `--debug` and check the log for warnings:
 grep "ignored" "$T_STATE/kirsch/debug.log" | head -3
 ```
 
-- [ ] One warning per ignored key
-- [ ] Each warning reads: `key "..." ignored (a project config may set only [context].project_files)`
-- [ ] The `project_files = ["AGENTS.md"]` key is **not** warned about
+- [✅] One warning per ignored key
+- [✅] Each warning reads: `key "..." ignored (a project config may set only [context].project_files)`
+- [✅] The `project_files = ["AGENTS.md"]` key is **not** warned about
 
 **Case: Without --debug, no debug log is created**
 
@@ -430,7 +433,7 @@ go run ./cmd/kirsch --workspace "$WORKSPACE"
 ls "$T_STATE/kirsch/" 2>/dev/null || echo "no debug.log"
 ```
 
-- [ ] The log file does not exist (no `debug.log` in the listing)
+- [✅] The log file does not exist (no `debug.log` in the listing)
 
 **Case: project_files entry is honored**
 
@@ -447,7 +450,7 @@ go run ./cmd/kirsch --workspace "$WORKSPACE"
 # Quit with /quit
 ```
 
-- [ ] Kirsch opens the TUI (config accepted); quit with `/quit`
+- [✅] Kirsch opens the TUI (config accepted); quit with `/quit`
 
 **Case: Wrong type on project_files — string instead of list**
 
@@ -463,8 +466,8 @@ go run ./cmd/kirsch --workspace "$WORKSPACE" --debug
 grep "project_files" "$T_STATE/kirsch/debug.log"
 ```
 
-- [ ] Kirsch opens the TUI (not a hard failure); quit with `/quit`
-- [ ] Debug log warns that `project_files` must be a list of strings
+- [✅] Kirsch opens the TUI (not a hard failure); quit with `/quit`
+- [✅] Debug log warns that `project_files` must be a list of strings
 
 **Case: Credential in project config — refused like global**
 
@@ -477,8 +480,8 @@ EOF
 go run ./cmd/kirsch --workspace "$WORKSPACE" 2>&1 | head -2
 ```
 
-- [ ] Startup fails immediately
-- [ ] Error message names the file and says `key "provider.opencode.api_key" looks like a credential`
+- [✅] Startup fails immediately
+- [✅] Error message names the file and says `key "provider.opencode.api_key" looks like a credential`
 
 ---
 
@@ -491,8 +494,8 @@ cd /Volumes/DATA/Github/kirsch
 go test -run 'TestClientRedirect|TestClientErrorMessages|TestClientBadRequest' -v ./internal/provider/anthropic/
 ```
 
-- [ ] The run ends with `ok` and no line reads `--- FAIL`
-- [ ] Test names confirm redirect refusal, error handling, and request-body logging
+- [✅] The run ends with `ok` and no line reads `--- FAIL`
+- [✅] Test names confirm redirect refusal, error handling, and request-body logging
 
 **What these tests cover:**
 
@@ -553,8 +556,8 @@ go test -run 'TestClientRedirect|TestClientErrorMessages|TestClientBadRequest' -
 
 ## Known limitations
 
-- The endpoint refused the earlier default, `minimax-m3`, on 2026-10-05 (HTTP 403, "Model access is disabled"). The default is now `minimax-m2.7` (amendment 83).
-- If the live test is pointed at `qwen3.7-plus`: it refused the `between_tools` thinking mode in the probe (HTTP 400, empty error body). §1 sends no thinking setting, so it is not affected. The m3-d4 thinking checks will need a model that accepts each mode they test.
+- The default model `minimax-m3` was refused by the endpoint on 2026-10-05 (HTTP 403, "Model access is disabled"). The live test runs on `qwen3.7-plus` through `KIRSCH_LIVE_MODEL`. Whether Kirsch's default model changes is an open decision.
+- `qwen3.7-plus` refused the `between_tools` thinking mode in the probe (HTTP 400, empty error body). §1 sends no thinking setting, so it is not affected. The m3-d4 thinking checks will need a model that accepts each mode they test.
 - A 401 or 403 is always reported as `rejected the API key`, even when the server gave a different reason. The probe in §1 shows the server's reason.
 - Config warnings appear only in the debug log in this milestone.
 - The operator's earlier M1 and M2 walkthroughs put `[provider]` keys in a project file. Those are now ignored by design (plan amendment 76), so those older steps no longer apply.

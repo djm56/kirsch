@@ -87,6 +87,89 @@ made both visible within minutes is that `govulncheck` runs against every build,
 which is why the toolchain floor in `go.mod` is a security decision rather than
 a housekeeping one. Amendment 52.
 
+## Trust-boundary cases
+
+These are the Milestone 3 trust boundaries, each with the test that guards it. m3-d2 wrote the config and URL cases below; m3-d6 adds `[context]` confinement, the `project_files` honoured/refused-entry boxes, and the `run_command`-writes-config known limit (ADR 0008).
+
+### 1. Project files are an allowlist
+
+A project file (`.kirsch/config.toml` in the workspace) may set **only** `[context].project_files`. Every other key in `[provider]`, `[policy]`, `[context]`, `[session]`, `[telemetry]`, or any other table is ignored with a warning naming the key, distinct from the unknown-key warning.
+
+**Guarded by:** `internal/config/config_test.go` — `TestProjectFileIsAnAllowlist`, line 86–147.
+
+**What the test asserts:**
+- Line 109: Load succeeds despite every non-allowlisted key being present in the project file.
+- Lines 115–124: The effective config for `Provider.Default`, `Provider.Endpoints["opencode"]`, `Policy.RequireApprovalForCommands`, `Policy.DefaultCommandTimeoutSeconds`, `Policy.EnvPassthrough`, `Context.MaxProjectContextBytes`, `Session.StorageDir`, and `Telemetry.DebugLog` remain at their defaults, unchanged by the project file.
+- Lines 129–143: Every ignored key produces a warning with `Kind == WarnProjectIgnored`, covering `provider.default`, `provider.opencode.base_url`, `policy.require_approval_for_commands`, `policy.env_passthrough`, `context.max_project_context_bytes`, `session.storage_dir`, `telemetry.debug_log`, and `unknown_table`.
+
+### 2. Wrong-typed `project_files` in a project file
+
+A project file with `[context] project_files = "AGENTS.md"` (a string, not a list) starts normally, leaves the effective config unchanged, and produces a warning naming the key.
+
+**Guarded by:** `internal/config/config_test.go` — `TestProjectFilesWrongTypeWarns`, line 159–169, and `TestProjectFilesWrongTypeMessage`, line 426–445.
+
+**What the tests assert:**
+- `TestProjectFilesWrongTypeWarns`, line 162: Load succeeds despite wrong type.
+- Line 166: `project_files` defaults to `["AGENTS.md", "CLAUDE.md"]` and a warning is produced.
+- `TestProjectFilesWrongTypeMessage`, line 441: The warning message says `"must be a list of strings"`, distinct from the project-allowlist message.
+
+### 3. Debug log not enabled from project files
+
+A project file with `[telemetry] debug_log = true` does not enable the debug log.
+
+**Guarded by:** `internal/config/config_test.go` — `TestProjectFileIsAnAllowlist`, line 86–147.
+
+**What the test asserts:**
+- Line 122: `cfg.Telemetry.DebugLog` is `false`, even though the project file set it to `true`.
+
+### 4. Credential-shaped keys refused in project files
+
+A credential-shaped key (`api_key = "x"`) in a project file is refused by `checkSecrets`, not merely ignored.
+
+**Guarded by:** `internal/config/config_test.go` — `TestProjectFileCredentialRefused`, line 150–156, and `TestSecretShapedKeysRefused`, line 223–257.
+
+**What the tests assert:**
+- `TestProjectFileCredentialRefused`, line 153: Load fails with an error when a project file contains `api_key`.
+- `TestSecretShapedKeysRefused`, lines 224–243: Multiple credential-shaped keys (`api_key`, `apikey`, `token`, `secret`, `password`, `API_KEY`) in global config all produce errors.
+
+### 5. URL validation: loopback-only for HTTP
+
+`base_url` validation rejects non-loopback `http://`, `http://localhost@evil.example/`, `http://[::ffff:127.0.0.1]/`, and a hostname that merely resolves to loopback. It accepts `http://localhost`, `http://127.0.0.2`, `http://[::1]`.
+
+**Guarded by:** `internal/config/config_test.go` — `TestValidateBaseURL`, line 172–192, and `TestValidateBaseURLEdgeCases`, line 448–464.
+
+**What the tests assert:**
+- `TestValidateBaseURL`, lines 177–181 (refused cases):
+  - Line 178: `ValidateBaseURL("http://example.com/v1")` returns an error.
+  - Line 178: `ValidateBaseURL("http://localhost@evil.example/")` returns an error.
+  - Line 179: `ValidateBaseURL("https://user:pw@example.com/")` returns an error.
+  - Line 179: `ValidateBaseURL("http://[::ffff:127.0.0.1]/")` returns an error.
+- `TestValidateBaseURL`, lines 173–176 (accepted cases):
+  - Line 174: `ValidateBaseURL("http://localhost:8080/v1")` succeeds.
+  - Line 175: `ValidateBaseURL("http://127.0.0.1/v1")` succeeds.
+  - Line 175: `ValidateBaseURL("http://127.0.0.2:9/v1")` succeeds.
+  - Line 175: `ValidateBaseURL("http://[::1]:8/v1")` succeeds.
+- `TestValidateBaseURLEdgeCases`, line 450 (accepted):
+  - Line 449: `ValidateBaseURL("HTTP://localhost/v1")` succeeds (case-insensitive scheme).
+- `TestValidateBaseURLEdgeCases`, lines 450–453 (refused):
+  - Line 451: `ValidateBaseURL("http://127.1/")`, `http://127.00.0.1/`, `http://0.0.0.0/`, `http://localhost./` all return errors.
+  - Line 452: IPv6 forms `[::ffff:7f00:1]`, `[::]`, and `[0:0:0:0:0:ffff:127.0.0.1]` all return errors.
+
+**Not covered:** A hostname that merely resolves to loopback (e.g., `localtest.me` resolving to `127.0.0.1`) is tested in manual testing at `plan/testing/manual/milestone-3.md`, §2, "Case: Hostname resolving to loopback (refused)", but is not covered by a unit test; it is asserted by the manual walkthrough.
+
+### 6. Redirects are errors; the adapter does not follow them
+
+A test server returning a 3xx makes the adapter return an error naming the status and `Location` host; no second request is sent, and `x-api-key` never reaches the redirect target.
+
+**Guarded by:** `internal/provider/anthropic/client_test.go` — `TestClientRedirectNotFollowed`, line 309–321, and `internal/provider/anthropic/client_fix_test.go` — `TestClientRedirectLocationHost`, line 176–189.
+
+**What the tests assert:**
+- `TestClientRedirectNotFollowed`, line 315: A 307 redirect produces an error with `KindRedirect` and `Status == 307`.
+- Lines 318–320: The redirect target receives zero requests; the original server receives one.
+- `TestClientRedirectLocationHost`, line 185: A 3xx redirect produces an error message that names the `Location` header's host (or a clipped version for long hostnames).
+
+**Not covered:** The tests do not explicitly verify that `x-api-key` never reaches the redirect target through a spy on the redirect request; this is implied by "zero requests to the redirect target" but is not asserted on the request header content itself.
+
 ## Triage
 
 ### `govulncheck`

@@ -1,6 +1,6 @@
 # Milestone 3 — Instruction Set
 
-> **Status: Refined 2026-10-02** against the code at `3c7ce2c` and ADR 0008. Ready to execute: the live probe has run, and the `opencode` default model, `minimax-m3`, is recorded in plan §5 (amendment 80).
+> **Status: Refined 2026-10-02** against the code at `3c7ce2c` and ADR 0008. Ready to execute: the live probe has run, and the `opencode` default model is recorded in plan §5 (amendment 80; `minimax-m2.7` since amendment 83).
 
 ## Ground Rules (read first)
 
@@ -138,7 +138,7 @@ event type. No Anthropic identifier appears outside the adapter file.
 
 2. **Trust boundary:** A project file (`<workspace>/.kirsch/config.toml`) is decoded into a scratch struct first. Only `[context].project_files` is taken from it. Every other key is discarded, with a warning naming the ignored keys that is distinct from the unknown-key warning. `checkSecrets` still runs over the whole project file first, so a credential in it is refused, not merely ignored. HTTPS only, except a loopback host written literally as `localhost`, an address in `127.0.0.0/8`, or `::1`, taken from the host `net/url` parses after userinfo is removed. No hostname is resolved to decide this. IPv4-mapped forms such as `::ffff:127.0.0.1` are refused. Redirects (3xx) are errors.
 
-3. **Fix the defaults:** `Defaults().Provider.Default` (`config.go:75`, today `"anthropic"`) becomes `"opencode"`. The `opencode` endpoint's model is `minimax-m3` (plan §5, amendment 80). The `anthropic` model changes from `claude-sonnet-5` (`config.go:77`) to `claude-sonnet-5-5`. `ProviderConfig` holds a map of named endpoints instead of the fixed `Anthropic` field, and the "only provider in v0.1" comment (`config.go:36`) is removed. `checkSecrets` refuses a value-bearing key in any endpoint table.
+3. **Fix the defaults:** `Defaults().Provider.Default` (`config.go:75`, today `"anthropic"`) becomes `"opencode"`. The `opencode` endpoint's model is `minimax-m2.7` (plan §5, amendment 83; `minimax-m3` until then, amendment 80). The `anthropic` model changes from `claude-sonnet-5` (`config.go:77`) to `claude-sonnet-5-5`. `ProviderConfig` holds a map of named endpoints instead of the fixed `Anthropic` field, and the "only provider in v0.1" comment (`config.go:36`) is removed. `checkSecrets` refuses a value-bearing key in any endpoint table.
 
 4. **HTTP adapter:** Streaming client over the Messages API. Always sends the `anthropic-version` header. Key variable lookup: `KIRSCH_` + `api_key_env` first, then unprefixed. On `opencode`, every request also sends `User-Agent: kirsch/<version>` and `x-opencode-session` with one random ID per Kirsch session, reused when the session is resumed (ADR 0008, client identity); a 400 with error type `MissingSessionID` is surfaced as a configuration error, not retried.
 
@@ -218,7 +218,7 @@ Per ADR 0008, the adapter preserves every thinking block and passes it back unch
 1. `ThinkingDelta` / `ThinkingDone` events flow at every setting, including `off`.
 2. `off` maps to `"between_tools"` on the `anthropic` endpoint's default model (`claude-sonnet-5-5`), with effort held at `high` or below. How effort is set, and how `low | medium | high` map onto the request, is decided here against the documentation.
 3. Every thinking block is **preserved verbatim and echoed back** with its signature in later requests within the same turn. Rendered as a collapsed dimmed card; kept in the in-memory transcript in a form M4 can persist, and marked so that M4's compaction drops it rather than summarising it.
-4. On `minimax-m3` the live probe saw thinking blocks only with `enabled` or `between_tools`, and none with `disabled` or with no `thinking` field. Whether m3 accepts an echoed thinking block was not probed, because its S2 returned no thinking; `minimax-m2.7` did accept one. The live round-trip check therefore runs on m3 with `thinking` set to `enabled` or `between_tools`, never `off`.
+4. On `minimax-m3` the live probe saw thinking blocks only with `enabled` or `between_tools`, and none with `disabled` or with no `thinking` field. Whether m3 accepts an echoed thinking block was not probed, because its S2 returned no thinking; `minimax-m2.7` did accept one. The `opencode` default is now `minimax-m2.7` (amendment 83). It thought on every probe request, including with `disabled` and with no `thinking` field, and it accepted an echoed thinking block with its signature, so the live round-trip check runs on `minimax-m2.7` at every setting, `off` included.
 
 **Check:** a scripted turn that returns a thinking block, run at each `thinking` setting including `off`, round-trips its block without an API-shape error on the *second* request (tested on the fake always and live wherever the probe showed the model returns thinking blocks). One request proves nothing here.
 
@@ -268,7 +268,8 @@ states; the §13 table's "not yet drawn" note is removed.
       until cancelled
 - [ ] `grep -ri anthropic internal/provider internal/agent --exclude-dir=anthropic` finds nothing
 - [ ] Retry, against a test server, asserting the request count and error kind per case: 5xx and network error — 4 requests, then `provider_error`; lockout 429 — 1 request, surfaced as a lockout; transient 429 then 200 — 2 requests, the second after `Retry-After`; 401/403 — 1 request, onboarding message; 400 — 1 request, request body in the debug log; 3xx — 1 request, error naming the status and `Location` host
-- [ ] m3-d2 live smoke test, on `opencode`: one streamed text-only request through Kirsch's adapter completes and reports usage; run by hand, never in `go test ./...` or CI
+- [x] m3-d2 live smoke test, on `opencode`: one streamed text-only request through Kirsch's adapter completes and reports usage; run by hand, never in `go test ./...` or CI
+      (operator walkthrough 2026-10-05, on `qwen3.7-plus` through `KIRSCH_LIVE_MODEL`; amendment 82)
 - [ ] Tool-call-then-answer works end to end on the fake
 - [ ] Two tool calls, first rejected: the second **still returns a result**
 - [ ] Hallucinated tool name self-corrects within two retries
@@ -294,7 +295,7 @@ states; the §13 table's "not yet drawn" note is removed.
 - [ ] `plan/testing/security.md` has a case for each trust-boundary box above, plus the `run_command`-writes-config known limit (ADR 0008)
 - [ ] Key value never appears in output, log, or recorded fixtures; verified by grepping fixtures and debug log
 - [ ] `/status` names the key's source variable (e.g. `KIRSCH_OPENCODE_API_KEY`), never the value, a prefix or its length; with `HTTPS_PROXY=http://alice:s3cret@proxy.example:3128` it shows `proxy.example` and contains neither `alice`, `s3cret` nor `@`; it also shows the endpoint name, the `base_url` host and the context file loaded
-- [ ] `Defaults().Provider.Default == "opencode"`; the `opencode` endpoint's model is `minimax-m3`; the `anthropic` endpoint's model is `claude-sonnet-5-5`, not the legacy `claude-sonnet-5`
+- [ ] `Defaults().Provider.Default == "opencode"`; the `opencode` endpoint's model is `minimax-m2.7` (amendment 83); the `anthropic` endpoint's model is `claude-sonnet-5-5`, not the legacy `claude-sonnet-5`
 - [ ] A global endpoint missing any of `base_url`, `auth`, `api_key_env` or `model` is a config error naming the key; a global table naming a built-in endpoint and setting only `model` leaves that endpoint's other keys at their built-in values
 - [ ] A value-bearing key inside any global endpoint table is refused by `checkSecrets`
 - [ ] `grep -n 'consumed from M2' internal/config/config.go` and `grep -n 'claude-sonnet-5"' internal/tui/*.go` find nothing

@@ -2,14 +2,16 @@
 
 > **Status: Milestones 0 and 1 complete; Milestone 2 accepted with deferred
 > items (see [`plan/PROGRESS.md`](plan/PROGRESS.md)); Milestone 3 (the model)
-> is next.** Kirsch reads and searches a real repository from inside the
-> TUI, and, through the temporary `/patch` and `/run` debug commands, can
-> apply a patch or run a command: a patch always waits for your approval, a
-> command does unless it is on the short exact-match allowlist or you have
-> approved its prefix for the session, and shells always ask. Every path
-> crosses a containment check, the path denylist is enforced in one place,
-> and there is still no code that calls a model. The authoritative build
-> spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is
+> is in progress, with m3-d1 and m3-d2 done.** Kirsch reads and searches
+> a real repository from inside the TUI, and, through the temporary `/patch`
+> and `/run` debug commands, can apply a patch or run a command: a patch
+> always waits for your approval, a command does unless it is on the short
+> exact-match allowlist or you have approved its prefix for the session, and
+> shells always ask. Every path crosses a containment check, the path
+> denylist is enforced in one place, and the `kirsch` binary still calls no
+> model: the Messages adapter is reached only by an opt-in live test until
+> m3-d6 wires it in. The authoritative build spec is
+> [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is
 > tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
 > ```
@@ -102,7 +104,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 
 ## Progress
 
-Milestones 0, 1 and 2 are complete. Milestone 2's deferred items are listed in [`plan/PROGRESS.md`](plan/PROGRESS.md), and Milestone 3 (provider and agent loop) is next. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+Milestones 0, 1 and 2 are complete. Milestone 2's deferred items are listed in [`plan/PROGRESS.md`](plan/PROGRESS.md), and Milestone 3 (provider and agent loop) is in progress: m3-d1 and m3-d2 are done. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 
 ## What works today
 
@@ -117,11 +119,13 @@ once you approve it. Every path crosses a containment check before anything
 touches the filesystem, and the path denylist (`.env`, `*.pem`, `*.key`, `.git/**`,
 `.kirsch/**`) is enforced in one place so no tool can forget it.
 
-There is deliberately **no** code that calls a model. Kirsch writes a file or
-runs a command only through the temporary `/patch` and `/run` debug commands: a
-patch always asks, and a command asks unless it is on the exact-match allowlist
-or you have approved its prefix for the session. Apart from commands run through
-`/run`, the only subprocesses are read-only `git` and `rg`.
+The `kirsch` binary deliberately calls **no** model yet: the Messages adapter in
+`internal/provider/anthropic` is reached only by the opt-in live test (`npm run
+test:live`) until m3-d6 wires it in. Kirsch writes a file or runs a command
+only through the temporary `/patch` and `/run` debug commands: a patch always
+asks, and a command asks unless it is on the exact-match allowlist or you have
+approved its prefix for the session. Apart from commands run through `/run`,
+the only subprocesses are read-only `git` and `rg`.
 
 ## Verifying it
 

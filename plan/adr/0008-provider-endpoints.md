@@ -67,8 +67,9 @@ never from a config file. That rule and its refusal are unchanged from ADR 0003.
 - `opencode`, the default: base URL `https://opencode.ai/zen/go/v1`, `x-api-key`
   auth, `api_key_env = "OPENCODE_API_KEY"`. The key is read from
   `KIRSCH_OPENCODE_API_KEY`, then `OPENCODE_API_KEY`. The model is
-  `minimax-m3`, chosen by the operator after the live probe of 2026-10-02
-  (plan §11 amendment 80). The probe found that `Authorization: Bearer` is
+  `minimax-m2.7`, chosen by the operator on 2026-10-05 after the endpoint
+  refused `minimax-m3` (plan §11 amendment 83; `minimax-m3` was the default
+  from amendment 80). The probe found that `Authorization: Bearer` is
   rejected with 401 "Missing API key.".
 - `anthropic`: base URL `https://api.anthropic.com/v1`, `x-api-key` auth,
   `api_key_env = "ANTHROPIC_API_KEY"`. The key is read from
@@ -184,6 +185,10 @@ where they disagree; the plan §11 Amendment Log records the amendment.
 The live probe found that `minimax-m3` thinks only when asked (`enabled` or
 `between_tools`), returns no thinking with `disabled` or with no `thinking`
 field, and reports cache reads (plan §11 amendment 80).
+
+`minimax-m2.7`, the default since amendment 83, thought on every probe
+request, including with `disabled` and with no `thinking` field. It accepted
+an echoed thinking block with its signature, and it reports cache reads.
 
 **Provider interface.** The provider interface and `provider.Fake` from ADR 0003
 are unchanged. Every wire-specific detail stays inside the adapter and out of
