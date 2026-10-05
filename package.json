@@ -16,6 +16,7 @@
     "test:verbose": "go test -v ./...",
     "test:cover": "go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1",
     "test:cover:html": "go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out",
+    "test:live": "go test -tags live -run TestLive -count=1 -v ./internal/provider/anthropic/",
 
     "fuzz": "bash scripts/fuzz.sh",
     "fuzz:long": "FUZZTIME=5m bash scripts/fuzz.sh",

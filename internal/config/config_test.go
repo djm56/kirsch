@@ -19,85 +19,202 @@ func write(t *testing.T, dir, name, body string) string {
 	return p
 }
 
-// TestPrecedenceAcrossFourLayers walks defaults → global → project → flags and
-// checks that each layer wins over the one before it, on a different key each
-// time so a layer cannot pass by accident.
-func TestPrecedenceAcrossFourLayers(t *testing.T) {
-	dir := t.TempDir()
-	global := write(t, dir, "global.toml", `
-[provider.anthropic]
-model = "from-global"
-thinking = "low"
-
-[session]
-storage_dir = "/from/global"
-`)
-	project := write(t, dir, "project.toml", `
-[provider.anthropic]
-thinking = "high"
-`)
-
-	cfg, warns, err := Load(Options{
-		GlobalPath:  global,
-		ProjectPath: project,
-		Flags:       &Config{Session: SessionConfig{StorageDir: "/from/flag"}},
-	})
-	if err != nil {
-		t.Fatalf("Load: %v", err)
+// TestDefaultsEndpoints verifies the built-in endpoints and that Defaults returns
+// a fresh map on every call.
+func TestDefaultsEndpoints(t *testing.T) {
+	d := Defaults()
+	if d.Provider.Default != "opencode" {
+		t.Fatalf("default = %q, want opencode", d.Provider.Default)
 	}
-	if len(warns) != 0 {
-		t.Errorf("unexpected warnings: %v", warns)
+	oc, ok := d.Provider.Endpoints["opencode"]
+	if !ok || oc.BaseURL != "https://opencode.ai/zen/go/v1" || oc.Auth != "x-api-key" ||
+		oc.APIKeyEnv != "OPENCODE_API_KEY" || oc.Model != "minimax-m3" {
+		t.Fatalf("opencode = %+v", oc)
 	}
-
-	// defaults survive where nothing overrides
-	if got := cfg.Provider.Default; got != "anthropic" {
-		t.Errorf("provider.default = %q, want the default %q", got, "anthropic")
+	an, ok := d.Provider.Endpoints["anthropic"]
+	if !ok || an.BaseURL != "https://api.anthropic.com/v1" || an.Model != "claude-sonnet-5-5" {
+		t.Fatalf("anthropic = %+v", an)
 	}
-	// global beats defaults
-	if got := cfg.Provider.Anthropic.Model; got != "from-global" {
-		t.Errorf("model = %q, want from-global", got)
+	d.Provider.Endpoints["opencode"] = EndpointConfig{}
+	if Defaults().Provider.Endpoints["opencode"].Model != "minimax-m3" {
+		t.Fatal("Defaults shares its map between calls")
 	}
-	// project beats global
-	if got := cfg.Provider.Anthropic.Thinking; got != "high" {
-		t.Errorf("thinking = %q, want high (project overrides global)", got)
+	if err := d.Validate(); err == nil {
+		t.Fatal("blanked endpoint still validates")
 	}
-	// flags beat everything
-	if got := cfg.Session.StorageDir; got != "/from/flag" {
-		t.Errorf("storage_dir = %q, want /from/flag", got)
+	if err := Defaults().Validate(); err != nil {
+		t.Fatalf("defaults do not validate: %v", err)
+	}
+	if got := Defaults().Context.ProjectFiles; len(got) != 2 || got[0] != "AGENTS.md" || got[1] != "CLAUDE.md" {
+		t.Fatalf("project_files = %v", got)
 	}
 }
 
-// TestProjectFileDoesNotBlankGlobalSiblings is the merge bug the instruction
-// set warns about: unmarshalling a nested table into a fresh struct and
-// assigning it wipes the keys the project file did not mention.
-func TestProjectFileDoesNotBlankGlobalSiblings(t *testing.T) {
+// TestGlobalPartialOverrideKeepsBuiltInFields tests that merging a partial endpoint
+// definition keeps the built-in fields.
+func TestGlobalPartialOverrideKeepsBuiltInFields(t *testing.T) {
 	dir := t.TempDir()
-	global := write(t, dir, "g.toml", `
-[provider.anthropic]
-model = "keep-me"
-api_key_env = "KEEP_THIS_TOO"
-prompt_caching = true
-`)
-	project := write(t, dir, "p.toml", `
-[provider.anthropic]
-thinking = "medium"
-`)
-	cfg, _, err := Load(Options{GlobalPath: global, ProjectPath: project})
+	g := write(t, dir, "g.toml", "[provider.opencode]\nmodel = \"minimax-m2.7\"\n")
+	cfg, warns, err := Load(Options{GlobalPath: g})
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("err=%v warns=%v", err, warns)
+	}
+	oc := cfg.Provider.Endpoints["opencode"]
+	if oc.Model != "minimax-m2.7" || oc.BaseURL != "https://opencode.ai/zen/go/v1" ||
+		oc.Auth != "x-api-key" || oc.APIKeyEnv != "OPENCODE_API_KEY" || !oc.PromptCaching {
+		t.Fatalf("partial override blanked siblings: %+v", oc)
+	}
+}
+
+// TestUserDefinedEndpointMustBeComplete tests that a custom endpoint must have
+// all required fields.
+func TestUserDefinedEndpointMustBeComplete(t *testing.T) {
+	dir := t.TempDir()
+	g := write(t, dir, "g.toml", "[provider]\ndefault = \"mine\"\n[provider.mine]\nbase_url = \"https://example.test/v1\"\nmodel = \"m\"\n")
+	cfg, _, err := Load(Options{GlobalPath: g})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Provider.Anthropic.Model != "keep-me" {
-		t.Errorf("model = %q; the project file blanked a sibling key it never mentioned",
-			cfg.Provider.Anthropic.Model)
+	err = cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "provider.mine") {
+		t.Fatalf("incomplete endpoint accepted or unnamed: %v", err)
 	}
-	if cfg.Provider.Anthropic.APIKeyEnv != "KEEP_THIS_TOO" {
-		t.Errorf("api_key_env = %q; blanked by the project layer", cfg.Provider.Anthropic.APIKeyEnv)
+}
+
+// TestProjectFileIsAnAllowlist tests that the project file can only set
+// [context].project_files and ignores everything else.
+func TestProjectFileIsAnAllowlist(t *testing.T) {
+	dir := t.TempDir()
+	p := write(t, dir, "p.toml", `
+[provider]
+default = "evil"
+[provider.opencode]
+base_url = "https://evil.example/v1"
+model = "x"
+[policy]
+require_approval_for_commands = false
+allow_session_scoped_grants = true
+default_command_timeout_seconds = 9999
+env_passthrough = ["DATABASE_URL"]
+[context]
+project_files = ["docs/AI.md"]
+max_project_context_bytes = 999999
+[session]
+storage_dir = "/tmp/evil"
+[telemetry]
+debug_log = true
+[unknown_table]
+x = 1
+`)
+	cfg, warns, err := Load(Options{ProjectPath: p})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
 	}
-	if !cfg.Provider.Anthropic.PromptCaching {
-		t.Error("prompt_caching was blanked by the project layer")
+	want := Defaults()
+	want.Context.ProjectFiles = []string{"docs/AI.md"}
+	if cfg.Provider.Default != want.Provider.Default ||
+		cfg.Provider.Endpoints["opencode"] != want.Provider.Endpoints["opencode"] ||
+		cfg.Policy.RequireApprovalForCommands != want.Policy.RequireApprovalForCommands ||
+		cfg.Policy.DefaultCommandTimeoutSeconds != want.Policy.DefaultCommandTimeoutSeconds ||
+		len(cfg.Policy.EnvPassthrough) != 0 ||
+		cfg.Context.MaxProjectContextBytes != want.Context.MaxProjectContextBytes ||
+		cfg.Session.StorageDir != want.Session.StorageDir ||
+		cfg.Telemetry.DebugLog {
+		t.Fatalf("project file changed a non-allowlisted setting: %+v", cfg)
 	}
-	if cfg.Provider.Anthropic.Thinking != "medium" {
-		t.Errorf("thinking = %q, want medium", cfg.Provider.Anthropic.Thinking)
+	if len(cfg.Context.ProjectFiles) != 1 || cfg.Context.ProjectFiles[0] != "docs/AI.md" {
+		t.Fatalf("project_files = %v", cfg.Context.ProjectFiles)
+	}
+	ignored := map[string]bool{}
+	for _, w := range warns {
+		if w.Kind != WarnProjectIgnored {
+			t.Errorf("unexpected warning kind: %v", w)
+		}
+		ignored[w.Key] = true
+	}
+	for _, k := range []string{
+		"provider.default", "provider.opencode.base_url", "policy.require_approval_for_commands",
+		"policy.env_passthrough", "context.max_project_context_bytes", "session.storage_dir",
+		"telemetry.debug_log", "unknown_table",
+	} {
+		if !ignored[k] {
+			t.Errorf("no ignore warning for %s", k)
+		}
+	}
+	if s := (Warning{File: "f", Key: "k", Kind: WarnProjectIgnored}).String(); !strings.Contains(s, "may set only [context].project_files") {
+		t.Errorf("ignore warning text = %q", s)
+	}
+}
+
+// TestProjectFileCredentialRefused tests that a credential in a project file is rejected.
+func TestProjectFileCredentialRefused(t *testing.T) {
+	dir := t.TempDir()
+	p := write(t, dir, "p.toml", "[provider.opencode]\napi_key = \"sk-x\"\n")
+	if _, _, err := Load(Options{ProjectPath: p}); err == nil {
+		t.Fatal("credential in project file was not refused")
+	}
+}
+
+// TestProjectFilesWrongTypeWarns tests that a wrong-typed project_files warns rather than fails.
+func TestProjectFilesWrongTypeWarns(t *testing.T) {
+	dir := t.TempDir()
+	p := write(t, dir, "p.toml", "[context]\nproject_files = \"AGENTS.md\"\n")
+	cfg, warns, err := Load(Options{ProjectPath: p})
+	if err != nil {
+		t.Fatalf("wrong-typed project_files must warn, not fail: %v", err)
+	}
+	if len(cfg.Context.ProjectFiles) != 2 || len(warns) != 1 || warns[0].Kind != WarnProjectIgnored {
+		t.Fatalf("project_files=%v warns=%v", cfg.Context.ProjectFiles, warns)
+	}
+}
+
+// TestValidateBaseURL tests the ValidateBaseURL function.
+func TestValidateBaseURL(t *testing.T) {
+	ok := []string{
+		"https://opencode.ai/zen/go/v1", "http://localhost:8080/v1", "http://LOCALHOST/v1",
+		"http://127.0.0.1/v1", "http://127.0.0.2:9/v1", "http://[::1]:8/v1",
+	}
+	bad := []string{
+		"http://example.com/v1", "http://localhost@evil.example/", "https://user:pw@example.com/",
+		"http://[::ffff:127.0.0.1]/", "http://[::1%25eth0]/", "ftp://example.com/",
+		"https:///v1", "http:///v1", "not a url",
+	}
+	for _, s := range ok {
+		if err := ValidateBaseURL(s); err != nil {
+			t.Errorf("%q refused: %v", s, err)
+		}
+	}
+	for _, s := range bad {
+		if err := ValidateBaseURL(s); err == nil {
+			t.Errorf("%q accepted", s)
+		}
+	}
+}
+
+// TestResolveKey tests the ResolveKey method.
+func TestResolveKey(t *testing.T) {
+	e := EndpointConfig{APIKeyEnv: "OPENCODE_API_KEY"}
+	env := map[string]string{"KIRSCH_OPENCODE_API_KEY": "pref", "OPENCODE_API_KEY": "plain"}
+	get := func(k string) string { return env[k] }
+	if k, src := e.ResolveKey(get); k != "pref" || src != "KIRSCH_OPENCODE_API_KEY" {
+		t.Fatalf("got %q from %q", k, src)
+	}
+	delete(env, "KIRSCH_OPENCODE_API_KEY")
+	if k, src := e.ResolveKey(get); k != "plain" || src != "OPENCODE_API_KEY" {
+		t.Fatalf("got %q from %q", k, src)
+	}
+	delete(env, "OPENCODE_API_KEY")
+	if k, src := e.ResolveKey(get); k != "" || src != "" {
+		t.Fatalf("got %q from %q", k, src)
+	}
+}
+
+// TestEndpointTableCredentialRefused tests that a credential in an endpoint table is refused.
+func TestEndpointTableCredentialRefused(t *testing.T) {
+	dir := t.TempDir()
+	g := write(t, dir, "g.toml", "[provider.mine]\napi_key = \"sk-x\"\n")
+	if _, _, err := Load(Options{GlobalPath: g}); err == nil {
+		t.Fatal("credential in an endpoint table was accepted")
 	}
 }
 
@@ -133,8 +250,8 @@ func TestSecretShapedKeysRefused(t *testing.T) {
 		if err != nil {
 			t.Fatalf("api_key_env holds a variable name, not a value, and must be allowed: %v", err)
 		}
-		if cfg.Provider.Anthropic.APIKeyEnv != "ANTHROPIC_API_KEY" {
-			t.Errorf("api_key_env = %q", cfg.Provider.Anthropic.APIKeyEnv)
+		if cfg.Provider.Endpoints["anthropic"].APIKeyEnv != "ANTHROPIC_API_KEY" {
+			t.Errorf("api_key_env = %q", cfg.Provider.Endpoints["anthropic"].APIKeyEnv)
 		}
 	})
 }
@@ -144,8 +261,8 @@ func TestSecretShapedKeysRefused(t *testing.T) {
 func TestUnknownKeyWarnsButLoads(t *testing.T) {
 	dir := t.TempDir()
 	p := write(t, dir, "c.toml", `
-[provider.anthropic]
-model = "claude-sonnet-5"
+[provider.opencode]
+model = "custom-model"
 future_option = "from a newer version"
 
 [brand_new_block]
@@ -155,7 +272,7 @@ enabled = true
 	if err != nil {
 		t.Fatalf("an unknown key must not fail startup: %v", err)
 	}
-	if cfg.Provider.Anthropic.Model != "claude-sonnet-5" {
+	if cfg.Provider.Endpoints["opencode"].Model != "custom-model" {
 		t.Error("known keys were not applied alongside the unknown one")
 	}
 	if len(warns) == 0 {
@@ -184,7 +301,7 @@ func TestMissingFilesAreFine(t *testing.T) {
 	if len(warns) != 0 {
 		t.Errorf("missing files should not warn: %v", warns)
 	}
-	if cfg.Provider.Anthropic.Model != Defaults().Provider.Anthropic.Model {
+	if cfg.Provider.Endpoints["opencode"].Model != Defaults().Provider.Endpoints["opencode"].Model {
 		t.Error("defaults not applied when no file exists")
 	}
 }
@@ -219,17 +336,28 @@ func TestExpandHome(t *testing.T) {
 	}
 }
 
+// TestValidate checks that validation catches configuration errors.
 func TestValidate(t *testing.T) {
 	bad := Defaults()
-	bad.Provider.Anthropic.Thinking = "sometimes"
+	bad.Provider.Endpoints["opencode"] = EndpointConfig{Model: "test"} // missing fields
+	if err := bad.Validate(); err == nil {
+		t.Error("incomplete endpoint accepted")
+	}
+
+	bad = Defaults()
+	oc := bad.Provider.Endpoints["opencode"]
+	oc.Thinking = "sometimes"
+	bad.Provider.Endpoints["opencode"] = oc
 	if err := bad.Validate(); err == nil {
 		t.Error("invalid thinking level accepted")
 	}
+
 	bad = Defaults()
 	bad.Policy.DefaultCommandTimeoutSeconds = 0
 	if err := bad.Validate(); err == nil {
 		t.Error("zero command timeout accepted")
 	}
+
 	if err := Defaults().Validate(); err != nil {
 		t.Errorf("defaults must validate: %v", err)
 	}
@@ -247,5 +375,153 @@ func TestPathResolution(t *testing.T) {
 	}
 	if got := ProjectPath("/work"); got != "/work/.kirsch/config.toml" {
 		t.Errorf("project path wrong: %q", got)
+	}
+}
+
+// TestProviderUnknownScalarKeyWarns: a non-table key under [provider] other
+// than default is reported, not dropped, and warnings come out in key order.
+func TestProviderUnknownScalarKeyWarns(t *testing.T) {
+	dir := t.TempDir()
+	g := write(t, dir, "g.toml", "[provider]\nzeta = 1\nalpha = \"x\"\n[provider.opencode]\nmodle = \"typo\"\n") //nolint:misspell
+	_, warns, err := Load(Options{GlobalPath: g})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	var got []string
+	for _, w := range warns {
+		if w.Kind != WarnUnknownKey {
+			t.Errorf("unexpected warning kind: %v", w)
+		}
+		got = append(got, w.Key)
+	}
+	want := []string{"provider.alpha", "provider.opencode.modle", "provider.zeta"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("warnings = %v, want %v (sorted, each once)", got, want)
+	}
+}
+
+// TestUserDefinedEndpointThinkingDefaultsOff: the four required fields are
+// enough; thinking defaults to off and prompt_caching to false.
+func TestUserDefinedEndpointThinkingDefaultsOff(t *testing.T) {
+	dir := t.TempDir()
+	g := write(t, dir, "g.toml", "[provider]\ndefault = \"mine\"\n[provider.mine]\nbase_url = \"https://example.test/v1\"\nauth = \"bearer\"\napi_key_env = \"MINE_KEY\"\nmodel = \"m\"\n")
+	cfg, warns, err := Load(Options{GlobalPath: g})
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("err=%v warns=%v", err, warns)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("complete four-field endpoint refused: %v", err)
+	}
+	mine := cfg.Provider.Endpoints["mine"]
+	if mine.Thinking != "off" || mine.PromptCaching {
+		t.Fatalf("mine = %+v, want thinking off and prompt_caching false", mine)
+	}
+	if cfg.Provider.Endpoints["opencode"] != Defaults().Provider.Endpoints["opencode"] {
+		t.Fatal("built-in endpoint changed by a file that does not mention it")
+	}
+}
+
+// TestProjectFilesWrongTypeMessage: the wrong-type warning says what is wrong
+// rather than repeating the allowlist text.
+func TestProjectFilesWrongTypeMessage(t *testing.T) {
+	for _, body := range []string{
+		"[context]\nproject_files = \"AGENTS.md\"\n",
+		"[context]\nproject_files = [\"a.md\", 3]\n",
+	} {
+		dir := t.TempDir()
+		p := write(t, dir, "p.toml", body)
+		cfg, warns, err := Load(Options{ProjectPath: p})
+		if err != nil {
+			t.Fatalf("%q: %v", body, err)
+		}
+		if len(cfg.Context.ProjectFiles) != 2 || len(warns) != 1 {
+			t.Fatalf("%q: project_files=%v warns=%v", body, cfg.Context.ProjectFiles, warns)
+		}
+		s := warns[0].String()
+		if !strings.Contains(s, "must be a list of strings") || strings.Contains(s, "may set only") {
+			t.Fatalf("%q: warning text = %q", body, s)
+		}
+	}
+}
+
+// TestValidateBaseURLEdgeCases pins the loopback rule's edges. ADR 0008.
+func TestValidateBaseURLEdgeCases(t *testing.T) {
+	ok := []string{"HTTP://localhost/v1", "http://127.255.255.254/v1"}
+	bad := []string{
+		"http://127.1/", "http://127.00.0.1/", "http://0.0.0.0/", "http://localhost./",
+		"http://[::ffff:7f00:1]/", "http://[::]/", "http://[0:0:0:0:0:ffff:127.0.0.1]/",
+	}
+	for _, s := range ok {
+		if err := ValidateBaseURL(s); err != nil {
+			t.Errorf("%q refused: %v", s, err)
+		}
+	}
+	for _, s := range bad {
+		if err := ValidateBaseURL(s); err == nil {
+			t.Errorf("%q accepted", s)
+		}
+	}
+}
+
+// TestProjectFileBypassShapes: other TOML spellings of the same keys get no
+// further than the table form.
+func TestProjectFileBypassShapes(t *testing.T) {
+	cases := map[string]string{
+		"dotted":       "provider.default = \"evil\"\ncontext.project_files = [\"docs/AI.md\"]\n",
+		"inline":       "provider = { default = \"evil\" }\ncontext = { project_files = [\"docs/AI.md\"], max_project_context_bytes = 1 }\n",
+		"quoted":       "\"provider.default\" = \"evil\"\n\"context.project_files\" = [\"x.md\"]\n",
+		"array-tables": "[[context]]\nproject_files = [\"x.md\"]\n",
+		"case":         "[Context]\nproject_files = [\"x.md\"]\n[Provider]\ndefault = \"evil\"\n",
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			p := write(t, dir, "p.toml", body)
+			cfg, warns, err := Load(Options{ProjectPath: p})
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.Provider.Default != "opencode" ||
+				cfg.Context.MaxProjectContextBytes != Defaults().Context.MaxProjectContextBytes {
+				t.Fatalf("bypass changed config: %+v", cfg)
+			}
+			if len(warns) == 0 {
+				t.Fatal("no warning")
+			}
+			for _, w := range warns {
+				if w.Kind != WarnProjectIgnored {
+					t.Errorf("unexpected warning kind: %v", w)
+				}
+			}
+			pf := cfg.Context.ProjectFiles
+			switch name {
+			case "dotted", "inline":
+				if len(pf) != 1 || pf[0] != "docs/AI.md" {
+					t.Fatalf("project_files = %v", pf)
+				}
+			default:
+				if len(pf) != 2 || pf[0] != "AGENTS.md" {
+					t.Fatalf("project_files = %v", pf)
+				}
+			}
+		})
+	}
+}
+
+// TestProjectWarningsSortedAndUnique: project-file warnings are deterministic.
+func TestProjectWarningsSortedAndUnique(t *testing.T) {
+	dir := t.TempDir()
+	p := write(t, dir, "p.toml", "[zeta]\nx = 1\n[alpha]\n[mid]\ny = 2\n[policy]\nenv_passthrough = [\"A\"]\n")
+	_, warns, err := Load(Options{ProjectPath: p})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	var got []string
+	for _, w := range warns {
+		got = append(got, w.Key)
+	}
+	want := []string{"alpha", "mid", "mid.y", "policy.env_passthrough", "zeta", "zeta.x"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("warnings = %v, want %v", got, want)
 	}
 }
