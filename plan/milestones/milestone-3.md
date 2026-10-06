@@ -177,6 +177,8 @@ with four exits: completion, cancellation, error, and the max-turn guard
    message array holds a `tool_result` for every `tool_use` id in the cancelled
    turn (`cancelled` for the ones that did not run), and a follow-up turn succeeds.
 
+**Settled while building the core loop (2026-10-05, mission-20261005-02; plan §11 amendment 84):** `agent.Recorder` is `Record(kind RecordKind, m Message)`, with `RecordAppend` and `RecordMerge`, and replaying the records rebuilds the conversation exactly. A failed turn keeps everything that happened, and a new turn on a conversation that ends with a user message adds its text to that message (operator decision). A message completes only on `MessageDone`, any event after it is rejected, and a message made only of thinking blocks is valid. The agent's tests use scripted fakes declared in `internal/agent`'s own test files, because the import rule keeps `internal/provider` out of the package; `provider.Fake` reaches the agent through `app`'s adapter at m3-d6. Items 2–5 above (the short-circuit, hallucinated-tool retries, the max-turn guard and cancellation) are built in a later mission.
+
 **Check:** fake-provider tests for: tool-call-then-answer; two tool calls where
 the first is rejected and the second still returns a result; a hallucinated tool
 name self-correcting; the max-turn guard; cancellation mid-tool.
@@ -270,7 +272,8 @@ states; the §13 table's "not yet drawn" note is removed.
 - [ ] Retry, against a test server, asserting the request count and error kind per case: 5xx and network error — 4 requests, then `provider_error`; lockout 429 — 1 request, surfaced as a lockout; transient 429 then 200 — 2 requests, the second after `Retry-After`; 401/403 — 1 request, onboarding message; 400 — 1 request, request body in the debug log; 3xx — 1 request, error naming the status and `Location` host
 - [x] m3-d2 live smoke test, on `opencode`: one streamed text-only request through Kirsch's adapter completes and reports usage; run by hand, never in `go test ./...` or CI
       (operator walkthrough 2026-10-05, on `qwen3.7-plus` through `KIRSCH_LIVE_MODEL`; amendment 82)
-- [ ] Tool-call-then-answer works end to end on the fake
+- [x] Tool-call-then-answer works end to end on the fake
+      (mission-20261005-02: TestConversationAfterToolRound and TestTwoToolCallsInOrder, internal/agent/agent_test.go, against the agent's scripted fakes)
 - [ ] Two tool calls, first rejected: the second **still returns a result**
 - [ ] Hallucinated tool name self-corrects within two retries
 - [ ] Max-turn guard trips at 25 and renders an error card

@@ -1,8 +1,8 @@
 # Progress — Kirsch
 
-**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is in progress: m3-d1 and m3-d2 are done.
+**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is in progress: m3-d1 and m3-d2 are done, and m3-d3's core turn loop has landed.
 
-**What's next:** m3-d3 (agent state machine) can start now; it depends only on m3-d1. m3-d4 and m3-d5 wait on m3-d3, and the first conversation in the TUI is at m3-d6. m3-d2's carried items are listed under *Carried from m3-d2*.
+**What's next:** the m3-d3 guards, in a new mission: the short-circuit on rejection or error, hallucinated-tool retries, the 25-round guard, and cancellation within 1s with a result for every tool_use id. m3-d4 and m3-d5 wait on m3-d3, and the first conversation in the TUI is at m3-d6. Carried items are listed under *Carried from m3-d3* and *Carried from m3-d2*.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -36,10 +36,23 @@ Definitions are in `plan/milestones/milestone-3.md`. The live probe ran on 2026-
 |---|---|---|---|---|
 | m3-d1 | Provider interface and fake | done | — | — |
 | m3-d2 | Messages adapter and endpoint config | done | — | m3-d1 |
-| m3-d3 | Agent state machine | pending | — | m3-d1 |
+| m3-d3 | Agent state machine | in progress | — | m3-d1 |
 | m3-d4 | System prompt and thinking | pending | — | m3-d2, m3-d3 |
 | m3-d5 | Onboarding screens | pending | — | m3-d1, m3-d2, m3-d3 |
 | m3-d6 | Wiring and integration | pending | — | all |
+
+## Carried from m3-d3
+
+The core turn loop landed on 2026-10-05 (mission-20261005-02, plan amendment 84). Open items:
+
+- **Guards not built:** the short-circuit on rejection or error, hallucinated-tool retries, the 25-round guard, and cancellation within 1s with a result for every tool_use id. They come in a new mission.
+- **Recorder has no error return:** a session store cannot report a failed write. Decide this before the store is built.
+- **Tool-call IDs are not validated:** an empty or duplicate ID is accepted, which makes "a result for every tool_use id" ambiguous.
+- **`tool_input_invalid` is ambiguous** between an unknown tool and bad input; the retry guard needs to tell them apart.
+- **Turn drops Usage and StopReason,** so truncation at `max_tokens` is invisible to its caller.
+- **Other edges:** an empty user text becomes an empty text block; a nil Model or Tools panics; `emit` runs synchronously inside the provider callback; a session resumed on an assistant tool_use would receive a plain user message.
+- **Live check for m3-d4:** whether the provider accepts a replayed assistant message made only of thinking.
+- **Calibration warnings:** there is no isolating mutant for an EventError after MessageDone, and nothing mechanically proves a predictions file was not edited after its run.
 
 ## Carried from m3-d2
 
@@ -75,6 +88,7 @@ Deferred by the operator on 2026-10-02, when Milestone 2 was accepted. Details a
 
 | Completed | Deliverable | What landed |
 |---|---|---|
+| 2026-10-05 | m3-d3 turn loop (core) | `mission-20261005-02`. `internal/agent`: provider-neutral types and the `Model`, `Tools` and `Recorder` interfaces, with no implementation imports. `Agent.Turn` runs tool calls one after another in the order returned and completes a message only on `MessageDone`. Every error is wrapped (`ErrStreamProtocol`, `ErrStreamFailed`), everything stored or handed out is copied, and thinking blocks stay separate. A failed turn keeps what happened, and the next text merges into a trailing user message; `Recorder` records appends and merges so the conversation can be rebuilt exactly (amendment 84). Tested only against fakes. The guards come next. |
 | 2026-10-05 | opencode default model | `mission-20261005-01`. The `opencode` default is `minimax-m2.7` (amendment 83): `config.Defaults()`, a known flat-rate `minimax-m2.7` row in the model table, and a 256-token limit on the live smoke test. The `minimax-m3` row stays. |
 | 2026-10-05 | m3-d2 Messages adapter and endpoint config | `mission-20261003-03`. `internal/provider/anthropic`: Messages request encoding, SSE decoding, and a streaming HTTP client with retry, lockout, redirect refusal and error mapping, tested against the recorded probe streams. `internal/config`: the endpoint map (`opencode` default, `anthropic`), `base_url` validation and the project-file allowlist. An opt-in live smoke test (`npm run test:live`), which the operator passed on `qwen3.7-plus` through `KIRSCH_LIVE_MODEL` because the endpoint refused `minimax-m3` (amendment 82). The live turn-two `cache_read` check is carried to m3-d6. |
 | 2026-10-02 | M2 close-out, from the operator's review of milestone-2.md | `mission-20261002-01`. `/run` is visible in `/help` (it shares a row with `/patch`), and a clipped help footer names the scroll keys. `npm run lint` and `npm run fmt:check` are clean: 13 findings fixed, none suppressed. A rename with edits keeps the source file's permission bits. A real `git diff` of a CRLF file now applies, and a patch that would change line endings is rejected before the approval prompt. `plan/milestones/milestone-2.md` now records evidence for every Task 9 box (15 of 18 ticked), the departures from the instruction set (plan amendments 61–73) and the open defects. **Uncommitted** on top of `7c0133d`. |

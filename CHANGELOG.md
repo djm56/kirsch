@@ -147,6 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   key is refused. An opt-in live smoke test (`npm run test:live`, build tag
   `live`) sends one streamed request through the adapter; `KIRSCH_LIVE_MODEL`
   points it at another Messages-format model.
+- **Milestone 3, m3-d3 (part 1) — the agent turn loop.** `internal/agent` declares provider-neutral message and event types and the `Model`, `Tools` and `Recorder` interfaces, and imports no implementation package. `Agent.Turn` appends the user's text, streams the model, runs any tool calls one after another in the order returned, and feeds the results back until the model answers. A message completes only on `MessageDone`, a protocol violation returns `ErrStreamProtocol`, and every error is wrapped. Payloads are copied, never kept by reference, and consecutive thinking blocks stay separate. A failed turn keeps everything that happened, and the next turn's text merges into a trailing user message; `Recorder` receives each append and merge so the conversation can be rebuilt exactly. The guards (short-circuit, retries, the 25-round guard, cancellation) are not built yet.
 
 ### Changed
 

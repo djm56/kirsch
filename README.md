@@ -2,7 +2,8 @@
 
 > **Status: Milestones 0 and 1 complete; Milestone 2 accepted with deferred
 > items (see [`plan/PROGRESS.md`](plan/PROGRESS.md)); Milestone 3 (the model)
-> is in progress, with m3-d1 and m3-d2 done.** Kirsch reads and searches
+> is in progress, with m3-d1 and m3-d2 done and m3-d3's core turn loop
+> landed.** Kirsch reads and searches
 > a real repository from inside the TUI, and, through the temporary `/patch`
 > and `/run` debug commands, can apply a patch or run a command: a patch
 > always waits for your approval, a command does unless it is on the short
@@ -104,7 +105,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 
 ## Progress
 
-Milestones 0, 1 and 2 are complete. Milestone 2's deferred items are listed in [`plan/PROGRESS.md`](plan/PROGRESS.md), and Milestone 3 (provider and agent loop) is in progress: m3-d1 and m3-d2 are done. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+Milestones 0, 1 and 2 are complete. Milestone 2's deferred items are listed in [`plan/PROGRESS.md`](plan/PROGRESS.md), and Milestone 3 (provider and agent loop) is in progress: m3-d1 and m3-d2 are done, and m3-d3's core turn loop has landed. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 
 ## What works today
 

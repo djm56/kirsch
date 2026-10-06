@@ -1211,6 +1211,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     the §5 model table, ADR 0008 and Milestone 3's Task 3 and Task 8 text change; the
     `minimax-m3` row stays, should access return. The live smoke test now allows 256
     output tokens.
+84. **A failed turn keeps what happened, and the Recorder records appends and merges** (2026-10-05, mission-20261005-02). Operator decision: when a turn fails part-way, the conversation keeps the user's message and any tool rounds that ran, with their results, because those side effects really occurred. A new turn on a conversation that ends with a user message adds its text as a further text block to that message, not as a second user message. `agent.Recorder` is `Record(kind RecordKind, m Message)`, with `RecordAppend` and `RecordMerge`; a merge record carries only the added blocks, and replaying the records onto the conversation as the turn found it rebuilds it exactly. `plan/spec/architecture.md` §4 names `agent.Recorder` without a signature; this is its definition. Turn also completes a message only on `MessageDone`, rejects any event after it, and accepts an assistant message made only of thinking blocks. The guards of Milestone 3 Task 3 come in a later mission.
 
 **Still open (not blocking Milestone 0)**
 
