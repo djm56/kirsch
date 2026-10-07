@@ -65,14 +65,27 @@ type SessionInfo struct {
 	Version   string
 }
 
+// OnboardingState carries the plain, provider-free facts the empty-session
+// onboarding screen needs to render. internal/app wires these at start-up;
+// internal/tui never imports provider/config/workspace to compute them.
+// ui-spec §7.5, screen 12.
+type OnboardingState struct {
+	NoAPIKey     bool      // true when no API key was found for the endpoint
+	KeyVars      [2]string // prefixed, then bare: e.g. KIRSCH_OPENCODE_API_KEY, OPENCODE_API_KEY
+	NotGitRepo   bool      // true when the working directory is not inside a git repo
+	UnknownModel bool      // true when the active model is not in the cost table
+	Endpoint     string    // active endpoint kind, e.g. "opencode" or "anthropic"
+}
+
 // Options configures a Model. Everything environment-dependent arrives here so
 // that no fallback state requires touching process globals to reach.
 type Options struct {
-	Version string
-	Caps    Caps
-	Session SessionInfo
-	Status  Status
-	Now     func() time.Time
+	Version    string
+	Caps       Caps
+	Session    SessionInfo
+	Status     Status
+	Now        func() time.Time
+	Onboarding *OnboardingState
 }
 
 // Model is the root Bubble Tea model.
@@ -105,9 +118,10 @@ type Model struct {
 	modal             *ModalState
 	confirm           *ConfirmState
 
-	busy   Busy
-	sess   SessionInfo
-	status Status
+	busy       Busy
+	sess       SessionInfo
+	status     Status
+	onboarding *OnboardingState
 
 	comp Composer
 
@@ -186,6 +200,7 @@ func New(o Options) Model {
 		scroll:        Scroll{Pinned: true},
 		sess:          o.Session,
 		status:        o.Status,
+		onboarding:    o.Onboarding,
 		comp:          newComposer(),
 		now:           o.Now,
 	}
@@ -462,8 +477,11 @@ func (m Model) transcriptRows(lay Layout) []string {
 		return out
 	}
 
-	// Onboarding, while nothing has been said yet. §7.5, screen 01.
+	// Onboarding, while nothing has been said yet. §7.5, screens 01 and 12.
 	if m.tr.Len() == 0 {
+		if m.onboarding != nil {
+			return m.onboardingRows(lay)
+		}
 		return m.emptyStateRows(lay)
 	}
 

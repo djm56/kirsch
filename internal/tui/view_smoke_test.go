@@ -216,6 +216,191 @@ func TestOnlyPaletteSGRReachesView(t *testing.T) {
 	}
 }
 
+// renderOnboarding builds the Milestone 3 onboarding screen (screen 12) with
+// all notices active. It mirrors render() but uses an empty transcript plus an
+// OnboardingState rather than the fixture.
+func renderOnboarding(t *testing.T, caps Caps, w, h int) string {
+	t.Helper()
+	m := New(Options{
+		Version: fixtureVersion,
+		Caps:    caps,
+		Status:  Status{Model: "unknown-model", Family: "unknown"},
+		Onboarding: &OnboardingState{
+			NoAPIKey:     true,
+			KeyVars:      [2]string{"KIRSCH_OPENCODE_API_KEY", "OPENCODE_API_KEY"},
+			NotGitRepo:   true,
+			UnknownModel: true,
+			Endpoint:     "opencode",
+		},
+	})
+	mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+	return mm.(Model).View()
+}
+
+// TestOnboardingFrameInvariants proves the fourteenth state does not corrupt
+// the frame at any size in ui-spec §2.2.
+func TestOnboardingFrameInvariants(t *testing.T) {
+	widths := []int{200, 120, 80, 79, 60, 59, 40, 39, 38, 20, 2, 1, 0, -1}
+	heights := []int{60, 34, 24, 11, 10, 9, 6, 5, 4, 2, 1, 0, -1}
+	for _, w := range widths {
+		for _, h := range heights {
+			out := renderOnboarding(t, Caps{Unicode: true}, w, h)
+			if w <= 0 || h <= 0 {
+				if out != "" {
+					t.Errorf("%dx%d: want empty string, got %d bytes", w, h, len(out))
+				}
+				continue
+			}
+			lines := strings.Split(out, "\n")
+			if len(lines) != h {
+				t.Errorf("%dx%d: %d rows, want %d", w, h, len(lines), h)
+			}
+			for i, l := range lines {
+				if cw := cellWidth(l); cw > w {
+					t.Errorf("%dx%d row %d: %d cols, want <= %d", w, h, i+1, cw, w)
+				}
+			}
+		}
+	}
+}
+
+// TestOnboardingNoColourEmitsNoEscapes is the no-colour half of §13 for the
+// onboarding state.
+func TestOnboardingNoColourEmitsNoEscapes(t *testing.T) {
+	for _, uni := range []bool{true, false} {
+		out := renderOnboarding(t, Caps{Colour: false, Unicode: uni}, 80, 34)
+		if i := strings.IndexByte(out, 0x1b); i >= 0 {
+			t.Errorf("unicode=%v: escape byte at %d", uni, i)
+		}
+	}
+}
+
+// TestOnboardingStyledStripsToPlain proves strip(styled) == plain for the
+// onboarding state.
+func TestOnboardingStyledStripsToPlain(t *testing.T) {
+	sizes := [][2]int{{80, 34}, {80, 24}, {100, 30}, {60, 12}, {40, 11}, {38, 6}}
+	for _, uni := range []bool{true, false} {
+		for _, s := range sizes {
+			w, h := s[0], s[1]
+			styled := renderOnboarding(t, Caps{Colour: true, Unicode: uni}, w, h)
+			plain := renderOnboarding(t, Caps{Colour: false, Unicode: uni}, w, h)
+			if got := sgrRe.ReplaceAllString(styled, ""); got != plain {
+				t.Errorf("unicode=%v %dx%d: stripped styled output != plain output", uni, w, h)
+				gl, pl := strings.Split(got, "\n"), strings.Split(plain, "\n")
+				for i := 0; i < len(gl) && i < len(pl); i++ {
+					if gl[i] != pl[i] {
+						t.Errorf("  first difference at row %d:\n   styled: %q\n   plain:  %q", i+1, gl[i], pl[i])
+						break
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestOnboardingOnlyPaletteSGRReachesView proves every escape the onboarding
+// state emits is an SGR from the styles.go palette.
+func TestOnboardingOnlyPaletteSGRReachesView(t *testing.T) {
+	out := renderOnboarding(t, Caps{Colour: true, Unicode: true}, 80, 34)
+	for i := 0; i < len(out); i++ {
+		if out[i] != 0x1b {
+			continue
+		}
+		loc := sgrRe.FindStringIndex(out[i:])
+		if loc == nil || loc[0] != 0 {
+			t.Fatalf("non-SGR escape at byte %d: %q", i, out[i:minInt(i+24, len(out))])
+		}
+		params := sgrRe.FindStringSubmatch(out[i:])[1]
+		if !PaletteSGR[params] {
+			t.Errorf("SGR %q is not in the styles.go palette", params)
+		}
+		i += loc[1] - 1
+	}
+}
+
+// TestOnboardingIsNotAnErrorCard proves the onboarding notices are not rendered
+// through the error-card path. A regression that added a red border or used the
+// Error style would be caught here.
+func TestOnboardingIsNotAnErrorCard(t *testing.T) {
+	out := renderOnboarding(t, Caps{Colour: true, Unicode: true}, 80, 34)
+	if strings.Contains(out, "\x1b[38;5;203m") {
+		t.Error("onboarding output contains the error-colour SGR (red border/style)")
+	}
+}
+
+// TestOnboardingNamesKeyVariablesInOrder proves the two key variables appear in
+// precedence order and the "never read from config" statement is present.
+func TestOnboardingNamesKeyVariablesInOrder(t *testing.T) {
+	plain := renderOnboarding(t, Caps{Colour: false, Unicode: true}, 80, 34)
+	pre := strings.Index(plain, "KIRSCH_OPENCODE_API_KEY")
+	bare := strings.Index(plain, "OPENCODE_API_KEY")
+	if pre < 0 || bare < 0 {
+		t.Fatalf("expected both key variables in output; got KIRSCH=%d, BARE=%d", pre, bare)
+	}
+	if pre > bare {
+		t.Error("bare key variable appears before the prefixed one")
+	}
+	if !strings.Contains(plain, "Keys are never read from config files") {
+		t.Error("missing 'keys are never read from config files' statement")
+	}
+}
+
+// TestOnboardingDataFlowNoticeIsEndpointSpecific proves ADR 0008's notice is
+// shown for the opencode endpoint and omitted otherwise.
+func TestOnboardingDataFlowNoticeIsEndpointSpecific(t *testing.T) {
+	mk := func(endpoint string) string {
+		m := New(Options{
+			Version: fixtureVersion,
+			Caps:    Caps{Colour: false, Unicode: true},
+			Status:  Status{Model: "unknown-model", Family: "unknown"},
+			Onboarding: &OnboardingState{
+				NoAPIKey:     true,
+				KeyVars:      [2]string{"KIRSCH_OPENCODE_API_KEY", "OPENCODE_API_KEY"},
+				NotGitRepo:   true,
+				UnknownModel: true,
+				Endpoint:     endpoint,
+			},
+		})
+		mm, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 34})
+		return mm.(Model).View()
+	}
+
+	opencode := mk("opencode")
+	want := "prompts and file contents to OpenCode's gateway"
+	if !strings.Contains(opencode, want) {
+		t.Errorf("opencode output missing data-flow notice %q", want)
+	}
+
+	other := mk("anthropic")
+	if strings.Contains(other, want) {
+		t.Error("non-opencode output contains the opencode data-flow notice")
+	}
+}
+
+// TestOnboardingRendersNotAGitRepoMessage proves the --workspace guidance from
+// ui-spec §7.5 is present when NotGitRepo is set.
+func TestOnboardingRendersNotAGitRepoMessage(t *testing.T) {
+	plain := renderOnboarding(t, Caps{Colour: false, Unicode: true}, 80, 34)
+	if !strings.Contains(plain, "--workspace") {
+		t.Error("missing '--workspace' guidance for the not-a-Git-repo notice")
+	}
+	if !strings.Contains(plain, "run inside a repository") {
+		t.Error("missing 'run inside a repository' guidance")
+	}
+}
+
+// TestOnboardingRendersUnknownModelNotice proves the unknown-model notice is
+// rendered as a dim hint rather than a hard failure.
+func TestOnboardingRendersUnknownModelNotice(t *testing.T) {
+	plain := renderOnboarding(t, Caps{Colour: false, Unicode: true}, 80, 34)
+	if !strings.Contains(plain, "cost display unavailable") {
+		t.Error("missing 'cost display unavailable' unknown-model notice")
+	}
+	if !strings.Contains(plain, "conservative budget") {
+		t.Error("missing 'conservative budget' unknown-model notice")
+	}
+}
+
 // key builds a rune keypress.
 func key(r rune) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}} }
 

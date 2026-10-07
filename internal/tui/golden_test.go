@@ -258,6 +258,17 @@ func scenarios() []scenario {
 			m.status.Tokens = 14100
 			m.frame = 1 // \ — index 1 of the ASCII cycle, matching screen 03's ⠙
 		}},
+
+		{Screen: "12", Unicode: true, Build: func(m *Model) {
+			m.status = Status{Model: "unknown-model", Family: "unknown"}
+			m.onboarding = &OnboardingState{
+				NoAPIKey:     true,
+				KeyVars:      [2]string{"KIRSCH_OPENCODE_API_KEY", "OPENCODE_API_KEY"},
+				NotGitRepo:   true,
+				UnknownModel: true,
+				Endpoint:     "opencode",
+			}
+		}},
 	}
 }
 

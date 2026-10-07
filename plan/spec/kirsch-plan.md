@@ -927,7 +927,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     reverting the fix and confirming it fails — the Milestone 1 lesson about
     test doubles applies equally to tests themselves.
 
-54. **`gosec` is clean, with eleven justified suppressions.** Each `#nosec`
+54. **`gosec` is clean, with 17 justified suppressions.** Each `#nosec`
     carries a comment explaining why the finding does not apply — almost always
     "this path already crossed `workspace.Resolve`". Suppressions without a
     stated reason are how a scanner stops being useful; the CI job fails on any

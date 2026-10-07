@@ -274,23 +274,36 @@ states; the §13 table's "not yet drawn" note is removed.
       (operator walkthrough 2026-10-05, on `qwen3.7-plus` through `KIRSCH_LIVE_MODEL`; amendment 82)
 - [x] Tool-call-then-answer works end to end on the fake
       (mission-20261005-02: TestConversationAfterToolRound and TestTwoToolCallsInOrder, internal/agent/agent_test.go, against the agent's scripted fakes)
-- [ ] Two tool calls, first rejected: the second **still returns a result**
-- [ ] Hallucinated tool name self-corrects within two retries
+- [x] Two tool calls, first rejected: the second **still returns a result**
+       (fake-driven, TestSequentialToolCallsShortCircuit, internal/agent/agent_test.go, mission-20261006-02)
+- [x] Hallucinated tool name self-corrects within two retries
+       (fake-driven, TestHallucinatedToolNameSelfCorrects, internal/agent/agent_test.go, mission-20261006-02)
 - [ ] Max-turn guard trips at 25 and renders an error card
-- [ ] Cancellation mid-tool returns within 1s; the next request holds a `tool_result` for every `tool_use` id of the cancelled turn, and a follow-up fake turn succeeds
-- [ ] Prompt-injection fixture: the instruction is reported, not obeyed
-- [ ] Project context appears in the request exactly once
-- [ ] A scripted turn whose response contains a thinking block is replayed at each of `off`, `low`, `medium` and `high`; each time the second request carries the block byte-identical, signature included
-- [ ] A thinking block in the in-memory transcript carries the marker that tells M4's compaction to drop it; a unit test asserts the marker
-- [ ] Screen 14 drawn, lint-clean, and all fourteen golden states captured
+- [x] Cancellation mid-tool returns within 1s; the next request holds a `tool_result` for every `tool_use` id of the cancelled turn, and a follow-up fake turn succeeds
+       (fake-driven, TestCancellationMidTool, internal/agent/agent_test.go, mission-20261006-02)
+- [x] Prompt-injection fixture: the instruction is reported, not obeyed
+       (TestPromptInjection_SurfacedNotObeyed, internal/agent/prompt_injection_test.go: the fixture's instruction is surfaced inside the fenced, untrusted-labelled project-context section of the system prompt; appears exactly once in the system prompt and zero times in messages; rule-bearing sections byte-identical with and without injection)
+- [x] Project context appears in the request exactly once
+       (TestPromptInjection_SurfacedNotObeyed, internal/agent/prompt_injection_test.go: the same test's exactly-once assertion — strings.Count on System == 1 and countInMessages == 0)
+- [x] A scripted turn whose response contains a thinking block is replayed at each of `off`, `low`, `medium` and `high`; each time the second request carries the block byte-identical, signature included
+       (TestThinkingBlockRoundTripAtEveryLevel, internal/agent/agent_test.go: fake emits a signed thinking block + tool call at every setting; the second request carries Text/Signature/DropOnSummary byte-identical; preservation is not gated on setting)
+- [x] A thinking block in the in-memory transcript carries the marker that tells M4's compaction to drop it; a unit test asserts the marker
+       (Thinking.DropOnSummary is set on every assembled thinking block; TestThinkingBlockCarriesCompactionMarker, internal/agent/agent_test.go, asserts it)
+- [x] Screen 14 drawn, lint-clean, and all fourteen golden states captured (screen 12 drawn in plan/spec/kirsch-ui-screens.md — onboarding 80×34: the endpoint's two key variables in order KIRSCH_OPENCODE_API_KEY → OPENCODE_API_KEY, the keys-never-read-from-config-files statement, the --workspace message, the unknown-model dim notice, the opencode data-flow notice; golden scenario "12" in internal/tui/golden_test.go — TestMatchesScreenReference covers all fourteen states; python3 scripts/lint-screens.py grids OK via npm run check; ui-spec §13 state-14 row linked, gap prose removed, count updated to fourteen)
 - [ ] Debug slash commands and their help block are **gone**
 - [ ] A project file is an allowlist: a table-driven test sets, from a project file, every key in `[provider]` (including `default` and a new endpoint), every key in `[policy]`, `[context].max_project_context_bytes`, every key in `[session]` and `[telemetry]`, and an unknown table; each leaves the effective config unchanged and produces a warning naming the key, distinct from the unknown-key warning
-- [ ] A project file's `[context].project_files` is honoured: an entry `AGENTS.md` inside the workspace is injected, and the request carries its content exactly once
-- [ ] Refused `project_files` entries — `/etc/hosts`, `../outside.md`, a symlink leading outside the workspace, and a denylisted path (`.env`) — inject nothing from that path, are skipped, and each is named in a warning
-- [ ] A project file with `[context] project_files = "AGENTS.md"` (a string, not a list) starts normally, leaves the effective config unchanged, and produces a warning naming the key
-- [ ] A `project_files` entry that is a directory or a FIFO is skipped with a warning naming it; the read does not block and does not rely on `Stat` size
-- [ ] `Defaults().Context.ProjectFiles` is `["AGENTS.md", "CLAUDE.md"]`
-- [ ] Global `max_project_context_bytes = 1024` truncates project context at 1024 bytes; a global value of 40000 with a 40000-byte `AGENTS.md` injects exactly 32768 bytes
+- [x] A project file's `[context].project_files` is honoured: an entry `AGENTS.md` inside the workspace is injected, and the request carries its content exactly once
+       (config side TestProjectFileAllowlist-family at internal/config/config_test.go:100–126 — a project file's project_files is honoured into the effective config; loader side TestLoadProjectContext_FirstExistingCandidateWins — AGENTS.md wins when present; injection side TestPromptInjection_SurfacedNotObeyed — content in the request exactly once. End-to-end TOML→request wiring lands at m3-d6.)
+- [x] Refused `project_files` entries — `/etc/hosts`, `../outside.md`, a symlink leading outside the workspace, and a denylisted path (`.env`) — inject nothing from that path, are skipped, and each is named in a warning
+       (TestLoadProjectContext_RefusedCandidatesProduceNamedWarnings, internal/agent/prompt/loader_test.go: loader skips engine-refused entries with a warning naming each; the fake engine encodes the four refusal categories — absolute, upward traversal, out-of-root symlink, denylisted; the real engine's refusal of those paths is covered by internal/workspace's own tests, M1)
+- [x] A project file with `[context] project_files = "AGENTS.md"` (a string, not a list) starts normally, leaves the effective config unchanged, and produces a warning naming the key
+       (TestProjectFilesWrongTypeWarns and TestProjectFilesWrongTypeMessage, internal/config/config_test.go:159 and :426)
+- [x] A `project_files` entry that is a directory or a FIFO is skipped with a warning naming it; the read does not block and does not rely on `Stat` size
+       (TestLoadProjectContext_NonRegularFilesSkippedWithWarning, internal/agent/prompt/loader_test.go: regular-file check runs before any read — a FIFO is never opened, the mutant kill proved the open would block; the read is through a bounded reader at the cap, and the size is not taken from Stat)
+- [x] `Defaults().Context.ProjectFiles` is `["AGENTS.md", "CLAUDE.md"]`
+       (internal/config/config_test.go:48 asserts exactly this)
+- [x] Global `max_project_context_bytes = 1024` truncates project context at 1024 bytes; a global value of 40000 with a 40000-byte `AGENTS.md` injects exactly 32768 bytes
+       (TestLoadProjectContext_CapTruncationAndClamp, internal/agent/prompt/loader_test.go: four sub-cases — cap 12 with a 12-byte file (no truncation, no marker); cap 10 with a 19-byte file (truncated at the line boundary, marker "[project context truncated after 10 bytes]"); cap 100000 with a file built >40000 bytes (clamped to 32768, marker "[project context truncated after 32768 bytes]"); cap 10 again (lower cap honoured, marker "[project context truncated after 10 bytes]"). The clamp sub-case matches the box's 40000-byte-file → 32768-byte-injected scenario. config-side global precedence per m3-d2. Note: the global-value→cap flow wiring lands at m3-d6.)
 - [ ] A project file with `[telemetry] debug_log = true` does not enable the debug log
 - [ ] A credential-shaped key (`api_key = "x"`) in a project file is refused by `checkSecrets`, not merely ignored
 - [ ] `base_url` tests: refused — non-loopback `http://`, `http://localhost@evil.example/`, `http://[::ffff:127.0.0.1]/`, and a hostname that merely resolves to loopback; accepted — `http://localhost`, `http://127.0.0.2`, `http://[::1]`

@@ -793,11 +793,10 @@ implementation renders:
 | 11 | `NO_COLOR` mode | [11](kirsch-ui-screens.md#11--no_color--ascii-fallback) |
 | 12 | ASCII-fallback mode | [11](kirsch-ui-screens.md#11--no_color--ascii-fallback) |
 | 13 | Scrolled up with `↓ n new` indicator | [09](kirsch-ui-screens.md#09--scrolled-up-unpinned) |
-| 14 | Onboarding: no API key; not a Git repo | **not yet drawn** — see below |
+| 14 | Onboarding: no API key; not a Git repo | [12](kirsch-ui-screens.md#12--onboarding-no-api-key-not-a-git-repo) |
 
-State 14 is the one gap. Onboarding is not reachable until the provider lands
-in M3, so its screen is drawn then, *before* the golden file is captured
-(plan §11, amendment 24). Every other state has a grid to build against today.
+All fourteen states have grids; screen 12 was drawn in Milestone 3 before its
+golden file was captured (plan §11, amendment 24).
 
 Structure is the contract and colour is applied on top: line counts and box
 positions are identical with and without colour. Screen 11 is a
@@ -809,7 +808,7 @@ property testable rather than merely asserted.
 They are what the snapshots exist to protect:
 
 1. `strip(styled) == plain`, byte for byte. This is the real form of "identical
-   with and without colour", and it holds for all thirteen states, not only the
+   with and without colour", and it holds for all fourteen states, not only the
    two drawn as a pair.
 2. Zero `0x1b` bytes are emitted under `NO_COLOR`. Not "no visible colour" —
    *no escape bytes at all*.

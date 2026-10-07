@@ -27,6 +27,13 @@ var forbidden = map[string][]string{
 		"internal/policy",
 		"internal/session",
 	},
+	"internal/agent/prompt": {
+		"internal/tui",
+		"internal/provider",
+		"internal/tool",
+		"internal/policy",
+		"internal/session",
+	},
 	"internal/tui": {
 		"internal/provider",
 		"internal/tool",

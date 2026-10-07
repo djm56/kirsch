@@ -304,6 +304,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ApprovalResolvedMsg:
 		return m.updateApprovalOutcome(msg), nil
 
+	case OnboardingStateMsg:
+		m.onboarding = &OnboardingState{
+			NoAPIKey:     msg.NoAPIKey,
+			KeyVars:      msg.KeyVars,
+			NotGitRepo:   msg.NotGitRepo,
+			UnknownModel: msg.UnknownModel,
+			Endpoint:     msg.Endpoint,
+		}
+		m.relayout(m.layout())
+		return m, nil
+
 	case tea.KeyMsg:
 		lay := m.layout()
 		m.relayout(lay)

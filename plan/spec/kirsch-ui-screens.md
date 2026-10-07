@@ -16,10 +16,8 @@ at the end.
 When that test fails, exactly one of two things is true — the renderer is wrong, or this
 document is. Fix whichever it is, and if it is this document, in the same commit.
 
-Screens 00–11 cover thirteen of the fourteen §13 golden states — the §13 table maps each
-state to its screen. The fourteenth (onboarding: no API key, not a Git repo) is not drawn
-yet: it is unreachable until the provider lands in M3, and its screen is drawn there
-before its golden file is captured.
+Screens 00–12 cover all fourteen §13 golden states — the §13 table maps each state to
+its screen.
 
 Reading notes:
 
@@ -688,6 +686,74 @@ NOTE                this screen is the golden-test fixture. Compare Kirsch's str
 - Substitutions visible here: `-` rules, `*` dirty marker, `>` collapsed glyph, `|` selection
   gutter and box verticals, `+` box corners, `.` metadata separator, `[ok]` status, `\`
   spinner (frame 1 of the `- \ | /` cycle, matching screen 03's `⠙`).
+
+---
+
+## 12 · Onboarding (no API key, not a Git repo)
+
+```text 80×34
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+
+ █▄▀ █ █▀█ █▀▀ █▀▀ █ █
+ █▀▄ █ █▀▄ ▄▄█ █▄▄ █▀█
+
+ v0.1.0-dev · terminal-native coding agent
+
+ · No API key: set KIRSCH_OPENCODE_API_KEY → OPENCODE_API_KEY.
+ · Keys are never read from config files.
+
+ · Not a Git repository: run inside a repository, or use --workspace <dir>.
+
+ · Unknown model: cost display unavailable; conservative budget in use.
+
+ · Using opencode sends prompts and file contents to OpenCode's gateway and the
+ model host, not Anthropic.
+
+
+
+
+
+
+
+
+
+
+
+
+ ──────────────────────────────────────────────────────────────────────────────
+ unknown-model · idle · 0 tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > Ask anything (Enter to send, /help for help)
+ ↑↓ history · ⇧↑/Tab cards · /help
+```
+
+**Colours**
+
+```text
+header.wordmark     "Kirsch" (row 1)                         accent    117  #87d7ff
+header.rule         trailing "─" fill on row 1               border    244  #808080
+header.title        "my-project ─ main" (row 2)              accent    117  #87d7ff
+header.dirty        "●"                                      warning   215  #ffaf5f
+wordmark            both block rows                          accent    117  #87d7ff
+tagline             "v0.1.0-dev · terminal-native coding agent"  dim   245  #8a8a8a
+onboarding.notice   every "· …" notice line                    dim       245  #8a8a8a
+status.bar          "unknown-model · idle · 0 tok"             muted     248  #a8a8a8
+composer.prompt     ">"                                      accent    117  #87d7ff
+composer.placeholder "Ask anything (Enter to send, /help for help)" dim   245  #8a8a8a
+separators          both full-width "─" rules                    border    244  #808080
+hint                "↑↓ history · ⇧↑/Tab cards · /help"        muted     248  #a8a8a8
+```
+
+- Onboarding screen, not an error card: no border and no red. §7.5.
+- The no-API-key notice names the two environment variables in precedence order for
+  the active endpoint (`KIRSCH_OPENCODE_API_KEY` → `OPENCODE_API_KEY`) and states that
+  keys are never read from config files.
+- The not-a-Git-repo notice uses the same wording as the M1 `--workspace` path.
+- The unknown-model notice is dim and informational; it does not fail launch.
+- The opencode data-flow notice is shown only when the active endpoint is `opencode`,
+  per ADR 0008. It is part of this screen; `/status` carries the matching notice in
+  Task 7.
 
 ---
 

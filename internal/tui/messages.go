@@ -97,3 +97,14 @@ type ApprovalResolvedMsg struct {
 	ID      int64           // Approval ID this resolves
 	Outcome ApprovalOutcome // Actual confirmed outcome
 }
+
+// OnboardingStateMsg carries the plain, provider-free facts the onboarding
+// screen needs. internal/app computes these from config and provider state;
+// internal/tui only stores and renders them. ui-spec §7.5, screen 12.
+type OnboardingStateMsg struct {
+	NoAPIKey     bool
+	KeyVars      [2]string // prefixed variable, then bare variable
+	NotGitRepo   bool
+	UnknownModel bool
+	Endpoint     string // active endpoint kind, e.g. "opencode" or "anthropic"
+}

@@ -1983,3 +1983,195 @@ func TestToAppOutcomeMatchesAppConstants(t *testing.T) {
 		})
 	}
 }
+
+// testAppWithConfig wires an App with an arbitrary config so onboarding tests
+// can exercise non-default endpoints without touching the process environment.
+func testAppWithConfig(t *testing.T, cfg config.Config, c *collector) *App {
+	t.Helper()
+	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "repo-small"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.Detect(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := New(ws, cfg, telemetry.Disabled())
+	a.sendFn = c.send
+	return a
+}
+
+// TestCheckOnboardingMissingKeyNamesVariables verifies that a missing key for
+// the active endpoint emits an OnboardingStateMsg naming the two precedence-ordered
+// variable names. ui-spec §7.5, screen 12.
+func TestCheckOnboardingMissingKeyNamesVariables(t *testing.T) {
+	tests := []struct {
+		name   string
+		active string
+		ep     config.EndpointConfig
+	}{
+		{
+			name:   "opencode",
+			active: "opencode",
+			ep:     config.EndpointConfig{APIKeyEnv: "OPENCODE_API_KEY", Model: "minimax-m2.7"},
+		},
+		{
+			name:   "anthropic",
+			active: "anthropic",
+			ep:     config.EndpointConfig{APIKeyEnv: "ANTHROPIC_API_KEY", Model: "claude-sonnet-5-5"},
+		},
+		{
+			name:   "user-defined",
+			active: "custom",
+			ep:     config.EndpointConfig{BaseURL: "https://example.com", Auth: "bearer", APIKeyEnv: "CUSTOM_KEY", Model: "claude-sonnet-5-5"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCollector(1)
+			cfg := config.Config{
+				Provider: config.ProviderConfig{
+					Default:   tc.active,
+					Endpoints: map[string]config.EndpointConfig{tc.active: tc.ep},
+				},
+			}
+			a := testAppWithConfig(t, cfg, c)
+			defer a.Close()
+
+			a.CheckOnboarding(func(string) string { return "" })
+			msgs := c.wait(t, 2*time.Second)
+
+			ob, ok := msgs[0].(tui.OnboardingStateMsg)
+			if !ok {
+				t.Fatalf("got %T, want OnboardingStateMsg", msgs[0])
+			}
+			if !ob.NoAPIKey {
+				t.Errorf("NoAPIKey = %v, want true", ob.NoAPIKey)
+			}
+			wantVars := [2]string{"KIRSCH_" + tc.ep.APIKeyEnv, tc.ep.APIKeyEnv}
+			if ob.KeyVars != wantVars {
+				t.Errorf("KeyVars = %v, want %v", ob.KeyVars, wantVars)
+			}
+			if ob.Endpoint != tc.active {
+				t.Errorf("Endpoint = %q, want %q", ob.Endpoint, tc.active)
+			}
+			if ob.UnknownModel {
+				t.Errorf("UnknownModel = true for a known model")
+			}
+			if ob.NotGitRepo {
+				t.Errorf("NotGitRepo = true, app does not detect this path")
+			}
+		})
+	}
+}
+
+// TestCheckOnboardingKeyPresentSuppressesMessage is the positive control for
+// the absence of the missing-key notice (DIR-026). A fully configured
+// non-opencode endpoint must not emit onboarding data.
+func TestCheckOnboardingKeyPresentSuppressesMessage(t *testing.T) {
+	c := newCollector(0)
+	cfg := config.Defaults()
+	cfg.Provider.Default = "anthropic"
+	a := testAppWithConfig(t, cfg, c)
+	defer a.Close()
+
+	env := map[string]string{"KIRSCH_ANTHROPIC_API_KEY": "secret"}
+	a.CheckOnboarding(func(k string) string { return env[k] })
+
+	time.Sleep(200 * time.Millisecond)
+	c.mu.Lock()
+	n := len(c.msgs)
+	c.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("expected no onboarding message, got %d", n)
+	}
+}
+
+// TestCheckOnboardingUnknownModelFlag verifies the unknown-model flag.
+// Unknown models fall back conservatively and log a warning, but the app still
+// surfaces the flag so the UI can tell the user. plan §5.
+func TestCheckOnboardingUnknownModelFlag(t *testing.T) {
+	tests := []struct {
+		name        string
+		model       string
+		wantUnknown bool
+	}{
+		{"known default opencode model", "minimax-m2.7", false},
+		{"unknown model", "no-such-model", true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCollector(1)
+			cfg := config.Config{
+				Provider: config.ProviderConfig{
+					Default: "opencode",
+					Endpoints: map[string]config.EndpointConfig{
+						"opencode": {APIKeyEnv: "OPENCODE_API_KEY", Model: tc.model},
+					},
+				},
+			}
+			a := testAppWithConfig(t, cfg, c)
+			defer a.Close()
+
+			env := map[string]string{"KIRSCH_OPENCODE_API_KEY": "secret"}
+			a.CheckOnboarding(func(k string) string { return env[k] })
+			msgs := c.wait(t, 2*time.Second)
+
+			ob := msgs[0].(tui.OnboardingStateMsg)
+			if ob.UnknownModel != tc.wantUnknown {
+				t.Errorf("UnknownModel = %v, want %v", ob.UnknownModel, tc.wantUnknown)
+			}
+			if ob.NoAPIKey {
+				t.Errorf("NoAPIKey = true, key is present")
+			}
+			if ob.Endpoint != "opencode" {
+				t.Errorf("Endpoint = %q, want opencode", ob.Endpoint)
+			}
+		})
+	}
+}
+
+// TestCheckOnboardingEndpointKind verifies the active endpoint kind reaches the
+// TUI so it can gate the ADR 0008 opencode data-flow notice. screen 12.
+func TestCheckOnboardingEndpointKind(t *testing.T) {
+	tests := []struct {
+		name   string
+		active string
+		ep     config.EndpointConfig
+	}{
+		{
+			name:   "opencode data-flow notice",
+			active: "opencode",
+			ep:     config.EndpointConfig{APIKeyEnv: "OPENCODE_API_KEY", Model: "minimax-m2.7"},
+		},
+		{
+			name:   "anthropic missing key",
+			active: "anthropic",
+			ep:     config.EndpointConfig{APIKeyEnv: "ANTHROPIC_API_KEY", Model: "claude-sonnet-5-5"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newCollector(1)
+			cfg := config.Config{
+				Provider: config.ProviderConfig{
+					Default:   tc.active,
+					Endpoints: map[string]config.EndpointConfig{tc.active: tc.ep},
+				},
+			}
+			a := testAppWithConfig(t, cfg, c)
+			defer a.Close()
+
+			a.CheckOnboarding(func(string) string { return "" })
+			msgs := c.wait(t, 2*time.Second)
+
+			ob := msgs[0].(tui.OnboardingStateMsg)
+			if ob.Endpoint != tc.active {
+				t.Errorf("Endpoint = %q, want %q", ob.Endpoint, tc.active)
+			}
+		})
+	}
+}

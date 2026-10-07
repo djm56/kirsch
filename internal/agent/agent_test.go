@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -116,10 +118,11 @@ func (f *fakeModel) Info() ModelInfo {
 
 // fakeTools implements Tools with scripted results.
 type fakeTools struct {
-	specs    []ToolSpec
-	results  map[string]ToolResult
-	invoked  []ToolCall      // a copy of each call as Invoke received it
-	onInvoke func(*ToolCall) // optional hook run on the call after it is recorded
+	specs      []ToolSpec
+	results    map[string]ToolResult
+	invoked    []ToolCall      // a copy of each call as Invoke received it
+	onInvoke   func(*ToolCall) // optional hook run on the call after it is recorded
+	blockUntil <-chan struct{} // if set, Invoke waits on this before looking up results
 }
 
 // Describe implements Tools.Describe.
@@ -132,6 +135,13 @@ func (f *fakeTools) Invoke(ctx context.Context, c ToolCall) ToolResult {
 	f.invoked = append(f.invoked, deepClone(c))
 	if f.onInvoke != nil {
 		f.onInvoke(&c)
+	}
+	if f.blockUntil != nil {
+		select {
+		case <-ctx.Done():
+			return ToolResult{OK: false, Content: "cancelled", ErrorKind: "cancelled"}
+		case <-f.blockUntil:
+		}
 	}
 	if result, ok := f.results[c.Name]; ok {
 		return result
@@ -355,8 +365,8 @@ func wantConv() []Message {
 	return []Message{
 		{Role: RoleUser, Content: []Block{{Kind: BlockText, Text: "Read a.txt"}}},
 		{Role: RoleAssistant, Content: []Block{
-			{Kind: BlockThinking, Thinking: &Thinking{Text: "think", Signature: "sig-1"}},
-			{Kind: BlockThinking, Thinking: &Thinking{Redacted: true, Data: "opaque", Signature: "sig-2"}},
+			{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "think", Signature: "sig-1"}},
+			{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Redacted: true, Data: "opaque", Signature: "sig-2"}},
 			{Kind: BlockText, Text: "let me look"},
 			{Kind: BlockToolCall, ToolCall: &ToolCall{ID: "call-1", Name: "read_file", Input: json.RawMessage(`{"path":"a.txt"}`)}},
 		}},
@@ -502,6 +512,10 @@ func TestTwoToolCallsInOrder(t *testing.T) {
 		},
 		[]Event{textEv("Done"), msgDone()},
 	)
+	h.tools.specs = []ToolSpec{
+		{Name: "search_code", Description: "Search code", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		{Name: "list_files", Description: "List files", InputSchema: json.RawMessage(`{"type":"object"}`)},
+	}
 	h.tools.results = map[string]ToolResult{
 		"search_code": {OK: true, Content: "found test"},
 		"list_files":  {OK: true, Content: "file1.go file2.go"},
@@ -587,7 +601,7 @@ func TestThinkingBlocks(t *testing.T) {
 				textEv("answer"), msgDone(),
 			},
 			want: []Block{
-				{Kind: BlockThinking, Thinking: &Thinking{Text: "thinking more", Signature: "sig1"}},
+				{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "thinking more", Signature: "sig1"}},
 				{Kind: BlockText, Text: "answer"},
 			},
 		},
@@ -599,8 +613,8 @@ func TestThinkingBlocks(t *testing.T) {
 				textEv("answer"), msgDone(),
 			},
 			want: []Block{
-				{Kind: BlockThinking, Thinking: &Thinking{Text: "first", Signature: "sig1"}},
-				{Kind: BlockThinking, Thinking: &Thinking{Text: "second", Signature: "sig2"}},
+				{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "first", Signature: "sig1"}},
+				{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "second", Signature: "sig2"}},
 				{Kind: BlockText, Text: "answer"},
 			},
 		},
@@ -612,8 +626,8 @@ func TestThinkingBlocks(t *testing.T) {
 				textEv("answer"), msgDone(),
 			},
 			want: []Block{
-				{Kind: BlockThinking, Thinking: &Thinking{Signature: "sig1", Redacted: true, Data: "opaque-content"}},
-				{Kind: BlockThinking, Thinking: &Thinking{Text: "visible", Signature: "sig2"}},
+				{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Signature: "sig1", Redacted: true, Data: "opaque-content"}},
+				{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "visible", Signature: "sig2"}},
 				{Kind: BlockText, Text: "answer"},
 			},
 		},
@@ -625,7 +639,7 @@ func TestThinkingBlocks(t *testing.T) {
 				textEv("answer"), msgDone(),
 			},
 			want: []Block{
-				{Kind: BlockThinking, Thinking: &Thinking{Signature: "sig", Redacted: true, Data: "opaque"}},
+				{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Signature: "sig", Redacted: true, Data: "opaque"}},
 				{Kind: BlockText, Text: "answer"},
 			},
 		},
@@ -636,7 +650,7 @@ func TestThinkingBlocks(t *testing.T) {
 				callEnd("c1", "read_file", `{}`), msgDone(),
 			},
 			want: []Block{
-				{Kind: BlockThinking, Thinking: &Thinking{Text: "a", Signature: "sig"}},
+				{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "a", Signature: "sig"}},
 				{Kind: BlockToolCall, ToolCall: &ToolCall{ID: "c1", Name: "read_file", Input: json.RawMessage(`{}`)}},
 			},
 		},
@@ -648,7 +662,7 @@ func TestThinkingBlocks(t *testing.T) {
 				textEv("answer"), msgDone(),
 			},
 			want: []Block{
-				{Kind: BlockThinking, Thinking: &Thinking{Text: "full", Signature: "sig"}},
+				{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "full", Signature: "sig"}},
 				{Kind: BlockText, Text: "answer"},
 			},
 		},
@@ -682,7 +696,7 @@ func TestThinkingOnlyMessageIsAccepted(t *testing.T) {
 	h.mustTurn(t, "go")
 	want := []Message{
 		{Role: RoleUser, Content: []Block{{Kind: BlockText, Text: "go"}}},
-		{Role: RoleAssistant, Content: []Block{{Kind: BlockThinking, Thinking: &Thinking{Text: "t", Signature: "sig"}}}},
+		{Role: RoleAssistant, Content: []Block{{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "t", Signature: "sig"}}}},
 	}
 	expectEqual(t, "conversation", h.conv.Messages, want)
 	expectEqual(t, "recorded entries", h.rec.entries, appendEntries(want))
@@ -691,6 +705,90 @@ func TestThinkingOnlyMessageIsAccepted(t *testing.T) {
 	}
 }
 
+// TestThinkingBlockCarriesCompactionMarker checks that every assembled thinking
+// block is marked so M4 compaction drops it instead of summarising it.
+func TestThinkingBlockCarriesCompactionMarker(t *testing.T) {
+	h := newHarness([]Event{
+		thinkDelta("reasoning"),
+		thinkDone(Thinking{Text: "reasoning", Signature: "sig"}),
+		textEv("answer"), msgDone(),
+	})
+	h.mustTurn(t, "go")
+	blocks := h.message(t, 1).Content
+	if len(blocks) != 2 {
+		t.Fatalf("want 2 blocks, got %d: %s", len(blocks), dump(blocks))
+	}
+	if blocks[0].Kind != BlockThinking {
+		t.Fatalf("want first block thinking, got %s", blocks[0].Kind)
+	}
+	if blocks[0].Thinking == nil || !blocks[0].Thinking.DropOnSummary {
+		t.Fatalf("thinking block missing DropOnSummary marker: %+v", blocks[0].Thinking)
+	}
+	if blocks[1].Kind != BlockText {
+		t.Fatalf("want second block text, got %s", blocks[1].Kind)
+	}
+}
+
+// TestThinkingBlockRoundTripAtEveryLevel checks that a thinking block returned
+// by the model, complete with signature, is echoed byte-identical in the second
+// request, regardless of the configured ThinkingLevel. The agent does not gate
+// thinking preservation on any setting.
+func TestThinkingBlockRoundTripAtEveryLevel(t *testing.T) {
+	levels := []string{"off", "low", "medium", "high"}
+
+	wantThinking := &Thinking{Text: "plan", Signature: "sig-abc"}
+	call := ToolCall{ID: "call-1", Name: "read_file", Input: json.RawMessage(`{"path":"a.txt"}`)}
+
+	for _, lvl := range levels {
+		t.Run(lvl, func(t *testing.T) {
+			h := newHarness(
+				[]Event{
+					thinkDone(*wantThinking),
+					callEnd(call.ID, call.Name, string(call.Input)),
+					msgDone(),
+				},
+				[]Event{textEv("done"), msgDone()},
+			)
+			h.mustTurn(t, "Read a.txt")
+
+			if len(h.model.requests) != 2 {
+				t.Fatalf("want 2 requests, got %d", len(h.model.requests))
+			}
+			second := h.request(t, 1).Messages
+			if len(second) != 3 {
+				t.Fatalf("second request should have 3 messages, got %d: %s", len(second), dump(second))
+			}
+			assistant := second[1]
+			if assistant.Role != RoleAssistant {
+				t.Fatalf("second request message 1 role: got %s, want assistant", assistant.Role)
+			}
+			if len(assistant.Content) < 1 || assistant.Content[0].Kind != BlockThinking {
+				t.Fatalf("second request assistant should start with a thinking block: %s", dump(assistant.Content))
+			}
+			got := assistant.Content[0].Thinking
+			if got == nil {
+				t.Fatal("thinking block is nil")
+			}
+			if got.Text != wantThinking.Text || got.Signature != wantThinking.Signature || !got.DropOnSummary {
+				t.Fatalf("thinking not echoed byte-identical:\n got: %+v\nwant: %+v", got, wantThinking)
+			}
+			// The agent must deep-copy model-emitted blocks, not share pointers
+			// with the events it received.
+			if got == wantThinking {
+				t.Fatalf("agent shared the model's thinking pointer instead of deep-copying it")
+			}
+			// And it must not share the conversation's own pointer when building a
+			// request.
+			convThinking := h.message(t, 1).Content[0].Thinking
+			if got == convThinking {
+				t.Fatalf("agent shared the conversation thinking pointer with the request")
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Errors, forwarding and first-error-wins.
 // ---------------------------------------------------------------------------
 // Errors, forwarding and first-error-wins.
 // ---------------------------------------------------------------------------
@@ -1035,8 +1133,8 @@ func TestInvokeReceivesCopy(t *testing.T) {
 // none) and ToolCall structs the test keeps pointers to, and the blocks the round
 // must produce.
 func emitFixtures() (round []Event, open, bare *Thinking, call *ToolCall, want []Block) {
-	open = &Thinking{Text: "partial done", Signature: "sig-a"}
-	bare = &Thinking{Redacted: true, Data: "opaque", Signature: "sig-b"}
+	open = &Thinking{DropOnSummary: true, Text: "partial done", Signature: "sig-a"}
+	bare = &Thinking{DropOnSummary: true, Redacted: true, Data: "opaque", Signature: "sig-b"}
 	call = &ToolCall{ID: "c1", Name: "read_file", Input: json.RawMessage(`{"path":"a.txt"}`)}
 	round = []Event{
 		thinkDelta("par"),
@@ -1046,11 +1144,37 @@ func emitFixtures() (round []Event, open, bare *Thinking, call *ToolCall, want [
 		msgDone(),
 	}
 	want = []Block{
-		{Kind: BlockThinking, Thinking: &Thinking{Text: "partial done", Signature: "sig-a"}},
-		{Kind: BlockThinking, Thinking: &Thinking{Redacted: true, Data: "opaque", Signature: "sig-b"}},
+		{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "partial done", Signature: "sig-a"}},
+		{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Redacted: true, Data: "opaque", Signature: "sig-b"}},
 		{Kind: BlockToolCall, ToolCall: &ToolCall{ID: "c1", Name: "read_file", Input: json.RawMessage(`{"path":"a.txt"}`)}},
 	}
 	return round, open, bare, call, want
+}
+
+// TestCopyBlockDeepCopiesThinking checks that copyBlock makes an independent
+// copy of a thinking block: fields are preserved, but the pointer is new and
+// mutating the original does not affect the copy.
+func TestCopyBlockDeepCopiesThinking(t *testing.T) {
+	orig := Block{Kind: BlockThinking, Thinking: &Thinking{Text: "plan", Signature: "sig", DropOnSummary: true}}
+	cp := copyBlock(orig)
+
+	if cp.Thinking == nil {
+		t.Fatal("copyBlock dropped the thinking pointer")
+	}
+	if cp.Thinking == orig.Thinking {
+		t.Fatal("copyBlock shared the thinking pointer")
+	}
+	if cp.Thinking.Text != orig.Thinking.Text || cp.Thinking.Signature != orig.Thinking.Signature || cp.Thinking.DropOnSummary != orig.Thinking.DropOnSummary {
+		t.Fatalf("copyBlock did not preserve fields:\n got: %+v\nwant: %+v", cp.Thinking, orig.Thinking)
+	}
+
+	// Mutating the original must not touch the copy.
+	orig.Thinking.Text = "mutated"
+	orig.Thinking.Signature = "mutated-sig"
+	orig.Thinking.DropOnSummary = false
+	if cp.Thinking.Text != "plan" || cp.Thinking.Signature != "sig" || !cp.Thinking.DropOnSummary {
+		t.Fatalf("copyBlock alias: mutation leaked into the copy: %+v", cp.Thinking)
+	}
 }
 
 // TestModelEmitsLeftUnmodified checks the structs the model emitted are exactly as
@@ -1220,5 +1344,334 @@ func TestRebuildRejectsBadRecords(t *testing.T) {
 	}
 	if got, err := rebuild([]recEntry{{RecordAppend, asst}, {RecordMerge, asst}}); err != nil || len(got) != 1 || len(got[0].Content) != 2 {
 		t.Fatalf("a valid merge was not applied: %v %s", err, dump(got))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// m3-d3 guard invariants.
+// ---------------------------------------------------------------------------
+
+// TestSequentialToolCallsShortCircuit checks that when one tool call in a
+// message fails, the remaining calls are not invoked and still receive a result:
+// policy_denied when the failing call was policy-denied, cancelled otherwise.
+func TestSequentialToolCallsShortCircuit(t *testing.T) {
+	cases := []struct {
+		name        string
+		firstKind   string
+		wantSkipped ResultBlock
+		wantInvoked int
+	}{
+		{
+			name:      "policy_denied",
+			firstKind: toolErrPolicyDenied,
+			wantSkipped: ResultBlock{
+				CallID: "call-2", Content: "policy_denied", IsError: true, ErrorKind: toolErrPolicyDenied,
+			},
+			wantInvoked: 1,
+		},
+		{
+			name:      "other_error",
+			firstKind: "file_not_found",
+			wantSkipped: ResultBlock{
+				CallID: "call-2", Content: "cancelled", IsError: true, ErrorKind: toolErrCancelled,
+			},
+			wantInvoked: 1,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			h := newHarness(
+				[]Event{
+					callEnd("call-1", "search_code", `{"query":"test"}`),
+					callEnd("call-2", "list_files", `{"path":"*.go"}`),
+					msgDone(),
+				},
+				[]Event{textEv("Done"), msgDone()},
+			)
+			h.tools.specs = []ToolSpec{
+				{Name: "search_code", Description: "Search code", InputSchema: json.RawMessage(`{"type":"object"}`)},
+				{Name: "list_files", Description: "List files", InputSchema: json.RawMessage(`{"type":"object"}`)},
+			}
+			h.tools.results = map[string]ToolResult{
+				"search_code": {OK: false, Content: "denied", ErrorKind: c.firstKind},
+				"list_files":  {OK: true, Content: "would not run"},
+			}
+			h.mustTurn(t, "Search and list")
+
+			if len(h.tools.invoked) != c.wantInvoked {
+				t.Fatalf("want %d tool invocation(s), got %d: %v", c.wantInvoked, len(h.tools.invoked), h.tools.invoked)
+			}
+
+			wantFirst := ResultBlock{
+				CallID: "call-1", Content: "denied", IsError: true, ErrorKind: c.firstKind,
+			}
+			wantResults := []Block{
+				{Kind: BlockToolResult, Result: &wantFirst},
+				{Kind: BlockToolResult, Result: &c.wantSkipped},
+			}
+			expectEqual(t, "results message", h.message(t, 2).Content, wantResults)
+		})
+	}
+}
+
+// TestHallucinatedToolNameSelfCorrects checks that unknown tool names count as
+// hallucinations, the model may self-correct within two retries, and the third
+// hallucination becomes ErrToolNameHallucination.
+func TestHallucinatedToolNameSelfCorrects(t *testing.T) {
+	t.Run("corrects_on_first_retry", func(t *testing.T) {
+		h := newHarness(
+			[]Event{callEnd("c1", "missing_tool", `{}`), msgDone()},
+			[]Event{callEnd("c2", "read_file", `{"path":"a.txt"}`), msgDone()},
+			[]Event{textEv("ok"), msgDone()},
+		)
+		h.mustTurn(t, "go")
+
+		if len(h.model.requests) != 3 {
+			t.Fatalf("want 3 model requests, got %d", len(h.model.requests))
+		}
+		res := blockAt(t, h.message(t, 2).Content, 0).Result
+		if res == nil || res.ErrorKind != toolErrInputInvalid {
+			t.Fatalf("first retry result should be tool_input_invalid, got %v", res)
+		}
+		if !strings.Contains(res.Content, "read_file") {
+			t.Fatalf("hallucination result should list real tools, got %q", res.Content)
+		}
+	})
+
+	t.Run("corrects_on_second_retry", func(t *testing.T) {
+		h := newHarness(
+			[]Event{callEnd("c1", "missing_tool", `{}`), msgDone()},
+			[]Event{callEnd("c2", "another_fake", `{}`), msgDone()},
+			[]Event{callEnd("c3", "read_file", `{"path":"a.txt"}`), msgDone()},
+			[]Event{textEv("ok"), msgDone()},
+		)
+		h.mustTurn(t, "go")
+		if len(h.model.requests) != 4 {
+			t.Fatalf("want 4 model requests, got %d", len(h.model.requests))
+		}
+	})
+
+	t.Run("exhausts_after_two_retries", func(t *testing.T) {
+		h := newHarness(
+			[]Event{callEnd("c1", "missing_tool", `{}`), msgDone()},
+			[]Event{callEnd("c2", "another_fake", `{}`), msgDone()},
+			[]Event{callEnd("c3", "third_fake", `{}`), msgDone()},
+		)
+		err := h.turn("go")
+		if err == nil {
+			t.Fatal("want hallucination error, got nil")
+		}
+		if !errors.Is(err, ErrToolNameHallucination) {
+			t.Fatalf("want ErrToolNameHallucination, got %v", err)
+		}
+		if len(h.model.requests) != 3 {
+			t.Fatalf("want 3 model requests before giving up, got %d", len(h.model.requests))
+		}
+	})
+}
+
+// TestKnownToolInputInvalidIsNotHallucination checks that a known tool returning
+// tool_input_invalid is treated as a normal failed result, not counted toward the
+// hallucination retry budget.
+func TestKnownToolInputInvalidIsNotHallucination(t *testing.T) {
+	h := newHarness(
+		[]Event{callEnd("c1", "read_file", `{"path":42}`), msgDone()},
+		[]Event{callEnd("c2", "read_file", `{"path":"a.txt"}`), msgDone()},
+		[]Event{textEv("ok"), msgDone()},
+	)
+	h.tools.results = map[string]ToolResult{
+		"read_file": {OK: false, Content: "bad input", ErrorKind: toolErrInputInvalid},
+	}
+	h.mustTurn(t, "go")
+
+	res := blockAt(t, h.message(t, 2).Content, 0).Result
+	if res == nil || res.ErrorKind != toolErrInputInvalid || res.Content != "bad input" {
+		t.Fatalf("want known-tool tool_input_invalid result, got %v", res)
+	}
+	if len(h.model.requests) != 3 {
+		t.Fatalf("want 3 requests (no retry budget consumed), got %d", len(h.model.requests))
+	}
+}
+
+// TestKnownToolInputInvalidDoesNotConsumeBudget checks that repeated invalid
+// input on a known tool never exhausts the hallucination retry budget.
+func TestKnownToolInputInvalidDoesNotConsumeBudget(t *testing.T) {
+	h := newHarness(
+		[]Event{callEnd("c1", "read_file", `{"path":1}`), msgDone()},
+		[]Event{callEnd("c2", "read_file", `{"path":2}`), msgDone()},
+		[]Event{callEnd("c3", "read_file", `{"path":3}`), msgDone()},
+		[]Event{textEv("ok"), msgDone()},
+	)
+	h.tools.results = map[string]ToolResult{
+		"read_file": {OK: false, Content: "bad input", ErrorKind: toolErrInputInvalid},
+	}
+	h.mustTurn(t, "go")
+
+	if len(h.model.requests) != 4 {
+		t.Fatalf("want 4 requests (budget not consumed), got %d", len(h.model.requests))
+	}
+	for i := 1; i <= 3; i++ {
+		res := blockAt(t, h.message(t, 2*i).Content, 0).Result
+		if res == nil || res.ErrorKind != toolErrInputInvalid {
+			t.Fatalf("request %d: want known-tool tool_input_invalid, got %v", i, res)
+		}
+	}
+}
+
+// TestToolCallIDValidation rejects empty and duplicate tool call ids before any
+// tool runs, leaving the conversation at the user message.
+func TestToolCallIDValidation(t *testing.T) {
+	cases := []struct {
+		name   string
+		events []Event
+	}{
+		{
+			name:   "empty_id",
+			events: []Event{callEnd("", "read_file", `{}`), msgDone()},
+		},
+		{
+			name: "duplicate_id",
+			events: []Event{
+				callEnd("c1", "read_file", `{}`),
+				callEnd("c1", "read_file", `{}`),
+				msgDone(),
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			h := newHarness(c.events)
+			err := h.turn("test")
+			if err == nil {
+				t.Fatalf("%s: want error, got nil", c.name)
+			}
+			if !errors.Is(err, ErrStreamProtocol) {
+				t.Fatalf("%s: want ErrStreamProtocol, got %v", c.name, err)
+			}
+			if len(h.tools.invoked) != 0 {
+				t.Fatalf("%s: no tool should run, got %v", c.name, h.tools.invoked)
+			}
+			want := []Message{{Role: RoleUser, Content: []Block{{Kind: BlockText, Text: "test"}}}}
+			expectEqual(t, c.name+": conversation", h.conv.Messages, want)
+		})
+	}
+}
+
+// TestMaxTurnGuard trips after 25 tool rounds and returns ErrMaxTurnsExceeded.
+func TestMaxTurnGuard(t *testing.T) {
+	turns := make([][]Event, defaultMaxToolRounds+1)
+	for i := 0; i < len(turns); i++ {
+		turns[i] = []Event{callEnd(fmt.Sprintf("call-%d", i), "read_file", `{}`), msgDone()}
+	}
+	h := newHarness(turns...)
+	h.tools.results = map[string]ToolResult{
+		"read_file": {OK: true, Content: "body"},
+	}
+
+	err := h.turn("go")
+	if err == nil {
+		t.Fatal("want max-turn error, got nil")
+	}
+	if !errors.Is(err, ErrMaxTurnsExceeded) {
+		t.Fatalf("want ErrMaxTurnsExceeded, got %v", err)
+	}
+	if len(h.model.requests) != defaultMaxToolRounds {
+		t.Fatalf("want %d model requests, got %d", defaultMaxToolRounds, len(h.model.requests))
+	}
+	// user + 25 assistant + 25 result messages.
+	wantMessages := 1 + 2*defaultMaxToolRounds
+	if len(h.conv.Messages) != wantMessages {
+		t.Fatalf("want %d conversation messages, got %d: %s", wantMessages, len(h.conv.Messages), dump(h.conv.Messages))
+	}
+}
+
+// TestCancellationMidTool cancels a turn while a tool is in flight, returns
+// within one second, leaves a cancelled result for every tool_use id, and lets a
+// follow-up turn succeed.
+func TestCancellationMidTool(t *testing.T) {
+	h := newHarness(
+		[]Event{
+			callEnd("call-1", "read_file", `{"path":"a.txt"}`),
+			callEnd("call-2", "read_file", `{"path":"b.txt"}`),
+			msgDone(),
+		},
+		[]Event{textEv("ok"), msgDone()},
+	)
+
+	blocker := make(chan struct{})
+	h.tools.blockUntil = blocker
+
+	ctx, cancel := context.WithCancel(context.Background())
+	h.tools.onInvoke = func(*ToolCall) { cancel() }
+
+	start := time.Now()
+	err := h.agent.Turn(ctx, h.conv, "go", func(Event) {})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("want cancellation error, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("cancellation took %s, want within 1s", elapsed)
+	}
+
+	// The conversation kept the assistant message and the result message.
+	if len(h.conv.Messages) != 3 {
+		t.Fatalf("want 3 messages after cancellation, got %d: %s", len(h.conv.Messages), dump(h.conv.Messages))
+	}
+	wantResults := []Block{
+		{Kind: BlockToolResult, Result: &ResultBlock{CallID: "call-1", Content: "cancelled", IsError: true, ErrorKind: toolErrCancelled}},
+		{Kind: BlockToolResult, Result: &ResultBlock{CallID: "call-2", Content: "cancelled", IsError: true, ErrorKind: toolErrCancelled}},
+	}
+	expectEqual(t, "cancelled results", h.message(t, 2).Content, wantResults)
+
+	// A follow-up turn sees every cancelled tool_use id in its request.
+	h.mustTurn(t, "continue")
+	req := h.request(t, 1).Messages
+	if len(req) != 3 {
+		t.Fatalf("follow-up request should have 3 messages, got %d: %s", len(req), dump(req))
+	}
+	expectEqual(t, "follow-up results message", req[2].Content[:2], wantResults)
+
+	close(blocker)
+}
+
+// TestAgentCarriesSystemOnEveryRequest falsifies any model request that lacks
+// the system prompt by replaying a two-round turn and asserting that every
+// request carries the Agent's System string.
+func TestAgentCarriesSystemOnEveryRequest(t *testing.T) {
+	sys := "you are the test system prompt"
+	m := newFakeModel(
+		[]Event{callEnd("c1", "read_file", `{"path":"a.txt"}`), msgDone()},
+		[]Event{textEv("done"), msgDone()},
+	)
+	tools := fullTools()
+	tools.results = map[string]ToolResult{
+		"read_file": {OK: true, Content: "body"},
+	}
+	agent := &Agent{
+		Model:     m,
+		Tools:     tools,
+		Recorder:  &fakeRecorder{},
+		MaxTokens: 1024,
+		System:    sys,
+	}
+	conv := &Conversation{}
+
+	if err := agent.Turn(context.Background(), conv, "go", func(Event) {}); err != nil {
+		t.Fatalf("Turn failed: %v", err)
+	}
+	if len(m.requests) != 2 {
+		t.Fatalf("want 2 requests (first + follow-up), got %d", len(m.requests))
+	}
+	for i, req := range m.requests {
+		if req.System != sys {
+			t.Fatalf("request %d: System mismatch: got %q, want %q", i, req.System, sys)
+		}
 	}
 }

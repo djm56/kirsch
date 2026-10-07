@@ -142,7 +142,38 @@ func encodeMessages(req provider.Request, opts EncodeOptions) ([]byte, error) {
 		reqMap["tools"] = tools
 	}
 
+	encodeThinkingFields(reqMap, req.Thinking)
+
 	return json.Marshal(reqMap)
+}
+
+// encodeThinkingFields adds the top-level thinking and output_config fields for
+// the Anthropic Messages API. The mapping was decided against the live docs:
+//   - off  -> thinking.type="between_tools", output_config.effort="high"
+//   - low  -> thinking.type="adaptive",      output_config.effort="low"
+//   - medium -> thinking.type="adaptive",    output_config.effort="medium"
+//   - high -> thinking.type="adaptive",      output_config.effort="high"
+//
+// "between_tools" is used for off because Claude Sonnet 5.5 rejects
+// thinking.type="disabled" and thinking.type="enabled"+budget_tokens; see
+// https://platform.claude.com/docs/en/build-with-claude/thinking. Effort is set
+// via output_config.effort; see
+// https://platform.claude.com/docs/en/build-with-claude/effort.
+func encodeThinkingFields(reqMap map[string]interface{}, lvl provider.ThinkingLevel) {
+	switch lvl {
+	case provider.ThinkingOff:
+		reqMap["thinking"] = map[string]string{"type": "between_tools"}
+		reqMap["output_config"] = map[string]string{"effort": "high"}
+	case provider.ThinkingLow:
+		reqMap["thinking"] = map[string]string{"type": "adaptive"}
+		reqMap["output_config"] = map[string]string{"effort": "low"}
+	case provider.ThinkingMedium:
+		reqMap["thinking"] = map[string]string{"type": "adaptive"}
+		reqMap["output_config"] = map[string]string{"effort": "medium"}
+	case provider.ThinkingHigh:
+		reqMap["thinking"] = map[string]string{"type": "adaptive"}
+		reqMap["output_config"] = map[string]string{"effort": "high"}
+	}
 }
 
 // validateBlock checks that a block has the required payload pointers and valid structure.

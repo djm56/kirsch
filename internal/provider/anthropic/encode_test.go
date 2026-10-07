@@ -69,6 +69,8 @@ func TestEncodeMatchesProbeToolResult(t *testing.T) {
 	}
 	got := encode(t, req, EncodeOptions{})
 	want := fixtureRequest(t, "minimax-m3/S3-tool-result.request.json")
+	want["thinking"] = map[string]any{"type": "between_tools"}
+	want["output_config"] = map[string]any{"effort": "high"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("encoded\n%v\nwant\n%v", got, want)
 	}
@@ -96,6 +98,8 @@ func TestEncodeMatchesProbeThinkingEcho(t *testing.T) {
 		},
 	}
 	got := encode(t, req, EncodeOptions{})
+	want["thinking"] = map[string]any{"type": "between_tools"}
+	want["output_config"] = map[string]any{"effort": "high"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("encoded\n%v\nwant\n%v", got, want)
 	}
@@ -112,6 +116,8 @@ func TestEncodeMatchesProbeCache(t *testing.T) {
 		Messages: []provider.Message{userText("Hello, world.")},
 	}
 	got := encode(t, req, EncodeOptions{PromptCaching: true})
+	want["thinking"] = map[string]any{"type": "between_tools"}
+	want["output_config"] = map[string]any{"effort": "high"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("encoded\n%v\nwant\n%v", got, want)
 	}
@@ -121,19 +127,39 @@ func TestEncodeMatchesProbeCache(t *testing.T) {
 	}
 }
 
-// TestEncodeNeverSendsThinkingField: m3-d4 owns the thinking request field.
-func TestEncodeNeverSendsThinkingField(t *testing.T) {
-	for _, lvl := range []provider.ThinkingLevel{provider.ThinkingOff, provider.ThinkingLow, provider.ThinkingMedium, provider.ThinkingHigh} {
-		got := encode(t, provider.Request{Model: "m", MaxTokens: 1, Thinking: lvl, Messages: []provider.Message{userText("x")}}, EncodeOptions{})
-		if _, ok := got["thinking"]; ok {
-			t.Fatalf("thinking field sent at %v", lvl)
-		}
-		if got["stream"] != true {
-			t.Fatalf("stream = %v", got["stream"])
-		}
-		if len(got) != 4 {
-			t.Fatalf("top-level fields = %v, want model, max_tokens, stream, messages", got)
-		}
+// TestEncodeThinkingLevelMapping checks the top-level thinking/output_config
+// fields for every ThinkingLevel. The mapping follows the Anthropic docs:
+//   - off  -> thinking.type="between_tools", output_config.effort="high"
+//   - low  -> thinking.type="adaptive",      output_config.effort="low"
+//   - medium -> thinking.type="adaptive",    output_config.effort="medium"
+//   - high -> thinking.type="adaptive",      output_config.effort="high"
+func TestEncodeThinkingLevelMapping(t *testing.T) {
+	cases := []struct {
+		lvl    provider.ThinkingLevel
+		wantT  map[string]any
+		wantOC map[string]any
+	}{
+		{provider.ThinkingOff, map[string]any{"type": "between_tools"}, map[string]any{"effort": "high"}},
+		{provider.ThinkingLow, map[string]any{"type": "adaptive"}, map[string]any{"effort": "low"}},
+		{provider.ThinkingMedium, map[string]any{"type": "adaptive"}, map[string]any{"effort": "medium"}},
+		{provider.ThinkingHigh, map[string]any{"type": "adaptive"}, map[string]any{"effort": "high"}},
+	}
+	for _, c := range cases {
+		t.Run(c.lvl.String(), func(t *testing.T) {
+			got := encode(t, provider.Request{Model: "m", MaxTokens: 1, Thinking: c.lvl, Messages: []provider.Message{userText("x")}}, EncodeOptions{})
+			if got["thinking"] == nil {
+				t.Fatalf("thinking field missing at %v", c.lvl)
+			}
+			if !reflect.DeepEqual(got["thinking"], c.wantT) {
+				t.Fatalf("thinking at %v: got %v, want %v", c.lvl, got["thinking"], c.wantT)
+			}
+			if !reflect.DeepEqual(got["output_config"], c.wantOC) {
+				t.Fatalf("output_config at %v: got %v, want %v", c.lvl, got["output_config"], c.wantOC)
+			}
+			if got["stream"] != true {
+				t.Fatalf("stream = %v", got["stream"])
+			}
+		})
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/djm56/kirsch/internal/config"
 	"github.com/djm56/kirsch/internal/patch"
 	"github.com/djm56/kirsch/internal/policy"
+	"github.com/djm56/kirsch/internal/provider"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tool"
 	"github.com/djm56/kirsch/internal/tui"
@@ -357,6 +358,38 @@ func (a *App) Close() {
 
 // closeGrace bounds how long Close waits for in-flight tools.
 const closeGrace = 2 * time.Second
+
+// CheckOnboarding inspects the active endpoint and sends an OnboardingStateMsg
+// to the TUI when the user needs to see something before starting: a missing
+// API key, an unknown model, or (for opencode) the ADR 0008 data-flow notice.
+// It is safe to call from outside the Bubble Tea event loop.
+func (a *App) CheckOnboarding(getenv func(string) string) {
+	epName := a.cfg.Provider.Default
+	ep, ok := a.cfg.Provider.Endpoints[epName]
+	if !ok {
+		return
+	}
+
+	key, _ := ep.ResolveKey(getenv)
+	info := provider.LookupModel(ep.Model)
+	if !info.Known {
+		a.log.Warn("unknown model, using conservative fallback", "model", ep.Model, "endpoint", epName)
+	}
+
+	msg := tui.OnboardingStateMsg{
+		NoAPIKey:     key == "",
+		KeyVars:      [2]string{"KIRSCH_" + ep.APIKeyEnv, ep.APIKeyEnv},
+		UnknownModel: !info.Known,
+		Endpoint:     epName,
+	}
+
+	// Nothing to say for a fully configured non-opencode endpoint.
+	if !msg.NoAPIKey && !msg.UnknownModel && msg.Endpoint != "opencode" {
+		return
+	}
+
+	a.sendAsyncSequence([]tea.Msg{msg})
+}
 
 // WorkspaceInfo returns the header data for the TUI.
 func (a *App) WorkspaceInfo() tui.WorkspaceInfoMsg {

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // ErrStreamProtocol indicates a violation of the model stream protocol.
@@ -18,6 +19,30 @@ var ErrStreamProtocol = errors.New("agent: model stream protocol violation")
 // ErrStreamFailed indicates the model stream emitted an EventError whose Err was
 // nil. Turn returns it as is, not wrapped.
 var ErrStreamFailed = errors.New("agent: model stream error event without an error")
+
+// ErrMaxTurnsExceeded indicates the turn reached the maximum number of tool
+// rounds without the model producing a final answer.
+var ErrMaxTurnsExceeded = errors.New("agent: max turns exceeded")
+
+// ErrToolNameHallucination indicates the model exhausted the allowed retries for
+// hallucinated tool names.
+var ErrToolNameHallucination = errors.New("agent: tool name hallucination retries exhausted")
+
+// Tool error kinds returned to the model in result blocks. They mirror the
+// plan §3.3 vocabulary without importing the implementation tool package.
+const (
+	toolErrPolicyDenied = "policy_denied"
+	toolErrCancelled    = "cancelled"
+	toolErrInputInvalid = "tool_input_invalid"
+)
+
+// defaultMaxToolRounds is the default number of tool rounds a Turn is allowed
+// before the max-turn guard trips.
+const defaultMaxToolRounds = 25
+
+// maxHallucinationRetries is the number of retries the model gets for
+// hallucinated tool names before Turn returns ErrToolNameHallucination.
+const maxHallucinationRetries = 2
 
 // Role is the role of a message sender.
 type Role string
@@ -71,6 +96,10 @@ type Thinking struct {
 	Redacted bool
 	// Data is the opaque content of a redacted block, echoed back unchanged.
 	Data string
+	// DropOnSummary is the M4-compaction marker. When true, compactors must
+	// drop this block rather than summarise it. It is set by the agent on every
+	// assembled thinking block and preserved by the deep-copy helpers.
+	DropOnSummary bool
 }
 
 // ToolCall is a tool call in an assistant message.
@@ -152,6 +181,10 @@ type Request struct {
 	Tools []ToolSpec
 	// MaxTokens is the maximum output tokens.
 	MaxTokens int
+	// System is the system prompt text. The agent package does not import
+	// provider, so this is a plain string; the app adapter maps it to
+	// provider.SystemBlock slices.
+	System string
 }
 
 // EventType identifies the type of stream event.
@@ -301,6 +334,11 @@ type Agent struct {
 	Recorder Recorder
 	// MaxTokens is the maximum output tokens for requests.
 	MaxTokens int
+	// System is the system prompt sent with every model request. It is set at
+	// construction and treated as stable for the life of the session, which
+	// keeps the prompt cache friendly. The plan requires the prompt on every
+	// request; storing it on the Agent is a spec-silent design choice.
+	System string
 }
 
 // Turn runs one user turn: it adds userText to conv, calls the model, invokes the
@@ -359,25 +397,62 @@ type Agent struct {
 func (a *Agent) Turn(ctx context.Context, conv *Conversation, userText string, emit func(Event)) error {
 	a.addUserText(conv, userText)
 
+	toolRounds := 0
+	hallucinationRetries := 0
+
 	for {
+		if toolRounds >= defaultMaxToolRounds {
+			return fmt.Errorf("%w: %d tool rounds exceeded limit of %d", ErrMaxTurnsExceeded, toolRounds, defaultMaxToolRounds)
+		}
+
 		req := Request{
 			Messages:  copyMessages(conv.Messages),
 			Tools:     a.Tools.Describe(),
 			MaxTokens: a.MaxTokens,
+			System:    a.System,
 		}
 
 		assistant, err := a.streamAssistant(ctx, req, emit)
 		if err != nil {
 			return err
 		}
-		a.appendMessage(conv, assistant)
 
 		calls := toolCalls(assistant)
+
+		// validateCallIDs runs before appendMessage because a malformed
+		// assistant message is not something that happened; the Recorder
+		// contract keeps history only for turns that occurred.
+		if err := validateCallIDs(calls); err != nil {
+			return err
+		}
+
+		// The assistant message is committed only once its tool calls have
+		// identifiers the agent can answer unambiguously.
+		a.appendMessage(conv, assistant)
+
 		if len(calls) == 0 {
 			return nil
 		}
 
-		a.appendMessage(conv, resultMessage(a.invokeTools(ctx, calls)))
+		results, hasHallucination, err := a.invokeTools(ctx, calls)
+		if err != nil {
+			// Cancellation after the assistant message was appended must leave a
+			// result block for every tool_use id, with cancelled for the calls
+			// that did not finish.
+			if errors.Is(err, context.Canceled) {
+				a.appendMessage(conv, resultMessage(results))
+			}
+			return err
+		}
+
+		a.appendMessage(conv, resultMessage(results))
+		toolRounds++
+		if hasHallucination {
+			hallucinationRetries++
+			if hallucinationRetries > maxHallucinationRetries {
+				return fmt.Errorf("%w: model produced unknown tool names %d times", ErrToolNameHallucination, hallucinationRetries)
+			}
+		}
 	}
 }
 
@@ -429,21 +504,158 @@ func (a *Agent) streamAssistant(ctx context.Context, req Request, emit func(Even
 }
 
 // invokeTools invokes calls sequentially, in order, and returns one result per
-// call. Each Invoke gets its own copy of the call, so a tool cannot change the
-// conversation through the Input slice.
-func (a *Agent) invokeTools(ctx context.Context, calls []ToolCall) []ResultBlock {
+// call. It short-circuits on the first failing result: remaining calls are
+// reported as cancelled, or as policy_denied when the failing result itself was
+// policy_denied. A call to an unknown tool name is reported as
+// tool_input_invalid and is counted as a hallucination, but it is not invoked.
+//
+// Cancellation is respected between invocations and while an invocation is in
+// flight: the current call and all remaining calls are reported as cancelled.
+// The returned error is the context error.
+func (a *Agent) invokeTools(ctx context.Context, calls []ToolCall) ([]ResultBlock, bool, error) {
 	results := make([]ResultBlock, len(calls))
+	hasHallucination := false
+	known := a.knownToolNames()
+
 	for i, tc := range calls {
-		res := a.Tools.Invoke(ctx, copyToolCall(tc))
-		results[i] = ResultBlock{
-			CallID:    tc.ID,
-			Content:   res.Content,
-			IsError:   !res.OK,
-			ErrorKind: res.ErrorKind,
-			Truncated: res.Truncated,
+		select {
+		case <-ctx.Done():
+			results[i] = cancelledResult(tc.ID)
+			for j := i + 1; j < len(calls); j++ {
+				results[j] = cancelledResult(calls[j].ID)
+			}
+			return results, hasHallucination, ctx.Err()
+		default:
+		}
+
+		if !known[tc.Name] {
+			// Only unknown tool names consume the hallucination retry budget;
+			// a known tool with invalid input does not. The spec addresses only
+			// hallucinated names, so this is a chosen reading.
+			hasHallucination = true
+			results[i] = unknownToolResult(tc.ID, tc.Name, a.toolNamesList())
+			for j := i + 1; j < len(calls); j++ {
+				results[j] = cancelledResult(calls[j].ID)
+			}
+			return results, hasHallucination, nil
+		}
+
+		out := make(chan ToolResult, 1)
+		go func(call ToolCall) {
+			out <- a.Tools.Invoke(ctx, copyToolCall(call))
+		}(tc)
+
+		select {
+		case <-ctx.Done():
+			results[i] = cancelledResult(tc.ID)
+			for j := i + 1; j < len(calls); j++ {
+				results[j] = cancelledResult(calls[j].ID)
+			}
+			return results, hasHallucination, ctx.Err()
+		case res := <-out:
+			results[i] = ResultBlock{
+				CallID:    tc.ID,
+				Content:   res.Content,
+				IsError:   !res.OK,
+				ErrorKind: res.ErrorKind,
+				Truncated: res.Truncated,
+			}
+			if !res.OK {
+				for j := i + 1; j < len(calls); j++ {
+					results[j] = shortCircuitResult(calls[j].ID, res.ErrorKind)
+				}
+				return results, hasHallucination, nil
+			}
 		}
 	}
-	return results
+
+	return results, hasHallucination, nil
+}
+
+// validateCallIDs returns an error if any tool call has an empty id or if ids
+// repeat within the message. Rejecting these cases makes "a result for every
+// tool_use id" unambiguous.
+func validateCallIDs(calls []ToolCall) error {
+	seen := make(map[string]struct{}, len(calls))
+	for _, tc := range calls {
+		if tc.ID == "" {
+			return fmt.Errorf("%w: tool call with empty id", ErrStreamProtocol)
+		}
+		if _, ok := seen[tc.ID]; ok {
+			return fmt.Errorf("%w: duplicate tool call id %q", ErrStreamProtocol, tc.ID)
+		}
+		seen[tc.ID] = struct{}{}
+	}
+	return nil
+}
+
+// knownToolNames returns the set of tool names the agent considers valid, built
+// from Tools.Describe.
+func (a *Agent) knownToolNames() map[string]bool {
+	specs := a.Tools.Describe()
+	names := make(map[string]bool, len(specs))
+	for _, s := range specs {
+		names[s.Name] = true
+	}
+	return names
+}
+
+// toolNamesList returns the sorted list of tool names from Tools.Describe.
+func (a *Agent) toolNamesList() []string {
+	specs := a.Tools.Describe()
+	names := make([]string, len(specs))
+	for i, s := range specs {
+		names[i] = s.Name
+	}
+	return names
+}
+
+// cancelledResult returns a result block for a call that did not run.
+func cancelledResult(callID string) ResultBlock {
+	return ResultBlock{
+		CallID:    callID,
+		Content:   "cancelled",
+		IsError:   true,
+		ErrorKind: toolErrCancelled,
+	}
+}
+
+// shortCircuitResult returns the result block given to calls skipped after a
+// sibling call failed. When the failing call was policy_denied, the remaining
+// calls are also marked policy_denied; otherwise they are cancelled. This is a
+// chosen reading: the spec requires a result for every skipped call, but does
+// not prescribe which kind.
+func shortCircuitResult(callID string, failedKind string) ResultBlock {
+	if failedKind == toolErrPolicyDenied {
+		return ResultBlock{
+			CallID:    callID,
+			Content:   "policy_denied",
+			IsError:   true,
+			ErrorKind: toolErrPolicyDenied,
+		}
+	}
+	return cancelledResult(callID)
+}
+
+// unknownToolResult returns the result block for a call to a tool name that is
+// not in the registry. The content lists the real tool names so the model can
+// self-correct.
+func unknownToolResult(callID, name string, available []string) ResultBlock {
+	content := fmt.Sprintf("unknown tool %q; available tools are: %s", name, joinToolNames(available))
+	return ResultBlock{
+		CallID:    callID,
+		Content:   content,
+		IsError:   true,
+		ErrorKind: toolErrInputInvalid,
+	}
+}
+
+// joinToolNames formats a list of tool names the same way the M1 registry does.
+func joinToolNames(names []string) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, ", ")
 }
 
 // toolCalls returns the tool calls of an assistant message, in block order.
@@ -528,6 +740,8 @@ func (s *assembly) accept(ev Event) bool {
 		// The Done event's payload replaces everything the deltas built, so Text,
 		// Signature, Redacted and Data all come from it.
 		*s.open = *ev.Thinking
+		// Mark the block so M4 compaction drops it instead of summarising it.
+		s.open.DropOnSummary = true
 		s.open = nil
 
 	case EventToolCallEnd:
