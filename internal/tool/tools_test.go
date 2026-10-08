@@ -162,7 +162,7 @@ func TestEveryPathTakingToolRefusesEscapes(t *testing.T) {
 	// Test run_command cwd escapes
 	tmpWS3 := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver3 := newFakeApprover(policy.DecisionAllow)
 	runCmdTool := &RunCommand{WS: tmpWS3, Config: &conf, Policy: pol, Approver: approver3}
 
@@ -566,7 +566,7 @@ func TestApplyPatchSymlinkOutsideWorkspaceRefused(t *testing.T) {
 func TestRunCommandSymlinkOutsideWorkspaceRefused(t *testing.T) {
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
 
@@ -620,7 +620,7 @@ func TestRunCommandEnvironmentCaseSensitivity(t *testing.T) {
 
 	conf := config.Defaults()
 	conf.Policy.EnvPassthrough = []string{"my_token", "MY_TOKEN"}
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
 
@@ -663,7 +663,7 @@ func TestRunCommandParentEnvironmentAbsent(t *testing.T) {
 
 	conf := config.Defaults()
 	conf.Policy.EnvPassthrough = []string{} // Empty: only PATH, HOME, LANG pass.
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
 
@@ -702,7 +702,7 @@ func TestRunCommandParentEnvironmentAbsent(t *testing.T) {
 func TestRunCommandExecPatternDocumentsPlatformGuarantee(t *testing.T) {
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
 
@@ -745,7 +745,7 @@ func TestRunCommandExecPatternDocumentsPlatformGuarantee(t *testing.T) {
 func TestRunCommandRenamedShellLimitationDocumented(t *testing.T) {
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
 

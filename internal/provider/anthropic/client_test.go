@@ -221,6 +221,67 @@ func TestClientHeadersAnthropicBearer(t *testing.T) {
 	}
 }
 
+// TestClientHeadersAnthropicXAPIKey: the anthropic endpoint uses x-api-key
+// auth, posts to <base>/messages, and sends the anthropic-version header.
+func TestClientHeadersAnthropicXAPIKey(t *testing.T) {
+	rec := &recorder{}
+	srv := serve(t, rec, sse(fixtureSSE(t)))
+	c := newClient(t, srv, "anthropic", &sleeps{}, func(o *Options) { o.SessionID = "" })
+	if _, err := run(t, c); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := rec.get(0)
+	if r.Method != http.MethodPost {
+		t.Errorf("method = %s, want POST", r.Method)
+	}
+	if r.URL.Path != "/v1/messages" {
+		t.Errorf("path = %s, want /v1/messages", r.URL.Path)
+	}
+	if got := r.Header.Get("X-Api-Key"); got != testKey {
+		t.Errorf("x-api-key = %q, want %q", got, testKey)
+	}
+	if r.Header.Get("Authorization") != "" {
+		t.Error("Authorization header set for x-api-key auth")
+	}
+	if r.Header.Get("Anthropic-Version") != "2023-06-01" {
+		t.Errorf("anthropic-version = %q, want 2023-06-01", r.Header.Get("Anthropic-Version"))
+	}
+	if r.Header.Get("User-Agent") != "kirsch/1.2.3" {
+		t.Errorf("user-agent = %q, want kirsch/1.2.3", r.Header.Get("User-Agent"))
+	}
+	if r.Header.Get("X-Opencode-Session") != "" {
+		t.Error("session header sent to non-opencode endpoint")
+	}
+}
+
+// TestClientSessionHeaderReusedAcrossRequests: the same x-opencode-session
+// value is sent for every request from one Client, and a MissingSessionID
+// response surfaces as a config error.
+func TestClientSessionHeaderReusedAcrossRequests(t *testing.T) {
+	rec := &recorder{}
+	srv := serve(t, rec, sse(fixtureSSE(t)), status(400, `{"error":{"type":"MissingSessionID"}}`))
+	c := newClient(t, srv, "opencode", &sleeps{})
+
+	if _, err := run(t, c); err != nil {
+		t.Fatalf("first request failed: %v", err)
+	}
+	evs, err := run(t, c)
+	pe := failure(t, evs, err, KindConfig)
+	if pe.Status != 400 {
+		t.Errorf("status = %d, want 400", pe.Status)
+	}
+
+	if rec.count() != 2 {
+		t.Fatalf("requests = %d, want 2", rec.count())
+	}
+	for i := 0; i < rec.count(); i++ {
+		r, _ := rec.get(i)
+		if got := r.Header.Get("X-Opencode-Session"); got != "sess-abc" {
+			t.Errorf("request %d session = %q, want sess-abc", i, got)
+		}
+	}
+}
+
 // TestClientRetryMatrix: request counts, waits and error kinds per milestone
 // Task 8.
 func TestClientRetryMatrix(t *testing.T) {
@@ -233,25 +294,36 @@ func TestClientRetryMatrix(t *testing.T) {
 		reqs   int
 		kind   ErrorKind // "" means success
 		sleeps []time.Duration
+		mutate func(*Options)
 	}{
-		{"5xx then ok", []http.HandlerFunc{s500, s503, ok}, 3, "", []time.Duration{500 * time.Millisecond, time.Second}},
-		{"5xx exhausted", []http.HandlerFunc{s500, s500, s500, s500}, 4, KindUnavailable, []time.Duration{500 * time.Millisecond, time.Second, 2 * time.Second}},
-		{"429 retry-after then ok", []http.HandlerFunc{r429("7"), ok}, 2, "", []time.Duration{7 * time.Second}},
-		{"429 without retry-after", []http.HandlerFunc{status(429, "{}"), ok}, 2, "", []time.Duration{500 * time.Millisecond}},
-		{"429 exhausted", []http.HandlerFunc{r429("1"), r429("1"), r429("1"), r429("1")}, 4, KindRateLimited, []time.Duration{time.Second, time.Second, time.Second}},
-		{"429 retry-after too long", []http.HandlerFunc{r429("3600")}, 1, KindRateLimited, nil},
-		{"401", []http.HandlerFunc{status(401, `{"error":{"type":"authentication_error"}}`)}, 1, KindAuth, nil},
-		{"403", []http.HandlerFunc{status(403, "{}")}, 1, KindAuth, nil},
-		{"400", []http.HandlerFunc{status(400, `{"error":{"type":"invalid_request_error","message":"bad"}}`)}, 1, KindBadRequest, nil},
-		{"400 missing session", []http.HandlerFunc{status(400, `{"error":{"type":"MissingSessionID","message":"x"}}`)}, 1, KindConfig, nil},
-		{"404", []http.HandlerFunc{status(404, "nope")}, 1, KindHTTP, nil},
-		{"302", []http.HandlerFunc{status(302, "", "Location", "https://user:pw@evil.example:8443/steal?k=1")}, 1, KindRedirect, nil},
+		{"5xx then ok", []http.HandlerFunc{s500, s503, ok}, 3, "", []time.Duration{500 * time.Millisecond, time.Second}, nil},
+		{"5xx exhausted", []http.HandlerFunc{s500, s500, s500, s500}, 4, KindUnavailable, []time.Duration{500 * time.Millisecond, time.Second, 2 * time.Second}, nil},
+		{"network error exhausted", []http.HandlerFunc{hangup, hangup, hangup, hangup}, 4, KindUnavailable, []time.Duration{500 * time.Millisecond, time.Second, 2 * time.Second}, nil},
+		{"429 retry-after then ok", []http.HandlerFunc{r429("7"), ok}, 2, "", []time.Duration{7 * time.Second}, nil},
+		{"429 without retry-after", []http.HandlerFunc{status(429, "{}"), ok}, 2, "", []time.Duration{500 * time.Millisecond}, nil},
+		{"429 exhausted", []http.HandlerFunc{r429("1"), r429("1"), r429("1"), r429("1")}, 4, KindRateLimited, []time.Duration{time.Second, time.Second, time.Second}, nil},
+		{"429 retry-after too long", []http.HandlerFunc{r429("3600")}, 1, KindRateLimited, nil, nil},
+		{"429 lockout", []http.HandlerFunc{status(429, `{"error":{"type":"usage_limit"}}`, "Retry-After", "1")}, 1, KindLockout, nil, func(o *Options) {
+			o.Lockout = func(st int, _ http.Header, body []byte) bool {
+				return st == http.StatusTooManyRequests && strings.Contains(string(body), "usage_limit")
+			}
+		}},
+		{"401", []http.HandlerFunc{status(401, `{"error":{"type":"authentication_error"}}`)}, 1, KindAuth, nil, nil},
+		{"403", []http.HandlerFunc{status(403, "{}")}, 1, KindAuth, nil, nil},
+		{"400", []http.HandlerFunc{status(400, `{"error":{"type":"invalid_request_error","message":"bad"}}`)}, 1, KindBadRequest, nil, nil},
+		{"400 missing session", []http.HandlerFunc{status(400, `{"error":{"type":"MissingSessionID","message":"x"}}`)}, 1, KindConfig, nil, nil},
+		{"404", []http.HandlerFunc{status(404, "nope")}, 1, KindHTTP, nil, nil},
+		{"302", []http.HandlerFunc{status(302, "", "Location", "https://user:pw@evil.example:8443/steal?k=1")}, 1, KindRedirect, nil, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			rec, sl := &recorder{}, &sleeps{}
 			srv := serve(t, rec, c.steps...)
-			evs, err := run(t, newClient(t, srv, "opencode", sl))
+			mutations := []func(*Options){}
+			if c.mutate != nil {
+				mutations = append(mutations, c.mutate)
+			}
+			evs, err := run(t, newClient(t, srv, "opencode", sl, mutations...))
 			if rec.count() != c.reqs {
 				t.Errorf("requests = %d, want %d", rec.count(), c.reqs)
 			}

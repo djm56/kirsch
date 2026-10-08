@@ -53,7 +53,7 @@ type EndpointConfig struct {
 	Thinking      string // off | low | medium | high
 }
 
-// PolicyConfig governs approvals and command execution (consumed from M2).
+// PolicyConfig governs approvals and command execution.
 type PolicyConfig struct {
 	DefaultCommandTimeoutSeconds int      `toml:"default_command_timeout_seconds"`
 	RequireApprovalForPatches    bool     `toml:"require_approval_for_patches"`

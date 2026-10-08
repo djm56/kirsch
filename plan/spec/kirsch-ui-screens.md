@@ -139,7 +139,7 @@ tagline             "v0.1.0-dev · terminal-native coding agent"  dim       245 
  · Add input validation to Divide and cover it with a test
  · Where is the session lock taken?
  ──────────────────────────────────────────────────────────────────────────────
- claude-sonnet-5 · idle · 0 tok
+ claude-sonnet-5-5 · idle · 0 tok
  ──────────────────────────────────────────────────────────────────────────────
  > Ask anything (Enter to send, /help for help)
 ```
@@ -155,7 +155,7 @@ wordmark            both block rows                              accent    117  
 tagline             "v0.1.0-dev · terminal-native coding agent"  dim       245  #8a8a8a
 lead_in             "Ask anything. Three things to try:"         muted     248  #a8a8a8
 suggestions         the three "· …" lines                        dim       245  #8a8a8a
-status.bar          "claude-sonnet-5 · idle · 0 tok"             muted     248  #a8a8a8
+status.bar          "claude-sonnet-5-5 · idle · 0 tok"            muted     248  #a8a8a8
 composer.prompt     ">"                                          accent    117  #87d7ff
 composer.placeholder "Ask anything (Enter to send, …)"           dim       245  #8a8a8a
 separators          both full-width "─" rules                    border    244  #808080
@@ -186,7 +186,7 @@ separators          both full-width "─" rules                    border    244
  panic fires before validation can return an error. ▌
 
  ──────────────────────────────────────────────────────────────────────────────
- claude-sonnet-5 · ⠋ running go test · 12.4k tok
+ claude-sonnet-5-5 · ⠋ running go test · 12.4k tok
  ──────────────────────────────────────────────────────────────────────────────
  >                                                (input disabled, Esc cancels)
 ```
@@ -206,7 +206,7 @@ tool.status.ok      "✓ ok"                                   success   120  #8
 tool.status.running "running"                                muted     248  #a8a8a8
 assistant.text      the two wrapped lines                    text      253  #dadada
 cursor              "▌"                                      dim       245  #8a8a8a
-status.model        "claude-sonnet-5 · "                     muted     248  #a8a8a8
+status.model        "claude-sonnet-5-5 · "                     muted     248  #a8a8a8
 status.spinner      "⠋"                                      accent    117  #87d7ff
 status.verb+tokens  "running go test · 12.4k tok"            muted     248  #a8a8a8
 composer.prompt     ">" (disabled state)                     dim       245  #8a8a8a
@@ -238,7 +238,7 @@ composer.prompt     ">" (disabled state)                     dim       245  #8a8
  ┃ └──────────────────────────────────────────────────────────────────────────┘
 
  ──────────────────────────────────────────────────────────────────────────────
- claude-sonnet-5 · ⠙ awaiting approval · 14.1k tok
+ claude-sonnet-5-5 · ⠙ awaiting approval · 14.1k tok
  ──────────────────────────────────────────────────────────────────────────────
  >
 ```
@@ -262,7 +262,7 @@ action.reject       "[n]"                                    error     203  #ff5
 action.diff         "[d]"                                    accent    117  #87d7ff
 action.labels       "approve" "reject" "view diff"           text      253  #dadada
 status.spinner      "⠙"                                      accent    117  #87d7ff
-status.rest        "claude-sonnet-5 · awaiting approval · …" muted     248  #a8a8a8
+status.rest        "claude-sonnet-5-5 · awaiting approval · …" muted     248  #a8a8a8
 ```
 
 - Three actions only. `[a]` is **never** offered for `apply_patch`. §4.
@@ -289,7 +289,7 @@ status.rest        "claude-sonnet-5 · awaiting approval · …" muted     248  
  ┃ └──────────────────────────────────────────────────────────────────────────┘
 
  ──────────────────────────────────────────────────────────────────────────────
- claude-sonnet-5 · ⠹ awaiting approval · 16.8k tok · 1 grant
+ claude-sonnet-5-5 · ⠹ awaiting approval · 16.8k tok · 1 grant
  ──────────────────────────────────────────────────────────────────────────────
  >
 ```
@@ -335,7 +335,7 @@ status.grants       "1 grant"                                muted     248  #a8a
  ┃ └──────────────────────────────────────────────────────────────────────────┘
 
  ──────────────────────────────────────────────────────────────────────────────
- claude-sonnet-5 · ⠸ awaiting approval · 14.1k tok
+ claude-sonnet-5-5 · ⠸ awaiting approval · 14.1k tok
  ──────────────────────────────────────────────────────────────────────────────
  >
 ```
@@ -375,7 +375,7 @@ status+composer     unchanged, still live                    muted     248  #a8a
 
 ## 06 · Help overlay
 
-```text 80×34
+```text 80×28
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
          ┌─ help ─────────────────────────────────────────────────────┐
@@ -396,17 +396,11 @@ status+composer     unchanged, still live                    muted     248  #a8a
          │ End           bottom, re-pin         /approvals  /new      │
          │ ?             help                   /compact  /quit       │
          │                                      /exit                 │
-         │                                                            │
-         │                                      debug (M1–M2)         │
-         │                                      /patch  /run          │
-         │                                      /read  /ls            │
-         │                                      /search  /gitstatus   │
-         │                                      /gitdiff              │
          ├────────────────────────────────────────────────────────────┤
          │ kirsch v0.1.0-dev · docs: doc/usage.md · Esc or ? closes   │
          └────────────────────────────────────────────────────────────┘
  ──────────────────────────────────────────────────────────────────────────────
- claude-sonnet-5 · idle · 12.4k tok
+ claude-sonnet-5-5 · idle · 12.4k tok
  ──────────────────────────────────────────────────────────────────────────────
  >
 
@@ -426,22 +420,16 @@ BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8
 
 - Opens from Browsing and ApprovalPending only. In the composer, `?` is a literal character. §4.2.
 - One screen, no scrolling: bindings by mode, then slash commands, then the version footer.
-- Mode headings are `warning` (179); bindings are `muted` (244).
+- Mode headings are `warning` (215); bindings are `muted` (248).
 - Two columns, both generated from the same binding table `update.go` dispatches on, so a
   binding cannot change behaviour while keeping its old description here.
-- **The overlay needs 34 rows.** §4.2 says one screen, no scrolling, and the content now
-  runs to 23 body lines plus four rows of modal chrome — a 27-row box. The frame spends
-  seven more around it: the two-row header, the two rules, the status bar, the composer and the key-hint row.
-  The additional row accommodates M2 debug commands `/patch` and `/run` alongside the M1
-  commands, requiring four rows of debug entries (two commands per line) instead of three.
-  Below that height it scrolls rather than truncating silently, but the grid is drawn at
-  the height where the rule actually holds. The `debug (M1–M2)` block is scaffolding and
-  leaves with the debug commands in M3, which buys back six rows — the blank spacer, the
-  heading, and the four command rows beneath it. Body height is the taller of the two
-  columns, so dropping them takes it from 23 to `max(left 15, right 17)` = 17, a 21-row
-  box and a 28-row screen. The right-hand column uses a narrower key field than the left
-  because its keys are single characters — a shared field pushes its descriptions past the
-  modal's edge at §2.2's 80% width.
+- **The overlay needs 28 rows.** §4.2 says one screen, no scrolling. After the M3 debug
+  commands were removed the body is the taller of the two columns at 17 rows
+  (`max(left 16, right 17)`). Four rows of modal chrome make a 21-row box, and the frame
+  spends seven more around it: the two-row header, the two rules, the status bar, the
+  composer and the key-hint row. The right-hand column uses a narrower key field than the
+  left because its keys are single characters — a shared field pushes its descriptions past
+  the modal's edge at §2.2's 80% width.
 
 ---
 
@@ -467,7 +455,7 @@ BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8
  ┃   ‹10 of 4,176 lines — d full output · Enter collapse›
 
  ──────────────────────────────────────────────────────────────────────────────
- claude-sonnet-5 · idle · 22.9k tok · 1 grant
+ claude-sonnet-5-5 · idle · 22.9k tok · 1 grant
  ──────────────────────────────────────────────────────────────────────────────
  > ▌
 ```
@@ -511,7 +499,7 @@ NOTE                captured output is NOT syntax-coloured; ANSI is stripped (§
  └────────────────────────────────────────────────────────────────────────────┘
 
  ──────────────────────────────────────────────────────────────────────────────
- claude-sonnet-5 · idle · 31.2k tok                         ⚠ recovered session
+ claude-sonnet-5-5 · idle · 31.2k tok                       ⚠ recovered session
  ──────────────────────────────────────────────────────────────────────────────
  > ▌
 ```
@@ -525,7 +513,7 @@ error.border        "┌ ─ ┐ │ └ ┘" of the error card          error  
 error.title         "provider_error"                         error     203  #ff5f5f
 error.message       "anthropic: 503 after 3 retries — …"     text      253  #dadada
 error.hint          "Enter to expand · the turn is still …"  muted     248  #a8a8a8
-status.left         "claude-sonnet-5 · idle · 31.2k tok"     muted     248  #a8a8a8
+status.left         "claude-sonnet-5-5 · idle · 31.2k tok"    muted     248  #a8a8a8
 status.warning      "⚠ recovered session"                    warning   215  #ffaf5f
 NOTE                the error card sets NO background — border and title only
 ```
@@ -551,7 +539,7 @@ NOTE                the error card sets NO background — border and title only
  ▾ git_diff · 2 files changed · 8ms · ✓ ok
                                                                         ↓ 3 new
  ──────────────────────────────────────────────────────────────────────────────
- claude-sonnet-5 · ⠼ thinking · 28.0k tok
+ claude-sonnet-5-5 · ⠼ thinking · 28.0k tok
  ──────────────────────────────────────────────────────────────────────────────
  > also check the second-instance path            (input disabled, Esc cancels)
 ```
@@ -592,7 +580,7 @@ cursor              "▌"                                      dim       245  #8
  scrolling in v0.1. ▌
 
  ──────────────────────────────────────
- claude-sonnet-5 · ⠋ thinking
+ claude-sonnet-5-5 · ⠋ thinking
  ──────────────────────────────────────
  >        (input disabled, Esc cancels)
 ```
@@ -614,7 +602,7 @@ cursor              "▌"                                      dim       245  #8
  2 lines
 
  ──────────────────────────────────────
- claude-sonnet-5 · idle
+ claude-sonnet-5-5 · idle
  ──────────────────────────────────────
  > ▌
 ```
@@ -659,7 +647,7 @@ NOTE                no token changes at any width — only which SPANS are emitt
  | +--------------------------------------------------------------------------+
 
  ------------------------------------------------------------------------------
- claude-sonnet-5 . \ awaiting approval . 14.1k tok
+ claude-sonnet-5-5 . \ awaiting approval . 14.1k tok
  ------------------------------------------------------------------------------
  >
 ```
@@ -707,8 +695,8 @@ NOTE                this screen is the golden-test fixture. Compare Kirsch's str
 
  · Unknown model: cost display unavailable; conservative budget in use.
 
- · Using opencode sends prompts and file contents to OpenCode's gateway and the
- model host, not Anthropic.
+ · Using opencode sends prompts and file contents to OpenCode's gateway and to
+ whoever hosts the chosen model, not to Anthropic.
 
 
 

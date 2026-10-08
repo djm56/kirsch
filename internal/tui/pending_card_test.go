@@ -49,7 +49,7 @@ func TestPendingCardP1(t *testing.T) {
 	}
 }
 
-// TestPendingCardP2 — A fresh card. Type /run echo hi one rune at a time.
+// TestPendingCardP2 — A fresh card. Type ordinary text one rune at a time.
 // 0 resolve calls, the card is still pending in the view, and the hint is visible.
 func TestPendingCardP2(t *testing.T) {
 	m := setupApprovalCard(t)
@@ -58,8 +58,8 @@ func TestPendingCardP2(t *testing.T) {
 		resolved++
 	}
 
-	// Type /run echo hi one rune at a time
-	for _, r := range "/run echo hi" {
+	// Type ordinary text one rune at a time
+	for _, r := range "run echo hi" {
 		um, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 		m = um.(Model)
 	}
@@ -93,8 +93,8 @@ func TestPendingCardP3(t *testing.T) {
 		resolvedOutcome = outcome
 	}
 
-	// Type /run echo hi one rune at a time to release
-	for _, r := range "/run echo hi" {
+	// Type ordinary text one rune at a time to release
+	for _, r := range "run echo hi" {
 		um, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 		m = um.(Model)
 	}

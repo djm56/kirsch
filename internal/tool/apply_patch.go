@@ -122,8 +122,9 @@ func (t *ApplyPatch) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	}()
 
 	// Step 4: Request approval (never for a patch that would fail).
+	// The approval ID is the app-side tool invocation ID carried in ctx.
 	decision := t.Approver.Request(ctx, ApprovalRequest{
-		ID:          1, // TODO: This will be provided by the approval flow in M3.
+		ID:          ToolIDFrom(ctx),
 		Operation:   policy.OperationPatch,
 		Description: in.Description,
 		Changes:     changes, // Send original changes (with relative paths) for display

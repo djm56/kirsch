@@ -373,37 +373,18 @@ var SlashCommands = []string{
 	"help", "status", "diff", "files", "approvals", "new", "compact", "quit", "exit",
 }
 
-// DebugCommands are Milestone 1–2 scaffolding: they exist so a real repository
-// can be inspected from inside the TUI before the model drives tools, and they are
-// removed in M3. M1 commands (/read, /ls, /search, /gitstatus, /gitdiff) are read-only;
-// M2 commands (/patch, /run) apply patches and execute commands. Tab-completable
-// alongside the real set, but labelled (debug) in the help overlay.
-// M2 commands come first so they share a row in the help overlay.
-var DebugCommands = []string{
-	"/patch", "/run", "/read", "/ls", "/search", "/gitstatus", "/gitdiff",
-}
-
 // completeSlash completes a unique prefix, returning the completion and whether
 // exactly one candidate matched.
 func completeSlash(prefix string) (string, bool) {
 	var match string
 	n := 0
-	candidates := append(append([]string{}, SlashCommands...), trimSlashes(DebugCommands)...)
-	for _, c := range candidates {
+	for _, c := range SlashCommands {
 		if strings.HasPrefix(c, prefix) {
 			match = c
 			n++
 		}
 	}
 	return match, n == 1
-}
-
-func trimSlashes(in []string) []string {
-	out := make([]string, len(in))
-	for i, s := range in {
-		out[i] = strings.TrimPrefix(s, "/")
-	}
-	return out
 }
 
 // addHistory stores an entry in the history. Trims whitespace, deduplicates

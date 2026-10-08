@@ -73,7 +73,7 @@ func (m Model) onboardingRows(lay Layout) []string {
 	}
 
 	if ob.Endpoint == "opencode" {
-		line := m.gly.Bullet + " Using opencode sends prompts and file contents to OpenCode's gateway and the model host, not Anthropic."
+		line := m.gly.Bullet + " " + DataFlowNotice
 		for _, w := range wrap(line, lay.ContentW) {
 			add(m.sty.Dim(w))
 		}

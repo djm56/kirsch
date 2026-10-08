@@ -278,7 +278,7 @@ func buildScenario(t *testing.T, sc scenario, g grid) string {
 		Version: fixtureVersion,
 		Caps:    Caps{Colour: sc.Colour, Unicode: sc.Unicode},
 		Session: SessionInfo{Project: "my-project", Branch: "main", Dirty: true},
-		Status:  Status{Model: "claude-sonnet-5", Family: "sonnet-5"},
+		Status:  Status{Model: "claude-sonnet-5-5", Family: "sonnet-5-5"},
 	})
 	if sc.Build != nil {
 		sc.Build(&m)

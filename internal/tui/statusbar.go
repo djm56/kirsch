@@ -8,11 +8,17 @@ import (
 
 // Status is the status bar's data. ui-spec §2.3.
 type Status struct {
-	Model    string // "claude-sonnet-5"
-	Family   string // "sonnet-5" — precomputed for the truncation ladder
-	Tokens   int
-	Warnings []string // persistent conditions, never transient errors
+	Model           string // e.g. "claude-sonnet-5-5"
+	Family          string // precomputed for the truncation ladder; derived from Model if empty
+	Tokens          int
+	EstimatedTokens int      // chars/4 estimate for the pending request; 0 when no turn is active
+	ContextWindow   int      // model max context in tokens; 0 means unknown
+	Warnings        []string // persistent conditions, never transient errors
 }
+
+// outputReserve is the headroom reserved for the model's response.
+// plan §6.3.
+const outputReserve = 4096
 
 // statusRow renders exactly one line.
 //
@@ -35,10 +41,28 @@ func (m Model) statusRow(lay Layout) string {
 		warn, warnPlain = m.sty.Warning(w), w
 	}
 
+	budgetPlain := ""
+	if m.status.EstimatedTokens > 0 && m.status.ContextWindow > outputReserve {
+		pct := m.status.EstimatedTokens * 100 / (m.status.ContextWindow - outputReserve)
+		budgetPlain = fmt.Sprintf("context %d%% full", pct)
+	}
+
+	rightPlain := warnPlain
+	rightStyled := warn
+	if budgetPlain != "" {
+		if rightPlain != "" {
+			rightPlain += "  " + budgetPlain
+			rightStyled += "  " + m.sty.Warning(budgetPlain)
+		} else {
+			rightPlain = budgetPlain
+			rightStyled = m.sty.Warning(budgetPlain)
+		}
+	}
+
 	// Build the left segment at descending detail until it fits.
-	budget := lay.ContentW - cellWidth(warnPlain)
-	if warnPlain != "" {
-		budget-- // at least one space between segments
+	leftBudget := lay.ContentW - cellWidth(rightPlain)
+	if rightPlain != "" {
+		leftBudget-- // at least one space between segments
 	}
 
 	type variant struct{ plain, styled string }
@@ -84,19 +108,19 @@ func (m Model) statusRow(lay Layout) string {
 
 	chosen := candidates[len(candidates)-1]
 	for _, c := range candidates {
-		if cellWidth(c.plain) <= budget {
+		if cellWidth(c.plain) <= leftBudget {
 			chosen = c
 			break
 		}
 	}
-	if warn == "" {
+	if rightStyled == "" {
 		return chosen.styled
 	}
-	gap := lay.ContentW - cellWidth(chosen.plain) - cellWidth(warnPlain)
+	gap := lay.ContentW - cellWidth(chosen.plain) - cellWidth(rightPlain)
 	if gap < 1 {
 		gap = 1
 	}
-	return chosen.styled + strings.Repeat(" ", gap) + warn
+	return chosen.styled + strings.Repeat(" ", gap) + rightStyled
 }
 
 // stateVerb returns the status word and whether it animates.

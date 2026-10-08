@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -109,7 +110,7 @@ func TestResolveApprovalNilCheckWired(t *testing.T) {
 	}
 
 	// Wire the callbacks.
-	wireCallbacks(&m, a, log, ws)
+	wireCallbacks(&m, a, log)
 
 	// After wiring, ResolveApproval must not be nil.
 	if m.ResolveApproval == nil {
@@ -157,53 +158,6 @@ func TestResolveApprovalNilCheckWired(t *testing.T) {
 	}
 }
 
-// TestRunToolCallbackWired verifies that the RunTool callback is properly wired
-// through wireCallbacks. Deleting the m.RunTool assignment inside wireCallbacks
-// causes this test to fail because RunTool will be nil.
-func TestRunToolCallbackWired(t *testing.T) {
-	ws, err := workspace.Detect("")
-	if err != nil {
-		t.Fatalf("workspace.Detect: %v", err)
-	}
-
-	log, err := telemetry.New(telemetry.Options{Enabled: false})
-	if err != nil {
-		t.Fatalf("telemetry.New: %v", err)
-	}
-
-	cfg, _, err := config.Load(config.Options{})
-	if err != nil {
-		t.Fatalf("config.Load: %v", err)
-	}
-
-	a := app.New(ws, cfg, log)
-	defer a.Close()
-
-	m := tui.New(tui.Options{
-		Version: "0.1.0-test",
-		Caps:    tui.Caps{Colour: false, Unicode: false},
-		Session: tui.SessionInfo{
-			Project: "test-project",
-			Branch:  "main",
-			Dirty:   false,
-		},
-	})
-
-	// Before wiring, RunTool should be nil.
-	if m.RunTool != nil {
-		t.Fatal("RunTool should be nil before wireCallbacks")
-	}
-
-	// Wire the callbacks through wireCallbacks, which assigns m.RunTool.
-	wireCallbacks(&m, a, log, ws)
-
-	// After wiring, RunTool must not be nil. If m.RunTool = ... is deleted
-	// from inside wireCallbacks, this assertion will fail.
-	if m.RunTool == nil {
-		t.Fatal("RunTool is nil after wireCallbacks; wiring assignment is missing")
-	}
-}
-
 // TestCancelCallbackWired verifies that the Cancel callback is properly wired
 // through wireCallbacks. Deleting the m.Cancel assignment inside wireCallbacks
 // causes this test to fail because Cancel will be nil.
@@ -242,7 +196,7 @@ func TestCancelCallbackWired(t *testing.T) {
 	}
 
 	// Wire the callbacks through wireCallbacks, which assigns m.Cancel.
-	wireCallbacks(&m, a, log, ws)
+	wireCallbacks(&m, a, log)
 
 	// After wiring, Cancel must not be nil. If m.Cancel = ... is deleted
 	// from inside wireCallbacks, this assertion will fail.
@@ -295,7 +249,7 @@ func TestGrantsSanitisedE2E(t *testing.T) {
 	})
 
 	// Wire the callbacks
-	wireCallbacks(&m, a, log, ws)
+	wireCallbacks(&m, a, log)
 
 	// View() renders nothing at the zero-value width/height Options{} leaves
 	// it with (§2.2: degenerate sizes render nothing rather than panicking),
@@ -442,6 +396,200 @@ func TestConfigWiringThroughAppNew(t *testing.T) {
 	}
 }
 
+// TestSubmitCallbackWired verifies that the Submit callback is properly wired
+// through wireCallbacks. Deleting the m.Submit assignment inside wireCallbacks
+// causes this test to fail because Submit will be nil, blocking real model turns.
+func TestSubmitCallbackWired(t *testing.T) {
+	ws, err := workspace.Detect("")
+	if err != nil {
+		t.Fatalf("workspace.Detect: %v", err)
+	}
+
+	log, err := telemetry.New(telemetry.Options{Enabled: false})
+	if err != nil {
+		t.Fatalf("telemetry.New: %v", err)
+	}
+
+	cfg, _, err := config.Load(config.Options{})
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	a := app.New(ws, cfg, log)
+	defer a.Close()
+
+	m := tui.New(tui.Options{
+		Version: "0.1.0-test",
+		Caps:    tui.Caps{Colour: false, Unicode: false},
+		Session: tui.SessionInfo{
+			Project: "test-project",
+			Branch:  "main",
+			Dirty:   false,
+		},
+	})
+
+	// Before wiring, Submit should be nil.
+	if m.Submit != nil {
+		t.Fatal("Submit should be nil before wireCallbacks")
+	}
+
+	// Wire the callbacks through wireCallbacks, which assigns m.Submit.
+	wireCallbacks(&m, a, log)
+
+	// After wiring, Submit must not be nil. If m.Submit = ... is deleted
+	// from inside wireCallbacks, this assertion will fail.
+	if m.Submit == nil {
+		t.Fatal("Submit is nil after wireCallbacks; wiring assignment is missing")
+	}
+}
+
+// TestCheckOnboardingCalledWiresAttach verifies that CheckOnboarding can be
+// called after the program is attached. The actual async message path is
+// exercised by the app-level CheckOnboarding tests; this test ensures the
+// main-side wiring surface (app created, callbacks wired, CheckOnboarding
+// callable with os.Getenv) is present and does not panic.
+func TestCheckOnboardingCalledWiresAttach(t *testing.T) {
+	ws, err := workspace.Detect("")
+	if err != nil {
+		t.Fatalf("workspace.Detect: %v", err)
+	}
+
+	log, err := telemetry.New(telemetry.Options{Enabled: false})
+	if err != nil {
+		t.Fatalf("telemetry.New: %v", err)
+	}
+
+	cfg, _, err := config.Load(config.Options{})
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	a := app.New(ws, cfg, log)
+	defer a.Close()
+
+	m := tui.New(tui.Options{
+		Version: "0.1.0-test",
+		Caps:    tui.Caps{Colour: false, Unicode: false},
+		Session: tui.SessionInfo{
+			Project: "test-project",
+			Branch:  "main",
+			Dirty:   false,
+		},
+	})
+
+	// Wire the same callbacks run() wires.
+	wireCallbacks(&m, a, log)
+
+	// CheckOnboarding must be callable with a getenv function and must not
+	// panic after callbacks are wired. The message delivery itself is tested
+	// in internal/app/app_test.go.
+	a.CheckOnboarding(func(string) string { return "" })
+}
+
+// TestCheckOnboardingInvokedAtStartup verifies that the post-attach startup
+// sequence in run() actually invokes App.CheckOnboarding. If the call is
+// removed from startupPostAttach, the spy here never fires and the test fails.
+func TestCheckOnboardingInvokedAtStartup(t *testing.T) {
+	ws, err := workspace.Detect("")
+	if err != nil {
+		t.Fatalf("workspace.Detect: %v", err)
+	}
+
+	log, err := telemetry.New(telemetry.Options{Enabled: false})
+	if err != nil {
+		t.Fatalf("telemetry.New: %v", err)
+	}
+
+	cfg, _, err := config.Load(config.Options{})
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	a := app.New(ws, cfg, log)
+	defer a.Close()
+
+	m := tui.New(tui.Options{
+		Version: "0.1.0-test",
+		Caps:    tui.Caps{Colour: false, Unicode: false},
+		Session: tui.SessionInfo{
+			Project: "test-project",
+			Branch:  "main",
+			Dirty:   false,
+		},
+	})
+
+	// The program is never Run(); we only need a concrete *tea.Program for Attach.
+	p := tea.NewProgram(m, tea.WithOutput(io.Discard), tea.WithInput(nil))
+
+	old := onboardingCheck
+	called := false
+	onboardingCheck = func(aa *app.App) {
+		if aa != a {
+			t.Fatalf("onboardingCheck called with wrong app pointer")
+		}
+		called = true
+	}
+	defer func() { onboardingCheck = old }()
+
+	startupPostAttach(a, p, "0.1.0-test")
+
+	if !called {
+		t.Fatal("startupPostAttach did not invoke onboardingCheck; CheckOnboarding is missing from startup")
+	}
+}
+
+// TestStartSessionInvokedAtStartup verifies that the post-attach startup
+// sequence in run() actually invokes App.StartSession. If the call is removed
+// from startupPostAttach, the system prompt is never assembled and the spy here
+// never fires.
+func TestStartSessionInvokedAtStartup(t *testing.T) {
+	ws, err := workspace.Detect("")
+	if err != nil {
+		t.Fatalf("workspace.Detect: %v", err)
+	}
+
+	log, err := telemetry.New(telemetry.Options{Enabled: false})
+	if err != nil {
+		t.Fatalf("telemetry.New: %v", err)
+	}
+
+	cfg, _, err := config.Load(config.Options{})
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	a := app.New(ws, cfg, log)
+	defer a.Close()
+
+	m := tui.New(tui.Options{
+		Version: "0.1.0-test",
+		Caps:    tui.Caps{Colour: false, Unicode: false},
+		Session: tui.SessionInfo{
+			Project: "test-project",
+			Branch:  "main",
+			Dirty:   false,
+		},
+	})
+
+	p := tea.NewProgram(m, tea.WithOutput(io.Discard), tea.WithInput(nil))
+
+	old := startSessionCheck
+	called := false
+	startSessionCheck = func(aa *app.App) {
+		if aa != a {
+			t.Fatalf("startSessionCheck called with wrong app pointer")
+		}
+		called = true
+	}
+	defer func() { startSessionCheck = old }()
+
+	startupPostAttach(a, p, "0.1.0-test")
+
+	if !called {
+		t.Fatal("startupPostAttach did not invoke startSessionCheck; StartSession is missing from startup")
+	}
+}
+
 // TestClearGrantsEmptiesPolicyE2E verifies end-to-end that clearing grants
 // through the TUI actually empties the real policy. A real grant is created
 // via approval, then /approvals is run, then 'c' clears it, and the policy
@@ -476,7 +624,7 @@ func TestClearGrantsEmptiesPolicyE2E(t *testing.T) {
 	})
 
 	// Wire the callbacks
-	wireCallbacks(&m, a, log, ws)
+	wireCallbacks(&m, a, log)
 
 	// Create a real grant by running an approval request for a session grant.
 	done := make(chan app.ApprovalOutcome, 1)

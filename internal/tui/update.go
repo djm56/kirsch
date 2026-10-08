@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -211,7 +210,6 @@ func normalizeSS3(b []byte) {
 type (
 	spinnerTickMsg  struct{}
 	spinnerStartMsg struct{}
-	streamTickMsg   struct{}
 )
 
 func tickSpinner() tea.Cmd {
@@ -230,10 +228,6 @@ func (m *Model) tickSpinnerOnce() tea.Cmd {
 	}
 	m.spinnerAlive = true
 	return tickSpinner()
-}
-
-func tickStream() tea.Cmd {
-	return tea.Tick(StreamCoalesce, func(time.Time) tea.Msg { return streamTickMsg{} })
 }
 
 // clearApprovalRelease clears the approval release flag and the approval hint if
@@ -261,9 +255,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case spinnerStartMsg:
 		return m, m.tickSpinnerOnce()
-
-	case streamTickMsg:
-		return m.advanceFake()
 
 	case WorkspaceInfoMsg:
 		m.sess.Project, m.sess.Branch, m.sess.Dirty = msg.Project, msg.Branch, msg.Dirty
@@ -313,6 +304,94 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Endpoint:     msg.Endpoint,
 		}
 		m.relayout(m.layout())
+		return m, nil
+
+	case AssistantTextDeltaMsg:
+		if id, ok := m.textBlocks[msg.BlockID]; ok {
+			if m.tr.AppendText(id, msg.Delta) {
+				m.relayout(m.layout())
+			}
+			return m, nil
+		}
+		id := m.appendBlock(Item{Kind: KindAssistant, Text: &TextBlock{
+			Lines:     SanitizeLines(msg.Delta),
+			Streaming: true,
+		}})
+		m.textBlocks[msg.BlockID] = id
+		m.busy = Busy{Active: true, Verb: "thinking"}
+		m.relayout(m.layout())
+		return m, m.tickSpinnerOnce()
+
+	case ThinkingDeltaMsg:
+		if id, ok := m.thinkingBlocks[msg.BlockID]; ok {
+			m.tr.AppendThinking(id, msg.Delta)
+		} else {
+			id := m.appendBlock(Item{Kind: KindThinking, Thinking: &ThinkingCard{
+				Tokens: len(strings.Fields(msg.Delta)),
+				Body:   []string{msg.Delta},
+			}})
+			m.thinkingBlocks[msg.BlockID] = id
+		}
+		m.relayout(m.layout())
+		return m, nil
+
+	case UsageMsg:
+		m.status.Tokens = msg.InputTokens + msg.OutputTokens + msg.CacheReadTokens + msg.CacheWriteTokens
+		m.relayout(m.layout())
+		return m, nil
+
+	case BudgetMsg:
+		m.status.EstimatedTokens = msg.EstimatedTokens
+		m.status.ContextWindow = msg.ContextWindow
+		m.relayout(m.layout())
+		return m, nil
+
+	case TurnCompleteMsg:
+		for i := range m.tr.Items() {
+			it := &m.tr.Items()[i]
+			if it.Kind == KindAssistant && it.Text != nil && it.Text.Streaming {
+				it.Text.Streaming = false
+			}
+		}
+		m.textBlocks = map[int64]ItemID{}
+		m.thinkingBlocks = map[int64]ItemID{}
+		m.busy = Busy{}
+		m.status.EstimatedTokens = 0
+		m.relayout(m.layout())
+		return m, nil
+
+	case TurnErrorMsg:
+		m.appendBlock(Item{Kind: KindError, Err: &ErrorCard{
+			Kind:    msg.Kind,
+			Message: msg.Message,
+			Hint:    "Enter to expand",
+			Detail:  SanitizeLines(msg.Detail),
+		}})
+		for i := range m.tr.Items() {
+			it := &m.tr.Items()[i]
+			if it.Kind == KindAssistant && it.Text != nil && it.Text.Streaming {
+				it.Text.Streaming = false
+			}
+		}
+		m.textBlocks = map[int64]ItemID{}
+		m.thinkingBlocks = map[int64]ItemID{}
+		m.busy = Busy{}
+		m.status.EstimatedTokens = 0
+		m.relayout(m.layout())
+		return m, nil
+
+	case TurnCancelledMsg:
+		m = m.cancelTurn()
+		m.textBlocks = map[int64]ItemID{}
+		m.thinkingBlocks = map[int64]ItemID{}
+		m.status.EstimatedTokens = 0
+		return m, nil
+
+	case CommandOutputChunkMsg:
+		if id, ok := m.toolCards[msg.ID]; ok {
+			m.tr.AppendCommandOutput(id, msg.Chunk)
+			m.relayout(m.layout())
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -1209,38 +1288,39 @@ func (m Model) submit(lay Layout) (tea.Model, tea.Cmd) {
 	m.comp.Reset()
 	m.scroll.repin() // re-pin: sending returns to the bottom
 	m.busy = Busy{Active: true, Verb: "thinking"}
-	m.fake.begin(&m)
+	if m.Submit != nil {
+		m.Submit(strings.TrimSpace(v))
+	}
 	m.relayout(lay)
-	return m, tickStream()
+	return m, nil
 }
 
 // runSlash executes one slash command. ui-spec §6.
 //
 // The re-pin sits on the shared tail rather than in submit or in each arm.
-// submit would be wrong because it cannot see which arm ran: the paths that only
-// set m.comp.Hint — an unknown command, or a debug command missing its argument
-// — produce nothing in the transcript, and their answer is already on screen in
-// the composer. Re-pinning those would throw away a scroll position to report a
-// typo. Per-arm would be wrong the other way: it is one fact about slash
-// commands, not a rule every arm has to remember, and the next arm added is the
-// one that would forget it.
+// submit would be wrong because it cannot see which arm ran: the hint-only path
+// for an unknown command produces nothing in the transcript, and its answer is
+// already on screen in the composer. Re-pinning that would throw away a scroll
+// position to report a typo. Per-arm would be wrong the other way: it is one
+// fact about slash commands, not a rule every arm has to remember, and the next
+// arm added is the one that would forget it.
 //
 // So the tail covers every arm that produces something — a notice, a modal, a
 // confirm, or a tool invocation whose card arrives later — and the hint-only
-// paths return before reaching it. ui-spec §2.4 lists sending a message as a
+// path returns before reaching it. ui-spec §2.4 lists sending a message as a
 // re-pin trigger and §3.1 renders a slash invocation as a message, so the two
 // agree.
 //
 // Returning early is not by itself the distinction: /quit returns early too, and
 // re-pinning a program that is on its way out would be pointless rather than
-// wrong. What the hint-only paths have in common is that their whole answer is
+// wrong. What the hint-only path has in common is that its whole answer is
 // already on screen in the composer, so moving the viewport would cost the
 // reader their place to tell them about a typo. Any arm added here that puts
 // something in the transcript belongs on the tail.
 //
-// Neither hint-only path relayouts, and neither needs to: setting a hint adds a
-// composer row and so changes the geometry, and dispatchKey rebuilds whenever
-// the layout a handler leaves behind differs from the one it was given.
+// The hint-only path does not relayout, and does not need to: setting a hint
+// adds a composer row and so changes the geometry, and dispatchKey rebuilds
+// whenever the layout a handler leaves behind differs from the one it was given.
 //
 // /help and /diff need nothing extra: they open a modal over a transcript that
 // is now pinned underneath, so closing it lands at the bottom. /new needs
@@ -1284,31 +1364,37 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 			})
 		}
 	case "status":
-		m.notice("model " + m.status.Model + " " + m.gly.Bullet + " branch " + m.sess.Branch +
-			" " + m.gly.Bullet + " " + formatTokens(m.status.Tokens))
+		var info StatusInfoMsg
+		if m.StatusInfo != nil {
+			info = m.StatusInfo()
+		}
+
+		parts := []string{
+			"model " + m.status.Model,
+			"endpoint " + info.Endpoint,
+			"base_url " + info.BaseURLHost,
+			"key source " + info.KeySource,
+		}
+		if info.ProxyHost != "" {
+			parts = append(parts, "proxy "+info.ProxyHost)
+		}
+		if info.ContextFile != "" {
+			parts = append(parts, "context "+info.ContextFile+" "+itoa(info.ContextSize)+" bytes")
+		} else {
+			parts = append(parts, "context none")
+		}
+		parts = append(parts, "branch "+m.sess.Branch, formatTokens(m.status.Tokens))
+		text := strings.Join(parts, " "+m.gly.Bullet+" ")
+		if info.ShowDataFlowNotice {
+			text += " " + m.gly.Bullet + " " + DataFlowNotice
+		}
+		m.notice(text)
 	case "diff":
 		m.openModal(ModalState{Kind: ModalDiff, Title: "working tree", Lines: fakeDiff(), Added: 12, Removed: 4})
 	case "files":
 		m.notice("files touched this session: calc/divide.go, calc/divide_test.go")
 	case "compact":
 		m.notice("nothing to compact yet")
-	case "read", "ls", "search", "gitstatus", "gitdiff", "patch", "run":
-		// Temporary M1 scaffolding, removed in M3 when the model drives tools.
-		// Labelled (debug) in /help so nobody mistakes them for product surface.
-		if m.RunTool == nil {
-			m.notice("tools are not wired up in this build")
-			break
-		}
-		name, input, errMsg := debugToolCall(cmd, args, m.ResolvePatchFile)
-		if errMsg != "" {
-			m.comp.Hint = errMsg
-			return m, nil
-		}
-		if name == "" {
-			m.comp.Hint = "usage: /" + cmd + " " + debugUsage(cmd)
-			return m, nil
-		}
-		m.RunTool(name, input)
 
 	default:
 		// Unknown commands get a dim inline hint, never an error card, and are
@@ -1323,124 +1409,4 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 
 func (m *Model) notice(text string) {
 	m.appendBlock(Item{Kind: KindNotice, Notice: &NoticeCard{Text: text}})
-}
-
-// debugToolCall maps an M1 debug command to a tool invocation.
-// debugToolCall constructs a tool invocation from a debug command. The
-// resolvePatchFile callback is used to safely resolve and read patch files from
-// the workspace, preventing directory traversal attacks. It returns the tool
-// name, input map, and an optional error message. If errMsg is non-empty, the
-// command should be rejected and the message displayed. If name is empty and
-// errMsg is empty, show usage.
-func debugToolCall(cmd, args string, resolvePatchFile func(string) (string, error)) (string, map[string]any, string) {
-	args = strings.TrimSpace(args)
-	switch cmd {
-	case "read":
-		if args == "" {
-			return "", nil, ""
-		}
-		return "read_file", map[string]any{"path": args}, ""
-	case "ls":
-		if args == "" {
-			args = "."
-		}
-		return "list_files", map[string]any{"path": args}, ""
-	case "search":
-		if args == "" {
-			return "", nil, ""
-		}
-		return "search_code", map[string]any{"query": args}, ""
-	case "gitstatus":
-		return "git_status", map[string]any{}, ""
-	case "gitdiff":
-		return "git_diff", map[string]any{}, ""
-	case "patch":
-		if args == "" {
-			return "", nil, ""
-		}
-		if resolvePatchFile == nil {
-			return "", nil, "patch: callback not wired"
-		}
-		diffContent, err := resolvePatchFile(args)
-		if err != nil {
-			return "", nil, "patch: " + err.Error()
-		}
-		return "apply_patch", map[string]any{"diff": diffContent}, ""
-	case "run":
-		if args == "" {
-			return "", nil, ""
-		}
-		// Parse arguments as shell-like syntax. Split on spaces and preserve
-		// quoted strings. Quotes are removed during parsing.
-		argv, err := shellSplit(args)
-		if err != nil {
-			return "", nil, "run: " + err.Error()
-		}
-		return "run_command", map[string]any{"argv": argv}, ""
-	}
-	return "", nil, ""
-}
-
-func debugUsage(cmd string) string {
-	switch cmd {
-	case "read":
-		return "<path>"
-	case "search":
-		return "<query>"
-	case "ls":
-		return "[path]"
-	case "patch":
-		return "<file>"
-	case "run":
-		return "<argv…>"
-	}
-	return ""
-}
-
-// shellSplit parses a command line into arguments, respecting double quotes.
-// Inside double quotes, whitespace is preserved and quotes themselves are removed.
-// Outside quotes, whitespace (space, tab, newline) splits arguments.
-// Empty quoted arguments (e.g., "") are preserved.
-//
-// Limitations (not implemented):
-// - Single quotes are not recognized; 'text' is parsed as an ordinary token.
-// - Backslash escapes are not recognized; \n, \", \\ are parsed literally.
-func shellSplit(s string) ([]string, error) {
-	var argv []string
-	var current strings.Builder
-	inQuotes := false
-	wasQuoted := false // Track if we just closed quotes
-
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch c {
-		case '"':
-			inQuotes = !inQuotes
-			if !inQuotes {
-				wasQuoted = true // Mark that we just closed a quoted section
-			}
-		case ' ', '\t', '\n':
-			if inQuotes {
-				current.WriteByte(c)
-			} else if current.Len() > 0 || wasQuoted {
-				argv = append(argv, current.String())
-				current.Reset()
-				wasQuoted = false
-			}
-		default:
-			current.WriteByte(c)
-			wasQuoted = false
-		}
-	}
-
-	if inQuotes {
-		// Unclosed quote is an error
-		return nil, fmt.Errorf("unclosed quote")
-	}
-
-	if current.Len() > 0 || wasQuoted {
-		argv = append(argv, current.String())
-	}
-
-	return argv, nil
 }

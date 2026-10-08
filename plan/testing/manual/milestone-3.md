@@ -25,13 +25,12 @@ when m3-d3 through m3-d6 arrive.
 | 2 | m3-d2 endpoint validation | **Runnable now** |
 | 3 | m3-d2 project config allowlist | **Runnable now** |
 | 4 | m3-d2 redirects and debug log | Automated tests (run the command) |
-| 5 | m3-d3 agent state machine | Not yet testable — arrives with m3-d3 |
-| 6 | m3-d4 system prompt and thinking | Not yet testable — arrives with m3-d4 |
-| 7 | m3-d5 onboarding screens | Not yet testable — arrives with m3-d5 |
-| 8 | m3-d6 wiring and integration | Not yet testable — arrives with m3-d6 |
+| 5 | m3-d3 agent state machine | **Runnable now** |
+| 6 | m3-d4 system prompt and thinking | **Runnable now** |
+| 7 | m3-d5 onboarding screens | **Runnable now** |
+| 8 | m3-d6 wiring and integration | **Runnable now** |
 
-Sections marked not yet testable are kept as placeholders and are filled in with
-runnable steps as each deliverable lands.
+All eight sections have now landed and read **Runnable now**, so the status table is fully populated and the whole document is runnable end to end.
 
 ---
 
@@ -503,51 +502,299 @@ go test -run 'TestClientRedirect|TestClientErrorMessages|TestClientBadRequest' -
 
 ---
 
-## Not Yet Testable — m3-d3
+## 5 · Agent turn loop (m3-d3)
 
-**Agent turn loop** (seen only through the TUI at m3-d6):
+The agent state machine drives tool calls and assembles the final answer. These
+behaviours are covered by automated tests; they are also observable end-to-end in
+the TUI at §8 (m3-d6). Run each group from the repository root.
 
-- [ ] Tool call then answer completes without error
-- [ ] Two tool calls, first rejected: the second still returns a result
-- [ ] Hallucinated tool name self-corrects within two retries
-- [ ] Max-turn guard at 25 renders an error card
-- [ ] Cancellation mid-tool returns within 1s and the next turn works
+**Tool call then answer completes without error:**
+
+```bash
+go test -run 'TestConversationAfterToolRound|TestRunTurnMapsUsageToUsageMsg|TestRunTurnApprovalToolUsesApprovalPath' -v ./internal/agent/ ./internal/app/
+```
+
+- [ ] `--- PASS: TestConversationAfterToolRound`
+- [ ] `--- PASS: TestRunTurnMapsUsageToUsageMsg`
+- [ ] `--- PASS: TestRunTurnApprovalToolUsesApprovalPath`
+- [ ] No line reads `--- FAIL`
+
+**Two tool calls, first rejected: the second still returns a result:**
+
+```bash
+go test -run 'TestTwoToolCallsInOrder|TestApprovalResolvedMsgCorrelatesByApprovalIDNotItemID|TestApprovalResolvedMsgDoesNotAlterADifferentApprovalsCard' -v ./internal/agent/ ./internal/app/ ./internal/tui/
+```
+
+- [ ] `--- PASS: TestTwoToolCallsInOrder`
+- [ ] `--- PASS: TestApprovalResolvedMsgCorrelatesByApprovalIDNotItemID`
+- [ ] `--- PASS: TestApprovalResolvedMsgDoesNotAlterADifferentApprovalsCard`
+
+**Hallucinated tool name self-corrects within two retries:**
+
+```bash
+go test -run 'TestHallucinatedToolNameSelfCorrects|TestKnownToolInputInvalidIsNotHallucination' -v ./internal/agent/
+```
+
+- [ ] `--- PASS: TestHallucinatedToolNameSelfCorrects`
+- [ ] `--- PASS: TestKnownToolInputInvalidIsNotHallucination`
+
+**Max-turn guard at 25 renders an error card:**
+
+```bash
+go test -run 'TestMaxTurnGuard|TestRunTurnMapsMaxTurnsExceededToTurnErrorMsg|TestTurnErrorRendersErrorCardPositiveControl' -v ./internal/agent/ ./internal/app/ ./internal/tui/
+```
+
+- [ ] `--- PASS: TestMaxTurnGuard`
+- [ ] `--- PASS: TestRunTurnMapsMaxTurnsExceededToTurnErrorMsg`
+- [ ] `--- PASS: TestTurnErrorRendersErrorCardPositiveControl` (renders `max_turns_exceeded` in the error colour)
+
+**Cancellation mid-tool returns within 1s and the next turn works:**
+
+```bash
+go test -run 'TestCancellationMidTool|TestCancelReturnsWithinOneSecond|TestRunTurnCancellationMapsToTurnCancelledMsg|TestTurnCancelledMarksStreamingTextCancelled' -v ./internal/agent/ ./internal/app/ ./internal/tui/
+```
+
+- [ ] `--- PASS: TestCancellationMidTool`
+- [ ] `--- PASS: TestCancelReturnsWithinOneSecond`
+- [ ] `--- PASS: TestRunTurnCancellationMapsToTurnCancelledMsg`
+- [ ] `--- PASS: TestTurnCancelledMarksStreamingTextCancelled`
+
+This section is the record for **Task 7 item 5** box "agent turn loop".
 
 ---
 
-## Not Yet Testable — m3-d4
+## 6 · System prompt, project context and thinking (m3-d4)
 
-**System prompt, project context and thinking:**
+Kirsch assembles the system prompt once at session start, injects `AGENTS.md`
+exactly once, honours the project allowlist, and preserves thinking blocks
+across the round-trip. The thinking round-trip has a live component (see the
+live step below).
 
-- [ ] AGENTS.md injected exactly once
-- [ ] Refused `project_files` entries (`/etc/hosts`, `../outside.md`, symlink outside workspace, `.env`, directory, FIFO) are skipped with warnings
-- [ ] Project context capped at 1024 bytes when global max is 1024; clamped to 32768 when global is above 32768
-- [ ] Prompt-injection fixture is reported, not obeyed
-- [ ] Thinking blocks at `off`, `low`, `medium` and `high` are preserved and round-tripped
+**AGENTS.md injected exactly once:**
+
+```bash
+go test -run 'TestSubmitCarriesAssembledSystemPrompt|TestAssembleOrder' -v ./internal/app/ ./internal/agent/prompt/
+```
+
+- [ ] `--- PASS: TestSubmitCarriesAssembledSystemPrompt`
+- [ ] `--- PASS: TestAssembleOrder`
+
+**Refused `project_files` entries are skipped with named warnings:**
+
+```bash
+go test -run 'TestLoadProjectContext_RefusedCandidatesProduceNamedWarnings|TestLoadProjectContext_NonRegularFilesSkippedWithWarning' -v ./internal/agent/prompt/
+```
+
+- [ ] `--- PASS: TestLoadProjectContext_RefusedCandidatesProduceNamedWarnings`
+- [ ] `--- PASS: TestLoadProjectContext_NonRegularFilesSkippedWithWarning`
+
+**Project context capped at 1024 bytes (and clamped to 32768 when the global max is above 32768):**
+
+```bash
+go test -run 'TestLoadProjectContext_CapTruncationAndClamp' -v ./internal/agent/prompt/
+```
+
+- [ ] `--- PASS: TestLoadProjectContext_CapTruncationAndClamp`
+
+**Prompt-injection fixture is reported, not obeyed:**
+
+```bash
+go test -run 'TestPromptInjection_SurfacedNotObeyed' -v ./internal/agent/
+```
+
+- [ ] `--- PASS: TestPromptInjection_SurfacedNotObeyed`
+
+**Thinking blocks at `off`, `low`, `medium` and `high` are preserved and round-tripped:**
+
+```bash
+go test -run 'TestThinkingBlockRoundTripAtEveryLevel|TestThinkingOnlyMessageIsAccepted|TestThinkingBlockCarriesCompactionMarker' -v ./internal/agent/
+```
+
+- [ ] `--- PASS: TestThinkingBlockRoundTripAtEveryLevel`
+- [ ] `--- PASS: TestThinkingOnlyMessageIsAccepted`
+- [ ] `--- PASS: TestThinkingBlockCarriesCompactionMarker`
+
+**Live thinking round-trip (default model `minimax-m2.7`, which accepts thinking at every level):**
+
+With the API key set, the live script runs the full `TestLive*` set —
+`TestLiveOpencodeSmoke`, `TestLiveThinkingRoundTrip` and the pure-unit
+`TestLiveModel`. The thinking round-trip sends a two-turn conversation at every
+`ThinkingLevel` (including `off`) and replays a thinking-only assistant message;
+it fails only if the endpoint rejects the echoed signed thinking block or the
+thinking-only replay.
+
+```bash
+read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
+npm run test:live 2>&1 | tee "$T_STATE/think.txt"
+```
+
+- [ ] `--- PASS: TestLiveOpencodeSmoke`
+- [ ] `--- PASS: TestLiveThinkingRoundTrip` (with subtests `--- PASS: TestLiveThinkingRoundTrip/off`, `/low`, `/medium`, `/high`)
+- [ ] `--- PASS: TestLiveModel`
+- [ ] The final log line reads `thinking round-trip passed for all levels`
+
+Clean up:
+
+```bash
+rm -f "$T_STATE/think.txt"
+unset OPENCODE_API_KEY KIRSCH_LIVE_MODEL
+```
+
+This section is the record for **Task 7 item 6** box "system prompt + thinking"
+and the m3-d4 live round-trip handoff.
 
 ---
 
-## Not Yet Testable — m3-d5
+## 7 · Onboarding screens (m3-d5)
 
-**Onboarding screens:**
+Screen 12 (onboarding) is drawn at 80×34 and the golden test covers all fourteen
+states. These tests render the onboarding view directly and assert the notices;
+the live TUI shows the same screen at startup (§8).
 
-- [ ] No API key — screen names both key variables (e.g., `KIRSCH_OPENCODE_API_KEY` → `OPENCODE_API_KEY`)
-- [ ] Not a Git repo — workspace detection message shown
-- [ ] Unknown model — dim notice that cost display is unavailable, conservative budget used
-- [ ] Screen 14 drawn and lint-clean
+**No API key — screen names both key variables:**
+
+```bash
+go test -run 'TestOnboardingNamesKeyVariablesInOrder|TestCheckOnboardingMissingKeyNamesVariables' -v ./internal/tui/ ./internal/app/
+```
+
+- [ ] `--- PASS: TestOnboardingNamesKeyVariablesInOrder` (both `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY` present, prefixed first; "keys are never read from config files" present)
+- [ ] `--- PASS: TestCheckOnboardingMissingKeyNamesVariables`
+
+**Not a Git repo — workspace detection message shown:**
+
+```bash
+go test -run 'TestOnboardingRendersNotAGitRepoMessage' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestOnboardingRendersNotAGitRepoMessage` (contains `--workspace` and "run inside a repository")
+
+**Unknown model — dim notice that cost display is unavailable, conservative budget used:**
+
+```bash
+go test -run 'TestOnboardingRendersUnknownModelNotice|TestCheckOnboardingUnknownModelFlag' -v ./internal/tui/ ./internal/app/
+```
+
+- [ ] `--- PASS: TestOnboardingRendersUnknownModelNotice` (contains "cost display unavailable" and "conservative budget")
+- [ ] `--- PASS: TestCheckOnboardingUnknownModelFlag`
+
+**Screen 12 drawn and lint-clean:**
+
+```bash
+go test -run 'TestMatchesScreenReference' -v ./internal/tui/
+python3 scripts/lint-screens.py
+```
+
+- [ ] `--- PASS: TestMatchesScreenReference` (every `screenNN` subtest passes — all fourteen golden states, including the onboarding screen 12)
+- [ ] `python3 scripts/lint-screens.py` prints `grids OK` (no dimension or content violation)
+
+This section is the record for **m3-d5** box "onboarding screens".
 
 ---
 
-## Not Yet Testable — m3-d6
+## 8 · Wiring and integration (m3-d6)
 
-**Wiring and integration:**
+The end-to-end wiring: project context loads once, the system prompt reaches the
+provider, `/status` reports real fields, approval IDs are distinct, command
+timeouts and ProgressSink are wired, and the debug slash commands are gone. Most
+of this is covered by automated tests; the final item is a live operator-observed
+conversation.
 
-- [ ] First real conversation in the TUI works end to end
-- [ ] Token counts in the status bar come from real usage
-- [ ] `/status` shows endpoint name, `base_url` host, key source variable (never value), proxy host (never userinfo), and context file loaded
-- [ ] Debug slash commands are gone; help shrinks from 80×34 to 80×28
-- [ ] Distinct approval IDs on multiple requests
-- [ ] M2 carry-overs wired (policy, command timeout, ProgressSink)
+**Project context loads once and the system prompt reaches the provider:**
+
+```bash
+go test -run 'TestStartSessionLoadsProjectContextOnce|TestSubmitCarriesAssembledSystemPrompt' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestStartSessionLoadsProjectContextOnce`
+- [ ] `--- PASS: TestSubmitCarriesAssembledSystemPrompt`
+
+**`/status` shows endpoint name, `base_url` host, key source variable (never value), proxy host (never userinfo), and context file loaded:**
+
+```bash
+go test -run 'TestStatusCommandRendersAllFields|TestStatusCommandOmitsProxyWhenAbsent|TestStatusInfoKeySourcePrefersPrefixedVariable|TestStatusInfoKeySourceFallsBackToBare|TestStatusInfoProxyHostStripsUserinfo|TestStatusInfoBaseURLHost|TestStatusInfoContextFileAndSize|TestStatusInfoCleanContextWhenNoneLoaded|TestStatusInfoDataFlowNoticeOpencodeOnly' -v ./internal/tui/ ./internal/app/
+```
+
+- [ ] `--- PASS: TestStatusCommandRendersAllFields`
+- [ ] `--- PASS: TestStatusCommandOmitsProxyWhenAbsent`
+- [ ] `--- PASS: TestStatusInfoKeySourcePrefersPrefixedVariable`
+- [ ] `--- PASS: TestStatusInfoKeySourceFallsBackToBare`
+- [ ] `--- PASS: TestStatusInfoProxyHostStripsUserinfo`
+- [ ] `--- PASS: TestStatusInfoBaseURLHost`
+- [ ] `--- PASS: TestStatusInfoContextFileAndSize`
+- [ ] `--- PASS: TestStatusInfoCleanContextWhenNoneLoaded`
+- [ ] `--- PASS: TestStatusInfoDataFlowNoticeOpencodeOnly`
+
+**Token counts in the status bar come from real usage:**
+
+```bash
+go test -run 'TestUsageMsgRendersTokensInStatusBar' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestUsageMsgRendersTokensInStatusBar`
+
+**Distinct approval IDs on multiple requests:**
+
+```bash
+go test -run 'TestRunCommandApprovalIDsAreDistinct' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestRunCommandApprovalIDsAreDistinct`
+
+**Command timeout and ProgressSink wired (M2 carry-overs):**
+
+```bash
+go test -run 'TestRunCommandStreamsOutputToCard|TestRunCommandTimeoutUsesConfiguredDefault|TestRunCommandTimeoutRejectsOverCeiling|TestRunCommandCanWriteKirschConfig' -v ./internal/app/ ./internal/tool/
+```
+
+- [ ] `--- PASS: TestRunCommandStreamsOutputToCard`
+- [ ] `--- PASS: TestRunCommandTimeoutUsesConfiguredDefault`
+- [ ] `--- PASS: TestRunCommandTimeoutRejectsOverCeiling`
+- [ ] `--- PASS: TestRunCommandCanWriteKirschConfig`
+
+**Context-overflow surfaced before send (budget guard):**
+
+```bash
+go test -run 'TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget`
+
+**Debug slash commands are gone; help shrinks from 80×34 to 80×28:**
+
+```bash
+go test -run 'TestDeletedDebugCommandsAreUnknown|TestKeptHelpCommandIsKnown|TestMatchesScreenReference' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestDeletedDebugCommandsAreUnknown`
+- [ ] `--- PASS: TestKeptHelpCommandIsKnown`
+- [ ] `--- PASS: TestMatchesScreenReference` (help screen 06 renders at 80×28, all commands visible, no scroll indicator)
+
+**Live, on `opencode` (operator-observed):** Kirsch's answer to a read-only
+question about this repo cites a file and line that the transcript's `read_file`
+or `search_code` results contain. From the checkout, with the key set and the
+default model:
+
+```bash
+read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+# Ask: "Where is the opencode endpoint's default model defined, and what is it?"
+# Let it call read_file / search_code, then answer.
+# Quit with /quit
+```
+
+- [ ] The answer names a real file and line (e.g. `internal/config/...` and a line number) that appears in the tool-result transcript
+- [ ] The transcript shows the `read_file` / `search_code` tool calls and their results before the answer
+- [ ] Token counts in the status bar are non-zero after the turn
+
+Clean up:
+
+```bash
+unset OPENCODE_API_KEY
+```
+
+This section is the record for **m3-d6** box "wiring + integration", **Task 7
+item 6** box :313 (status fields), and **milestone-3.md box :321** (live
+read-only answer cites file/line).
 
 ---
 

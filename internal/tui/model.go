@@ -1,12 +1,12 @@
 // Package tui renders Kirsch's terminal interface.
 //
-// Milestone 0 drives it entirely from fake data (see fake.go). The package
-// imports no other internal package and never will: it receives typed messages
-// and emits typed intents, so it cannot reach a tool, a provider or the
-// filesystem. architecture.md §3 rule 2.
+// The package imports no other internal package and never will: it receives
+// typed messages and emits typed intents, so it cannot reach a tool, a provider
+// or the filesystem. architecture.md §3 rule 2.
 package tui
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -128,16 +128,24 @@ type Model struct {
 	// Callbacks into internal/app. Function fields rather than an interface
 	// so the TUI depends on behaviour it names itself and cannot be handed a
 	// package it is forbidden to import.
-	RunTool          func(name string, input map[string]any)
-	Cancel           func()
-	ResolveApproval  func(id int64, outcome ApprovalOutcome)
-	GetGrants        func() []string
-	GetGrantCount    func() int
-	ClearGrants      func()
-	ResolvePatchFile func(filename string) (string, error)
+	Submit          func(text string)
+	Cancel          func()
+	ResolveApproval func(id int64, outcome ApprovalOutcome)
+	GetGrants       func() []string
+	GetGrantCount   func() int
+	ClearGrants     func()
+	StatusInfo      func() StatusInfoMsg
 
 	projectTypes []string
 	toolCards    map[int64]ItemID // app-side tool id → transcript card
+
+	// textBlocks correlates an adapter-owned BlockID to the streaming assistant
+	// text item it created. A single turn has one active text block.
+	textBlocks map[int64]ItemID
+
+	// thinkingBlocks correlates an adapter-owned BlockID to the thinking card
+	// it created. A single turn may open at most one thinking block.
+	thinkingBlocks map[int64]ItemID
 
 	// approvalCards correlates an ApprovalResolvedMsg back to its card. It is
 	// populated in receiveApprovalRequest, keyed by the app-side approval ID
@@ -150,8 +158,9 @@ type Model struct {
 	// Same shape as toolCards above, for the same keying reason: msg.ID there
 	// is also drawn from a counter the transcript does not own. The cleanup
 	// differs, though: toolCards is deleted unconditionally in
-	// applyToolResult, because RunTool sends a ToolCompletedMsg on every path
-	// including its early error return. approvalCards has no such guarantee —
+	// applyToolResult, because the tool executor sends a ToolCompletedMsg on
+	// every path including its early error return. approvalCards has no such
+	// guarantee —
 	// app.Resolve (app.go) only sends an ApprovalResolvedMsg when it attempted
 	// a session grant, so an entry for any other outcome is deleted eagerly by
 	// resolveApproval itself (update.go) instead of waiting for a message that
@@ -162,8 +171,6 @@ type Model struct {
 	spinnerAlive bool // a tick chain is in flight; see tickSpinnerOnce
 	now          func() time.Time
 	lastCtrlC    time.Time
-
-	fake fakeDriver
 }
 
 // itemRow records where an item landed in the flattened transcript, which is
@@ -174,7 +181,7 @@ type itemRow struct {
 	N     int
 }
 
-// New builds a Model with the Milestone 0 fixture loaded.
+// New builds a Model with an empty transcript.
 func New(o Options) Model {
 	if o.Now == nil {
 		o.Now = time.Now
@@ -183,26 +190,28 @@ func New(o Options) Model {
 		o.Session = SessionInfo{Project: "my-project", Branch: "main", Dirty: true}
 	}
 	o.Session.Version = o.Version
-	if o.Status.Model == "" {
-		o.Status = Status{Model: "claude-sonnet-5", Family: "sonnet-5"}
+	if o.Status.Model != "" && o.Status.Family == "" {
+		o.Status.Family = deriveFamily(o.Status.Model)
 	}
 
 	rend := NewRenderer(o.Caps.Colour)
 	m := Model{
-		caps:          o.Caps,
-		rend:          rend,
-		sty:           NewStyles(rend, o.Caps.Colour),
-		gly:           NewGlyphs(o.Caps.Unicode),
-		expanded:      map[ItemID]bool{},
-		collapsed:     map[ItemID]bool{},
-		toolCards:     map[int64]ItemID{},
-		approvalCards: map[int64]ItemID{},
-		scroll:        Scroll{Pinned: true},
-		sess:          o.Session,
-		status:        o.Status,
-		onboarding:    o.Onboarding,
-		comp:          newComposer(),
-		now:           o.Now,
+		caps:           o.Caps,
+		rend:           rend,
+		sty:            NewStyles(rend, o.Caps.Colour),
+		gly:            NewGlyphs(o.Caps.Unicode),
+		expanded:       map[ItemID]bool{},
+		collapsed:      map[ItemID]bool{},
+		toolCards:      map[int64]ItemID{},
+		thinkingBlocks: map[int64]ItemID{},
+		textBlocks:     map[int64]ItemID{},
+		approvalCards:  map[int64]ItemID{},
+		scroll:         Scroll{Pinned: true},
+		sess:           o.Session,
+		status:         o.Status,
+		onboarding:     o.Onboarding,
+		comp:           newComposer(),
+		now:            o.Now,
 	}
 	return m
 }
@@ -216,6 +225,18 @@ func NewWithFixture(o Options) Model {
 	m.loadFixture()
 	m.relayout(m.layout())
 	return m
+}
+
+// deriveFamily returns the short family name used by the status-bar truncation
+// ladder. It drops the leading vendor token ("claude-" or "minimax-") so that
+// "claude-sonnet-5-5" becomes "sonnet-5-5" and "minimax-m2.7" becomes "m2.7".
+// A model with no hyphen is returned unchanged.
+func deriveFamily(model string) string {
+	i := strings.Index(model, "-")
+	if i < 0 {
+		return model
+	}
+	return model[i+1:]
 }
 
 // Init starts the single spinner tick chain.

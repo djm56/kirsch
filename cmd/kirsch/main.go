@@ -6,11 +6,11 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -20,13 +20,6 @@ import (
 	"github.com/djm56/kirsch/internal/tui"
 	"github.com/djm56/kirsch/internal/workspace"
 )
-
-// patchFileDir is the fixed directory the temporary M1/M7 debug `/patch`
-// command reads from — plan/milestones/milestone-2.md Task 7.5 specifies it
-// verbatim: "/patch <file> (apply a diff from testdata/patches/)". The
-// command takes a bare filename, so the directory has to be supplied by the
-// wiring rather than by the caller.
-const patchFileDir = "testdata/patches"
 
 // version is overridden at release time via -ldflags (Milestone 5).
 var version = "0.1.0-dev"
@@ -90,8 +83,9 @@ func run() error {
 			Branch:  info.Branch,
 			Dirty:   info.Dirty,
 		},
+		Status: a.ActiveModelInfo(),
 	})
-	wireCallbacks(&m, a, log, ws)
+	wireCallbacks(&m, a, log)
 
 	// Input is normalised on the way in so that terminals which encode Home and
 	// End as SS3 — macOS Terminal among them — reach Bubble Tea as the CSI forms
@@ -106,7 +100,6 @@ func run() error {
 		opts = append(opts, tea.WithInput(in))
 	}
 	p := tea.NewProgram(m, opts...)
-	a.Attach(p)
 
 	for _, w := range warnings {
 		log.Warn("config", "detail", w.String())
@@ -117,8 +110,47 @@ func run() error {
 		"git", ws.IsGit,
 		"tools", a.Registry().Names())
 
+	// Generate one session ID per invocation for the opencode endpoint and tell
+	// the app the version before any turn can start. This must happen after the
+	// program is attached so onboarding messages have somewhere to go.
+	startupPostAttach(a, p, version)
+
 	_, err = p.Run()
 	return err
+}
+
+// startupPostAttach runs the sequence that must happen after the TUI program
+// is attached: identity, version, and onboarding. It is extracted so that
+// run() and the startup tests share the exact same ordering.
+func startupPostAttach(a *app.App, p *tea.Program, version string) {
+	a.Attach(p)
+	a.SetSessionID(newSessionID())
+	a.SetVersion(version)
+	startSessionCheck(a)
+	onboardingCheck(a)
+}
+
+// startSessionCheck is a package-level hook so tests can verify that startup
+// assembles the session prompt without needing to run the full TUI.
+var startSessionCheck = func(a *app.App) {
+	a.StartSession(os.Getenv)
+}
+
+// onboardingCheck is a package-level hook so tests can verify that startup
+// actually calls CheckOnboarding without needing to run the full TUI.
+var onboardingCheck = func(a *app.App) {
+	a.CheckOnboarding(os.Getenv)
+}
+
+// newSessionID returns a 16-byte hex string suitable for the opencode endpoint.
+func newSessionID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// Fall back to a non-cryptographic but still unique identifier. This
+		// path is extremely unlikely and is better than failing to start.
+		return fmt.Sprintf("%d", os.Getpid())
+	}
+	return hex.EncodeToString(b)
 }
 
 // wireCallbacks wires the TUI model's callbacks to the app and telemetry logger.
@@ -128,13 +160,12 @@ func run() error {
 //
 // Deleting the m.ResolveApproval assignment in this function breaks the approval flow
 // and causes Request to block indefinitely, making user approvals impossible.
-func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger, ws *workspace.Workspace) {
-	// Wrapped rather than assigned directly so the debug log records what the
-	// interface asked for, separately from what the tool layer then did. When
-	// the two disagree, that gap is the bug.
-	m.RunTool = func(name string, input map[string]any) {
-		log.Debug("tui requested tool", "tool", name, "input", input)
-		a.RunTool(name, input)
+func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger) {
+	// Submit hands ordinary composer text to the app, which starts a real
+	// model-driven turn. Slash commands never reach this callback.
+	m.Submit = func(text string) {
+		log.Debug("tui submitted", "text", text)
+		a.Submit(text, os.Getenv)
 	}
 	m.Cancel = func() {
 		log.Debug("tui requested cancel")
@@ -164,32 +195,8 @@ func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger, ws *workspac
 	m.ClearGrants = func() {
 		a.ClearGrants()
 	}
-	// ResolvePatchFile wires the TUI's patch file resolution to the
-	// workspace. The filename is joined onto patchFileDir before it reaches
-	// ws.Resolve, so /patch create-file.diff actually finds
-	// testdata/patches/create-file.diff instead of a file that has never
-	// existed at the workspace root.
-	//
-	// ws.Resolve is the workspace's own security boundary: it refuses
-	// anything that resolves outside the workspace root, including through a
-	// symlink resolved stepwise. That bounds the result to the workspace,
-	// not to patchFileDir specifically — a filename such as
-	// "../../internal/policy/policy.go" stays inside the workspace while
-	// leaving the patch directory. Containment is re-checked below against
-	// patchFileDir once ws.Resolve has settled the symlink question, so
-	// /patch can only ever read what the milestone spec scoped it to.
-	m.ResolvePatchFile = func(filename string) (string, error) {
-		resolved, err := ws.Resolve(filepath.Join(patchFileDir, filename))
-		if err != nil {
-			return "", err
-		}
-		if rel := ws.Rel(resolved); rel != patchFileDir && !strings.HasPrefix(rel, patchFileDir+"/") {
-			return "", fmt.Errorf("patch file %q is outside %s", filename, patchFileDir)
-		}
-		content, err := os.ReadFile(resolved) // #nosec G304 -- path is contained to testdata/patches by ws.Resolve (internal/workspace) + the prefix check above
-		if err != nil {
-			return "", err
-		}
-		return string(content), nil
+	// StatusInfo wires the /status command to the app's config/Env summary.
+	m.StatusInfo = func() tui.StatusInfoMsg {
+		return a.StatusInfo(os.Getenv)
 	}
 }

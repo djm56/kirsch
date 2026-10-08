@@ -23,7 +23,7 @@ func headerModel(t *testing.T, sess SessionInfo, w, h int) Model {
 		Version: fixtureVersion,
 		Caps:    Caps{Unicode: true},
 		Session: sess,
-		Status:  Status{Model: "claude-sonnet-5", Family: "sonnet-5"},
+		Status:  Status{Model: "claude-sonnet-5-5", Family: "sonnet-5-5"},
 	})
 	mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	return mm.(Model)
@@ -1001,7 +1001,7 @@ func TestAsciiFallbackNeverEmitsAnEllipsis(t *testing.T) {
 				Version: fixtureVersion,
 				Caps:    Caps{Unicode: false},
 				Session: SessionInfo{Project: long, Branch: long, Dirty: true},
-				Status:  Status{Model: "claude-sonnet-5", Family: "sonnet-5"},
+				Status:  Status{Model: "claude-sonnet-5-5", Family: "sonnet-5-5"},
 			})
 			mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: 24})
 			m = mm.(Model)
@@ -1506,7 +1506,7 @@ func TestSentinelIsAbsentFromEveryOverlay(t *testing.T) {
 						Version: fixtureVersion,
 						Caps:    Caps{Unicode: unicode, Colour: true},
 						Session: defaultSession(),
-						Status:  Status{Model: "claude-sonnet-5", Family: "sonnet-5"},
+						Status:  Status{Model: "claude-sonnet-5-5", Family: "sonnet-5-5"},
 					})
 					mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 					m = mm.(Model)
@@ -1750,121 +1750,12 @@ func TestFrameKeepsAMarginAtBothEdges(t *testing.T) {
 	t.Logf("covered %d ruled frames and %d frames too narrow for a margin", ruledSeen, unpaddedSeen)
 }
 
-// TestHelpScrollingReachesDebugCommands verifies that at 80×24 the debug rows
-// are below the fold, and G brings /run into view. The test asserts that /run
-// is not visible before scrolling and becomes visible after pressing G to jump
-// to the bottom.
-func TestHelpScrollingReachesDebugCommands(t *testing.T) {
-	m := newDrivenSize(t, 80, 24)
-	if m.mode() != ModeApprovalPending {
-		t.Fatalf("fixture should start in ApprovalPending, got %v", m.mode())
-	}
-
-	// Open help by key dispatch
-	m = drive(m, key('?'))
-	if m.mode() != ModeModal {
-		t.Fatalf("? did not open a modal: mode = %v", m.mode())
-	}
-
-	// Get the overlay rows from the modal box
-	lay := m.layout()
-	box, _, _ := m.modalBox(lay)
-
-	// Before scrolling, assert that no overlay row contains /run.
-	// If one does, the precondition is not reached.
-	for _, row := range box {
-		if strings.Contains(stripSGR(row), "/run") {
-			t.Fatalf("before scrolling, overlay row already contains /run; precondition not reached")
-		}
-	}
-
-	// Press G to jump to the bottom
-	m = drive(m, key('G'))
-
-	// Get the overlay rows after scrolling
-	box, _, _ = m.modalBox(m.layout())
-
-	// Assert an overlay row contains /run
-	var found bool
-	for _, row := range box {
-		if strings.Contains(stripSGR(row), "/run") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("after pressing G, /run not visible in overlay rows")
-	}
-
-	// Assert the rule row contains ↑ and an "above" marker
-	if len(box) < 3 {
-		t.Fatalf("modal box has %d rows; expected at least 3", len(box))
-	}
-	ruleRow := stripSGR(box[len(box)-3])
-	if !strings.Contains(ruleRow, "↑") {
-		t.Errorf("rule row does not contain ↑: %q", ruleRow)
-	}
-	if !strings.Contains(ruleRow, "above") {
-		t.Errorf("rule row does not contain 'above': %q", ruleRow)
-	}
-}
-
-// TestHelpRunSharesRowWithPatch verifies that after reordering DebugCommands,
-// /patch and /run appear on the same line in the help overlay at multiple
-// terminal sizes and heights.
-func TestHelpRunSharesRowWithPatch(t *testing.T) {
-	for _, w := range []int{80, 120} {
-		for h := 24; h <= 40; h++ {
-			m := newDrivenSize(t, w, h)
-			if m.mode() != ModeApprovalPending {
-				t.Fatalf("%dx%d: fixture should start in ApprovalPending, got %v", w, h, m.mode())
-			}
-
-			// Open help by key dispatch
-			m = drive(m, key('?'))
-			if m.mode() != ModeModal {
-				t.Fatalf("%dx%d: ? did not open a modal: mode = %v", w, h, m.mode())
-			}
-
-			// Check if help modal is actually open
-			if m.modal.Kind != ModalHelp {
-				t.Fatalf("%dx%d: modal kind is %v, not ModalHelp", w, h, m.modal.Kind)
-			}
-
-			// Search only the overlay rows from m.modalBox(m.layout())
-			lay := m.layout()
-			box, _, _ := m.modalBox(lay)
-			overlayRows := make([]string, len(box))
-			for i, row := range box {
-				overlayRows[i] = stripSGR(row)
-			}
-
-			// Find the line containing /patch and verify /run is on the same line
-			var foundPatchLine bool
-			for _, line := range overlayRows {
-				if strings.Contains(line, "/patch") {
-					foundPatchLine = true
-					if !strings.Contains(line, "/run") {
-						t.Errorf("%dx%d: line contains /patch but not /run: %q", w, h, line)
-					}
-					break
-				}
-			}
-
-			// Assert /patch is visible at height >= 33
-			if h >= 33 && !foundPatchLine {
-				t.Errorf("%dx%d: /patch not visible in help overlay at height >= 33", w, h)
-			}
-		}
-	}
-}
-
 // TestHelpFooterNamesScrollKeysWhenClipped verifies that the help footer
 // includes "j/k scroll" when the content is taller than the viewport
 // (clipped), and omits it when the full content fits.
 func TestHelpFooterNamesScrollKeysWhenClipped(t *testing.T) {
 	for _, w := range []int{80, 120} {
-		for _, h := range []int{30, 33, 34, 40} {
+		for _, h := range []int{27, 28, 30, 33, 34, 40} {
 			m := newDrivenSize(t, w, h)
 			if m.mode() != ModeApprovalPending {
 				t.Fatalf("%dx%d: fixture should start in ApprovalPending, got %v", w, h, m.mode())
@@ -1891,8 +1782,9 @@ func TestHelpFooterNamesScrollKeysWhenClipped(t *testing.T) {
 					w, h, footerRow)
 			}
 
-			// Determine if clipped based on height
-			clipped := h == 30 || h == 33
+			// The help overlay needs 28 rows; below that it clips and the footer
+			// advertises j/k scrolling.
+			clipped := h < 28
 
 			// Check for j/k scroll in footer
 			hasScrollHint := strings.Contains(footerRow, "j/k scroll")
@@ -1906,8 +1798,8 @@ func TestHelpFooterNamesScrollKeysWhenClipped(t *testing.T) {
 					w, h, footerRow)
 			}
 
-			// At 120×30, assert the footer contains "docs: doc/usage.md"
-			if w == 120 && h == 30 {
+			// At 120×27, assert the footer contains "docs: doc/usage.md" even when clipped.
+			if w == 120 && h == 27 {
 				if !strings.Contains(footerRow, "docs: doc/usage.md") {
 					t.Errorf("%dx%d (clipped, wide): footer should contain 'docs: doc/usage.md' but got: %q",
 						w, h, footerRow)
@@ -2000,7 +1892,7 @@ func clippedModal(t *testing.T, unicode, colour bool, ms ModalState, off int) Mo
 			Version: fixtureVersion,
 			Caps:    Caps{Unicode: unicode, Colour: colour},
 			Session: defaultSession(),
-			Status:  Status{Model: "claude-sonnet-5", Family: "sonnet-5"},
+			Status:  Status{Model: "claude-sonnet-5-5", Family: "sonnet-5-5"},
 		})
 		mm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: h})
 		m = mm.(Model)

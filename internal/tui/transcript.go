@@ -269,9 +269,10 @@ func (t *Transcript) Find(id ItemID) (Item, int, bool) {
 // the guard by hand, and it skips t.rev — which costs nothing today only
 // because nothing reads t.rev.
 //
-// Text has the same shape and one less method. cancelTurn and advanceFake both
-// clear it.Text.Streaming in the open because AppendText only appends; there
-// is no guarded way to end a stream, so that flag has no seam at all.
+// Text has the same shape and one less method. cancelTurn and the scripted
+// turn helper both clear it.Text.Streaming in the open because AppendText only
+// appends; there is no guarded way to end a stream, so that flag has no seam
+// at all.
 func (t *Transcript) MutateTool(id ItemID, fn func(*ToolCard)) bool {
 	it, _, ok := t.Find(id)
 	if !ok || it.Kind != KindTool || it.Tool.State.Terminal() {
@@ -282,7 +283,8 @@ func (t *Transcript) MutateTool(id ItemID, fn func(*ToolCard)) bool {
 	return true
 }
 
-// AppendText appends to a streaming text block. Used by the fake stream driver.
+// AppendText appends to a streaming text block. Used by the fake stream driver
+// and by the real assistant text delta path.
 func (t *Transcript) AppendText(id ItemID, s string) bool {
 	it, _, ok := t.Find(id)
 	if !ok || it.Text == nil || !it.Text.Streaming {
@@ -296,6 +298,30 @@ func (t *Transcript) AppendText(id ItemID, s string) bool {
 	}
 	t.rev++
 	return true
+}
+
+// AppendThinking appends a fragment to an open thinking card. The card's token
+// count is approximated from the fragment so the collapsed card can show a
+// plausible total; the exact usage arrives separately via UsageMsg.
+func (t *Transcript) AppendThinking(id ItemID, s string) bool {
+	it, _, ok := t.Find(id)
+	if !ok || it.Thinking == nil {
+		return false
+	}
+	it.Thinking.Body = append(it.Thinking.Body, s)
+	it.Thinking.Tokens += len(strings.Fields(s))
+	t.rev++
+	return true
+}
+
+// AppendCommandOutput appends one output chunk to a running tool card. The
+// chunk is sanitised before storage so malicious tool output cannot inject
+// ANSI escapes into the transcript. ui-spec §7.1.
+func (t *Transcript) AppendCommandOutput(id ItemID, chunk string) bool {
+	lines := trimTrailingEmpty(SanitizeLines(chunk), chunk)
+	return t.MutateTool(id, func(c *ToolCard) {
+		c.Out = append(c.Out, lines...)
+	})
 }
 
 // nextSelectable walks to the next selectable item in the given direction,

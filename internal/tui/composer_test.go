@@ -348,7 +348,7 @@ func TestTheCaretStandsInAWholeGraphemeCluster(t *testing.T) {
 // Overstriking loses the cursor completely when the glyph drawn equals the text
 // it covers — the row comes out byte-identical to the plain text. In ASCII the
 // caret is `_`, and the composer of a coding agent is typed full of `_`:
-// `parse_slash`, `snake_case_name`, `/read my_file.go`. The ASCII table is not a
+// `parse_slash`, `snake_case_name`, `read my_file.go`. The ASCII table is not a
 // corner either; unicodeLocale reports false whenever LC_ALL, LC_CTYPE and LANG
 // are all unset, which is the default in `docker run`, in a systemd unit, under
 // cron and on many CI runners. The earlier caret test missed all of it by only
@@ -393,7 +393,7 @@ func TestTheCaretIsVisibleOnEveryClusterItCanSitOn(t *testing.T) {
 				g.Caret + g.Caret + g.Caret,
 				"parse_slash",
 				"snake_case_name",
-				"/read my_file.go",
+				"read my_file.go",
 				"internal/tui/view_smoke_test.go",
 			} {
 				t.Run(text, func(t *testing.T) {

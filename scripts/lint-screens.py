@@ -29,7 +29,11 @@ What the checks guarantee, taken together:
     before the margin existed;
   * no row carries trailing whitespace, which markdown cannot hold;
   * box borders are square: every row's right-most border character sits in one
-    of at most two columns (two, because a modal may overlap a card behind it).
+    of at most two columns (two, because a modal may overlap a card behind it);
+  * non-grid content that a raw-grid regeneration would silently discard is still
+    present: the colour-map format header, screen 00's wordmark and ASCII
+    fallback, every screen's colour map, screen 05's collapsed grant list, and
+    the NOTE annotations.
 
 Exit status is 0 when clean, 1 otherwise.
 """
@@ -103,6 +107,82 @@ def grids(text: str):
             buf.append(line)
 
 
+def colour_blocks(text: str):
+    """Yield (screen, lines) for every **Colours** block in screen order.
+
+    A screen's colour map is the ```text fence that follows its **Colours**
+    heading. Screen 00 is included even though it carries no sized grid.
+    """
+    screen = None
+    in_colours = False
+    in_fence = False
+    buf: list[str] = []
+
+    for line in text.split("\n"):
+        heading = re.match(r"^## (\d\d) · ", line)
+        if heading:
+            screen = heading.group(1)
+            continue
+        if line.strip() == "**Colours**":
+            in_colours = True
+            continue
+        if not in_colours:
+            continue
+        if line.startswith("```"):
+            if not in_fence:
+                in_fence, buf = True, []
+            else:
+                in_fence = False
+                in_colours = False
+                if screen is not None:
+                    yield screen, buf
+            continue
+        if in_fence:
+            buf.append(line)
+
+
+def content_checks(text: str) -> list[str]:
+    """Verify non-grid content a raw-grid regeneration would strip.
+
+    These are positive controls paired with the absence checks: each one names
+    the literal text it guards and fails with a concrete message when that text
+    is missing.
+    """
+    problems: list[str] = []
+
+    # The format-example header must introduce every colour map.
+    format_header = "<region>            <the literal characters it covers>    <token>  <256>  <hex>"
+    if format_header not in text:
+        problems.append("colour-map format-example header is missing")
+
+    # Screen 00 is a component: it must carry the wordmark and ASCII fallback.
+    if '"█▄▀ █ █▀█ █▀▀ █▀▀ █ █"' not in text:
+        problems.append("screen 00 wordmark row 1 is missing")
+    if "K I R S C H" not in text:
+        problems.append("screen 00 ASCII fallback is missing")
+
+    # Screen 05 records the collapsed grant list.
+    if "▸ apply_patch 2 files changed · ✓ approved" not in text:
+        problems.append("screen 05 collapsed apply_patch grant is missing")
+    if "▸ run_command go test ./... · 2.4s · ✓ approved · session grant: go test" not in text:
+        problems.append("screen 05 collapsed run_command grant is missing")
+
+    # NOTE annotations live inside colour-map blocks.
+    note_count = sum(1 for line in text.split("\n") if line.startswith("NOTE"))
+    if note_count < 4:
+        problems.append(f"only {note_count} NOTE annotation(s) in colour maps, want at least 4")
+
+    # Every screen (00 through 12) must have a non-empty colour map.
+    blocks = dict(colour_blocks(text))
+    for screen in [f"{i:02d}" for i in range(13)]:
+        if screen not in blocks:
+            problems.append(f"screen {screen}: no **Colours** block found")
+        elif not any(line.strip() for line in blocks[screen]):
+            problems.append(f"screen {screen}: **Colours** block is empty")
+
+    return problems
+
+
 def main() -> int:
     text = DOC.read_text(encoding="utf-8")
     pad = frame_pad()
@@ -151,10 +231,15 @@ def main() -> int:
             print(f"{where}: ragged box borders — right edges at {sorted(right_edges)}")
             failures += 1
 
+    content_problems = content_checks(text)
+    for msg in content_problems:
+        print(f"content: {msg}")
+    failures += len(content_problems)
+
     if failures:
         print(f"\n{failures} problem(s) in {DOC.name}")
         return 1
-    print(f"{DOC.name}: grids OK")
+    print(f"{DOC.name}: grids OK, content OK")
     return 0
 
 

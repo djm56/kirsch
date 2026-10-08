@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -35,6 +37,9 @@ func TestDefaultsEndpoints(t *testing.T) {
 	if !ok || an.BaseURL != "https://api.anthropic.com/v1" || an.Model != "claude-sonnet-5-5" {
 		t.Fatalf("anthropic = %+v", an)
 	}
+	if an.Model == "claude-sonnet-5" {
+		t.Fatalf("anthropic endpoint uses the legacy model name %q", an.Model)
+	}
 	d.Provider.Endpoints["opencode"] = EndpointConfig{}
 	if Defaults().Provider.Endpoints["opencode"].Model != "minimax-m2.7" {
 		t.Fatal("Defaults shares its map between calls")
@@ -50,20 +55,110 @@ func TestDefaultsEndpoints(t *testing.T) {
 	}
 }
 
-// TestGlobalPartialOverrideKeepsBuiltInFields tests that merging a partial endpoint
-// definition keeps the built-in fields.
-func TestGlobalPartialOverrideKeepsBuiltInFields(t *testing.T) {
-	dir := t.TempDir()
-	g := write(t, dir, "g.toml", "[provider.opencode]\nmodel = \"minimax-m2.7\"\n")
-	cfg, warns, err := Load(Options{GlobalPath: g})
-	if err != nil || len(warns) != 0 {
-		t.Fatalf("err=%v warns=%v", err, warns)
+// TestGlobalBuiltInEndpointPartialOverride verifies that a global endpoint
+// table naming a built-in endpoint and setting only model leaves that
+// endpoint's other keys at their built-in values.
+func TestGlobalBuiltInEndpointPartialOverride(t *testing.T) {
+	cases := []struct {
+		name  string
+		model string
+	}{
+		{"opencode", "minimax-m2.7"},
+		{"anthropic", "claude-sonnet-5-5"},
 	}
-	oc := cfg.Provider.Endpoints["opencode"]
-	if oc.Model != "minimax-m2.7" || oc.BaseURL != "https://opencode.ai/zen/go/v1" ||
-		oc.Auth != "x-api-key" || oc.APIKeyEnv != "OPENCODE_API_KEY" || !oc.PromptCaching {
-		t.Fatalf("partial override blanked siblings: %+v", oc)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			body := fmt.Sprintf("[provider.%s]\nmodel = %q\n", tc.name, tc.model)
+			g := write(t, dir, "g.toml", body)
+			cfg, warns, err := Load(Options{GlobalPath: g})
+			if err != nil || len(warns) != 0 {
+				t.Fatalf("err=%v warns=%v", err, warns)
+			}
+			got := cfg.Provider.Endpoints[tc.name]
+			want := Defaults().Provider.Endpoints[tc.name]
+			if got != want {
+				t.Fatalf("partial override blanked siblings:\ngot  %+v\nwant %+v", got, want)
+			}
+		})
 	}
+}
+
+// TestGlobalEndpointMissingRequiredField verifies that a user-defined global
+// endpoint missing any of base_url, auth, api_key_env or model produces a
+// config error naming the missing key.
+func TestGlobalEndpointMissingRequiredField(t *testing.T) {
+	cases := []struct {
+		name    string
+		body    string
+		wantSub string
+	}{
+		{"base_url", "[provider]\ndefault = \"mine\"\n[provider.mine]\nauth = \"bearer\"\napi_key_env = \"MINE_KEY\"\nmodel = \"m\"\n", "provider.mine.base_url is required"},
+		{"auth", "[provider]\ndefault = \"mine\"\n[provider.mine]\nbase_url = \"https://example.test/v1\"\napi_key_env = \"MINE_KEY\"\nmodel = \"m\"\n", "provider.mine.auth is required"},
+		{"api_key_env", "[provider]\ndefault = \"mine\"\n[provider.mine]\nbase_url = \"https://example.test/v1\"\nauth = \"bearer\"\nmodel = \"m\"\n", "provider.mine.api_key_env is required"},
+		{"model", "[provider]\ndefault = \"mine\"\n[provider.mine]\nbase_url = \"https://example.test/v1\"\nauth = \"bearer\"\napi_key_env = \"MINE_KEY\"\n", "provider.mine.model is required"},
+	}
+	for _, tc := range cases {
+		t.Run("missing/"+tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			g := write(t, dir, "g.toml", tc.body)
+			cfg, _, err := Load(Options{GlobalPath: g})
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			err = cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), tc.wantSub) {
+				t.Fatalf("Validate error = %v, want substring %q", err, tc.wantSub)
+			}
+		})
+	}
+	t.Run("complete", func(t *testing.T) {
+		dir := t.TempDir()
+		g := write(t, dir, "g.toml", "[provider]\ndefault = \"mine\"\n[provider.mine]\nbase_url = \"https://example.test/v1\"\nauth = \"bearer\"\napi_key_env = \"MINE_KEY\"\nmodel = \"m\"\n")
+		cfg, _, err := Load(Options{GlobalPath: g})
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("complete endpoint refused: %v", err)
+		}
+	})
+}
+
+// TestGlobalEndpointSecretRefused verifies that value-bearing credential-shaped
+// keys inside a global endpoint table are refused by checkSecrets.
+func TestGlobalEndpointSecretRefused(t *testing.T) {
+	cases := []struct{ name, body string }{
+		{"api_key in opencode", "[provider.opencode]\napi_key = \"sk-x\"\n"},
+		{"api_key in anthropic", "[provider.anthropic]\napi_key = \"sk-ant\"\n"},
+		{"token in endpoint", "[provider.opencode]\ntoken = \"x\"\n"},
+		{"secret in endpoint", "[provider.anthropic]\nsecret = \"x\"\n"},
+		{"password in endpoint", "[provider.opencode]\npassword = \"x\"\n"},
+	}
+	for _, tc := range cases {
+		t.Run("refused/"+tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			g := write(t, dir, "g.toml", tc.body)
+			_, _, err := Load(Options{GlobalPath: g})
+			if err == nil {
+				t.Fatal("secret-bearing key accepted in global endpoint table")
+			}
+			if !strings.Contains(err.Error(), "looks like a credential") {
+				t.Fatalf("error not from checkSecrets: %v", err)
+			}
+		})
+	}
+	t.Run("accepted/api_key_env", func(t *testing.T) {
+		dir := t.TempDir()
+		g := write(t, dir, "g.toml", "[provider.opencode]\napi_key_env = \"MY_OPENCODE_API_KEY\"\n")
+		cfg, _, err := Load(Options{GlobalPath: g})
+		if err != nil {
+			t.Fatalf("api_key_env must be accepted: %v", err)
+		}
+		if cfg.Provider.Endpoints["opencode"].APIKeyEnv != "MY_OPENCODE_API_KEY" {
+			t.Fatalf("api_key_env = %q, want MY_OPENCODE_API_KEY", cfg.Provider.Endpoints["opencode"].APIKeyEnv)
+		}
+	})
 }
 
 // TestUserDefinedEndpointMustBeComplete tests that a custom endpoint must have
@@ -81,77 +176,190 @@ func TestUserDefinedEndpointMustBeComplete(t *testing.T) {
 	}
 }
 
-// TestProjectFileIsAnAllowlist tests that the project file can only set
-// [context].project_files and ignores everything else.
+// TestProjectFileIsAnAllowlist verifies that a project file can only change
+// [context].project_files. Every other key or table is ignored, leaves the
+// effective config unchanged, and produces a WarnProjectIgnored warning that
+// names the key, distinct from a WarnUnknownKey warning.
 func TestProjectFileIsAnAllowlist(t *testing.T) {
-	dir := t.TempDir()
-	p := write(t, dir, "p.toml", `
-[provider]
-default = "evil"
-[provider.opencode]
-base_url = "https://evil.example/v1"
-model = "x"
-[policy]
-require_approval_for_commands = false
-allow_session_scoped_grants = true
-default_command_timeout_seconds = 9999
-env_passthrough = ["DATABASE_URL"]
-[context]
-project_files = ["docs/AI.md"]
-max_project_context_bytes = 999999
-[session]
-storage_dir = "/tmp/evil"
-[telemetry]
-debug_log = true
-[unknown_table]
-x = 1
-`)
-	cfg, warns, err := Load(Options{ProjectPath: p})
-	if err != nil {
-		t.Fatalf("Load: %v", err)
+	base := Defaults()
+	cases := []struct {
+		name     string
+		body     string
+		wantKeys []string
+		check    func(Config) bool
+	}{
+		{
+			name:     "provider.default is ignored",
+			body:     "[provider]\ndefault = \"evil\"\n",
+			wantKeys: []string{"provider.default"},
+			check:    func(c Config) bool { return c.Provider.Default == base.Provider.Default },
+		},
+		{
+			name:     "existing endpoint field is ignored",
+			body:     "[provider.opencode]\nmodel = \"evil\"\n",
+			wantKeys: []string{"provider.opencode.model"},
+			check: func(c Config) bool {
+				return c.Provider.Endpoints["opencode"] == base.Provider.Endpoints["opencode"]
+			},
+		},
+		{
+			name: "new endpoint table is ignored",
+			body: "[provider.mine]\nbase_url = \"https://evil.example/v1\"\nauth = \"bearer\"\napi_key_env = \"MINE_KEY\"\nmodel = \"evil\"\n",
+			wantKeys: []string{
+				"provider.mine.api_key_env", "provider.mine.auth",
+				"provider.mine.base_url", "provider.mine.model",
+			},
+			check: func(c Config) bool { _, ok := c.Provider.Endpoints["mine"]; return !ok },
+		},
+		{
+			name: "policy keys are ignored",
+			body: "[policy]\nrequire_approval_for_commands = false\nrequire_approval_for_patches = false\nallow_session_scoped_grants = false\ndefault_command_timeout_seconds = 9999\nenv_passthrough = [\"X\"]\n",
+			wantKeys: []string{
+				"policy.allow_session_scoped_grants", "policy.default_command_timeout_seconds",
+				"policy.env_passthrough", "policy.require_approval_for_commands",
+				"policy.require_approval_for_patches",
+			},
+			check: func(c Config) bool { return reflect.DeepEqual(c.Policy, base.Policy) },
+		},
+		{
+			name:     "context.max_project_context_bytes is ignored",
+			body:     "[context]\nmax_project_context_bytes = 999999\n",
+			wantKeys: []string{"context.max_project_context_bytes"},
+			check:    func(c Config) bool { return c.Context.MaxProjectContextBytes == base.Context.MaxProjectContextBytes },
+		},
+		{
+			name:     "session keys are ignored",
+			body:     "[session]\nstorage_dir = \"/tmp/evil\"\nauto_resume = false\n",
+			wantKeys: []string{"session.auto_resume", "session.storage_dir"},
+			check:    func(c Config) bool { return c.Session == base.Session },
+		},
+		{
+			name:     "telemetry.debug_log is ignored",
+			body:     "[telemetry]\ndebug_log = true\n",
+			wantKeys: []string{"telemetry.debug_log"},
+			check:    func(c Config) bool { return c.Telemetry.DebugLog == base.Telemetry.DebugLog },
+		},
+		{
+			name:     "unknown table is ignored",
+			body:     "[unknown_table]\nx = 1\n",
+			wantKeys: []string{"unknown_table", "unknown_table.x"},
+			check:    func(c Config) bool { return reflect.DeepEqual(c, base) },
+		},
+		{
+			name: "project_files is allowed",
+			body: "[context]\nproject_files = [\"docs/AI.md\"]\n",
+			check: func(c Config) bool {
+				return len(c.Context.ProjectFiles) == 1 && c.Context.ProjectFiles[0] == "docs/AI.md"
+			},
+		},
 	}
-	want := Defaults()
-	want.Context.ProjectFiles = []string{"docs/AI.md"}
-	if cfg.Provider.Default != want.Provider.Default ||
-		cfg.Provider.Endpoints["opencode"] != want.Provider.Endpoints["opencode"] ||
-		cfg.Policy.RequireApprovalForCommands != want.Policy.RequireApprovalForCommands ||
-		cfg.Policy.DefaultCommandTimeoutSeconds != want.Policy.DefaultCommandTimeoutSeconds ||
-		len(cfg.Policy.EnvPassthrough) != 0 ||
-		cfg.Context.MaxProjectContextBytes != want.Context.MaxProjectContextBytes ||
-		cfg.Session.StorageDir != want.Session.StorageDir ||
-		cfg.Telemetry.DebugLog {
-		t.Fatalf("project file changed a non-allowlisted setting: %+v", cfg)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			p := write(t, dir, "p.toml", tc.body)
+			cfg, warns, err := Load(Options{ProjectPath: p})
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if !tc.check(cfg) {
+				t.Fatalf("effective config does not match expected default for %s: %+v", tc.name, cfg)
+			}
+			if tc.wantKeys == nil {
+				if len(warns) != 0 {
+					t.Fatalf("expected no warnings for allowed key, got %v", warns)
+				}
+				return
+			}
+			got := make(map[string]Warning, len(warns))
+			for _, w := range warns {
+				if w.Kind != WarnProjectIgnored {
+					t.Errorf("warning %q is kind %v, want WarnProjectIgnored", w.Key, w.Kind)
+				}
+				got[w.Key] = w
+			}
+			for _, k := range tc.wantKeys {
+				if _, ok := got[k]; !ok {
+					t.Errorf("missing ignore warning for key %q; warnings: %v", k, warns)
+				}
+			}
+		})
 	}
-	if len(cfg.Context.ProjectFiles) != 1 || cfg.Context.ProjectFiles[0] != "docs/AI.md" {
-		t.Fatalf("project_files = %v", cfg.Context.ProjectFiles)
-	}
-	ignored := map[string]bool{}
-	for _, w := range warns {
-		if w.Kind != WarnProjectIgnored {
-			t.Errorf("unexpected warning kind: %v", w)
-		}
-		ignored[w.Key] = true
-	}
-	for _, k := range []string{
-		"provider.default", "provider.opencode.base_url", "policy.require_approval_for_commands",
-		"policy.env_passthrough", "context.max_project_context_bytes", "session.storage_dir",
-		"telemetry.debug_log", "unknown_table",
-	} {
-		if !ignored[k] {
-			t.Errorf("no ignore warning for %s", k)
-		}
-	}
+
 	if s := (Warning{File: "f", Key: "k", Kind: WarnProjectIgnored}).String(); !strings.Contains(s, "may set only [context].project_files") {
 		t.Errorf("ignore warning text = %q", s)
 	}
 }
 
-// TestProjectFileCredentialRefused tests that a credential in a project file is rejected.
-func TestProjectFileCredentialRefused(t *testing.T) {
+// TestProjectFileSecretShapedKeysRefused tests that credential-shaped keys in a
+// project file are refused by checkSecrets, not merely ignored, and that the
+// safe api_key_env spelling is still accepted.
+func TestProjectFileSecretShapedKeysRefused(t *testing.T) {
+	refused := []struct{ name, body string }{
+		{"api_key in endpoint", "[provider.opencode]\napi_key = \"sk-x\"\n"},
+		{"apikey in provider", "[provider]\napikey = \"x\"\n"},
+		{"token", "[policy]\ntoken = \"x\"\n"},
+		{"secret", "[session]\nsecret = \"x\"\n"},
+		{"password", "[telemetry]\npassword = \"x\"\n"},
+		{"mixed case", "[provider]\nAPI_KEY = \"x\"\n"},
+	}
+	for _, tc := range refused {
+		t.Run("refused/"+tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			p := write(t, dir, "p.toml", tc.body)
+			_, _, err := Load(Options{ProjectPath: p})
+			if err == nil {
+				t.Fatal("credential in project file was not refused")
+			}
+			if !strings.Contains(err.Error(), "looks like a credential") {
+				t.Fatalf("error does not look like checkSecrets: %v", err)
+			}
+		})
+	}
+
+	t.Run("accepted/api_key_env", func(t *testing.T) {
+		dir := t.TempDir()
+		p := write(t, dir, "p.toml", "[provider.anthropic]\napi_key_env = \"ANTHROPIC_API_KEY\"\n")
+		if _, _, err := Load(Options{ProjectPath: p}); err != nil {
+			t.Fatalf("api_key_env must be accepted, not treated as a secret: %v", err)
+		}
+	})
+}
+
+// TestProjectFileDebugLogDoesNotEnable verifies that [telemetry] debug_log in a
+// project file is ignored: the effective config keeps DebugLog false, so a
+// project file cannot switch on the debug log even though the main enablement
+// path reads cfg.Telemetry.DebugLog.
+func TestProjectFileDebugLogDoesNotEnable(t *testing.T) {
 	dir := t.TempDir()
-	p := write(t, dir, "p.toml", "[provider.opencode]\napi_key = \"sk-x\"\n")
-	if _, _, err := Load(Options{ProjectPath: p}); err == nil {
-		t.Fatal("credential in project file was not refused")
+	p := write(t, dir, "p.toml", "[telemetry]\ndebug_log = true\n")
+	cfg, warns, err := Load(Options{ProjectPath: p})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Telemetry.DebugLog {
+		t.Fatal("project file telemetry.debug_log enabled the debug log")
+	}
+	var found bool
+	for _, w := range warns {
+		if w.Key == "telemetry.debug_log" && w.Kind == WarnProjectIgnored {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected WarnProjectIgnored for telemetry.debug_log, got %v", warns)
+	}
+
+	// Positive control: the same key in a global file is honoured, confirming
+	// the project-file ignore is intentional and the key itself is not broken.
+	g := write(t, dir, "g.toml", "[telemetry]\ndebug_log = true\n")
+	cfg2, _, err := Load(Options{GlobalPath: g})
+	if err != nil {
+		t.Fatalf("Load global: %v", err)
+	}
+	if !cfg2.Telemetry.DebugLog {
+		t.Fatal("global telemetry.debug_log did not enable debug log")
 	}
 }
 

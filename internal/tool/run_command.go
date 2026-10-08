@@ -80,7 +80,7 @@ func (t *RunCommand) Schema() json.RawMessage {
     },
     "timeout_seconds": {
       "type": "integer",
-      "description": "Command timeout in seconds. Maximum 3600."
+      "description": "Command timeout in seconds. Maximum 300."
     }
   },
   "required": ["argv"],
@@ -124,9 +124,10 @@ func (t *RunCommand) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	}
 
 	// Request approval if needed.
+	// The approval ID is the app-side tool invocation ID carried in ctx.
 	if decision == policy.DecisionAskUser {
 		appDecision := t.Approver.Request(ctx, ApprovalRequest{
-			ID:          1, // TODO: provided by approval flow in M3
+			ID:          ToolIDFrom(ctx),
 			Operation:   policy.OperationCommand,
 			Description: fmt.Sprintf("Run: %s", strings.Join(in.Argv, " ")),
 			Argv:        in.Argv,
@@ -139,12 +140,25 @@ func (t *RunCommand) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	// Build the environment: start with PATH, HOME, LANG.
 	env := t.buildEnvironment()
 
-	// Parse timeout; default to 3600s (1 hour) if not specified.
-	timeout := time.Duration(in.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = 3600 * time.Second
+	// Resolve timeout. A missing or non-positive value falls back to the
+	// configured default_command_timeout_seconds, with a final hard fallback of
+	// 60s. Values above maxCommandTimeoutSeconds are refused so the schema,
+	// code ceiling, and plan §3 all agree.
+	const maxCommandTimeoutSeconds = 300
+	timeoutSeconds := in.TimeoutSeconds
+	if timeoutSeconds <= 0 {
+		if t.Config != nil {
+			timeoutSeconds = t.Config.Policy.DefaultCommandTimeoutSeconds
+		}
+		if timeoutSeconds <= 0 {
+			timeoutSeconds = 60
+		}
 	}
-	timeoutSeconds := int(timeout.Seconds()) // Use resolved value for error messages
+	if timeoutSeconds > maxCommandTimeoutSeconds {
+		return Fail(KindToolInputInvalid,
+			"timeout_seconds exceeds maximum of %d", maxCommandTimeoutSeconds)
+	}
+	timeout := time.Duration(timeoutSeconds) * time.Second
 
 	// Create a context with timeout for the command.
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -185,7 +199,13 @@ func (t *RunCommand) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	// This avoids pipe-based I/O, which can hang if detached descendant processes
 	// survive the group kill and hold the write end open. Its cap is a memory
 	// safety bound, not the reported truncation point — see writerSafetyCapBytes.
-	outputWriter := &capWriter{cap: writerSafetyCapBytes, progressSink: t.ProgressSink}
+	// Prefer a sink injected for this invocation (used by the app to route chunks
+	// to the correct tool card); fall back to the struct-level sink for tests.
+	progressSink := progressSinkFrom(ctx)
+	if progressSink == nil {
+		progressSink = t.ProgressSink
+	}
+	outputWriter := &capWriter{cap: writerSafetyCapBytes, progressSink: progressSink}
 	cmd.Stdout = outputWriter
 	cmd.Stderr = outputWriter
 

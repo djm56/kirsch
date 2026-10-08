@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -12,9 +13,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/djm56/kirsch/internal/agent"
+	"github.com/djm56/kirsch/internal/agent/prompt"
 	"github.com/djm56/kirsch/internal/config"
 	"github.com/djm56/kirsch/internal/patch"
 	"github.com/djm56/kirsch/internal/policy"
+	"github.com/djm56/kirsch/internal/provider"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tool"
 	"github.com/djm56/kirsch/internal/tui"
@@ -48,7 +52,10 @@ func (c *collector) wait(t *testing.T, d time.Duration) []any {
 	select {
 	case <-c.done:
 	case <-time.After(d):
-		t.Fatalf("timed out waiting for %d messages; got %d", c.want, len(c.msgs))
+		c.mu.Lock()
+		got := len(c.msgs)
+		c.mu.Unlock()
+		t.Fatalf("timed out waiting for %d messages; got %d", c.want, got)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -137,6 +144,68 @@ func (s *slowTool) Invoke(ctx context.Context, _ json.RawMessage) tool.Result {
 	close(s.started)
 	<-ctx.Done()
 	return tool.Fail(tool.KindCancelled, "cancelled mid-tool")
+}
+
+// fakeProvider is a stub provider.Provider used for tests that need to exercise
+// Submit without making a real HTTP request.
+type fakeProvider struct{}
+
+func (f *fakeProvider) Stream(_ context.Context, _ provider.Request, _ func(provider.StreamEvent)) error {
+	return nil
+}
+
+// TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget checks the budget
+// gate in Submit: a request large enough to exceed contextWindow - outputReserve
+// is rejected with a context_overflow TurnErrorMsg instead of reaching RunTurn.
+func TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	a.providerBuilder = func(_ string, _ config.EndpointConfig, _, _, _ string, _ *telemetry.Logger) (provider.Provider, error) {
+		return &fakeProvider{}, nil
+	}
+
+	// 600k characters / 4 = 150k estimated tokens, well above a 128k model's
+	// budget after the 4096-token output reserve.
+	a.Submit(strings.Repeat("x", 600_000), func(string) string { return "fake-key" })
+
+	msgs := c.wait(t, 5*time.Second)
+	errMsg, ok := msgs[0].(tui.TurnErrorMsg)
+	if !ok {
+		t.Fatalf("got %T, want TurnErrorMsg", msgs[0])
+	}
+	if errMsg.Kind != "context_overflow" {
+		t.Errorf("kind = %q, want context_overflow", errMsg.Kind)
+	}
+}
+
+// TestSubmitSendsBudgetMsgForSmallRequest checks the happy path of the budget
+// gate: a small request emits BudgetMsg and then proceeds to RunTurn. The fake
+// provider never produces a stream, so the turn completes with a cancellation-
+// like timeout; the first message must still be BudgetMsg.
+func TestSubmitSendsBudgetMsgForSmallRequest(t *testing.T) {
+	c := newCollector(1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	a.providerBuilder = func(_ string, _ config.EndpointConfig, _, _, _ string, _ *telemetry.Logger) (provider.Provider, error) {
+		return &fakeProvider{}, nil
+	}
+
+	a.Submit("hello", func(string) string { return "fake-key" })
+
+	msgs := c.wait(t, 5*time.Second)
+	budget, ok := msgs[0].(tui.BudgetMsg)
+	if !ok {
+		t.Fatalf("got %T, want BudgetMsg", msgs[0])
+	}
+	if budget.ContextWindow != 128000 {
+		t.Errorf("ContextWindow = %d, want 128000", budget.ContextWindow)
+	}
+	if budget.EstimatedTokens <= 0 {
+		t.Errorf("EstimatedTokens = %d, want > 0", budget.EstimatedTokens)
+	}
 }
 
 // TestCancelReturnsWithinOneSecond is ui-spec §11's cancellation target,
@@ -1815,12 +1884,12 @@ func TestDescribeInputExtractsArgvForRunCommand(t *testing.T) {
 // TestDescribeInputSanitizesArgvEscapeSequences verifies that argv containing
 // ANSI escape sequences is sanitised before being returned as a target.
 // This prevents terminal escape injection into the transcript.
-// Input comes from shellSplit (internal/tui), which returns []string.
+// argv comes from the model/tool input as []string.
 // Calibration: removing the tui.SanitizeSingleLine call causes this test to fail.
 func TestDescribeInputSanitizesArgvEscapeSequences(t *testing.T) {
-	// Build argv as it comes from shellSplit: []string with an ESC byte.
+	// Build argv as it comes from the model/tool input: []string with an ESC byte.
 	// ESC sequences cannot come from keyboard input (ui-spec §11), but test the
-	// sanitisation gate: if shellSplit somehow returned escaped content, it would be safe.
+	// sanitisation gate so that escaped content in a tool input is still safe.
 	input := map[string]any{
 		"argv": []string{"echo", "prefix\x1b[31mred\x1b[0msuffix"},
 	}
@@ -1840,27 +1909,24 @@ func TestDescribeInputSanitizesArgvEscapeSequences(t *testing.T) {
 	}
 }
 
-// TestRunCommandCardShowsCommand drives the real /run dispatch end to end and
+// TestRunCommandCardShowsCommand drives the run_command tool directly and
 // asserts on what the operator would see.
 //
 // Order of events, as the test performs them:
-//  1. The characters "/run cat go.mod" and Enter are delivered to tui.Model
-//     through Update as tea.KeyMsg values.
-//  2. Model's slash dispatch (runSlash, then the "run" arm of the debug-command
-//     builder in internal/tui/update.go) calls shellSplit and builds the
-//     {"argv": []string} input map. Nothing in this test constructs argv.
-//  3. m.RunTool (App.RunTool) runs run_command, which asks for approval because
-//     cat is not allow-listed. App sends ApprovalRequestedMsg through sendFn.
-//  4. The test pumps App's messages into Update until the approval card is
+//  1. The test calls App.RunTool("run_command", {"argv": []string{"cat", "go.mod"}})
+//     directly. The argv map is constructed here.
+//  2. App.RunTool runs run_command, which asks for approval because cat is not
+//     allow-listed. App sends ApprovalRequestedMsg through sendFn.
+//  3. The test pumps App's messages into Update until the approval card is
 //     pending, sends the key "y", then keeps pumping until a result card
 //     exists.
-//  5. The assertion is on m.View(): the result card's head line (not the
+//  4. The assertion is on m.View(): the result card's head line (not the
 //     running card, not the approval card) must contain "run_command" and the
 //     command "cat go.mod". No message field is inspected.
 //
 // Polling runs against a deadline rather than a fixed sleep.
 // Calibration: reverting describeInput to its []any-only check, or renaming the
-// "argv" key in the /run arm of internal/tui/update.go, makes this fail.
+// "argv" key in the RunTool input map, makes this fail.
 func TestRunCommandCardShowsCommand(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "repo-small"))
 	if err != nil {
@@ -1879,7 +1945,6 @@ func TestRunCommandCardShowsCommand(t *testing.T) {
 		Caps:    tui.Caps{Colour: false, Unicode: true},
 		Session: tui.SessionInfo{Project: info.Project, Branch: info.Branch, Dirty: info.Dirty},
 	})
-	m.RunTool = a.RunTool
 	m.Cancel = a.CancelTurn
 	m.ResolveApproval = func(id int64, outcome tui.ApprovalOutcome) {
 		a.Resolve(id, ApprovalOutcome(tui.ToAppOutcome(outcome)))
@@ -1925,10 +1990,13 @@ func TestRunCommandCardShowsCommand(t *testing.T) {
 	}
 
 	apply(tea.WindowSizeMsg{Width: 100, Height: 30})
-	for _, r := range "/run cat go.mod" {
-		apply(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
-	}
-	apply(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// The /run slash command was deleted in Milestone 3. Drive the same tool
+	// directly through App.RunTool so the test still exercises the
+	// run_command card rendering path.
+	go a.RunTool("run_command", map[string]any{
+		"argv": []string{"cat", "go.mod"},
+	})
 
 	pollView("the approval card", func(v string) bool { return strings.Contains(v, "approval") })
 	apply(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
@@ -2171,6 +2239,563 @@ func TestCheckOnboardingEndpointKind(t *testing.T) {
 			ob := msgs[0].(tui.OnboardingStateMsg)
 			if ob.Endpoint != tc.active {
 				t.Errorf("Endpoint = %q, want %q", ob.Endpoint, tc.active)
+			}
+		})
+	}
+}
+
+// TestSubmitStartsTurn verifies that App.Submit builds a provider client from
+// the active endpoint, drives a real agent turn, and appends both the user
+// message and the assistant reply to the persistent conversation.
+func TestSubmitStartsTurn(t *testing.T) {
+	c := newCollector(4)
+	cfg := config.Config{
+		Provider: config.ProviderConfig{
+			Default: "test",
+			Endpoints: map[string]config.EndpointConfig{
+				"test": {
+					BaseURL:   "https://example.com",
+					Auth:      "x-api-key",
+					APIKeyEnv: "TEST_API_KEY",
+					Model:     "claude-sonnet-5-5",
+				},
+			},
+		},
+	}
+	a := testAppWithConfig(t, cfg, c)
+	defer a.Close()
+
+	fake := provider.NewFake(provider.Turn{Text: "h"})
+	a.providerBuilder = func(endpoint string, ep config.EndpointConfig, key, version, sessionID string, log *telemetry.Logger) (provider.Provider, error) {
+		_ = endpoint
+		_ = ep
+		_ = key
+		_ = version
+		_ = sessionID
+		_ = log
+		return fake, nil
+	}
+
+	a.Submit("hello", func(string) string { return "secret-key" })
+	msgs := c.wait(t, 2*time.Second)
+
+	// Stream events and the final completion message are each delivered through
+	// independent sendAsyncSequence calls, so they may arrive in any order.
+	var gotBudget, gotDelta, gotUsage, gotComplete bool
+	for _, msg := range msgs {
+		switch msg.(type) {
+		case tui.BudgetMsg:
+			gotBudget = true
+		case tui.AssistantTextDeltaMsg:
+			gotDelta = true
+		case tui.UsageMsg:
+			gotUsage = true
+		case tui.TurnCompleteMsg:
+			gotComplete = true
+		default:
+			t.Errorf("unexpected message type %T", msg)
+		}
+	}
+	if !gotBudget {
+		t.Error("missing BudgetMsg")
+	}
+	if !gotDelta {
+		t.Error("missing AssistantTextDeltaMsg")
+	}
+	if !gotUsage {
+		t.Error("missing UsageMsg")
+	}
+	if !gotComplete {
+		t.Error("missing TurnCompleteMsg")
+	}
+
+	if len(a.conv.Messages) != 2 {
+		t.Fatalf("conversation has %d messages, want 2", len(a.conv.Messages))
+	}
+	if a.conv.Messages[0].Role != agent.RoleUser {
+		t.Errorf("first message role = %q, want %q", a.conv.Messages[0].Role, agent.RoleUser)
+	}
+	if a.conv.Messages[1].Role != agent.RoleAssistant {
+		t.Errorf("second message role = %q, want %q", a.conv.Messages[1].Role, agent.RoleAssistant)
+	}
+
+	requests := fake.Requests()
+	if len(requests) != 1 {
+		t.Fatalf("provider received %d requests, want 1", len(requests))
+	}
+	req := requests[0]
+	if len(req.Messages) == 0 {
+		t.Fatal("provider request has no messages")
+	}
+	lastMsg := req.Messages[len(req.Messages)-1]
+	if len(lastMsg.Content) == 0 || lastMsg.Content[0].Text != "hello" {
+		t.Errorf("last message content = %+v, want user text 'hello'", lastMsg.Content)
+	}
+}
+
+// TestSubmitMissingKeyEmitsTurnError is the positive control for the missing-key
+// guard in App.Submit: without a key the provider builder must not be called and
+// the TUI must receive an auth-scoped TurnErrorMsg.
+func TestSubmitMissingKeyEmitsTurnError(t *testing.T) {
+	c := newCollector(1)
+	cfg := config.Config{
+		Provider: config.ProviderConfig{
+			Default: "test",
+			Endpoints: map[string]config.EndpointConfig{
+				"test": {
+					BaseURL:   "https://example.com",
+					Auth:      "x-api-key",
+					APIKeyEnv: "TEST_API_KEY",
+					Model:     "claude-sonnet-5-5",
+				},
+			},
+		},
+	}
+	a := testAppWithConfig(t, cfg, c)
+	defer a.Close()
+
+	a.providerBuilder = func(string, config.EndpointConfig, string, string, string, *telemetry.Logger) (provider.Provider, error) {
+		t.Fatal("provider builder called without an API key")
+		return nil, nil
+	}
+
+	a.Submit("hello", func(string) string { return "" })
+	msgs := c.wait(t, 2*time.Second)
+
+	errMsg, ok := msgs[0].(tui.TurnErrorMsg)
+	if !ok {
+		t.Fatalf("got %T, want TurnErrorMsg", msgs[0])
+	}
+	if errMsg.Kind != "auth" {
+		t.Errorf("Kind = %q, want auth", errMsg.Kind)
+	}
+	if !strings.Contains(errMsg.Message, "TEST_API_KEY") {
+		t.Errorf("message %q does not name the expected key variable", errMsg.Message)
+	}
+}
+
+// statusMsgString flattens a StatusInfoMsg so absence tests can scan every
+// emitted field for leaked secrets. ui-spec §6, DIR-026.
+func statusMsgString(info tui.StatusInfoMsg) string {
+	return fmt.Sprintf("endpoint=%s base_url=%s key_source=%s proxy=%s context_file=%s context_size=%d show_notice=%v",
+		info.Endpoint, info.BaseURLHost, info.KeySource, info.ProxyHost, info.ContextFile, info.ContextSize, info.ShowDataFlowNotice)
+}
+
+// TestStartSessionLoadsProjectContextOnce verifies that the project context is
+// read exactly once per session and that the chosen file name and size are kept
+// for /status. kirsch-plan.md §6.2.
+func TestStartSessionLoadsProjectContextOnce(t *testing.T) {
+	c := newCollector(0)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	calls := 0
+	a.loadProjectCtxFn = func(candidates []string, maxBytes int, engine prompt.Engine) (string, string, int, []string, error) {
+		calls++
+		return "PROJECT CONTEXT MARKER\n", "CONTEXT.md", 42, nil, nil
+	}
+
+	getenv := func(string) string { return "" }
+	a.StartSession(getenv)
+	a.StartSession(getenv)
+
+	if calls != 1 {
+		t.Errorf("project context loaded %d times, want 1", calls)
+	}
+	if a.contextFile != "CONTEXT.md" {
+		t.Errorf("contextFile = %q, want CONTEXT.md", a.contextFile)
+	}
+	if a.contextSize != 42 {
+		t.Errorf("contextSize = %d, want 42", a.contextSize)
+	}
+	if !strings.Contains(a.systemPrompt, "PROJECT CONTEXT MARKER") {
+		t.Errorf("systemPrompt does not contain project context marker")
+	}
+}
+
+// TestSubmitCarriesAssembledSystemPrompt is the positive control for prompt
+// wiring: the assembled system prompt reaches the provider on every request,
+// and the project context loader is not invoked again after StartSession.
+func TestSubmitCarriesAssembledSystemPrompt(t *testing.T) {
+	c := newCollector(4)
+	cfg := config.Config{
+		Provider: config.ProviderConfig{
+			Default: "test",
+			Endpoints: map[string]config.EndpointConfig{
+				"test": {
+					BaseURL:   "https://example.com",
+					Auth:      "x-api-key",
+					APIKeyEnv: "TEST_API_KEY",
+					Model:     "claude-sonnet-5-5",
+				},
+			},
+		},
+	}
+	a := testAppWithConfig(t, cfg, c)
+	defer a.Close()
+
+	loads := 0
+	a.loadProjectCtxFn = func(candidates []string, maxBytes int, engine prompt.Engine) (string, string, int, []string, error) {
+		loads++
+		return "SYSTEM PROMPT MARKER", "ctx.md", 7, nil, nil
+	}
+
+	fake := provider.NewFake(provider.Turn{Text: "ok"})
+	a.providerBuilder = func(string, config.EndpointConfig, string, string, string, *telemetry.Logger) (provider.Provider, error) {
+		return fake, nil
+	}
+
+	getenv := func(k string) string {
+		if k == "TEST_API_KEY" {
+			return "secret-key"
+		}
+		return ""
+	}
+
+	a.StartSession(getenv)
+	a.Submit("hello", getenv)
+	_ = c.wait(t, 2*time.Second)
+
+	if loads != 1 {
+		t.Errorf("project context loaded %d times, want 1", loads)
+	}
+
+	reqs := fake.Requests()
+	if len(reqs) != 1 {
+		t.Fatalf("provider received %d requests, want 1", len(reqs))
+	}
+	if len(reqs[0].System) == 0 {
+		t.Fatal("provider request has no system blocks")
+	}
+	sys := reqs[0].System[0].Text
+	if !strings.Contains(sys, "SYSTEM PROMPT MARKER") {
+		t.Errorf("system prompt missing project context marker")
+	}
+	if !strings.Contains(sys, "Workspace root") {
+		t.Errorf("system prompt missing workspace root env block")
+	}
+}
+
+// TestStatusInfoKeySourcePrefersPrefixedVariable verifies ResolveKey's
+// precedence order and that only the variable name is exposed. The key value is
+// present in the environment as a positive control (DIR-026).
+func TestStatusInfoKeySourcePrefersPrefixedVariable(t *testing.T) {
+	c := newCollector(0)
+	cfg := config.Config{
+		Provider: config.ProviderConfig{
+			Default: "opencode",
+			Endpoints: map[string]config.EndpointConfig{
+				"opencode": {
+					BaseURL:   "https://opencode.ai/zen/go/v1",
+					APIKeyEnv: "OPENCODE_API_KEY",
+					Model:     "minimax-m2.7",
+				},
+			},
+		},
+	}
+	a := testAppWithConfig(t, cfg, c)
+	defer a.Close()
+
+	env := map[string]string{
+		"KIRSCH_OPENCODE_API_KEY": "prefixed-secret-value",
+		"OPENCODE_API_KEY":        "bare-secret-value",
+	}
+	info := a.StatusInfo(func(k string) string { return env[k] })
+
+	if info.KeySource != "KIRSCH_OPENCODE_API_KEY" {
+		t.Errorf("KeySource = %q, want KIRSCH_OPENCODE_API_KEY", info.KeySource)
+	}
+	out := statusMsgString(info)
+	for _, secret := range []string{"prefixed-secret-value", "bare-secret-value"} {
+		if strings.Contains(out, secret) {
+			t.Errorf("status output leaks key value %q", secret)
+		}
+	}
+}
+
+// TestStatusInfoKeySourceFallsBackToBare verifies the second ResolveKey source
+// is reported when the prefixed variable is unset.
+func TestStatusInfoKeySourceFallsBackToBare(t *testing.T) {
+	c := newCollector(0)
+	cfg := config.Config{
+		Provider: config.ProviderConfig{
+			Default: "opencode",
+			Endpoints: map[string]config.EndpointConfig{
+				"opencode": {
+					BaseURL:   "https://opencode.ai/zen/go/v1",
+					APIKeyEnv: "OPENCODE_API_KEY",
+					Model:     "minimax-m2.7",
+				},
+			},
+		},
+	}
+	a := testAppWithConfig(t, cfg, c)
+	defer a.Close()
+
+	env := map[string]string{"OPENCODE_API_KEY": "bare-secret-value"}
+	info := a.StatusInfo(func(k string) string { return env[k] })
+
+	if info.KeySource != "OPENCODE_API_KEY" {
+		t.Errorf("KeySource = %q, want OPENCODE_API_KEY", info.KeySource)
+	}
+	if strings.Contains(statusMsgString(info), "bare-secret-value") {
+		t.Error("status output leaks key value")
+	}
+}
+
+// TestStatusInfoProxyHostStripsUserinfo verifies that a proxy URL containing
+// credentials is reduced to its hostname. The credentials are present in the
+// environment as a positive control for the absence check (DIR-026).
+func TestStatusInfoProxyHostStripsUserinfo(t *testing.T) {
+	c := newCollector(0)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	env := map[string]string{
+		"HTTPS_PROXY": "http://alice:s3cret@proxy.example:3128",
+	}
+	info := a.StatusInfo(func(k string) string { return env[k] })
+
+	if info.ProxyHost != "proxy.example" {
+		t.Errorf("ProxyHost = %q, want proxy.example", info.ProxyHost)
+	}
+	out := statusMsgString(info)
+	for _, leak := range []string{"alice", "s3cret", "@"} {
+		if strings.Contains(out, leak) {
+			t.Errorf("status output leaks proxy credential %q", leak)
+		}
+	}
+}
+
+// TestStatusInfoProxyPrefersHTTPS verifies HTTPS_PROXY wins over HTTP_PROXY.
+func TestStatusInfoProxyPrefersHTTPS(t *testing.T) {
+	c := newCollector(0)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	env := map[string]string{
+		"HTTPS_PROXY": "http://https-proxy.example:8080",
+		"HTTP_PROXY":  "http://http-proxy.example:8080",
+	}
+	info := a.StatusInfo(func(k string) string { return env[k] })
+
+	if info.ProxyHost != "https-proxy.example" {
+		t.Errorf("ProxyHost = %q, want https-proxy.example", info.ProxyHost)
+	}
+}
+
+// TestStatusInfoBaseURLHost verifies the configured base_url is reduced to its
+// hostname for display.
+func TestStatusInfoBaseURLHost(t *testing.T) {
+	c := newCollector(0)
+	cfg := config.Config{
+		Provider: config.ProviderConfig{
+			Default: "custom",
+			Endpoints: map[string]config.EndpointConfig{
+				"custom": {
+					BaseURL:   "https://api.example.com/v1",
+					APIKeyEnv: "CUSTOM_API_KEY",
+					Model:     "claude-sonnet-5-5",
+				},
+			},
+		},
+	}
+	a := testAppWithConfig(t, cfg, c)
+	defer a.Close()
+
+	info := a.StatusInfo(func(string) string { return "" })
+	if info.BaseURLHost != "api.example.com" {
+		t.Errorf("BaseURLHost = %q, want api.example.com", info.BaseURLHost)
+	}
+}
+
+// TestStatusInfoContextFileAndSize verifies /status reports the loaded project
+// context file and its on-disk size.
+func TestStatusInfoContextFileAndSize(t *testing.T) {
+	c := newCollector(0)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	a.loadProjectCtxFn = func(candidates []string, maxBytes int, engine prompt.Engine) (string, string, int, []string, error) {
+		return "content", "README.md", 1234, nil, nil
+	}
+	a.StartSession(func(string) string { return "" })
+
+	info := a.StatusInfo(func(string) string { return "" })
+	if info.ContextFile != "README.md" {
+		t.Errorf("ContextFile = %q, want README.md", info.ContextFile)
+	}
+	if info.ContextSize != 1234 {
+		t.Errorf("ContextSize = %d, want 1234", info.ContextSize)
+	}
+}
+
+// TestStatusInfoCleanContextWhenNoneLoaded verifies /status reports a clean
+// state when no project context file was chosen.
+func TestStatusInfoCleanContextWhenNoneLoaded(t *testing.T) {
+	c := newCollector(0)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	info := a.StatusInfo(func(string) string { return "" })
+	if info.ContextFile != "" {
+		t.Errorf("ContextFile = %q, want empty", info.ContextFile)
+	}
+	if info.ContextSize != 0 {
+		t.Errorf("ContextSize = %d, want 0", info.ContextSize)
+	}
+}
+
+// waitForMsg polls the collector until a message of type T arrives or the
+// deadline passes. It returns the most recent matching message so that a stale
+// event does not satisfy the wait, but it cannot distinguish two events of the
+// same type. For sequential waits of the same type use waitForMsgAfter.
+func waitForMsg[T any](t *testing.T, c *collector, d time.Duration) T {
+	t.Helper()
+	_, msg := waitForMsgAfter[T](t, c, 0, d)
+	return msg
+}
+
+// waitForMsgAfter polls the collector until a message of type T with an index
+// strictly greater than afterIdx arrives, or the deadline passes. It returns the
+// index and the message. This lets a test wait for a fresh event of a type it has
+// already consumed.
+func waitForMsgAfter[T any](t *testing.T, c *collector, afterIdx int, d time.Duration) (int, T) {
+	t.Helper()
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		c.mu.Lock()
+		var found T
+		var foundIdx int
+		var foundAny bool
+		for i, m := range c.msgs {
+			if i <= afterIdx {
+				continue
+			}
+			if v, ok := m.(T); ok {
+				found = v
+				foundIdx = i
+				foundAny = true
+			}
+		}
+		c.mu.Unlock()
+		if foundAny {
+			return foundIdx, found
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	var zero T
+	t.Fatalf("timed out waiting for %T after index %d", zero, afterIdx)
+	return 0, zero
+}
+
+// TestRunCommandApprovalIDsAreDistinct verifies that two tool invocations that
+// both request approval receive distinct approval IDs. This is the app-level
+// regression for box :324: the tool's ApprovalRequest.ID must map to the
+// app-side tool invocation ID, not a hard-coded placeholder.
+func TestRunCommandApprovalIDsAreDistinct(t *testing.T) {
+	c := newCollector(0)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	// First command: "go version" is not allowlisted, so it asks for approval.
+	go a.RunTool("run_command", map[string]any{
+		"argv": []string{"go", "version"},
+	})
+	idx1, req1 := waitForMsgAfter[tui.ApprovalRequestedMsg](t, c, 0, 5*time.Second)
+	a.Resolve(req1.ID, ApprovalOutcomeOnce)
+	idx1, _ = waitForMsgAfter[tui.ToolCompletedMsg](t, c, idx1, 5*time.Second)
+
+	// Second command: different argv, but also not allowlisted.
+	go a.RunTool("run_command", map[string]any{
+		"argv": []string{"go", "env", "GOPATH"},
+	})
+	_, req2 := waitForMsgAfter[tui.ApprovalRequestedMsg](t, c, idx1, 5*time.Second)
+	a.Resolve(req2.ID, ApprovalOutcomeOnce)
+	waitForMsgAfter[tui.ToolCompletedMsg](t, c, idx1, 5*time.Second)
+
+	if req1.ID == 0 || req2.ID == 0 {
+		t.Fatalf("approval IDs must be non-zero, got %d and %d", req1.ID, req2.ID)
+	}
+	if req1.ID == req2.ID {
+		t.Fatalf("approval IDs must be distinct, got %d twice", req1.ID)
+	}
+}
+
+// TestRunCommandStreamsOutputToCard verifies that RunCommand output is forwarded
+// to the TUI as CommandOutputChunkMsg with the correct tool card ID. This is the
+// app-level regression for box :320 / amendment 73.
+func TestRunCommandStreamsOutputToCard(t *testing.T) {
+	c := newCollector(0)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	go a.RunTool("run_command", map[string]any{
+		"argv": []string{"go", "version"},
+	})
+	req := waitForMsg[tui.ApprovalRequestedMsg](t, c, 5*time.Second)
+	a.Resolve(req.ID, ApprovalOutcomeOnce)
+
+	var chunk tui.CommandOutputChunkMsg
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		c.mu.Lock()
+		for _, m := range c.msgs {
+			if v, ok := m.(tui.CommandOutputChunkMsg); ok {
+				chunk = v
+				break
+			}
+		}
+		c.mu.Unlock()
+		if chunk.ID != 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if chunk.ID == 0 {
+		t.Fatal("timed out waiting for CommandOutputChunkMsg")
+	}
+
+	if chunk.ID != req.ID {
+		t.Errorf("chunk ID %d does not match approval/tool ID %d", chunk.ID, req.ID)
+	}
+	if !strings.Contains(chunk.Chunk, "go version") {
+		t.Errorf("chunk does not contain command output: %q", chunk.Chunk)
+	}
+}
+
+// TestStatusInfoDataFlowNoticeOpencodeOnly verifies the ADR 0008 notice flag is
+// set for the opencode endpoint and unset for any other endpoint.
+func TestStatusInfoDataFlowNoticeOpencodeOnly(t *testing.T) {
+	testCases := []struct {
+		endpoint string
+		want     bool
+	}{
+		{"opencode", true},
+		{"anthropic", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.endpoint, func(t *testing.T) {
+			c := newCollector(0)
+			cfg := config.Config{
+				Provider: config.ProviderConfig{
+					Default: tc.endpoint,
+					Endpoints: map[string]config.EndpointConfig{
+						tc.endpoint: {
+							BaseURL:   "https://example.com",
+							APIKeyEnv: "TEST_API_KEY",
+							Model:     "claude-sonnet-5-5",
+						},
+					},
+				},
+			}
+			a := testAppWithConfig(t, cfg, c)
+			defer a.Close()
+
+			info := a.StatusInfo(func(string) string { return "" })
+			if info.ShowDataFlowNotice != tc.want {
+				t.Errorf("ShowDataFlowNotice = %v, want %v", info.ShowDataFlowNotice, tc.want)
 			}
 		})
 	}

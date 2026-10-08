@@ -206,14 +206,14 @@ func TestShiftUpEntersBrowsing(t *testing.T) {
 	}
 }
 
-// T3a: Tab with "/ru" completes to "/run" and stays in Composing.
+// T3a: Tab with "/qu" completes to "/quit" and stays in Composing.
 func TestTabCompletesSlashCommand(t *testing.T) {
 	m := New(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
 	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	m = drive(m, key('/'), key('r'), key('u'), keyType(tea.KeyTab))
-	if m.comp.Value() != "/run" {
-		t.Errorf("after Tab on '/ru': composer = %q, want %q", m.comp.Value(), "/run")
+	m = drive(m, key('/'), key('q'), key('u'), keyType(tea.KeyTab))
+	if m.comp.Value() != "/quit" {
+		t.Errorf("after Tab on '/qu': composer = %q, want %q", m.comp.Value(), "/quit")
 	}
 	if m.mode() != ModeComposing {
 		t.Errorf("mode = %v, want Composing", m.mode())
@@ -234,12 +234,12 @@ func TestTabAmbiguousCommand(t *testing.T) {
 	}
 }
 
-// T3c: Tab with "/run echo" moves to Browsing (has space, not a name-only command).
+// T3c: Tab with "/quit now" moves to Browsing (has space, not a name-only command).
 func TestTabWithArgumentEntersBrowsing(t *testing.T) {
 	m := New(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
 	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	m = drive(m, key('/'), key('r'), key('u'), key('n'), key(' '), key('e'), keyType(tea.KeyTab))
+	m = drive(m, key('/'), key('q'), key('u'), key('i'), key('t'), key(' '), key('n'), keyType(tea.KeyTab))
 	if m.mode() != ModeBrowsing {
 		t.Errorf("mode = %v, want Browsing", m.mode())
 	}
@@ -256,12 +256,12 @@ func TestTabNonCommandEntersBrowsing(t *testing.T) {
 	}
 }
 
-// T3e: Tab with "/run\\nfoo" (multiline) moves to Browsing.
+// T3e: Tab with "/quit\\nfoo" (multiline) moves to Browsing.
 func TestTabMultilineEntersBrowsing(t *testing.T) {
 	m := New(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
 	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	m = drive(m, key('/'), key('r'), key('u'), key('n'), keyType(tea.KeyCtrlJ), key('f'), key('o'), key('o'), keyType(tea.KeyTab))
+	m = drive(m, key('/'), key('q'), key('u'), key('i'), key('t'), keyType(tea.KeyCtrlJ), key('f'), key('o'), key('o'), keyType(tea.KeyTab))
 	if m.mode() != ModeBrowsing {
 		t.Errorf("mode = %v, want Browsing", m.mode())
 	}
@@ -318,28 +318,30 @@ func TestHistoryCap101Entries(t *testing.T) {
 	m := New(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
 	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Submit 101 distinct entries: /x followed by i (0-100)
+	// Submit 101 distinct entries using a recognised slash command (/status i).
+	// Ordinary text would set busy.Active and block further input in this
+	// harness, so a non-busy command keeps the test focused on history capacity.
 	for i := 0; i <= 100; i++ {
-		// Use strconv.Itoa to format i (e.g., "/x0", "/x1", ..., "/x100")
-		text := "/x" + strconv.Itoa(i)
+		text := "/status " + strconv.Itoa(i)
 		for _, r := range text {
 			m = drive(m, key(r))
 		}
 		m = drive(m, keyType(tea.KeyEnter))
 	}
 
-	// Press ↑ 100 times: should show /x1 (the oldest kept, since /x0 was dropped)
+	// Press ↑ 100 times: should show "/status 1" (the oldest kept, since "/status 0" was dropped)
 	for i := 0; i < 100; i++ {
 		m = drive(m, keyType(tea.KeyUp))
 	}
-	if m.comp.Value() != "/x1" {
-		t.Errorf("after 100 ↑: composer = %q, want %q", m.comp.Value(), "/x1")
+	want := "/status 1"
+	if m.comp.Value() != want {
+		t.Errorf("after 100 ↑: composer = %q, want %q", m.comp.Value(), want)
 	}
 
-	// Press ↑ once more: should still show /x1 (already at oldest)
+	// Press ↑ once more: should still show the oldest entry
 	m = drive(m, keyType(tea.KeyUp))
-	if m.comp.Value() != "/x1" {
-		t.Errorf("after 101st ↑: composer = %q, want %q", m.comp.Value(), "/x1")
+	if m.comp.Value() != want {
+		t.Errorf("after 101st ↑: composer = %q, want %q", m.comp.Value(), want)
 	}
 }
 
@@ -348,17 +350,19 @@ func TestEscResetsHistoryPosition(t *testing.T) {
 	m := New(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
 	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Submit two entries
-	m = drive(m, key('/'), key('a'), keyType(tea.KeyEnter))
-	m = drive(m, key('/'), key('b'), keyType(tea.KeyEnter))
+	// Submit two entries using recognised slash commands that do not open a
+	// modal or start a turn, so the harness stays in Composing.
+	m = drive(m, key('/'), key('s'), key('t'), key('a'), key('t'), key('u'), key('s'), keyType(tea.KeyEnter))
+	m = drive(m, key('/'), key('f'), key('i'), key('l'), key('e'), key('s'), keyType(tea.KeyEnter))
 
 	// Type some text
 	m = drive(m, key('a'), key('b'), key('c'))
 
-	// ↑ shows "/b"
+	// ↑ shows the newest history entry
+	want := "/files"
 	m = drive(m, keyType(tea.KeyUp))
-	if m.comp.Value() != "/b" {
-		t.Errorf("after first ↑: composer = %q, want %q", m.comp.Value(), "/b")
+	if m.comp.Value() != want {
+		t.Errorf("after first ↑: composer = %q, want %q", m.comp.Value(), want)
 	}
 
 	// Esc clears the composer and resets history
@@ -367,10 +371,10 @@ func TestEscResetsHistoryPosition(t *testing.T) {
 		t.Errorf("after Esc: composer = %q, want empty", m.comp.Value())
 	}
 
-	// ↑ should show "/b" again, not "/a"
+	// ↑ should show "/help" again, not "/status"
 	m = drive(m, keyType(tea.KeyUp))
-	if m.comp.Value() != "/b" {
-		t.Errorf("after Esc and ↑: composer = %q, want %q", m.comp.Value(), "/b")
+	if m.comp.Value() != want {
+		t.Errorf("after Esc and ↑: composer = %q, want %q", m.comp.Value(), want)
 	}
 
 	// ↓ should restore the empty draft (not "abc")
@@ -431,22 +435,20 @@ func TestHistoryUpWithNoHistoryReachesTextarea(t *testing.T) {
 	m := New(Options{Version: "0.1.0", Caps: Caps{Colour: false, Unicode: true}})
 	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Submit an unknown slash command (/zz) which sets Hint
-	m = drive(m, key('/'), key('z'), key('z'), keyType(tea.KeyEnter))
+	// Submit a recognised slash command (/status) to put something in history
+	// without entering the busy model-turn state.
+	m = drive(m, key('/'), key('s'), key('t'), key('a'), key('t'), key('u'), key('s'), keyType(tea.KeyEnter))
 
-	// Verify Hint is set (composer shows hint from unknown command)
-	if m.comp.Hint == "" {
-		t.Fatalf("setup: Hint should be set after unknown command, got empty")
-	}
-
-	// Verify /zz is in history
+	// Recall the entry and install a hint manually: the unknown-command hint
+	// path no longer exists, but the "↑ at oldest clears Hint" behaviour does.
 	m = drive(m, keyType(tea.KeyUp))
-	if m.comp.Value() != "/zz" {
-		t.Fatalf("setup: after ↑, should recall /zz, got %q", m.comp.Value())
+	if m.comp.Value() != "/status" {
+		t.Fatalf("setup: after ↑, should recall /status, got %q", m.comp.Value())
 	}
+	m.comp.Hint = "hint to clear"
 
-	// Press ↑ again at the oldest entry
-	// History returns false, key falls through to textarea, which clears Hint
+	// Press ↑ again at the oldest entry.
+	// History returns false, key falls through to textarea, which clears Hint.
 	m = drive(m, keyType(tea.KeyUp))
 
 	// Hint should now be cleared
@@ -454,9 +456,9 @@ func TestHistoryUpWithNoHistoryReachesTextarea(t *testing.T) {
 		t.Errorf("after ↑ at oldest: Hint should be cleared, got %q", m.comp.Hint)
 	}
 
-	// Composer value should still be /zz
-	if m.comp.Value() != "/zz" {
-		t.Errorf("after ↑ at oldest: composer = %q, want %q", m.comp.Value(), "/zz")
+	// Composer value should still be /status
+	if m.comp.Value() != "/status" {
+		t.Errorf("after ↑ at oldest: composer = %q, want %q", m.comp.Value(), "/status")
 	}
 }
 

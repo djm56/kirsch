@@ -312,6 +312,7 @@ func textEv(s string) Event     { return Event{Type: EventTextDelta, Text: s} }
 func thinkDelta(s string) Event { return Event{Type: EventThinkingDelta, Text: s} }
 func msgDone() Event            { return Event{Type: EventMessageDone} }
 func errEv(err error) Event     { return Event{Type: EventError, Err: err} }
+func usageEv(u Usage) Event     { return Event{Type: EventUsage, Usage: &u} }
 func thinkDone(t Thinking) Event {
 	return Event{Type: EventThinkingDone, Thinking: &t}
 }
@@ -450,6 +451,7 @@ func TestInvokeReceivesCall(t *testing.T) {
 func TestEmitForwarding(t *testing.T) {
 	h := runFull(t)
 	want := append(fullRound1(), fullRound2()...)
+	want = append(want, usageEv(Usage{InputTokens: 1}))
 	expectEqual(t, "emitted events", h.emitted, want)
 
 	t.Run("nil_emit_does_not_panic", func(t *testing.T) {

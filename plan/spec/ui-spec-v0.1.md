@@ -200,9 +200,9 @@ dropped**; at narrow widths they are the entire reason the bar exists.
   never a candidate: it has to stay an ordinary character while typing.
 - **A slash command re-pins.** Submitting one is a request, and §3.1 renders the
   invocation as a message, so the transcript goes to the bottom where its answer
-  will be. The two hint-only paths are the exception — an unknown command, and a
-  debug command called without its argument. Both answer entirely in the dim hint
-  under the composer and put nothing in the transcript, so re-pinning would cost
+  will be. The hint-only path is the exception — an unknown command answers
+  entirely in the dim hint under the composer and puts nothing in the transcript,
+  so re-pinning would cost
   the reader their scroll position to report a typo.
 - **`Esc` does not re-pin.** Leaving Browsing hands focus back to the composer and
   leaves the viewport exactly where it is. Re-pinning there would make the rule
@@ -373,7 +373,7 @@ card.
 
 Single screen: key bindings grouped by mode (§5.2), then slash commands (§6),
 then a footer with version and the docs path. `Esc` or `?` closes. The minimum
-terminal for the full-help overlay is 80×34.
+terminal for the full-help overlay is 80×28.
 
 ### 4.3 Confirm prompt
 
@@ -533,9 +533,6 @@ trimmed, unparsed.
 
 Unknown `/command` → a dim inline hint under the composer, not an error card,
 and **never sent to the model**. `Tab` completes a unique prefix.
-
-Milestone 1 adds temporary debug commands — `/read`, `/ls`, `/search`,
-`/gitstatus`, `/gitdiff` — labelled `(debug)` in `/help` and removed in M3.
 
 ## 7. Edge Cases
 

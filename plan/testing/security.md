@@ -170,6 +170,71 @@ A test server returning a 3xx makes the adapter return an error naming the statu
 
 **Not covered:** The tests do not explicitly verify that `x-api-key` never reaches the redirect target through a spy on the redirect request; this is implied by "zero requests to the redirect target" but is not asserted on the request header content itself.
 
+### 7. `[context].project_files` is honoured
+
+A project file may set `[context] project_files = ["AGENTS.md", "CLAUDE.md"]` and the loader treats the list as FIFO: the first existing, resolvable regular file wins; absent candidates are skipped without warning; if none exist there is no project context and no error.
+
+**Guarded by:** `internal/agent/prompt/loader_test.go` — `TestLoadProjectContext_FirstExistingCandidateWins`, line 87–144.
+
+**What the test asserts:**
+- Line 97: When both candidates exist, `AGENTS.md` is chosen.
+- Line 100: The returned content is exactly the contents of `AGENTS.md`.
+- Line 106: No warnings are produced for absent candidates.
+- Line 116: After `AGENTS.md` is removed, `CLAUDE.md` wins.
+- Lines 132–142: When no candidates exist, the chosen file, content, and size are all empty/zero and no warnings are emitted.
+
+### 8. Refused `project_files` entries produce named warnings
+
+A candidate that `workspace.Resolve` refuses — an absolute path, a `..` traversal, a symlink that escapes the root, or a denylisted path such as `.env`, `.kirsch/`, `.git/`, or a key file — does not stop loading. It produces a warning naming the refused candidate, and the loader continues with the next candidate.
+
+**Guarded by:** `internal/agent/prompt/loader_test.go` — `TestLoadProjectContext_RefusedCandidatesProduceNamedWarnings`, line 149–182; `internal/workspace/workspace_test.go` — `TestSymlinkTable`, line 31–91 (symlink escape and `..` traversal), and `TestDenylist`, line 122–163 (denylisted paths including `.kirsch/config.toml` and `.env`).
+
+**What the tests assert:**
+- `TestLoadProjectContext_RefusedCandidatesProduceNamedWarnings`, line 163: The first allowed candidate (`valid.md`) is chosen despite four refused candidates before it.
+- Line 166: The returned content is from `valid.md`, not from any refused path.
+- Lines 173–180: Every refused candidate (`/abs.md`, `../outside.md`, `escaped-link`, `.env`) appears in exactly one warning.
+- `TestSymlinkTable`, lines 55–60: Symlink escape, parent-directory symlink, and plain `..` traversal are all reported as workspace violations.
+- `TestDenylist`, lines 136–138: `.kirsch/config.toml` and `.kirsch/sessions/abc.jsonl` are refused; lines 147–162 confirm ordinary project files are still allowed.
+
+### 9. Non-regular `project_files` candidates are skipped with a warning
+
+Directories and FIFOs (or any non-regular file) among the candidate list are skipped before being opened, producing a warning naming the candidate. The regular-file check must precede `Open` so that a FIFO cannot hang the loader.
+
+**Guarded by:** `internal/agent/prompt/loader_test.go` — `TestLoadProjectContext_NonRegularFilesSkippedWithWarning`, line 187–210.
+
+**What the test asserts:**
+- Line 198: The regular candidate `valid.md` is chosen even though a directory and a FIFO appear earlier in the list.
+- Line 201: The returned content is from `valid.md`.
+- Line 204: A warning names the directory candidate `adir`.
+- Line 207: A warning names the FIFO candidate `afifo`.
+
+### 10. Cap truncation and clamp for project context
+
+`max_project_context_bytes` is honoured up to a hard ceiling of 32768 bytes; the effective cap is `min(maxBytes, 32768)`. When content exceeds the cap, truncation happens at a line boundary and a marker `[project context truncated after N bytes]` is appended. Content that fits exactly at the cap carries no marker.
+
+**Guarded by:** `internal/agent/prompt/loader_test.go` — `TestLoadProjectContext_CapTruncationAndClamp`, line 215–277.
+
+**What the test asserts:**
+- Lines 223–228: Content that fits exactly at the cap is returned unchanged and contains no truncation marker.
+- Lines 238–241: Content over the cap is truncated at a line boundary and includes `[project context truncated after 10 bytes]`.
+- Lines 257–263: A requested cap of 100000 is clamped to 32768; the returned content contains `[project context truncated after 32768 bytes]` and does not exceed the clamped cap plus the marker.
+- Lines 273–275: A lower cap of 10 bytes is honoured with the marker `[project context truncated after 10 bytes]`.
+
+### 11. Known limit: `run_command` can write config files
+
+ADR 0008 states the limit directly: "`run_command` can write anywhere the user's account can, so for a command the boundary is the user's approval. The approval card must show the full argv, and a command touching `.kirsch/` or the global config directory gets no special treatment in v0.1." `run_command` therefore has no path-based refusal that would stop it from writing `<workspace>/.kirsch/config.toml`. The file tools (`read_file`, `apply_patch`, etc.) still refuse these paths through the workspace denylist.
+
+**Guarded by:** `internal/tool/run_command_test.go` — `TestRunCommandCanWriteKirschConfig`, line 1813–1850.
+
+**What the test asserts:**
+- Line 1832: An approved `sh -c "mkdir -p .kirsch && echo wrote > .kirsch/config.toml"` command succeeds.
+- Line 1835: The approver was called, so the boundary is the approval prompt, not a file-path refusal.
+- Line 1838: The approval request carries the full three-element argv.
+- Lines 1842–1845: `.kirsch/config.toml` exists inside the workspace after the command runs.
+- Line 1847: The file contains exactly the bytes the command wrote.
+
+**Inherited claim:** The file-tool refusal is guarded by `internal/workspace/workspace_test.go` — `TestDenylist`, line 136 (`".kirsch/config.toml"` is denied), and by the file-tool tests referenced in cases 1–6.
+
 ## Triage
 
 ### `govulncheck`

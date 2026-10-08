@@ -1,8 +1,8 @@
 # Progress — Kirsch
 
-**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is in progress: m3-d1, m3-d2, m3-d3, m3-d4 and m3-d5 are done, and m3-d6 (wiring and integration) is the remaining deliverable.
+**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is complete: m3-d1 through m3-d6 are done (m3-d6 = wiring and integration, mission-20261007-02). Remaining before the milestone is operator-accepted: the operator's live run (Task 8 box 321, `npm run test:live`), a manual walkthrough, and the commit.
 
-**What's next:** m3-d6 (wiring and integration) — depends on all five, unblocked now; the first conversation in the TUI is at m3-d6. Carried items are listed under *Carried from m3-d5*, *Carried from m3-d4*, *Carried from m3-d3* and *Carried from m3-d2*.
+**What's next:** operator items for Milestone 3 close-out — run the live test (`npm run test:live`, Task 8 box 321), perform a manual walkthrough of the testing docs, and commit the accumulated m3-d6 delta (currently uncommitted on top of `04e30cc`). Carried items are listed under *Carried from m3-d6*, *Carried from m3-d5*, *Carried from m3-d4*, *Carried from m3-d3* and *Carried from m3-d2*.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -13,7 +13,7 @@ This file is the single source of truth for live state — what is in progress a
 | 0 | Repo skeleton + static TUI prototype | ☑ Complete |
 | 1 | Workspace engine + read-only tools | ☑ Complete |
 | 2 | Patches, commands, approvals | ☑ Complete (operator-accepted 2026-10-02, deferred items below) |
-| 3 | Provider + agent loop | ◐ In progress (m3-d1–m3-d5 done) |
+| 3 | Provider + agent loop | ☑ Complete |
 | 4 | Real task loop + sessions | ☐ Not started |
 | 5 | Polish + release (v0.1.0) | ☐ Not started |
 
@@ -39,16 +39,23 @@ Definitions are in `plan/milestones/milestone-3.md`. The live probe ran on 2026-
 | m3-d3 | Agent state machine | done | — | m3-d1 |
 | m3-d4 | System prompt and thinking | done | — | m3-d2, m3-d3 |
 | m3-d5 | Onboarding screens | done | — | m3-d1, m3-d2, m3-d3 |
-| m3-d6 | Wiring and integration | pending | — | all |
+| m3-d6 | Wiring and integration | done | — | all |
 
 ## Carried from m3-d5
 
 The onboarding screens landed on 2026-10-07 (mission-20261007-01). Open items that remain:
 
-- **`/status` data-flow notice and `/status` display (Task 7 item 6):** when the active endpoint is `opencode`, `/status` states that prompts and file contents go to OpenCode's gateway and the model host, not Anthropic (ADR 0008 lines 217–219) — the onboarding-screen half landed at m3-d5; Task 8 box 323 ticks at m3-d6 when both halves exist.
-- **main.go wiring:** `App.CheckOnboarding` is built but not yet called — m3-d6's main wiring calls it at startup and hands the TUI the onboarding state path.
-- **Centralise the ADR 0008 data-flow wording** in one place before the `/status` half lands, so the onboarding screen and `/status` cannot drift (also ledgered in FINDINGS.md this close).
+- **`/status` data-flow notice and `/status` display (Task 7 item 6):** when the active endpoint is `opencode`, `/status` states that prompts and file contents go to OpenCode's gateway and the model host, not Anthropic (ADR 0008 lines 217–219) — the onboarding-screen half landed at m3-d5; Task 8 box 323 ticks at m3-d6 when both halves exist. **Resolved at m3-d6:** both halves exist and box 323 is ticked (step 7 centralised the wording in `internal/tui/messages.go`).
+- **main.go wiring:** `App.CheckOnboarding` is built but not yet called — m3-d6's main wiring calls it at startup and hands the TUI the onboarding state path. **Resolved at m3-d6:** `CheckOnboarding` is called at startup via `startupPostAttach`/`onboardingCheck` (step 3).
+- **Centralise the ADR 0008 data-flow wording** in one place before the `/status` half lands, so the onboarding screen and `/status` cannot drift (also ledgered in FINDINGS.md this close). **Resolved at m3-d6:** the wording is centralised in `internal/tui/messages.go` (step 7).
 - **Advisory:** absence-check tests use fixed sleeps (200ms in `TestCheckOnboardingKeyPresentSuppressesMessage`); if such tests accumulate, extract a shared `drainOrTimeout` helper.
+
+## Carried from m3-d6
+
+The wiring and integration deliverable landed on 2026-10-08 (mission-20261007-02). Open items that remain:
+
+- **Operator live run (Task 8 box 321):** `npm run test:live` = `go test -tags live -run TestLive -count=1 -v ./internal/provider/anthropic/` with `OPENCODE_API_KEY` set; the default model is `minimax-m2.7`, `KIRSCH_LIVE_MODEL` overrides. It runs `TestLiveOpencodeSmoke` + `TestLiveThinkingRoundTrip` + `TestLiveModel`. Box 321's live opencode answer citing a file/line is operator-observed in the TUI, not automated. If the live run returns a 400 on a thinking-effort mapping, revisit the mapping against the live Anthropic docs (carried from m3-d4).
+- **`scripts/__pycache__/` cleanup:** the directory is untracked and not in `.gitignore`; remove it at commit time (flagged at Step 10, deferred per the operator efficiency directive).
 
 ## Carried from m3-d4
 
@@ -102,6 +109,7 @@ Deferred by the operator on 2026-10-02, when Milestone 2 was accepted. Details a
 | Completed | Deliverable | What landed |
 |---|---|---|
 | 2026-10-07 | m3-d5 — onboarding screens | Screen 12 (state 14) drawn and golden-tested; TUI onboarding rendering (dim, never error cards); app CheckOnboarding wiring with endpoint key variables; ui-spec §13 gap closed. (mission-20261007-01) |
+| 2026-10-08 | m3-d6 — wiring and integration | `mission-20261007-02`. TUI turn-message pipeline (7 plain-field messages, thinking collapsed dimmed card); debug slash commands + help block deleted, screen 06 shrinks 80×34→80×28; submit() hands composer text to a real agent turn; status bar real Usage tokens + context budget indicator, hard-coded model removed; `/status` display (endpoint, base_url host, key source variable, proxy host, context file, data-flow notice) + prompt wiring at session start; approval IDs distinct via tool invocation ID; policy.New reads three settings from global config; run_command timeout default + 300 ceiling (amendment 85) + ProgressSink streaming; six config boxes covered; provider surface (Fake completeness, retry matrix, redirect refusal, request-shape, session header); security.md cases 7–11 + run_command-writes-config known limit; testing docs sections 5–8 runnable. Reviews: steps 2b, 4, 6b, 8, 10, 12, 16, 18b APPROVED; steps 6, 14, 18 NOT APPROVED then resolved. **Uncommitted** on top of `04e30cc`. |
 | 2026-10-06 | m3-d4 system prompt and thinking | `mission-20261006-03`. `internal/agent/prompt`: embedded six-section system prompt (plan §6.1 order, untrusted-input rule verbatim, project context fenced and labelled untrusted), `Env` + `Assemble`, and the project-context loader — consumer-declared `Engine` interface, first-existing FIFO, engine-refused entries skipped with named warnings, regular-file check before any read, bounded reader (never `Stat`-sized), cap `min(supplied, 32768)` with line-boundary truncation marker, chosen file/size/warnings exposed. `agent.Request.System`/`Agent.System` carried on every request. Injection test: instruction surfaced in the fenced untrusted section, exactly once in the system prompt, zero times in messages, rule sections byte-identical. Adapter thinking request field: `off` → `between_tools` + high effort, `low`/`medium`/`high` → `adaptive`, decided against the live Anthropic docs. Thinking blocks round-trip byte-identical (signature included) on the second request at every setting; `Thinking.DropOnSummary` marks blocks for M4 compaction drop. Opt-in live round-trip test built for the operator. Reviews: steps 2, 4b, 6b APPROVED; step 4 NOT APPROVED (DIR-016 process violation, resolved at 4a/4b); step 6 APPROVED with conditions (gosec G304) resolved by vasquez escalation 6a (one-line `#nosec` annotation). **Uncommitted** on top of `8e37449`. |
 | 2026-10-05 | m3-d3 turn loop (core) | `mission-20261005-02`. `internal/agent`: provider-neutral types and the `Model`, `Tools` and `Recorder` interfaces, with no implementation imports. `Agent.Turn` runs tool calls one after another in the order returned and completes a message only on `MessageDone`. Every error is wrapped (`ErrStreamProtocol`, `ErrStreamFailed`), everything stored or handed out is copied, and thinking blocks stay separate. A failed turn keeps what happened, and the next text merges into a trailing user message; `Recorder` records appends and merges so the conversation can be rebuilt exactly (amendment 84). Tested only against fakes. The guards come next. |
 | 2026-10-06 | m3-d3 guards | `mission-20261006-02`. `internal/agent`: the four m3-d3 guards — sequential tool calls short-circuit on the first failure with every requested call still returning a result (`policy_denied` propagates from a denial, otherwise `cancelled`); hallucinated tool names return `tool_input_invalid` listing the real tools, two retries before `ErrToolNameHallucination`, known tools with invalid input pass through and do not consume the budget; max-turn guard trips at 25 tool rounds (`ErrMaxTurnsExceeded`); cancellation honoured before and during each call, returns within 1s, every `tool_use` id gets a `cancelled` result, follow-up turn succeeds. Plus `validateCallIDs` (empty/duplicate `tool_use` ids rejected as `ErrStreamProtocol`) and the unknown-tool/invalid-input split. 12 mirrored mutants killed in scratch; review APPROVED (0 CRITICAL, 0 WARNINGS); re-review APPROVED. |

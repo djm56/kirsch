@@ -29,7 +29,7 @@ func TestRunCommandRejectsSingleString(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -63,7 +63,7 @@ func TestRunCommandEmptyArgv(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -89,7 +89,7 @@ func TestRunCommandCwdViolation(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -120,7 +120,7 @@ func TestRunCommandShellCommandRequiresApproval(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -146,7 +146,7 @@ func TestRunCommandAllowlistNoApproval(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -172,7 +172,7 @@ func TestRunCommandNotAllowedRequiresApproval(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -209,7 +209,7 @@ func TestRunCommandStdinIsDevNull(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -245,7 +245,7 @@ func TestRunCommandCatApprovalGate(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New() // Fresh policy with no grants
+	pol := policy.New(true, true, true) // Fresh policy with no grants
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -284,7 +284,7 @@ func TestRunCommandCatWithSessionGrant(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New() // Fresh policy
+	pol := policy.New(true, true, true) // Fresh policy
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	// Grant "cat" (just the command name) to the session.
@@ -322,7 +322,7 @@ func TestRunCommandCatExitStatus(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -365,7 +365,7 @@ func TestRunCommandEnvironmentFiltering(t *testing.T) {
 	// be stripped because it matches *_TOKEN.
 	conf := config.Defaults()
 	conf.Policy.EnvPassthrough = []string{"MY_PATH_VAR", "MY_TOKEN"}
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -410,7 +410,7 @@ func TestRunCommandOutputCapAt200KB(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -492,7 +492,7 @@ func TestRunCommandApprovedForSessionRecordsGrant(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := &config.Config{}
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 
 	// Create a custom approver that simulates session approval.
 	// For now, this test just ensures the flow exists; the actual grant recording
@@ -552,7 +552,7 @@ func TestRunCommandAllStripPatterns(t *testing.T) {
 			// Configure to allow the variable through, then we'll check if it's stripped.
 			conf := config.Defaults()
 			conf.Policy.EnvPassthrough = []string{tc.envVarName}
-			pol := policy.New()
+			pol := policy.New(true, true, true)
 			approver := newFakeApprover(policy.DecisionAllow)
 
 			tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -586,7 +586,7 @@ func TestRunCommandCommandFailureReturnsError(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -613,7 +613,7 @@ func TestRunCommandCommandFailureReturnsError(t *testing.T) {
 func TestRunCommandCancellation(t *testing.T) {
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -657,7 +657,7 @@ func TestRunCommandDefaultCwd(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -705,7 +705,7 @@ func TestRunCommandBuiltinCommands(t *testing.T) {
 			ctx := context.Background()
 			ws := newTestWorkspace(t)
 			conf := &config.Config{}
-			pol := policy.New()
+			pol := policy.New(true, true, true)
 			approver := newFakeApprover(policy.DecisionAllow)
 
 			tool := &RunCommand{WS: ws, Config: conf, Policy: pol, Approver: approver}
@@ -731,7 +731,7 @@ func TestRunCommandTimeoutWithinDeadline(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -770,7 +770,7 @@ func TestRunCommandTimeoutProcessGroupDead(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -833,7 +833,7 @@ func TestRunCommandCancellationProcessGroupDead(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -874,7 +874,7 @@ func TestRunCommandGracefulShutdown(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -914,7 +914,7 @@ func TestRunCommandTerminateThenKill(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -961,7 +961,7 @@ func TestRunCommandOutputBeforeExit(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -997,7 +997,7 @@ func TestRunCommandOutput200KBCapStreaming(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -1056,7 +1056,7 @@ func TestRunCommandLargeOutputWithImmediateExit(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -1103,7 +1103,7 @@ func TestRunCommandGrandchildCleanup(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -1180,7 +1180,7 @@ func TestRunCommandNoGoroutineLeaks(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -1614,6 +1614,88 @@ func TestProgressSinkReceivesChunks(t *testing.T) {
 	}
 }
 
+// TestRunCommandTimeoutUsesConfiguredDefault verifies that an omitted
+// timeout_seconds resolves to the configured default_command_timeout_seconds.
+func TestRunCommandTimeoutUsesConfiguredDefault(t *testing.T) {
+	ws := newTestWorkspace(t)
+	cfg := &config.Config{
+		Policy: config.PolicyConfig{
+			DefaultCommandTimeoutSeconds: 1,
+			EnvPassthrough:               []string{},
+		},
+	}
+	pol := policy.New(true, true, true)
+	approver := newFakeApprover(policy.DecisionAllow)
+
+	tool := &RunCommand{WS: ws, Config: cfg, Policy: pol, Approver: approver}
+
+	input := runCommandInput{
+		Argv: []string{"sleep", "100"},
+		Cwd:  ".",
+		// TimeoutSeconds intentionally omitted (zero value).
+	}
+
+	data, _ := json.Marshal(input)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	result := tool.Invoke(ctx, data)
+	elapsed := time.Since(start)
+
+	if result.OK {
+		t.Fatalf("expected timeout, got OK")
+	}
+	if result.Error.Kind != KindCommandTimeout {
+		t.Fatalf("expected KindCommandTimeout, got %s (message=%q)", result.Error.Kind, result.Error.Message)
+	}
+	// The command should have been killed by the 1-second default, not the old
+	// 3600-second fallback.
+	if elapsed > 2*time.Second {
+		t.Fatalf("timeout took %v; expected ~1s with configured default", elapsed)
+	}
+	if !strings.Contains(result.Error.Message, "1") {
+		t.Errorf("expected error message to mention resolved timeout 1, got: %q", result.Error.Message)
+	}
+}
+
+// TestRunCommandTimeoutRejectsOverCeiling verifies that timeout_seconds above
+// the plan §3 ceiling is refused with tool_input_invalid.
+func TestRunCommandTimeoutRejectsOverCeiling(t *testing.T) {
+	ws := newTestWorkspace(t)
+	cfg := &config.Config{
+		Policy: config.PolicyConfig{
+			DefaultCommandTimeoutSeconds: 60,
+			EnvPassthrough:               []string{},
+		},
+	}
+	pol := policy.New(true, true, true)
+	approver := newFakeApprover(policy.DecisionAllow)
+
+	tool := &RunCommand{WS: ws, Config: cfg, Policy: pol, Approver: approver}
+
+	input := runCommandInput{
+		Argv:           []string{"echo", "hello"},
+		Cwd:            ".",
+		TimeoutSeconds: 301,
+	}
+
+	data, _ := json.Marshal(input)
+	ctx := context.Background()
+
+	result := tool.Invoke(ctx, data)
+
+	if result.OK {
+		t.Fatalf("expected failure for timeout over ceiling, got OK")
+	}
+	if result.Error.Kind != KindToolInputInvalid {
+		t.Fatalf("expected KindToolInputInvalid, got %s", result.Error.Kind)
+	}
+	if !strings.Contains(result.Error.Message, "300") {
+		t.Errorf("expected error message to mention ceiling 300, got: %q", result.Error.Message)
+	}
+}
+
 // TestCapWriterTruncatesLargeOutput verifies capWriter's own memory-safety
 // bound: once accumulated output exceeds cap, it keeps head+tail rather than
 // growing unboundedly. This is capWriter's internal mechanism, not the
@@ -1670,7 +1752,7 @@ func TestRunCommandApprovalIncludesArgv(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionAllow)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -1702,7 +1784,7 @@ func TestRunCommandSessionApprovalRuns(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionSession)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
@@ -1725,13 +1807,55 @@ func TestRunCommandSessionApprovalRuns(t *testing.T) {
 	}
 }
 
+// TestRunCommandCanWriteKirschConfig documents the known limit from ADR 0008:
+// run_command can write anywhere the user's account can, including .kirsch/
+// inside the workspace. The boundary is policy approval, not a file-path refusal.
+func TestRunCommandCanWriteKirschConfig(t *testing.T) {
+	ctx := context.Background()
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	pol := policy.New(true, true, true)
+	approver := newFakeApprover(policy.DecisionAllow)
+
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	// A shell command is required to touch the path; shells always ask for
+	// approval, so this also exercises the approval-card boundary.
+	input := runCommandInput{
+		Argv: []string{"sh", "-c", "mkdir -p .kirsch && echo wrote > .kirsch/config.toml"},
+		Cwd:  ".",
+	}
+	raw, _ := json.Marshal(input)
+
+	result := tool.Invoke(ctx, raw)
+
+	if !result.OK {
+		t.Fatalf("expected command to succeed, got: %v", result.Error)
+	}
+	if !approver.called {
+		t.Fatalf("approver should have been called for shell command")
+	}
+	if len(approver.lastReq.Argv) != 3 {
+		t.Fatalf("approval request should show the full argv, got %v", approver.lastReq.Argv)
+	}
+
+	written := filepath.Join(ws.Root, ".kirsch", "config.toml")
+	content, err := os.ReadFile(written)
+	if err != nil {
+		t.Fatalf("expected config file to be written: %v", err)
+	}
+	if string(content) != "wrote\n" {
+		t.Fatalf("unexpected file content: %q", content)
+	}
+}
+
 // TestRunCommandSessionApprovalFails verifies that RunCommand rejects
 // DecisionDeny even when it's not DecisionAllow.
 func TestRunCommandRejectionDenyOnly(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
-	pol := policy.New()
+	pol := policy.New(true, true, true)
 	approver := newFakeApprover(policy.DecisionDeny)
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}

@@ -9,7 +9,11 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/url"
+	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,32 +21,23 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/djm56/kirsch/internal/agent"
+	"github.com/djm56/kirsch/internal/agent/prompt"
 	"github.com/djm56/kirsch/internal/config"
 	"github.com/djm56/kirsch/internal/patch"
 	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/provider"
+	"github.com/djm56/kirsch/internal/provider/anthropic"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tool"
 	"github.com/djm56/kirsch/internal/tui"
 	"github.com/djm56/kirsch/internal/workspace"
 )
 
-// toolIDKey is the context key for carrying tool ID through the approval request.
-type toolIDKey struct{}
-
-// withToolID adds a tool ID to the context.
-func withToolID(ctx context.Context, id int64) context.Context {
-	return context.WithValue(ctx, toolIDKey{}, id)
-}
-
-// toolIDFrom reads the tool ID from context. Returns zero if not set.
-func toolIDFrom(ctx context.Context) int64 {
-	id, ok := ctx.Value(toolIDKey{}).(int64)
-	if !ok {
-		return 0
-	}
-	return id
-}
+// toolCallsKey is the context key for carrying the provider-call-id → app-side
+// tool ID map from RunTurn into the toolExecutor that completes agent-driven
+// tool calls. architecture.md §4.
+type toolCallsKey struct{}
 
 // ApprovalRequest describes what is being asked for approval.
 //
@@ -57,6 +52,7 @@ func toolIDFrom(ctx context.Context) int64 {
 // exists only to be derived is not stored, so the invalid combination has
 // nowhere to live.
 type ApprovalRequest struct {
+	ID          int64              // Approval ID; non-zero when mapped from a tool invocation, zero to let App allocate
 	Description string             // Human-readable text for the approval card
 	Operation   policy.Operation   // The operation type; drives both policy enforcement and the TUI's rendering kind
 	Argv        []string           // Command argv for session grant; nil if not applicable
@@ -256,6 +252,66 @@ func (aa *approvalAdapter) Resolve(id int64, decision policy.Decision) {
 	aa.app.ResolveToolApproval(id, decision)
 }
 
+// toolExecutor adapts App's tool registry to the agent.Tools interface. It is
+// responsible for sending ToolStartedMsg and ToolCompletedMsg for tool calls
+// driven by the agent, keeping the TUI-implementation boundary intact.
+// architecture.md §4.
+type toolExecutor struct {
+	app *App
+}
+
+// Describe implements agent.Tools.
+func (te *toolExecutor) Describe() []agent.ToolSpec {
+	tools := te.app.reg.List()
+	out := make([]agent.ToolSpec, 0, len(tools))
+	for _, t := range tools {
+		out = append(out, agent.ToolSpec{
+			Name:        t.Name(),
+			Description: t.Description(),
+			InputSchema: t.Schema(),
+		})
+	}
+	return out
+}
+
+// Invoke implements agent.Tools. It sends ToolStartedMsg and ToolCompletedMsg
+// for the call, reusing the app-side tool ID allocated by adaptTurnEvent when
+// EventToolCallStart was seen, or allocating a new one when it was not.
+func (te *toolExecutor) Invoke(ctx context.Context, c agent.ToolCall) agent.ToolResult {
+	target := describeToolCallInput(c.Input)
+
+	var id int64
+	if m, ok := ctx.Value(toolCallsKey{}).(map[string]int64); ok {
+		id = m[c.ID]
+	}
+	if id == 0 {
+		id = te.app.nextID.Add(1)
+		te.app.send(tui.ToolStartedMsg{ID: id, Name: c.Name, Target: target})
+	}
+
+	res := te.app.reg.Invoke(ctx, c.Name, c.Input)
+
+	msg := tui.ToolCompletedMsg{
+		ID: id, Name: c.Name, Target: target,
+		OK:        res.OK,
+		Summary:   res.DisplaySummary,
+		Content:   res.Content,
+		Truncated: res.Truncated,
+	}
+	if res.Error != nil {
+		msg.ErrorKind = string(res.Error.Kind)
+		msg.ErrorMsg = res.Error.Message
+	}
+	te.app.send(msg)
+
+	return agent.ToolResult{
+		OK:        res.OK,
+		Content:   res.Content,
+		Truncated: res.Truncated,
+		ErrorKind: msg.ErrorKind,
+	}
+}
+
 // approval tracks a pending approval request.
 type approval struct {
 	id         int64
@@ -291,7 +347,33 @@ type App struct {
 	approveMu sync.Mutex
 	approvals map[int64]*approval
 	approveID atomic.Int64
+
+	// providerBuilder constructs the live provider client from the active
+	// endpoint. Production uses the Anthropic adapter; tests swap it for a fake.
+	providerBuilder providerBuilder
+
+	// sessionID is required for the opencode endpoint and generated once per
+	// invocation in main.go.
+	sessionID string
+	// version is the Kirsch version, passed to the provider for the User-Agent.
+	version string
+
+	// Session-scoped prompt state. Assembled once at session start and reused
+	// for every turn; the chosen context file and size are kept for /status.
+	// architecture.md §5 and kirsch-plan.md §6.2.
+	systemPrompt     string
+	contextFile      string
+	contextSize      int
+	startOnce        sync.Once
+	loadProjectCtxFn func(candidates []string, maxBytes int, engine prompt.Engine) (string, string, int, []string, error)
+
+	// conv holds the multi-turn conversation. It is mutated by agent.Turn on a
+	// background goroutine and passed to every RunTurn call.
+	conv *agent.Conversation
 }
+
+// providerBuilder constructs a provider.Provider from an endpoint configuration.
+type providerBuilder func(endpoint string, ep config.EndpointConfig, key, version, sessionID string, log *telemetry.Logger) (provider.Provider, error)
 
 // New builds an App. The context hierarchy is rooted here: rootCtx outlives
 // everything, a turn context is derived per turn, and cancelling a turn never
@@ -299,14 +381,17 @@ type App struct {
 func New(ws *workspace.Workspace, cfg config.Config, log *telemetry.Logger) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &App{
-		ws:         ws,
-		cfg:        cfg,
-		log:        log,
-		reg:        tool.NewRegistry(),
-		pol:        policy.New(),
-		rootCtx:    ctx,
-		rootCancel: cancel,
-		approvals:  make(map[int64]*approval),
+		ws:               ws,
+		cfg:              cfg,
+		log:              log,
+		reg:              tool.NewRegistry(),
+		pol:              policy.New(cfg.Policy.AllowSessionScopedGrants, cfg.Policy.RequireApprovalForPatches, cfg.Policy.RequireApprovalForCommands),
+		rootCtx:          ctx,
+		rootCancel:       cancel,
+		approvals:        make(map[int64]*approval),
+		providerBuilder:  defaultProviderBuilder,
+		loadProjectCtxFn: prompt.LoadProjectContext,
+		conv:             &agent.Conversation{},
 	}
 	a.reg.Register(&tool.ReadFile{WS: ws})
 	a.reg.Register(&tool.ListFiles{WS: ws})
@@ -314,7 +399,7 @@ func New(ws *workspace.Workspace, cfg config.Config, log *telemetry.Logger) *App
 	a.reg.Register(&tool.GitStatus{WS: ws})
 	a.reg.Register(&tool.GitDiff{WS: ws})
 	a.reg.Register(&tool.ApplyPatch{WS: ws, Approver: &approvalAdapter{app: a}})
-	a.reg.Register(&tool.RunCommand{WS: ws, Config: &a.cfg, Policy: a.pol, Approver: &approvalAdapter{app: a}})
+	a.reg.Register(&tool.RunCommand{WS: ws, Config: &a.cfg, Policy: a.pol, Approver: &approvalAdapter{app: a}, ProgressSink: nil})
 	return a
 }
 
@@ -333,6 +418,48 @@ func (a *App) ClearGrants() { a.pol.ClearGrants() }
 // program.Send — architecture.md §3 rule 4, since TUI state may be mutated
 // only inside Update.
 func (a *App) Attach(p *tea.Program) { a.program = p }
+
+// SetSessionID sets the per-invocation session identifier required by the
+// opencode endpoint. Called once from cmd/kirsch/main.go before the first turn.
+func (a *App) SetSessionID(id string) { a.sessionID = id }
+
+// SetVersion sets the Kirsch version used in the provider User-Agent.
+func (a *App) SetVersion(v string) { a.version = v }
+
+// StartSession assembles the system prompt once per session and stores the
+// chosen project-context file and size for /status. It is called from
+// cmd/kirsch/main.go after the TUI is attached; subsequent turns reuse the
+// cached prompt rather than re-reading the project context. kirsch-plan.md §6.2.
+func (a *App) StartSession(getenv func(string) string) {
+	a.startOnce.Do(func() { a.loadAndStoreSessionPrompt(getenv) })
+}
+
+func (a *App) loadAndStoreSessionPrompt(getenv func(string) string) {
+	content, chosen, size, warnings, err := a.loadProjectCtxFn(
+		a.cfg.Context.ProjectFiles,
+		a.cfg.Context.MaxProjectContextBytes,
+		a.ws,
+	)
+	for _, w := range warnings {
+		a.log.Warn("project context", "warning", w)
+	}
+	if err != nil {
+		a.log.Error("project context", "error", err)
+	}
+
+	env := prompt.Env{
+		WorkspaceRoot: a.ws.Root,
+		ProjectType:   projectTypeName(a.ws.Types()),
+		Branch:        a.ws.Branch(),
+		Dirty:         a.ws.IsDirty(),
+		OS:            runtime.GOOS,
+		HasRG:         a.hasRG(),
+	}
+
+	a.systemPrompt = prompt.Assemble(env, content)
+	a.contextFile = chosen
+	a.contextSize = size
+}
 
 // Close cancels everything and waits, briefly, for in-flight tools.
 //
@@ -358,6 +485,65 @@ func (a *App) Close() {
 
 // closeGrace bounds how long Close waits for in-flight tools.
 const closeGrace = 2 * time.Second
+
+// ActiveModelInfo returns the model name and context window for the active
+// endpoint as plain TUI status fields. It keeps provider.LookupModel on the
+// app side of the boundary so internal/tui never imports internal/provider.
+func (a *App) ActiveModelInfo() tui.Status {
+	epName := a.cfg.Provider.Default
+	ep, ok := a.cfg.Provider.Endpoints[epName]
+	if !ok {
+		return tui.Status{}
+	}
+	info := provider.LookupModel(ep.Model)
+	return tui.Status{Model: info.ID, ContextWindow: info.ContextWindow}
+}
+
+// StatusInfo returns the plain facts the /status command needs. It never
+// exposes the API key value, only the name of the variable that supplied it,
+// and it reports only the proxy hostname, stripping any userinfo. ui-spec §6.
+func (a *App) StatusInfo(getenv func(string) string) tui.StatusInfoMsg {
+	epName := a.cfg.Provider.Default
+	ep, ok := a.cfg.Provider.Endpoints[epName]
+	if !ok {
+		return tui.StatusInfoMsg{}
+	}
+
+	_, keySource := ep.ResolveKey(getenv)
+
+	return tui.StatusInfoMsg{
+		Endpoint:           epName,
+		BaseURLHost:        hostOnly(ep.BaseURL),
+		KeySource:          keySource,
+		ProxyHost:          proxyHost(getenv),
+		ContextFile:        a.contextFile,
+		ContextSize:        a.contextSize,
+		ShowDataFlowNotice: epName == "opencode",
+	}
+}
+
+// hostOnly returns the hostname from a URL string, or the original string if it
+// cannot be parsed. The configured base_url is already validated, so the parse
+// should not fail in practice.
+func hostOnly(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	return u.Hostname()
+}
+
+// proxyHost returns the hostname of the active proxy, checking HTTPS_PROXY and
+// then HTTP_PROXY. It deliberately discards scheme, port, userinfo, and path so
+// that /status never leaks credentials. ADR 0008, /status box :313.
+func proxyHost(getenv func(string) string) string {
+	for _, key := range []string{"HTTPS_PROXY", "HTTP_PROXY"} {
+		if raw := getenv(key); raw != "" {
+			return hostOnly(raw)
+		}
+	}
+	return ""
+}
 
 // CheckOnboarding inspects the active endpoint and sends an OnboardingStateMsg
 // to the TUI when the user needs to see something before starting: a missing
@@ -389,6 +575,114 @@ func (a *App) CheckOnboarding(getenv func(string) string) {
 	}
 
 	a.sendAsyncSequence([]tea.Msg{msg})
+}
+
+// Submit starts a real model-driven turn from the user's composer text.
+//
+// It resolves the active endpoint, builds a provider client, adapts it to
+// agent.Model, assembles the system prompt, and hands everything to RunTurn.
+// The conversation is preserved across calls so later turns retain context.
+func (a *App) Submit(userText string, getenv func(string) string) {
+	epName := a.cfg.Provider.Default
+	ep, ok := a.cfg.Provider.Endpoints[epName]
+	if !ok {
+		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+			Kind:    "config",
+			Message: fmt.Sprintf("unknown endpoint %q", epName),
+		}})
+		return
+	}
+
+	key, _ := ep.ResolveKey(getenv)
+	if key == "" {
+		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+			Kind:    "auth",
+			Message: fmt.Sprintf("no API key for endpoint %q (set %s or %s)", epName, "KIRSCH_"+ep.APIKeyEnv, ep.APIKeyEnv),
+		}})
+		return
+	}
+
+	// Ensure the session prompt is assembled exactly once. In production this is
+	// already done in startupPostAttach; the guard lets tests call Submit without
+	// first calling StartSession while still reading the context only once.
+	a.StartSession(getenv)
+
+	prov, err := a.providerBuilder(epName, ep, key, a.version, a.sessionID, a.log)
+	if err != nil {
+		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+			Kind:    "provider",
+			Message: fmt.Sprintf("failed to build provider client: %v", err),
+		}})
+		return
+	}
+
+	model := &providerModel{
+		p:             prov,
+		model:         ep.Model,
+		promptCaching: ep.PromptCaching,
+		thinking:      parseThinkingLevel(ep.Thinking),
+	}
+
+	info := provider.LookupModel(ep.Model)
+
+	ag := &agent.Agent{
+		Model:     model,
+		MaxTokens: info.MaxOutput,
+		System:    a.systemPrompt,
+	}
+
+	// The tool specs are part of the request size, so attach the executor before
+	// estimating the budget. RunTurn will set the same field again.
+	ag.Tools = &toolExecutor{app: a}
+
+	estimated := estimateTokens(a.systemPrompt, userText, a.conv, ag.Tools)
+	budget := info.ContextWindow - outputReserve
+	if budget < 0 {
+		budget = 0
+	}
+	if estimated > budget {
+		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+			Kind:    "context_overflow",
+			Message: "The request exceeds the model's context window.",
+			Detail: fmt.Sprintf(
+				"Estimated %d tokens against a budget of %d after the %d-token output reserve. Start a new session with /new.",
+				estimated, budget, outputReserve),
+		}})
+		return
+	}
+
+	a.sendAsyncSequence([]tea.Msg{tui.BudgetMsg{
+		EstimatedTokens: estimated,
+		ContextWindow:   info.ContextWindow,
+	}})
+	a.RunTurn(ag, a.conv, userText)
+}
+
+func (a *App) hasRG() bool {
+	_, err := exec.LookPath("rg")
+	return err == nil
+}
+
+func projectTypeName(types []workspace.ProjectType) string {
+	if len(types) == 0 {
+		return "unknown"
+	}
+	return string(types[0])
+}
+
+// defaultProviderBuilder constructs the real Anthropic/opencode HTTP client.
+func defaultProviderBuilder(endpoint string, ep config.EndpointConfig, key, version, sessionID string, log *telemetry.Logger) (provider.Provider, error) {
+	return anthropic.New(anthropic.Options{
+		Endpoint:      endpoint,
+		BaseURL:       ep.BaseURL,
+		Auth:          ep.Auth,
+		APIKey:        key,
+		KeyEnv:        ep.APIKeyEnv,
+		PromptCaching: ep.PromptCaching,
+		Version:       version,
+		SessionID:     sessionID,
+		Log:           log,
+	})
 }
 
 // WorkspaceInfo returns the header data for the TUI.
@@ -529,6 +823,159 @@ func (a *App) CancelTurn() {
 	}
 }
 
+// RunTurn starts a real agent turn and streams the events it emits into TUI
+// messages. It returns immediately; the turn runs on a background goroutine.
+//
+// The adapter keeps the TUI-implementation boundary: every agent.Event is
+// translated into one of the plain-field messages in internal/tui/messages.go
+// before it crosses into the Bubble Tea program. architecture.md §3.
+func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string) {
+	ctx := a.BeginTurn()
+
+	a.inFlight.Add(1)
+	go func() {
+		defer a.inFlight.Done()
+
+		var textBlock, thinkingBlock int64
+		callIDs := make(map[string]int64)
+		ctx = context.WithValue(ctx, toolCallsKey{}, callIDs)
+
+		// The agent must use the app-side tool executor so that tool calls
+		// driven by the model send ToolStartedMsg / ToolCompletedMsg and are
+		// correlated with the IDs allocated for EventToolCallStart.
+		ag.Tools = &toolExecutor{app: a}
+
+		emit := func(ev agent.Event) {
+			for _, msg := range a.adaptTurnEvent(ev, &textBlock, &thinkingBlock, callIDs) {
+				a.sendAsyncSequence([]tea.Msg{msg})
+			}
+		}
+
+		err := ag.Turn(ctx, conv, userText, emit)
+
+		var final tea.Msg
+		switch {
+		case err == nil:
+			final = tui.TurnCompleteMsg{}
+		case errors.Is(err, context.Canceled):
+			final = tui.TurnCancelledMsg{}
+		default:
+			final = tui.TurnErrorMsg{
+				Kind:    turnErrorKind(err),
+				Message: err.Error(),
+				Detail:  turnErrorDetail(err),
+			}
+		}
+		a.sendAsyncSequence([]tea.Msg{final})
+	}()
+}
+
+// adaptTurnEvent translates a single agent.Event into TUI messages. It mutates
+// the adapter state (text/thinking block IDs and the provider-call-id map) so
+// deltas for the same block reuse the transcript item they created.
+func (a *App) adaptTurnEvent(ev agent.Event, textBlock, thinkingBlock *int64, callIDs map[string]int64) []tea.Msg {
+	switch ev.Type {
+	case agent.EventTextDelta:
+		if *textBlock == 0 {
+			*textBlock = a.nextID.Add(1)
+		}
+		return []tea.Msg{tui.AssistantTextDeltaMsg{BlockID: *textBlock, Delta: ev.Text}}
+
+	case agent.EventThinkingDelta:
+		if *thinkingBlock == 0 {
+			*thinkingBlock = a.nextID.Add(1)
+		}
+		return []tea.Msg{tui.ThinkingDeltaMsg{BlockID: *thinkingBlock, Delta: ev.Text}}
+
+	case agent.EventThinkingDone:
+		// The TUI card already shows the streamed deltas; the conversation stores the
+		// authoritative final block because assembly.accept replaces the delta-built
+		// block with the EventThinkingDone payload. Display fidelity and conversation
+		// fidelity are deliberately separate, so no display message is needed.
+		return nil
+
+	case agent.EventToolCallStart:
+		if ev.ToolCall == nil {
+			return nil
+		}
+		id := a.nextID.Add(1)
+		callIDs[ev.ToolCall.ID] = id
+		return []tea.Msg{tui.ToolStartedMsg{
+			ID:     id,
+			Name:   ev.ToolCall.Name,
+			Target: describeToolCallInput(ev.ToolCall.Input),
+		}}
+
+	case agent.EventToolCallDelta:
+		// The agent forwards partial tool-call input, but the complete call
+		// and its result are handled by EventToolCallEnd and the agent's
+		// Tools implementation. No TUI update for a partial input fragment.
+		return nil
+
+	case agent.EventToolCallEnd:
+		// The agent has finished receiving the complete tool call. The actual
+		// tool execution and ToolCompletedMsg are produced by the agent.Tools
+		// adapter (RunTool / toolExecutor), which owns the app-side tool ID.
+		return nil
+
+	case agent.EventMessageDone:
+		// A block boundary: the next assistant text or thinking stream starts
+		// a new transcript item.
+		*textBlock, *thinkingBlock = 0, 0
+		return nil
+
+	case agent.EventUsage:
+		if ev.Usage == nil {
+			return nil
+		}
+		return []tea.Msg{tui.UsageMsg{
+			InputTokens:      ev.Usage.InputTokens,
+			OutputTokens:     ev.Usage.OutputTokens,
+			CacheReadTokens:  ev.Usage.CacheReadTokens,
+			CacheWriteTokens: ev.Usage.CacheWriteTokens,
+		}}
+
+	case agent.EventError:
+		// Turn returns the same error after the stream ends, so we surface it as TurnErrorMsg from the final return path rather than duplicating it here.
+		return nil
+	}
+
+	return nil
+}
+
+// describeToolCallInput extracts a one-line target from a tool call's JSON input.
+func describeToolCallInput(input json.RawMessage) string {
+	var decoded map[string]any
+	if err := json.Unmarshal(input, &decoded); err != nil {
+		return ""
+	}
+	return describeInput(decoded)
+}
+
+// turnErrorKind maps agent sentinel errors to the plain strings the TUI renders.
+func turnErrorKind(err error) string {
+	switch {
+	case errors.Is(err, agent.ErrMaxTurnsExceeded):
+		return "max_turns_exceeded"
+	case errors.Is(err, agent.ErrContextOverflow):
+		return "context_overflow"
+	default:
+		return "turn_error"
+	}
+}
+
+// turnErrorDetail returns a human-readable detail line for a turn error.
+func turnErrorDetail(err error) string {
+	switch {
+	case errors.Is(err, agent.ErrMaxTurnsExceeded):
+		return "The model kept requesting tools without producing a final answer."
+	case errors.Is(err, agent.ErrContextOverflow):
+		return "The assembled request exceeded the model's context window."
+	default:
+		return ""
+	}
+}
+
 // RunTool invokes a tool and reports the result to the TUI. It returns
 // immediately.
 //
@@ -566,7 +1013,10 @@ func (a *App) RunTool(name string, input map[string]any) {
 		}
 
 		start := time.Now()
-		ctx = withToolID(ctx, id)
+		ctx = tool.WithToolID(ctx, id)
+		ctx = tool.WithProgressSink(ctx, func(chunk string) {
+			a.send(tui.CommandOutputChunkMsg{ID: id, Chunk: chunk})
+		})
 		res := a.reg.Invoke(ctx, name, raw)
 		elapsed := time.Since(start)
 
@@ -597,7 +1047,13 @@ func (a *App) RunTool(name string, input map[string]any) {
 // that occurred (nil if the approval was not for a session grant, or if the
 // grant succeeded).
 func (a *App) Request(ctx context.Context, req ApprovalRequest) (ApprovalOutcome, error) {
-	id := a.approveID.Add(1)
+	// If the caller supplied an ID (e.g. mapped from a tool invocation), use it;
+	// otherwise allocate a fresh approval ID. This keeps direct callers and the
+	// tool adapter in the same ID space while preserving test callers that pass 0.
+	id := req.ID
+	if id == 0 {
+		id = a.approveID.Add(1)
+	}
 
 	app := &approval{
 		id:        id,
@@ -638,7 +1094,7 @@ func (a *App) Request(ctx context.Context, req ApprovalRequest) (ApprovalOutcome
 	// Send the approval message to the TUI.
 	a.send(tui.ApprovalRequestedMsg{
 		ID:                   id,
-		ToolID:               toolIDFrom(ctx),
+		ToolID:               tool.ToolIDFrom(ctx),
 		Description:          req.Description,
 		Kind:                 kindString(req.Operation),
 		CanApproveForSession: canApproveForSession,
@@ -753,8 +1209,10 @@ func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
 // - ApprovalOutcomeSession → DecisionSession (allow and record a grant, or DecisionAllow if grant failed)
 // - ApprovalOutcomeDeny or ApprovalOutcomeCancelled → DecisionDeny (deny the operation)
 func (a *App) RequestToolApproval(ctx context.Context, req tool.ApprovalRequest) policy.Decision {
-	// Convert tool.ApprovalRequest to app.ApprovalRequest, carrying over the Argv and Changes
+	// Convert tool.ApprovalRequest to app.ApprovalRequest, carrying over the
+	// invocation-mapped ID and the operation payload.
 	appReq := ApprovalRequest{
+		ID:          req.ID,
 		Description: req.Description,
 		Operation:   req.Operation,
 		Argv:        req.Argv,
@@ -821,7 +1279,7 @@ func describeInput(input map[string]any) string {
 
 	// For run_command, show argv as a space-separated string, sanitised to prevent
 	// terminal escape injection (internal/tui matches this approach for approval cards).
-	// argv comes from shellSplit in update.go, which returns []string.
+	// argv comes from the model/tool input as []string.
 	if v, ok := input["argv"]; ok {
 		// Handle both []string (production) and []any (JSON decoding).
 		if strSlice, ok := v.([]string); ok && len(strSlice) > 0 {

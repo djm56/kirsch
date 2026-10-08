@@ -24,6 +24,10 @@ var ErrStreamFailed = errors.New("agent: model stream error event without an err
 // rounds without the model producing a final answer.
 var ErrMaxTurnsExceeded = errors.New("agent: max turns exceeded")
 
+// ErrContextOverflow indicates a turn could not be sent because the assembled
+// request exceeded the model's context window. ui-spec §6.3.
+var ErrContextOverflow = errors.New("agent: context overflow")
+
 // ErrToolNameHallucination indicates the model exhausted the allowed retries for
 // hallucinated tool names.
 var ErrToolNameHallucination = errors.New("agent: tool name hallucination retries exhausted")
@@ -207,6 +211,9 @@ const (
 	EventMessageDone
 	// EventError is an error event.
 	EventError
+	// EventUsage reports token consumption for the turn. It is emitted by the
+	// agent after EventMessageDone when the model supplied usage data.
+	EventUsage
 )
 
 // String returns the string representation of an EventType.
@@ -228,6 +235,8 @@ func (e EventType) String() string {
 		return "EventMessageDone"
 	case EventError:
 		return "EventError"
+	case EventUsage:
+		return "EventUsage"
 	default:
 		return "EventUnknown"
 	}
@@ -500,6 +509,9 @@ func (a *Agent) streamAssistant(ctx context.Context, req Request, emit func(Even
 	if err := asm.finish(); err != nil {
 		return Message{}, err
 	}
+	if asm.usage != nil && emit != nil {
+		emit(Event{Type: EventUsage, Usage: asm.usage})
+	}
 	return asm.msg, nil
 }
 
@@ -686,6 +698,8 @@ type assembly struct {
 	open *Thinking
 	// done is true once EventMessageDone has been accepted.
 	done bool
+	// usage holds the Usage payload from EventMessageDone, if any.
+	usage *Usage
 	// err is the first error of the stream. Once set, accept ignores every event.
 	err error
 }
@@ -763,6 +777,15 @@ func (s *assembly) accept(ev Event) bool {
 			return s.fail(fmt.Errorf("%w: thinking block not closed at MessageDone", ErrStreamProtocol))
 		}
 		s.done = true
+		if ev.Usage != nil {
+			u := *ev.Usage
+			s.usage = &u
+		}
+
+	case EventUsage:
+		// Usage events are emitted after MessageDone, not inside the stream.
+		// If one arrives here it is ignored; the adapter receives it from
+		// streamAssistant after the stream finishes.
 
 	case EventError:
 		if ev.Err != nil {

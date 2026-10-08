@@ -13,6 +13,13 @@ import (
 // synthetic-key suites; until then these are the invariants worth protecting
 // while the layout is still churning.
 
+// collapseSpace replaces runs of whitespace (including newlines introduced by
+// line wrapping) with a single space so tests can search for a phrase that may
+// have been broken across rows.
+func collapseSpace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
 func render(t *testing.T, caps Caps, w, h int) string {
 	t.Helper()
 	m := NewWithFixture(Options{Version: fixtureVersion, Caps: caps})
@@ -366,13 +373,12 @@ func TestOnboardingDataFlowNoticeIsEndpointSpecific(t *testing.T) {
 	}
 
 	opencode := mk("opencode")
-	want := "prompts and file contents to OpenCode's gateway"
-	if !strings.Contains(opencode, want) {
-		t.Errorf("opencode output missing data-flow notice %q", want)
+	if !strings.Contains(collapseSpace(opencode), collapseSpace(DataFlowNotice)) {
+		t.Errorf("opencode output missing data-flow notice %q", DataFlowNotice)
 	}
 
 	other := mk("anthropic")
-	if strings.Contains(other, want) {
+	if strings.Contains(collapseSpace(other), collapseSpace(DataFlowNotice)) {
 		t.Error("non-opencode output contains the opencode data-flow notice")
 	}
 }
@@ -948,14 +954,10 @@ func TestNewSessionResetsAndRebuilds(t *testing.T) {
 // for is missing from the transcript until some later keypress happens to rebuild.
 //
 // The table is the whole product-surface set, and is meant to be read as complete
-// rather than as a sample. The debug commands — /read, /ls, /search, /gitstatus and
-// /gitdiff — reach the same trailing relayout by the same route: with RunTool nil
-// they notice "tools are not wired up in this build" and fall through. That notice
-// is conditional too, so /approvals is not the only conditional arm in runSlash —
-// it is the only one conditional on session state rather than on build wiring.
-// The debug arm is left uncovered deliberately: it is M1 scaffolding the code marks
-// for removal in M3, its notice exists only in a build with no tools wired, and
-// coverage of it should disappear when it does.
+// rather than as a sample. Every remaining slash command reaches the same trailing
+// relayout by the same route, including the conditional arms that show a notice
+// when their prerequisites are not met. The /approvals command is the only one
+// whose notice is conditional on session state rather than on build wiring.
 //
 // Asserted through the rendered band rather than against m.lines, because here the
 // frame really can show it — unlike /new, whose empty transcript sends
@@ -1061,6 +1063,87 @@ func TestUnknownSlashCommandHints(t *testing.T) {
 	}
 }
 
+// TestDeletedDebugCommandsAreUnknown verifies the M1–M2 debug slash commands
+// were removed rather than special-cased: they are absent from the command set,
+// treated as unknown commands, produce a dim hint, and are not handed to Submit.
+// This is the absence check paired with TestKeptHelpCommandIsKnown, which is the
+// positive control proving the suite would notice a present command.
+func TestDeletedDebugCommandsAreUnknown(t *testing.T) {
+	for _, cmd := range []string{"read", "ls", "search", "gitstatus", "gitdiff", "patch", "run"} {
+		t.Run(cmd, func(t *testing.T) {
+			m := New(Options{Version: "0.1.0-test", Caps: Caps{Colour: false, Unicode: false}})
+			m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+			submitCalled := false
+			m.Submit = func(text string) { submitCalled = true }
+
+			m = drive(m, key('/'))
+			for _, r := range cmd {
+				m = drive(m, key(r))
+			}
+			m = drive(m, keyType(tea.KeyEnter))
+
+			wantHint := "unknown command /" + cmd
+			if m.comp.Hint != wantHint {
+				t.Errorf("hint = %q, want %q", m.comp.Hint, wantHint)
+			}
+			if submitCalled {
+				t.Errorf("/%s was handed to Submit; it should be treated as an unknown slash command", cmd)
+			}
+			for _, it := range m.tr.Items() {
+				if it.Kind == KindUser || it.Kind == KindError {
+					t.Errorf("/%s produced a %v card; unknown commands must not reach the transcript", cmd, it.Kind)
+				}
+			}
+			// The command must not be advertised anywhere in the completion/help set.
+			for _, kept := range SlashCommands {
+				if kept == cmd {
+					t.Errorf("/%s is still listed in SlashCommands", cmd)
+				}
+			}
+		})
+	}
+}
+
+// TestKeptHelpCommandIsKnown is the positive control for TestDeletedDebugCommandsAreUnknown:
+// if the test suite mistakenly treated every command as unknown, the absence test
+// above would pass while the commands silently disappeared. A kept command must
+// still be recognised, open its modal, and not leave an unknown hint.
+func TestKeptHelpCommandIsKnown(t *testing.T) {
+	m := New(Options{Version: "0.1.0-test", Caps: Caps{Colour: false, Unicode: false}})
+	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	m = typeCmd(m, "/help")
+
+	if m.comp.Hint != "" {
+		t.Errorf("/help left hint %q; kept commands must not produce an unknown hint", m.comp.Hint)
+	}
+	if m.modal == nil || m.modal.Kind != ModalHelp {
+		t.Fatal("/help did not open the help modal; kept command dispatch is broken")
+	}
+}
+
+// TestSubmitHandsComposerTextToCallback verifies that pressing Enter in the
+// composer sends the trimmed text to the Submit callback wired by cmd/kirsch.
+// The callback is faked here so the TUI package can prove its half of the
+// contract without importing the app.
+func TestSubmitHandsComposerTextToCallback(t *testing.T) {
+	m := New(Options{Version: "0.1.0-test", Caps: Caps{Colour: false, Unicode: false}})
+	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	var got string
+	m.Submit = func(text string) { got = text }
+
+	m = typeCmd(m, "  hello world  ")
+
+	if got != "hello world" {
+		t.Errorf("Submit callback received %q, want %q", got, "hello world")
+	}
+	if m.comp.Hint != "" {
+		t.Errorf("plain message produced hint %q; only unknown slash commands should", m.comp.Hint)
+	}
+}
+
 // TestQuittingHasNoKeyBinding is the operator's ruling from the Milestone 0
 // manual test: a bare `q` ended the session, so the first character of "query"
 // ended it by accident.
@@ -1144,22 +1227,18 @@ func isQuitMsg(msg tea.Msg) bool {
 // TestEverySlashCommandCompletesToItself pins the property Tab completion needs
 // from the command set: no name may be a prefix of another.
 //
-// It is a structural test over SlashCommands and DebugCommands, not a list of
-// names — so a command added later is covered the moment it is added. The rule
-// it checks is "completing a command's full name returns that command and
-// reports a unique match". A name that is a strict prefix of another breaks it:
-// /exit next to a hypothetical /exitnow would make /exit uncompletable, and the
-// longer name unreachable by typing the shorter one in full.
+// It is a structural test over SlashCommands, not a list of names — so a command
+// added later is covered the moment it is added. The rule it checks is
+// "completing a command's full name returns that command and reports a unique
+// match". A name that is a strict prefix of another breaks it: /exit next to a
+// hypothetical /exitnow would make /exit uncompletable, and the longer name
+// unreachable by typing the shorter one in full.
 //
 // What it does not check: that every command has a *short* unique prefix, which
-// is a convenience rather than a correctness property, and that the two lists
-// do not collide with each other beyond the prefix rule — completeSlash searches
-// their concatenation, so a duplicate name across the two would be caught here
-// as a non-unique match, but a duplicate within one list would not be reported
-// as the duplicate it is.
+// is a convenience rather than a correctness property, and that a duplicate
+// within the list would not be reported as the duplicate it is.
 func TestEverySlashCommandCompletesToItself(t *testing.T) {
-	all := append(append([]string{}, SlashCommands...), trimSlashes(DebugCommands)...)
-	for _, name := range all {
+	for _, name := range SlashCommands {
 		got, unique := completeSlash(name)
 		if !unique || got != name {
 			t.Errorf("completeSlash(%q) = (%q, %v), want (%q, true): "+
@@ -1199,9 +1278,9 @@ func TestScriptedTurnHoldsTheRunningCard(t *testing.T) {
 			"the running state is back to being invisible", fakeRunDwell, StreamCoalesce)
 	}
 
-	m := newScriptedTurn(t)
+	m, fake := newScriptedTurn(t)
 	var scheduled tea.Cmd
-	m = advanceUntil(t, m, "a running run_command card", func(m Model) bool {
+	m = advanceUntil(t, m, fake, "a running run_command card", func(m Model) bool {
 		c, ok := lastToolCard(m)
 		return ok && c.Name == "run_command" && c.State == StateRunning
 	}, &scheduled)
@@ -1229,7 +1308,8 @@ func TestScriptedTurnHoldsTheRunningCard(t *testing.T) {
 	case <-time.After(3 * StreamCoalesce):
 	}
 
-	m = drive(m, streamTickMsg{})
+	next, _ := fake.advance(m)
+	m = next.(Model)
 	c, ok := lastToolCard(m)
 	if !ok {
 		t.Fatal("the run_command card vanished from the transcript")
@@ -1257,8 +1337,8 @@ func TestScriptedTurnHoldsTheRunningCard(t *testing.T) {
 // would silently replace it, and the card on screen would stop being the card
 // the keys resolve.
 func TestScriptedTurnOffersBothApprovalKinds(t *testing.T) {
-	m := newScriptedTurn(t)
-	m = advanceUntil(t, m, "an approval", func(m Model) bool { return m.pendingApproval != 0 })
+	m, fake := newScriptedTurn(t)
+	m = advanceUntil(t, m, fake, "an approval", func(m Model) bool { return m.pendingApproval != 0 })
 
 	patch, _, ok := m.tr.Find(m.pendingApproval)
 	if !ok {
@@ -1271,7 +1351,8 @@ func TestScriptedTurnOffersBothApprovalKinds(t *testing.T) {
 	// The turn must not walk past an unanswered card, however long it is left.
 	held := m
 	for i := 0; i < 20; i++ {
-		held = drive(held, streamTickMsg{})
+		next, _ := fake.advance(held)
+		held = next.(Model)
 	}
 	if held.pendingApproval != m.pendingApproval {
 		t.Fatalf("20 ticks moved the pending approval from %d to %d: the scripted turn "+
@@ -1283,7 +1364,7 @@ func TestScriptedTurnOffersBothApprovalKinds(t *testing.T) {
 	if m.pendingApproval != 0 {
 		t.Fatal("`y` did not resolve the patch approval")
 	}
-	m = advanceUntil(t, m, "a second approval", func(m Model) bool { return m.pendingApproval != 0 })
+	m = advanceUntil(t, m, fake, "a second approval", func(m Model) bool { return m.pendingApproval != 0 })
 
 	second, _, ok := m.tr.Find(m.pendingApproval)
 	if !ok {
@@ -1298,15 +1379,17 @@ func TestScriptedTurnOffersBothApprovalKinds(t *testing.T) {
 
 // newScriptedTurn starts the fake turn from an empty session, so that nothing
 // the fixture pre-loads can be mistaken for something the turn produced.
-func newScriptedTurn(t *testing.T) Model {
+func newScriptedTurn(t *testing.T) (Model, *fakeDriver) {
 	t.Helper()
 	m := New(Options{Version: fixtureVersion, Caps: Caps{Colour: false, Unicode: true}})
+	fake := &fakeDriver{}
+	m.Submit = func(text string) { fake.begin(&m) }
 	m = drive(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = drive(m, key('h'), key('i'), keyType(tea.KeyEnter))
 	if !m.busy.Active {
 		t.Fatal("sending a message did not start a turn")
 	}
-	return m
+	return m, fake
 }
 
 // advanceUntil ticks the scripted turn until cond holds.
@@ -1315,13 +1398,13 @@ func newScriptedTurn(t *testing.T) Model {
 // one tick per word, so the count is well above anything the script reaches.
 // Passing last captures the command the tick that satisfied cond returned, which
 // is the only way to see the interval that tick scheduled; pass nil to ignore it.
-func advanceUntil(t *testing.T, m Model, what string, cond func(Model) bool, last ...*tea.Cmd) Model {
+func advanceUntil(t *testing.T, m Model, fake *fakeDriver, what string, cond func(Model) bool, last ...*tea.Cmd) Model {
 	t.Helper()
 	for i := 0; i < 200; i++ {
 		if cond(m) {
 			return m
 		}
-		next, cmd := m.Update(streamTickMsg{})
+		next, cmd := fake.advance(m)
 		m = next.(Model)
 		for _, out := range last {
 			if out != nil {
@@ -1358,8 +1441,8 @@ func lastToolCard(m Model) (ToolCard, bool) {
 // The setup reaches that state the way a user does: send a message, let one tool
 // card land, then press Shift+↑. Nothing in that path assigns m.sel.
 func TestEnteringBrowsingDrawsTheGutterInTheSameFrame(t *testing.T) {
-	m := newScriptedTurn(t)
-	m = advanceUntil(t, m, "a tool card", func(m Model) bool {
+	m, fake := newScriptedTurn(t)
+	m = advanceUntil(t, m, fake, "a tool card", func(m Model) bool {
 		_, ok := lastToolCard(m)
 		return ok
 	})
@@ -1379,33 +1462,4 @@ func TestEnteringBrowsingDrawsTheGutterInTheSameFrame(t *testing.T) {
 	assertBandMatchesRebuild(t,
 		"the frame that entered Browsing is missing the selection gutter: the cache was "+
 			"built against the previous selection and dispatchKey did not rebuild it", m)
-}
-
-// TestDebugCommandsVisibleInHelpOverlay verifies that the M2 debug commands
-// (/patch and /run) appear in the rendered help overlay. This is distinct from
-// simply having them in the command list — they must be visible in what View()
-// produces when the help modal is open.
-func TestDebugCommandsVisibleInHelpOverlay(t *testing.T) {
-	// Create a model at 80×34 (the minimum size needed to show all debug commands in help)
-	m := newDrivenSize(t, 80, 34)
-	if m.mode() != ModeApprovalPending {
-		t.Fatalf("fixture should start in ApprovalPending, got %v", m.mode())
-	}
-
-	// Open help overlay from approval pending mode
-	m = drive(m, key('?'))
-	if m.mode() != ModeModal {
-		t.Fatalf("? did not open a modal: mode = %v", m.mode())
-	}
-
-	// Get the rendered output
-	output := m.View()
-
-	// Verify both M2 debug commands appear in the rendered output
-	if !strings.Contains(output, "/run") {
-		t.Error("/run (M2 debug command) does not appear in help overlay View() output")
-	}
-	if !strings.Contains(output, "/patch") {
-		t.Error("/patch (M2 debug command) does not appear in help overlay View() output")
-	}
 }

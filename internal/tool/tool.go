@@ -156,6 +156,43 @@ func (r *Registry) Names() []string {
 	return out
 }
 
+// toolIDKey is the context key for the app-side tool invocation ID.
+type toolIDKey struct{}
+
+// WithToolID attaches the app-side tool invocation ID to ctx.
+// The ID is used to correlate approval requests and progress chunks with the
+// tool card that launched them.
+func WithToolID(ctx context.Context, id int64) context.Context {
+	return context.WithValue(ctx, toolIDKey{}, id)
+}
+
+// ToolIDFrom reads the app-side tool invocation ID from ctx. Returns 0 if not set.
+func ToolIDFrom(ctx context.Context) int64 {
+	id, ok := ctx.Value(toolIDKey{}).(int64)
+	if !ok {
+		return 0
+	}
+	return id
+}
+
+// progressSinkKey is the context key for a per-invocation progress sink.
+type progressSinkKey struct{}
+
+// WithProgressSink attaches a chunk sink to ctx for the current invocation.
+// RunCommand prefers the contextual sink over its struct field so the app can
+// route chunks to the right tool card without rebuilding the tool per turn.
+func WithProgressSink(ctx context.Context, sink func(chunk string)) context.Context {
+	return context.WithValue(ctx, progressSinkKey{}, sink)
+}
+
+func progressSinkFrom(ctx context.Context) func(chunk string) {
+	sink, ok := ctx.Value(progressSinkKey{}).(func(string))
+	if !ok {
+		return nil
+	}
+	return sink
+}
+
 // DecodeInput unmarshals tool input strictly.
 //
 // Unknown fields are rejected rather than ignored, and the message names the

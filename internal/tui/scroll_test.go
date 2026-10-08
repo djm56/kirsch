@@ -652,40 +652,24 @@ func TestSlashCommandsRePin(t *testing.T) {
 // for them would spend the reader's scroll position to report a typo, so the
 // re-pin sits on runSlash's shared tail and both of these return before it.
 func TestHintOnlySlashCommandsDoNotRePin(t *testing.T) {
-	cases := []struct {
-		name, cmd, wantHint string
-		wire                bool // set RunTool, so the debug arm reaches its usage check
-	}{
-		{name: "unknown command", cmd: "/nosuchthing", wantHint: "unknown command /nosuchthing"},
-		{name: "debug command missing its argument", cmd: "/read", wantHint: "usage: /read <path>", wire: true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			m := composingUnpinned(t)
-			if tc.wire {
-				// Left nil, /read takes the "tools are not wired up" arm instead,
-				// which answers with a notice and so re-pins like any other answer.
-				m.RunTool = func(string, map[string]any) {}
-			}
-			before, offset := m.tr.Len(), m.scroll.Offset
+	m := composingUnpinned(t)
+	before, offset := m.tr.Len(), m.scroll.Offset
 
-			m = typeCmd(m, tc.cmd)
-			if n := m.tr.Len(); n != before {
-				t.Fatalf("%s appended %d item(s); it is no longer a hint-only path and this "+
-					"test is guarding the wrong thing", tc.cmd, n-before)
-			}
-			if m.comp.Hint != tc.wantHint {
-				t.Fatalf("hint = %q, want %q", m.comp.Hint, tc.wantHint)
-			}
-			if m.scroll.Pinned {
-				t.Errorf("%s re-pinned the transcript: its answer is the composer hint %q, "+
-					"which is on screen wherever the viewport is, so re-pinning only costs "+
-					"the reader their place", tc.cmd, tc.wantHint)
-			}
-			if m.scroll.Offset != offset {
-				t.Errorf("%s moved the viewport from offset %d to %d", tc.cmd, offset, m.scroll.Offset)
-			}
-		})
+	m = typeCmd(m, "/nosuchthing")
+	if n := m.tr.Len(); n != before {
+		t.Fatalf("/nosuchthing appended %d item(s); it is no longer a hint-only path and this "+
+			"test is guarding the wrong thing", n-before)
+	}
+	if m.comp.Hint != "unknown command /nosuchthing" {
+		t.Fatalf("hint = %q, want %q", m.comp.Hint, "unknown command /nosuchthing")
+	}
+	if m.scroll.Pinned {
+		t.Errorf("/nosuchthing re-pinned the transcript: its answer is the composer hint %q, "+
+			"which is on screen wherever the viewport is, so re-pinning only costs "+
+			"the reader their place", m.comp.Hint)
+	}
+	if m.scroll.Offset != offset {
+		t.Errorf("/nosuchthing moved the viewport from offset %d to %d", offset, m.scroll.Offset)
 	}
 }
 

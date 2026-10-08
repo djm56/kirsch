@@ -57,13 +57,20 @@ type Policy struct {
 	// allowSessionScopedGrants controls whether Grant() is enabled (config: allow_session_scoped_grants).
 	// Set during New() and never written after; no lock needed for reads.
 	allowSessionScopedGrants bool
+	// requireApprovalForPatches controls whether ForPatch asks the user.
+	// Set during New() and never written after; no lock needed for reads.
+	requireApprovalForPatches bool
+	// requireApprovalForCommands controls whether non-allowlist commands ask the user.
+	// Set during New() and never written after; no lock needed for reads.
+	requireApprovalForCommands bool
 	// grants records session-scoped command prefixes approved by the user.
 	// Protected by mu.
 	grants [][]string
 }
 
-// New creates a Policy with the default allowlist and grants enabled.
-func New() *Policy {
+// New creates a Policy with the default allowlist and the three policy settings
+// sourced from global configuration.
+func New(allowSessionScopedGrants, requireApprovalForPatches, requireApprovalForCommands bool) *Policy {
 	return &Policy{
 		allowlist: []allowlistEntry{
 			{prefix: []string{"go", "build"}, extendable: false},
@@ -72,8 +79,10 @@ func New() *Policy {
 			{prefix: []string{"git", "log"}, extendable: false},
 			{prefix: []string{"ls"}, extendable: false},
 		},
-		allowSessionScopedGrants: true,
-		grants:                   make([][]string, 0),
+		allowSessionScopedGrants:   allowSessionScopedGrants,
+		requireApprovalForPatches:  requireApprovalForPatches,
+		requireApprovalForCommands: requireApprovalForCommands,
+		grants:                     make([][]string, 0),
 	}
 }
 
@@ -92,6 +101,11 @@ func (p *Policy) ForCommand(argv []string) (Decision, string) {
 		}
 	}
 
+	// If command approval is disabled, allow everything else past the allowlist.
+	if !p.requireApprovalForCommands {
+		return DecisionAllow, "command approval not required"
+	}
+
 	// Check session grants (only if enabled)
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -108,9 +122,13 @@ func (p *Policy) ForCommand(argv []string) (Decision, string) {
 	return DecisionAskUser, "not in allowlist or grants"
 }
 
-// ForPatch decides whether a patch may be applied. Per the specification,
-// ForPatch never returns DecisionAllow. All patches require explicit approval.
+// ForPatch decides whether a patch may be applied. If requireApprovalForPatches
+// is false, patches are allowed without asking; otherwise all patches require
+// explicit approval.
 func (p *Policy) ForPatch(files []string) (Decision, string) {
+	if !p.requireApprovalForPatches {
+		return DecisionAllow, "patch approval not required"
+	}
 	return DecisionAskUser, "file patches always require approval"
 }
 

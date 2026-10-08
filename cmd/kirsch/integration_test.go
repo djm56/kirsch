@@ -82,7 +82,7 @@ func TestIntegrationApprovalFlow(t *testing.T) {
 			})
 
 			// Wire the callbacks exactly as run() does in main.go via wireCallbacks().
-			wireCallbacks(&m, a, log, ws)
+			wireCallbacks(&m, a, log)
 
 			// Run an approval request in a goroutine.
 			done := make(chan app.ApprovalOutcome, 1)
@@ -151,7 +151,7 @@ func TestIntegrationCancelledOutcome(t *testing.T) {
 	})
 
 	// Wire the callbacks exactly as run() does in main.go via wireCallbacks().
-	wireCallbacks(&m, a, log, ws)
+	wireCallbacks(&m, a, log)
 
 	// Run an approval request.
 	done := make(chan app.ApprovalOutcome, 1)
