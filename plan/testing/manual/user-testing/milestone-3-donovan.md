@@ -519,10 +519,10 @@ you run it.
 go test -run 'TestConversationAfterToolRound|TestRunTurnMapsUsageToUsageMsg|TestRunTurnApprovalToolUsesApprovalPath' -v ./internal/agent/ ./internal/app/
 ```
 
-- [ ] `--- PASS: TestConversationAfterToolRound`
-- [ ] `--- PASS: TestRunTurnMapsUsageToUsageMsg`
-- [ ] `--- PASS: TestRunTurnApprovalToolUsesApprovalPath`
-- [ ] No line reads `--- FAIL`
+- [✅] `--- PASS: TestConversationAfterToolRound`
+- [✅] `--- PASS: TestRunTurnMapsUsageToUsageMsg`
+- [✅] `--- PASS: TestRunTurnApprovalToolUsesApprovalPath`
+- [✅] No line reads `--- FAIL`
 
 **Two tool calls, first rejected: the second still returns a result:**
 
@@ -530,9 +530,9 @@ go test -run 'TestConversationAfterToolRound|TestRunTurnMapsUsageToUsageMsg|Test
 go test -run 'TestTwoToolCallsInOrder|TestApprovalResolvedMsgCorrelatesByApprovalIDNotItemID|TestApprovalResolvedMsgDoesNotAlterADifferentApprovalsCard' -v ./internal/agent/ ./internal/app/ ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestTwoToolCallsInOrder`
-- [ ] `--- PASS: TestApprovalResolvedMsgCorrelatesByApprovalIDNotItemID`
-- [ ] `--- PASS: TestApprovalResolvedMsgDoesNotAlterADifferentApprovalsCard`
+- [✅] `--- PASS: TestTwoToolCallsInOrder`
+- [✅] `--- PASS: TestApprovalResolvedMsgCorrelatesByApprovalIDNotItemID`
+- [✅] `--- PASS: TestApprovalResolvedMsgDoesNotAlterADifferentApprovalsCard`
 
 **Hallucinated tool name self-corrects within two retries:**
 
@@ -540,8 +540,8 @@ go test -run 'TestTwoToolCallsInOrder|TestApprovalResolvedMsgCorrelatesByApprova
 go test -run 'TestHallucinatedToolNameSelfCorrects|TestKnownToolInputInvalidIsNotHallucination' -v ./internal/agent/
 ```
 
-- [ ] `--- PASS: TestHallucinatedToolNameSelfCorrects`
-- [ ] `--- PASS: TestKnownToolInputInvalidIsNotHallucination`
+- [✅] `--- PASS: TestHallucinatedToolNameSelfCorrects`
+- [✅] `--- PASS: TestKnownToolInputInvalidIsNotHallucination`
 
 **Max-turn guard at 25 renders an error card:**
 
@@ -549,9 +549,9 @@ go test -run 'TestHallucinatedToolNameSelfCorrects|TestKnownToolInputInvalidIsNo
 go test -run 'TestMaxTurnGuard|TestRunTurnMapsMaxTurnsExceededToTurnErrorMsg|TestTurnErrorRendersErrorCardPositiveControl' -v ./internal/agent/ ./internal/app/ ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestMaxTurnGuard`
-- [ ] `--- PASS: TestRunTurnMapsMaxTurnsExceededToTurnErrorMsg`
-- [ ] `--- PASS: TestTurnErrorRendersErrorCardPositiveControl` (renders `max_turns_exceeded` in the error colour)
+- [✅] `--- PASS: TestMaxTurnGuard`
+- [✅] `--- PASS: TestRunTurnMapsMaxTurnsExceededToTurnErrorMsg`
+- [✅] `--- PASS: TestTurnErrorRendersErrorCardPositiveControl` (renders `max_turns_exceeded` in the error colour)
 
 **Cancellation mid-tool returns within 1s and the next turn works:**
 
@@ -559,10 +559,10 @@ go test -run 'TestMaxTurnGuard|TestRunTurnMapsMaxTurnsExceededToTurnErrorMsg|Tes
 go test -run 'TestCancellationMidTool|TestCancelReturnsWithinOneSecond|TestRunTurnCancellationMapsToTurnCancelledMsg|TestTurnCancelledMarksStreamingTextCancelled' -v ./internal/agent/ ./internal/app/ ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestCancellationMidTool`
-- [ ] `--- PASS: TestCancelReturnsWithinOneSecond`
-- [ ] `--- PASS: TestRunTurnCancellationMapsToTurnCancelledMsg`
-- [ ] `--- PASS: TestTurnCancelledMarksStreamingTextCancelled`
+- [✅] `--- PASS: TestCancellationMidTool`
+- [✅] `--- PASS: TestCancelReturnsWithinOneSecond`
+- [✅] `--- PASS: TestRunTurnCancellationMapsToTurnCancelledMsg`
+- [✅] `--- PASS: TestTurnCancelledMarksStreamingTextCancelled`
 
 This section is the record for **Task 7 item 5** box "agent turn loop".
 
@@ -581,8 +581,8 @@ live step below). Tick each box as you run it.
 go test -run 'TestSubmitCarriesAssembledSystemPrompt|TestAssembleOrder' -v ./internal/app/ ./internal/agent/prompt/
 ```
 
-- [ ] `--- PASS: TestSubmitCarriesAssembledSystemPrompt`
-- [ ] `--- PASS: TestAssembleOrder`
+- [✅] `--- PASS: TestSubmitCarriesAssembledSystemPrompt`
+- [✅] `--- PASS: TestAssembleOrder`
 
 **Refused `project_files` entries are skipped with named warnings:**
 
@@ -590,8 +590,8 @@ go test -run 'TestSubmitCarriesAssembledSystemPrompt|TestAssembleOrder' -v ./int
 go test -run 'TestLoadProjectContext_RefusedCandidatesProduceNamedWarnings|TestLoadProjectContext_NonRegularFilesSkippedWithWarning' -v ./internal/agent/prompt/
 ```
 
-- [ ] `--- PASS: TestLoadProjectContext_RefusedCandidatesProduceNamedWarnings`
-- [ ] `--- PASS: TestLoadProjectContext_NonRegularFilesSkippedWithWarning`
+- [✅] `--- PASS: TestLoadProjectContext_RefusedCandidatesProduceNamedWarnings`
+- [✅] `--- PASS: TestLoadProjectContext_NonRegularFilesSkippedWithWarning`
 
 **Project context capped at 1024 bytes (and clamped to 32768 when the global max is above 32768):**
 
@@ -599,7 +599,7 @@ go test -run 'TestLoadProjectContext_RefusedCandidatesProduceNamedWarnings|TestL
 go test -run 'TestLoadProjectContext_CapTruncationAndClamp' -v ./internal/agent/prompt/
 ```
 
-- [ ] `--- PASS: TestLoadProjectContext_CapTruncationAndClamp`
+- [✅] `--- PASS: TestLoadProjectContext_CapTruncationAndClamp`
 
 **Prompt-injection fixture is reported, not obeyed:**
 
@@ -607,7 +607,7 @@ go test -run 'TestLoadProjectContext_CapTruncationAndClamp' -v ./internal/agent/
 go test -run 'TestPromptInjection_SurfacedNotObeyed' -v ./internal/agent/
 ```
 
-- [ ] `--- PASS: TestPromptInjection_SurfacedNotObeyed`
+- [✅] `--- PASS: TestPromptInjection_SurfacedNotObeyed`
 
 **Thinking blocks at `off`, `low`, `medium` and `high` are preserved and round-tripped:**
 
@@ -615,9 +615,9 @@ go test -run 'TestPromptInjection_SurfacedNotObeyed' -v ./internal/agent/
 go test -run 'TestThinkingBlockRoundTripAtEveryLevel|TestThinkingOnlyMessageIsAccepted|TestThinkingBlockCarriesCompactionMarker' -v ./internal/agent/
 ```
 
-- [ ] `--- PASS: TestThinkingBlockRoundTripAtEveryLevel`
-- [ ] `--- PASS: TestThinkingOnlyMessageIsAccepted`
-- [ ] `--- PASS: TestThinkingBlockCarriesCompactionMarker`
+- [✅] `--- PASS: TestThinkingBlockRoundTripAtEveryLevel`
+- [✅] `--- PASS: TestThinkingOnlyMessageIsAccepted`
+- [✅] `--- PASS: TestThinkingBlockCarriesCompactionMarker`
 
 **Live thinking round-trip:** With the API key set, `npm run test:live` runs the
 full `TestLive*` set — `TestLiveOpencodeSmoke`, `TestLiveThinkingRoundTrip` and
@@ -634,10 +634,10 @@ read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
 npm run test:live 2>&1 | tee "$T_STATE/think.txt"
 ```
 
-- [ ] `--- PASS: TestLiveOpencodeSmoke`
-- [ ] `--- PASS: TestLiveThinkingRoundTrip` (with subtests `--- PASS: TestLiveThinkingRoundTrip/off`, `/low`, `/medium`, `/high`)
-- [ ] `--- PASS: TestLiveModel`
-- [ ] The final log line reads `thinking round-trip passed for all levels`
+- [✅] `--- PASS: TestLiveOpencodeSmoke`
+- [✅] `--- PASS: TestLiveThinkingRoundTrip` (with subtests `--- PASS: TestLiveThinkingRoundTrip/off`, `/low`, `/medium`, `/high`)
+- [✅] `--- PASS: TestLiveModel`
+- [✅] The final log line reads `thinking round-trip passed for all levels`
 
 Clean up:
 
@@ -663,8 +663,8 @@ the live TUI shows the same screen at startup (§8). Tick each box as you run it
 go test -run 'TestOnboardingNamesKeyVariablesInOrder|TestCheckOnboardingMissingKeyNamesVariables' -v ./internal/tui/ ./internal/app/
 ```
 
-- [ ] `--- PASS: TestOnboardingNamesKeyVariablesInOrder` (both `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY` present, prefixed first; "keys are never read from config files" present)
-- [ ] `--- PASS: TestCheckOnboardingMissingKeyNamesVariables`
+- [✅] `--- PASS: TestOnboardingNamesKeyVariablesInOrder` (both `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY` present, prefixed first; "keys are never read from config files" present)
+- [✅] `--- PASS: TestCheckOnboardingMissingKeyNamesVariables`
 
 **Not a Git repo — workspace detection message shown:**
 
@@ -672,7 +672,7 @@ go test -run 'TestOnboardingNamesKeyVariablesInOrder|TestCheckOnboardingMissingK
 go test -run 'TestOnboardingRendersNotAGitRepoMessage' -v ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestOnboardingRendersNotAGitRepoMessage` (contains `--workspace` and "run inside a repository")
+- [✅] `--- PASS: TestOnboardingRendersNotAGitRepoMessage` (contains `--workspace` and "run inside a repository")
 
 **Unknown model — dim notice that cost display is unavailable, conservative budget used:**
 
@@ -680,8 +680,8 @@ go test -run 'TestOnboardingRendersNotAGitRepoMessage' -v ./internal/tui/
 go test -run 'TestOnboardingRendersUnknownModelNotice|TestCheckOnboardingUnknownModelFlag' -v ./internal/tui/ ./internal/app/
 ```
 
-- [ ] `--- PASS: TestOnboardingRendersUnknownModelNotice` (contains "cost display unavailable" and "conservative budget")
-- [ ] `--- PASS: TestCheckOnboardingUnknownModelFlag`
+- [✅] `--- PASS: TestOnboardingRendersUnknownModelNotice` (contains "cost display unavailable" and "conservative budget")
+- [✅] `--- PASS: TestCheckOnboardingUnknownModelFlag`
 
 **Screen 12 drawn and lint-clean:**
 
@@ -690,8 +690,8 @@ go test -run 'TestMatchesScreenReference' -v ./internal/tui/
 python3 scripts/lint-screens.py
 ```
 
-- [ ] `--- PASS: TestMatchesScreenReference` (every `screenNN` subtest passes — all fourteen golden states, including the onboarding screen 12)
-- [ ] `python3 scripts/lint-screens.py` prints `grids OK` (no dimension or content violation)
+- [✅] `--- PASS: TestMatchesScreenReference` (every `screenNN` subtest passes — all fourteen golden states, including the onboarding screen 12)
+- [✅] `python3 scripts/lint-screens.py` prints `grids OK` (no dimension or content violation)
 
 This section is the record for **m3-d5** box "onboarding screens".
 
@@ -711,8 +711,8 @@ conversation. Tick each box as you run it.
 go test -run 'TestStartSessionLoadsProjectContextOnce|TestSubmitCarriesAssembledSystemPrompt' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestStartSessionLoadsProjectContextOnce`
-- [ ] `--- PASS: TestSubmitCarriesAssembledSystemPrompt`
+- [✅] `--- PASS: TestStartSessionLoadsProjectContextOnce`
+- [✅] `--- PASS: TestSubmitCarriesAssembledSystemPrompt`
 
 **`/status` shows endpoint name, `base_url` host, key source variable (never value), proxy host (never userinfo), and context file loaded:**
 
@@ -720,15 +720,15 @@ go test -run 'TestStartSessionLoadsProjectContextOnce|TestSubmitCarriesAssembled
 go test -run 'TestStatusCommandRendersAllFields|TestStatusCommandOmitsProxyWhenAbsent|TestStatusInfoKeySourcePrefersPrefixedVariable|TestStatusInfoKeySourceFallsBackToBare|TestStatusInfoProxyHostStripsUserinfo|TestStatusInfoBaseURLHost|TestStatusInfoContextFileAndSize|TestStatusInfoCleanContextWhenNoneLoaded|TestStatusInfoDataFlowNoticeOpencodeOnly' -v ./internal/tui/ ./internal/app/
 ```
 
-- [ ] `--- PASS: TestStatusCommandRendersAllFields`
-- [ ] `--- PASS: TestStatusCommandOmitsProxyWhenAbsent`
-- [ ] `--- PASS: TestStatusInfoKeySourcePrefersPrefixedVariable`
-- [ ] `--- PASS: TestStatusInfoKeySourceFallsBackToBare`
-- [ ] `--- PASS: TestStatusInfoProxyHostStripsUserinfo`
-- [ ] `--- PASS: TestStatusInfoBaseURLHost`
-- [ ] `--- PASS: TestStatusInfoContextFileAndSize`
-- [ ] `--- PASS: TestStatusInfoCleanContextWhenNoneLoaded`
-- [ ] `--- PASS: TestStatusInfoDataFlowNoticeOpencodeOnly`
+- [✅] `--- PASS: TestStatusCommandRendersAllFields`
+- [✅] `--- PASS: TestStatusCommandOmitsProxyWhenAbsent`
+- [✅] `--- PASS: TestStatusInfoKeySourcePrefersPrefixedVariable`
+- [✅] `--- PASS: TestStatusInfoKeySourceFallsBackToBare`
+- [✅] `--- PASS: TestStatusInfoProxyHostStripsUserinfo`
+- [✅] `--- PASS: TestStatusInfoBaseURLHost`
+- [✅] `--- PASS: TestStatusInfoContextFileAndSize`
+- [✅] `--- PASS: TestStatusInfoCleanContextWhenNoneLoaded`
+- [✅] `--- PASS: TestStatusInfoDataFlowNoticeOpencodeOnly`
 
 **Token counts in the status bar come from real usage:**
 
@@ -736,7 +736,7 @@ go test -run 'TestStatusCommandRendersAllFields|TestStatusCommandOmitsProxyWhenA
 go test -run 'TestUsageMsgRendersTokensInStatusBar' -v ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestUsageMsgRendersTokensInStatusBar`
+- [✅] `--- PASS: TestUsageMsgRendersTokensInStatusBar`
 
 **Distinct approval IDs on multiple requests:**
 
@@ -744,7 +744,7 @@ go test -run 'TestUsageMsgRendersTokensInStatusBar' -v ./internal/tui/
 go test -run 'TestRunCommandApprovalIDsAreDistinct' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestRunCommandApprovalIDsAreDistinct`
+- [✅] `--- PASS: TestRunCommandApprovalIDsAreDistinct`
 
 **Command timeout and ProgressSink wired (M2 carry-overs):**
 
@@ -752,10 +752,10 @@ go test -run 'TestRunCommandApprovalIDsAreDistinct' -v ./internal/app/
 go test -run 'TestRunCommandStreamsOutputToCard|TestRunCommandTimeoutUsesConfiguredDefault|TestRunCommandTimeoutRejectsOverCeiling|TestRunCommandCanWriteKirschConfig' -v ./internal/app/ ./internal/tool/
 ```
 
-- [ ] `--- PASS: TestRunCommandStreamsOutputToCard`
-- [ ] `--- PASS: TestRunCommandTimeoutUsesConfiguredDefault`
-- [ ] `--- PASS: TestRunCommandTimeoutRejectsOverCeiling`
-- [ ] `--- PASS: TestRunCommandCanWriteKirschConfig`
+- [✅] `--- PASS: TestRunCommandStreamsOutputToCard`
+- [✅] `--- PASS: TestRunCommandTimeoutUsesConfiguredDefault`
+- [✅] `--- PASS: TestRunCommandTimeoutRejectsOverCeiling`
+- [✅] `--- PASS: TestRunCommandCanWriteKirschConfig`
 
 **Context-overflow surfaced before send (budget guard):**
 
@@ -763,7 +763,7 @@ go test -run 'TestRunCommandStreamsOutputToCard|TestRunCommandTimeoutUsesConfigu
 go test -run 'TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget`
+- [✅] `--- PASS: TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget`
 
 **Debug slash commands are gone; help shrinks from 80×34 to 80×28:**
 
@@ -771,9 +771,9 @@ go test -run 'TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget' -v ./i
 go test -run 'TestDeletedDebugCommandsAreUnknown|TestKeptHelpCommandIsKnown|TestMatchesScreenReference' -v ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestDeletedDebugCommandsAreUnknown`
-- [ ] `--- PASS: TestKeptHelpCommandIsKnown`
-- [ ] `--- PASS: TestMatchesScreenReference` (help screen 06 renders at 80×28, all commands visible, no scroll indicator)
+- [✅] `--- PASS: TestDeletedDebugCommandsAreUnknown`
+- [✅] `--- PASS: TestKeptHelpCommandIsKnown`
+- [✅] `--- PASS: TestMatchesScreenReference` (help screen 06 renders at 80×28, all commands visible, no scroll indicator)
 
 **Live, on `opencode` (operator-observed):** Kirsch's answer to a read-only
 question about this repo cites a file and line that the transcript's `read_file`
@@ -788,9 +788,9 @@ go run ./cmd/kirsch --workspace "$WORKSPACE"
 # Quit with /quit
 ```
 
-- [ ] The answer names a real file and line (e.g. `internal/config/...` and a line number) that appears in the tool-result transcript
-- [ ] The transcript shows the `read_file` / `search_code` tool calls and their results before the answer
-- [ ] Token counts in the status bar are non-zero after the turn
+- [✅] The answer names a real file and line (e.g. `internal/config/...` and a line number) that appears in the tool-result transcript
+- [✅] The transcript shows the `read_file` / `search_code` tool calls and their results before the answer
+- [✅] Token counts in the status bar are non-zero after the turn
 
 Clean up:
 

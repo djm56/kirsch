@@ -16,3 +16,7 @@
 /coverage.out
 .mcp.json
 opencode.json.bak
+
+# Python bytecode cache under scripts/; root-anchored so it cannot
+# reach tracked fixtures — see the note above.
+/scripts/__pycache__/
