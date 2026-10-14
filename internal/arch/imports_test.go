@@ -40,6 +40,13 @@ var forbidden = map[string][]string{
 		"internal/workspace",
 		"internal/agent",
 	},
+	"internal/session": {
+		"internal/tui",
+		"internal/provider",
+		"internal/tool",
+		"internal/policy",
+		"internal/workspace",
+	},
 }
 
 // TestImportRules fails if any forbidden edge exists.

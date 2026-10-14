@@ -144,13 +144,13 @@ rather than one that refuses to load at all.
 
 **Parallel execution:** None — every later chunk depends on it.
 
-**Recorder-seam decision (Bishop, overridable at review).** Keep the no-error `Recorder` interface as landed and reviewed in M3 (`internal/agent/agent.go:313–328`): `Record(kind RecordKind, m Message)`, called synchronously from `Agent.Turn` (`agent.go:488–492`), handing `Record` a deep copy it owns. Durability and error-surfacing live in the store layer, not the interface:
+**Recorder-seam decision (Bishop; operator-confirmed 2026-10-14).** Keep the no-error `Recorder` interface as landed and reviewed in M3 (`internal/agent/agent.go:313–328`): `Record(kind RecordKind, m Message)`, called synchronously from `Agent.Turn` (`agent.go:488–492`), handing `Record` a deep copy it owns. Durability and error-surfacing live in the store layer, not the interface:
 
 - The single writer goroutine (architecture.md §3 rule 3) owns all writes and `fsync`s.
 - A write/`fsync` failure **at turn completion** surfaces to the user — the turn cannot be considered durable.
 - A mid-turn write/`fsync` failure goes to the telemetry debug log — the turn continues, and repair-on-load (m4-d2) recovers a torn final line.
 
-This is a Bishop decision recorded for operator review. The tree lands uncommitted; the operator may override it (e.g. choose an error-returning interface) before m4-d1 starts. If overridden, m4-d1's instruction items and acceptance change accordingly.
+This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-20261014-01, "happy with your suggestion") and applied as the instruction for m4-d1: the no-error `Recorder` interface is kept, with durability and error-surfacing in the store layer. The tree lands uncommitted; the decision is no longer pending operator override.
 
 **Instruction items:**
 
@@ -163,12 +163,18 @@ This is a Bishop decision recorded for operator review. The tree lands uncommitt
 
 **Acceptance:**
 
-- [ ] `internal/session` package exists with `Store` type
-- [ ] `Store` implements `agent.Recorder` interface
-- [ ] JSONL file created with `"v":1` on every line
-- [ ] Single writer goroutine owns all writes
-- [ ] Buffered flush with `fsync` every ~500ms and on explicit flush call
-- [ ] Unit tests: append, flush, concurrent append safety
+- [x] `internal/session` package exists with `Store` type
+  - (store.go:46 `type Store struct`; mission-20261014-01, review APPROVED 0 CRITICAL / 0 WARNINGS)
+- [x] `Store` implements `agent.Recorder` interface
+  - (store_test.go:433 `var _ agent.Recorder = (*Store)(nil)`; no-error signature per the operator-confirmed seam decision)
+- [x] JSONL file created with `"v":1` on every line
+  - (event.go:18 `eventVersion = 1`, the `Version int \`json:"v"\`` field on every event constructor — event.go:123, 154, 169, 205, 228)
+- [x] Single writer goroutine owns all writes
+  - (store.go:110 `go s.writer()`, writer loop store.go:187–217; Record posts to a buffered channel, cap 256)
+- [x] Buffered flush with `fsync` every ~500ms and on explicit flush call
+  - (store.go:92 default cadence 500ms, store.go:190 ticker, store.go:203–206 fsync, store.go:151–171 `Flush() error`)
+- [x] Unit tests: append, flush, concurrent append safety
+  - (store_test.go: TestAppendMapping, TestAppendToolEvents, TestFlushDurability, TestConcurrentAppend, TestCadenceFlush, TestCloseSemantics, TestOnErrorHook; `npm run check` and `npm run test:race` exit 0)
 
 **Must-know-before:** The Recorder-seam decision above — this chunk applies it.
 
@@ -196,11 +202,16 @@ This is a Bishop decision recorded for operator review. The tree lands uncommitt
 
 **Acceptance:**
 
-- [ ] Storage layout matches plan §7: `~/.local/share/kirsch/sessions/<workspace-hash>/<timestamp>-<ulid>.jsonl`
-- [ ] `index.json` maps canonical workspace path → `{last_session_id, updated_at}`
-- [ ] `usage.json` exists (schema defined, even if empty)
-- [ ] Repair-on-load: truncated final line → session loads as `recovered`, never blocks startup
-- [ ] Unit tests: path generation, index.json read/write, repair on truncated file
+- [x] Storage layout matches plan §7: `~/.local/share/kirsch/sessions/<workspace-hash>/<timestamp>-<ulid>.jsonl`
+  - (layout.go:38–44 `DefaultStateRoot` → `~/.local/share/kirsch`; layout.go:73–75 `SessionDir` → `<root>/sessions/<workspace-hash>`; layout.go:81–83 session path; layout.go:226–232 `IndexPath`/`UsagePath` → `<root>/index.json` + `<root>/usage.json`, matching §7's tree kirsch-plan.md:366–374; corrected in fix round 2a after Step 2 C1, re-verified 2b APPROVED 0/0/0)
+- [x] `index.json` maps canonical workspace path → `{last_session_id, updated_at}`
+  - (index.go:10–22 `IndexEntry`/`Index` schema; index.go:28–61 `ReadIndex`/`WriteIndex`/`Set`; layout_test.go:286 `TestLayoutIndexJSONSchema`)
+- [x] `usage.json` exists (schema defined, even if empty)
+  - (usage.go:12–21 `Usage` struct — `PromptTokens`/`CompletionTokens`/`TotalTokens`/`UpdatedAt`; usage_test.go:11 `TestReadUsageMissing`, :26 `TestWriteAndReadUsage`, :62 `TestUsageAddUpdatesTotals`, :87 `TestAddUsageRootUpdatesFile`)
+- [x] Repair-on-load: truncated final line → session loads as `recovered`, never blocks startup
+  - (repair.go:20 `repairSession` truncates to last good line; store.go:104 `New` calls `openAndRepair`; store.go:132–152 `openAndRepair` opens `O_RDWR|O_APPEND` and continues on repair error; store.go:122 `Store.Recovered()`; repair_test.go:18 `TestRepairTruncatesTornFinalLine` truncates a REAL Store-written session mid-line; loading never blocks startup)
+- [x] Unit tests: path generation, index.json read/write, repair on truncated file
+  - (29 test functions across layout_test.go / index_test.go / usage_test.go / repair_test.go / store_test.go + `FuzzSessionPathContained` in fuzz_test.go + `BenchmarkRecord`, all passing; gates green — `npm run check`, `npm run test:race`, scoped `govulncheck ./internal/session/...` clean, `FUZZTIME=10s npm run fuzz`)
 
 **Must-know-before:** m4-d1 must be complete.
 
@@ -235,6 +246,8 @@ This is a Bishop decision recorded for operator review. The tree lands uncommitt
 - [ ] `approval.scope_granted` events recorded when policy grants session scope
 - [ ] `turn.started` and `turn.completed` events recorded
 - [ ] Integration test: run a turn, verify JSONL contains expected events
+- [ ] The store's `OnError` hook is wired to the telemetry debug log — mid-turn write/`fsync` failures surface, never silently lost
+  - (added 2026-10-14, mission-20261014-01, from the m4-d1 Step 1 improvement note — the default no-op hook is fine for tests but must be wired to telemetry in m4-d3 so turn-continuation mid-turn failures are never silently lost)
 
 **Must-know-before:** m4-d1, m4-d2 must be complete. The Recorder-seam decision (m4-d1) is applied.
 
