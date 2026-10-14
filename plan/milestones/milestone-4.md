@@ -1,13 +1,6 @@
 # Milestone 4 — Instruction Set
 
-> **Status: Outline drafted far ahead — expect to rewrite.** Written 2026-09-12
-> alongside M2 and M3 at the owner's request. Plan §11 amendment 50 records the
-> trade. This document is two milestones from execution, and the plan's own
-> rules exist because detail at that distance is usually wrong: M1 produced
-> seven corrections to instructions written *one* milestone ahead. Treat this as
-> a scope statement with the hard problems identified — the task breakdown will
-> need real work once M3 lands and the shape of the agent loop is known rather
-> than assumed.
+> **Status: Detailed instruction set — rewritten 2026-10-13 (mission-20261013-06, plan §11 amendment 86).** The outline drafted 2026-09-12 (amendment 50) is superseded. Milestone 3 is complete and operator-accepted (2026-10-13), so the agent-loop shape the old document assumed is now known from the code rather than guessed. Per the operator's directive that Milestone 4 coding be broken into much smaller junior-developer chunks, this rewrite expands the scope statement into twelve deliverables (m4-d1…m4-d12), each sized for one small junior mission (one @hicks code step + one @apone review, at most one fix round). This rewrite executes the old "Note for whoever executes this" (re-read against the code and rewrite what no longer fits): the three questions it flagged are answered from the M3 code in *The three questions, answered*, and the old Tasks 1–9 are re-cut into the twelve chunks with the Task→chunk mapping recorded for mechanical coverage. The tree lands uncommitted for operator review.
 
 ## Ground Rules (read first)
 
@@ -28,15 +21,96 @@
 
 ---
 
+## The three questions, answered
+
+The 2026-09-12 outline deferred three questions to "Milestone 3's implementation". M3 is landed, so they are now answered from the code (research doc `m4-research.md`, @apone, mission-20261013-06 Step 1).
+
+### Q1: How does state flow from one turn to the next in the actual agent loop?
+
+State flows through a single persistent `*agent.Conversation` held by `App.conv`.
+
+- `internal/app/app.go:372` — `App` struct field `conv *agent.Conversation`.
+- `internal/app/app.go:394` — `App.New()` initialises it: `conv: &agent.Conversation{}`.
+- `internal/app/app.go:658` — `Submit()` passes the same `conv` pointer to `RunTurn`: `a.RunTurn(ag, a.conv, userText)`.
+- `internal/app/app.go:832` — `RunTurn` signature: `func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string)`.
+- `internal/agent/agent.go:406` — `Agent.Turn` mutates `conv` in place: `func (a *Agent) Turn(ctx context.Context, conv *Conversation, userText string, emit func(Event)) error`.
+- `internal/agent/agent.go:482-484` — `appendMessage` appends to `conv.Messages`: `conv.Messages = append(conv.Messages, m)` then `a.record(RecordAppend, m)`.
+
+**Flow per turn:** user text appended as `user.message` → `conv.Messages` (agent.go:482); a deep copy of `conv.Messages` is sent to the model (agent.go:418); the stream accumulates the assistant message (agent.go:497-502); on `MessageDone` the assistant message is appended to `conv` (agent.go:482); tool calls run sequentially and results append as `user.message` (agent.go:482); the loop continues until no more tool calls or an error / max-turns.
+
+**Key point for M4:** `conv` is the in-memory session state. There is no persistence layer yet. The `Recorder` interface exists (`internal/agent/agent.go:325-328`) but is currently nil in production (`internal/app/app.go:628-632` — `Agent` construction does not set `Recorder`).
+
+### Q2: What form does the pending turn take in the session file?
+
+There is no session file yet. `internal/session` does not exist. The pending turn is the in-memory `*agent.Conversation` plus the session-scoped approval grants held by `*policy.Policy`.
+
+- `internal/agent/agent.go:330-334` — `Conversation` struct: `Messages []Message`.
+- `internal/policy/policy.go:53-69` — `Policy` holds `grants [][]string`.
+- `internal/policy/policy.go:211` — `Grant(argv)` appends to `grants`.
+- `internal/policy/policy.go:240` — `ClearGrants()` resets `grants = nil`.
+
+**What M4 must build** (plan §7): a JSONL session file with the event schema; a single writer goroutine (architecture.md §3 rule 3); `index.json` for auto-resume; resume reconstruction from `user.message`, `assistant.message`, `assistant.thinking`, `tool.completed` — **never** `assistant.delta`; and restoration of session-scoped grants from `approval.scope_granted` events.
+
+**The Recorder seam** (`internal/agent/agent.go:325-328`):
+
+```go
+type Recorder interface {
+    // Record records one change to the conversation.
+    Record(kind RecordKind, m Message)
+}
+```
+
+This is the m3-d3 carried item: "Recorder has no error return." The store is built around this interface; the decision is recorded in m4-d1.
+
+### Q3: Where does thinking get stored, and what gets compacted out?
+
+Thinking blocks are stored in `agent.Thinking` with a `DropOnSummary bool` marker. They are persisted to the conversation (and will be persisted to JSONL as `assistant.thinking` events). Compaction drops them, does not summarise them.
+
+- `internal/agent/agent.go:94-107` — `Thinking` struct, including `DropOnSummary bool` ("the M4-compaction marker. When true, compactors must drop this block rather than summarise it").
+- `internal/agent/agent.go:758` — marker set on every `EventThinkingDone`: `s.open.DropOnSummary = true`.
+- `plan/spec/kirsch-plan.md:330` — persistence rule: "persisted to JSONL as `assistant.thinking` (with its signature) so resume rebuilds a valid message array".
+- `plan/spec/kirsch-plan.md:331` — compaction rule: "excluded from compaction summaries — dropped, not summarised."
+
+**Key point for M4:** the `DropOnSummary` marker is already in place. Compaction must check this field and drop the block rather than include it in the summary. The JSONL event `assistant.thinking` must carry the signature so resume can echo it back.
+
+---
+
 ## Deliverables
 
-**Detailed task breakdown is deferred until Milestone 3 lands.** As the document above states: "This document is two milestones from execution, and the plan's own rules exist because detail at that distance is usually wrong." Specifically, **Task 2 (resume) and Task 4 (compaction) depend closely on the shape the agent loop actually took** — how state flows through a turn, how thinking blocks round-trip, how multiple tool calls are ordered and recorded — and rewriting these tasks against assumptions written before Milestone 3 ships is how drift happens. The breakdown will need real work once M3 is complete and the actual message flow is known.
+This milestone breaks into twelve independently claimable deliverables, each sized for one small junior mission (one @hicks code step + one @apone review, at most one fix round). Each deliverable specifies what it covers, what it owns in the codebase, and which other deliverables must be complete before work can start. Two developers can work in parallel on deliverables with no shared files and no dependency relationship (see the parallel notes per chunk).
 
-The coarse shape appears to be roughly five to six deliverables: session storage (Task 1), resume and locking (Tasks 2–3), compaction (Task 4), command and telemetry wiring (Tasks 5–7), integration and acceptance (Tasks 8–9). But this is provisional — Tasks 2 and 4 in particular are marked in the document itself as likely to need amendment, and that amendment belongs in the plan, not in the code.
+| ID | Deliverable | Depends on | File ownership | Parallel | Acceptance summary |
+|---|---|---|---|---|---|
+| m4-d1 | Session Store Core | — | `internal/session/` | No (foundation) | `Store` implements `agent.Recorder`; JSONL `"v":1`; single writer goroutine; buffered `fsync` ~500ms + on flush; unit tests for append/flush/concurrent append |
+| m4-d2 | Storage Layout + Repair | m4-d1 | `internal/session/` | No | Plan §7 path layout; `index.json`; `usage.json`; repair-on-load truncates torn final line → `recovered`; unit tests |
+| m4-d3 | Event Recording Wiring | m4-d1, m4-d2 | `internal/session/`, `internal/app/` | No | `Submit()` sets `ag.Recorder`; every M3 event type recorded with correct schema; `usage` + `approval.scope_granted` + `turn.started/completed` recorded; integration test |
+| m4-d4 | Resume Reconstruction | m4-d3 | `internal/session/`, `internal/app/` | No | `session.Resume` rebuilds `*agent.Conversation` + transcript from `user/assistant.message/thinking/tool.completed` only; `compaction.applied` applied; tool ids correlate; unit tests |
+| m4-d5 | Resume State + CLI | m4-d4 | `internal/session/`, `internal/app/`, `cmd/kirsch/` | No | `kirsch resume` / `--new` / auto-resume via `index.json`; grants restored; pending state restored; integration test |
+| m4-d6 | Single-Instance Guard | m4-d2 | `internal/session/`, `internal/app/`, `internal/tui/` | Yes (with m4-d3/4/5) | Advisory `flock` on `<workspace-hash>/.lock`; second instance degrades (fresh start, `⚠ another Kirsch is running here`, grants disabled); unit + integration tests |
+| m4-d7 | Compaction | m4-d3 | `internal/session/`, `internal/app/`, `internal/agent/` | Yes (with m4-d4/5/6) | Model call using session provider/model; keeps task + last 4 turns + structured summary; cancellable; failure → `context_overflow`; thinking dropped; `compaction.applied` recorded; unit tests |
+| m4-d8 | Slash Commands for Real | m4-d3, m4-d5, m4-d7 | `internal/tui/`, `internal/app/` | No | `/status` shows model/branch/dirty/session id/tokens(in/out/cache)/compaction%/context file/grants; `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit` on real state; unknown command → dim hint; cache tokens resolve m3-d2 |
+| m4-d9 | Token and Cost Tracking | m4-d3 | `internal/telemetry/`, `internal/tui/`, `internal/session/` | Yes (with m4-d4/5/6) | `usage` events → `usage.json` cumulative totals; status bar real token counts (in/out/cache read/write); unknown model degrades with warning + conservative budget; unit tests |
+| m4-d10 | Final-Task Report | m4-d7 | `internal/agent/prompt/`, `internal/app/` | Yes (with m4-d8/9) | System prompt enforces final-task report (summary, files changed, commands run pass/fail, limitations); survives compaction; unit test |
+| m4-d11 | Smoke Test | m4-d1…m4-d10 | `scripts/` | No | `scripts/smoke-test.sh` executable; runs on `testdata/repo-go-module` with real model; prompt "Add input validation to the Divide function and cover it with a test"; produces patch, applies after approval, runs `go test ./...`, ends with report naming expected files; integration test |
+| m4-d12 | Final Acceptance | m4-d11 | `plan/PROGRESS.md`, `CHANGELOG.md`, `plan/spec/kirsch-plan.md` | No | All Task 9 boxes checked; CHANGELOG updated; `../PROGRESS.md` ☑ Complete; commit tagged `m4`; `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`, CI clean |
 
-Before writing the detailed deliverable breakdown, answer: How does state flow from one turn to the next in the actual agent loop? What form does the pending turn take in the session file? Where does thinking get stored, and what gets compacted out? These answers will come from Milestone 3's implementation.
+### Task→chunk coverage (DIR-014 — mechanically checkable)
 
-When the time comes, follow the template in [Milestone 2's Deliverables section](milestone-2.md#deliverables) — one table with dependencies, file ownership, parallel execution, and per-deliverable acceptance criteria — and name clearly what must be known before each deliverable can start.
+Every old Task 1–9 item lands in exactly one chunk (research doc coverage check, PASS):
+
+| Old Task | Chunk(s) |
+|---|---|
+| Task 1 (session store) | m4-d1, m4-d2 |
+| Task 2 (resume) | m4-d4, m4-d5 |
+| Task 3 (single-instance guard) | m4-d6 |
+| Task 4 (compaction) | m4-d7 |
+| Task 5 (slash commands) | m4-d8 |
+| Task 6 (token/cost tracking) | m4-d9 |
+| Task 7 (final-task report) | m4-d10 |
+| Task 8 (smoke test) | m4-d11 |
+| Task 9 (final acceptance) | m4-d12 |
+
+Chunks m4-d3 (event recording wiring) and m4-d12 (final acceptance) are not themselves old tasks: m4-d3 is the enabling wiring that the old Task 1's "store" implicitly required and that every later chunk depends on; m4-d12 consolidates the old Task 9 acceptance. Nothing in *Explicitly Out of Scope* appears in any chunk.
 
 ---
 
@@ -60,99 +134,432 @@ rather than one that refuses to load at all.
 
 ---
 
-## Task 1 — `internal/session`: the store
+## m4-d1 — Session Store Core
 
-1. JSONL, one event per line, append-only, `"v":1` on every line (ADR 0002).
-2. **Single writer goroutine.** Every other goroutine posts events to it. This
-   is the rule that makes the file well-formed under concurrency, and it is
-   easier to hold from the start than to retrofit.
-3. Buffered, with `fsync` every ~500ms and on turn completion.
-4. Storage layout per plan §7: `<workspace-hash>/<timestamp>-<ulid>.jsonl`,
-   plus `index.json` (canonical path → last session) and `usage.json`.
-5. **Repair on load.** A corrupt or torn final line truncates the session there
-   and marks it `recovered`; startup never blocks on one bad file. Test it by
-   truncating a real session mid-line, not by hand-crafting the damage.
+**Scope:** The Recorder-seam decision applied (see below); JSONL envelope `"v":1` (ADR 0002); single writer goroutine (architecture.md §3 rule 3); append API; buffered flush with `fsync` every ~500ms and on an explicit flush call (turn completion).
 
-## Task 2 — Resume
+**Dependencies:** None — this is the foundation.
 
-1. Rebuild the transcript **and** the conversation from the log, per the
-   reconstruction rule above.
-2. Restore pending state and session-scoped approval grants
-   (`approval.scope_granted`), which M2 deliberately kept in memory only.
-3. Apply `compaction.applied` rather than replaying the pre-compaction history.
-4. `kirsch resume`, `--new`, and auto-resume of the last session per workspace
-   via `index.json`.
+**File ownership:** `internal/session/` (new package).
 
-**Check:** quit mid-task, resume, and get an identical transcript, identical
-pending state, and identical grants — then *complete the turn*, which is the
-part that proves the message array is valid.
+**Parallel execution:** None — every later chunk depends on it.
 
-## Task 3 — Single-instance guard
+**Recorder-seam decision (Bishop, overridable at review).** Keep the no-error `Recorder` interface as landed and reviewed in M3 (`internal/agent/agent.go:313–328`): `Record(kind RecordKind, m Message)`, called synchronously from `Agent.Turn` (`agent.go:488–492`), handing `Record` a deep copy it owns. Durability and error-surfacing live in the store layer, not the interface:
 
-Advisory `flock` on `<workspace-hash>/.lock`. A second instance is **not
-blocked**; it degrades (plan §7): starts fresh rather than auto-resuming, shows
-`⚠ another Kirsch is running here`, and disables session-scoped grants so every
-patch and command is approved individually. Two agents patching one working tree
-is a foot-gun worth degrading for.
+- The single writer goroutine (architecture.md §3 rule 3) owns all writes and `fsync`s.
+- A write/`fsync` failure **at turn completion** surfaces to the user — the turn cannot be considered durable.
+- A mid-turn write/`fsync` failure goes to the telemetry debug log — the turn continues, and repair-on-load (m4-d2) recovers a torn final line.
 
-## Task 4 — Compaction
+This is a Bishop decision recorded for operator review. The tree lands uncommitted; the operator may override it (e.g. choose an error-returning interface) before m4-d1 starts. If overridden, m4-d1's instruction items and acceptance change accordingly.
 
-Per §6.4, and the thing to keep in view: **compaction is itself a model call.**
+**Instruction items:**
 
-- Keeps the original task verbatim, the last four turns verbatim, and a
-  structured summary of everything between.
-- Cancellable. A cancelled compaction leaves the session uncompacted and the
-  pending turn unstarted — never half-applied.
-- On failure, Kirsch does **not** quietly send an oversized request. It surfaces
-  `context_overflow` and tells the user to `/new`.
-- Thinking blocks are dropped, not summarised.
+1. Create `internal/session` with a `Store` type that implements `agent.Recorder` (interface at `agent.go:313–328`).
+2. Apply the Recorder-seam decision above: keep the no-error `Record(kind RecordKind, m Message)` signature; durability and error-surfacing live in the store layer.
+3. Write JSONL with `"v":1` on every line (ADR 0002; plan §7 schema).
+4. Run a single writer goroutine that owns all writes (architecture.md §3 rule 3); every other goroutine posts events to it.
+5. Buffer writes and `fsync` every ~500ms and on an explicit flush call (turn completion).
+6. Unit-test append, flush, and concurrent-append safety.
 
-## Task 5 — Slash commands, for real
+**Acceptance:**
 
-`/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit` all operating
-on real state. `/status` reports model, branch, dirty count, session id, tokens
-(in/out/cache), compaction percentage, the project-context file loaded, and
-active grants.
+- [ ] `internal/session` package exists with `Store` type
+- [ ] `Store` implements `agent.Recorder` interface
+- [ ] JSONL file created with `"v":1` on every line
+- [ ] Single writer goroutine owns all writes
+- [ ] Buffered flush with `fsync` every ~500ms and on explicit flush call
+- [ ] Unit tests: append, flush, concurrent append safety
 
-## Task 6 — Token and cost tracking
+**Must-know-before:** The Recorder-seam decision above — this chunk applies it.
 
-Added to `internal/telemetry`, which M1 built for this. Status bar and
-`usage.json`. Unknown models degrade with a warning and a conservative budget
-rather than failing.
+**Maps from old Task(s):** Task 1 (session store), with m4-d2.
 
-## Task 7 — The final-task report
+---
 
-Enforced in the system prompt: summary, files changed, commands run with
-pass/fail, limitations. This is what makes a completed task reviewable rather
-than merely finished.
+## m4-d2 — Storage Layout + Repair
 
-## Task 8 — Smoke test
+**Scope:** `<workspace-hash>/<timestamp>-<ulid>.jsonl` path structure (plan §7); `index.json` (canonical path → last session); `usage.json`; repair-on-load (a torn final line truncates and marks the session `recovered`).
 
-`scripts/smoke-test.sh` against `testdata/repo-go-module` with a real model:
+**Dependencies:** m4-d1 (store core).
 
-> "Add input validation to the Divide function and cover it with a test"
+**File ownership:** `internal/session/`.
 
-`calc/divide.go` has shipped without that validation since M1 precisely so this
-test has something to do. The run must produce a shown patch, apply it after
-approval, run `go test ./...`, and end with a report naming exactly the expected
-files.
+**Parallel execution:** None — depends on m4-d1.
 
-## Task 9 — Final acceptance
+**Instruction items:**
+
+1. Implement the plan §7 storage layout: `~/.local/share/kirsch/sessions/<workspace-hash>/<timestamp>-<ulid>.jsonl`, plus `index.json` and `usage.json`.
+2. `index.json` maps the canonical workspace path → `{last_session_id, updated_at}` (plan §7 storage layout).
+3. `usage.json` exists with its schema defined, even if empty.
+4. Repair-on-load: a truncated final line truncates the session there and marks it `recovered`; startup never blocks on one bad file (plan §7 rules).
+5. Unit-test path generation, `index.json` read/write, and repair on a truncated file (truncate a real session mid-line, not hand-crafted damage).
+
+**Acceptance:**
+
+- [ ] Storage layout matches plan §7: `~/.local/share/kirsch/sessions/<workspace-hash>/<timestamp>-<ulid>.jsonl`
+- [ ] `index.json` maps canonical workspace path → `{last_session_id, updated_at}`
+- [ ] `usage.json` exists (schema defined, even if empty)
+- [ ] Repair-on-load: truncated final line → session loads as `recovered`, never blocks startup
+- [ ] Unit tests: path generation, index.json read/write, repair on truncated file
+
+**Must-know-before:** m4-d1 must be complete.
+
+**Maps from old Task(s):** Task 1 (session store), with m4-d1.
+
+---
+
+## m4-d3 — Event Recording Wiring
+
+**Scope:** Record the real M3 event stream into the store: `user.message`, `assistant.message`, `assistant.thinking`, `tool.completed`, `usage`, `approval.scope_granted`, `turn.started` (plan §7 schema).
+
+**Dependencies:** m4-d1, m4-d2 (store + layout).
+
+**File ownership:** `internal/session/`, `internal/app/` (wiring).
+
+**Parallel execution:** None — depends on m4-d1, m4-d2.
+
+**Instruction items:**
+
+1. `app.Submit()` sets `ag.Recorder` to the session store (currently nil at `app.go:628–632`).
+2. Record every event type from `agent.go` to JSONL with the correct plan §7 schema.
+3. Record `usage` events (`agent.go:512–514` `EventUsage`) — currently emitted but not persisted.
+4. Record `approval.scope_granted` events when policy grants session scope.
+5. Record `turn.started` and `turn.completed` events.
+6. Integration test: run a turn, verify the JSONL contains the expected events.
+
+**Acceptance:**
+
+- [ ] `app.Submit()` sets `ag.Recorder` to the session store
+- [ ] Every event type from `agent.go` is recorded to JSONL with correct schema (plan §7)
+- [ ] `usage` events recorded (`agent.go:512–514` `EventUsage`)
+- [ ] `approval.scope_granted` events recorded when policy grants session scope
+- [ ] `turn.started` and `turn.completed` events recorded
+- [ ] Integration test: run a turn, verify JSONL contains expected events
+
+**Must-know-before:** m4-d1, m4-d2 must be complete. The Recorder-seam decision (m4-d1) is applied.
+
+**Maps from old Task(s):** No old Task number of its own — this is the event-recording wiring the old Task 1's "store" implicitly required and that m4-d4–m4-d12 depend on.
+
+---
+
+## m4-d4 — Resume Reconstruction
+
+**Scope:** Rebuild the transcript **and** the conversation from JSONL per the locked reconstruction rule (from `user.message` / `assistant.message` / `assistant.thinking` / `tool.completed` — **never** `assistant.delta`); apply `compaction.applied` rather than replaying pre-compaction history.
+
+**Dependencies:** m4-d3 (event recording).
+
+**File ownership:** `internal/session/` (resume logic), `internal/app/` (wiring).
+
+**Parallel execution:** None — depends on m4-d3.
+
+**Instruction items:**
+
+1. `session.Resume(path)` returns the reconstructed `*agent.Conversation` and transcript.
+2. Reconstruction uses only `user.message`, `assistant.message`, `assistant.thinking`, `tool.completed` (plan §7 reconstruction rule).
+3. `assistant.delta` events are ignored for reconstruction (UI replay only).
+4. `compaction.applied` events replace the compacted range with the summary.
+5. Correlate tool call ids: every `tool.completed` matches its `assistant.message` tool_call (plan §7 reconstruction rule).
+6. Unit-test reconstruction from JSONL with all event types; verify the conversation matches the original.
+
+**Acceptance:**
+
+- [ ] `session.Resume(path)` returns reconstructed `*agent.Conversation` and transcript
+- [ ] Reconstruction uses only `user.message`, `assistant.message`, `assistant.thinking`, `tool.completed` (plan §7 reconstruction rule)
+- [ ] `assistant.delta` events are ignored for reconstruction (used only for UI replay)
+- [ ] `compaction.applied` events replace the compacted range with the summary
+- [ ] Tool call ids correlate: every `tool.completed` matches its `assistant.message` tool_call
+- [ ] Unit tests: reconstruct from JSONL with all event types, verify conversation matches original
+
+**Must-know-before:** m4-d3 must record all event types correctly.
+
+**Maps from old Task(s):** Task 2 (resume), with m4-d5.
+
+---
+
+## m4-d5 — Resume State + CLI
+
+**Scope:** Pending state restored; session-scoped grants restored from `approval.scope_granted` events; `kirsch resume`, `--new`, auto-resume via `index.json`.
+
+**Dependencies:** m4-d4 (resume reconstruction).
+
+**File ownership:** `internal/session/`, `internal/app/`, `cmd/kirsch/` (CLI flags).
+
+**Parallel execution:** None — depends on m4-d4.
+
+**Instruction items:**
+
+1. `kirsch resume` loads the last session for the workspace via `index.json`.
+2. `kirsch --new` starts a fresh session even if a last session exists.
+3. Auto-resume: if no flags, resume the last session (plan §7).
+4. Restore session-scoped grants from `approval.scope_granted` events.
+5. Restore pending state (the in-progress turn).
+6. Integration test: quit mid-task, resume, complete the turn — identical transcript, grants, valid message array.
+
+**Acceptance:**
+
+- [ ] `kirsch resume` loads last session for workspace (via `index.json`)
+- [ ] `kirsch --new` starts fresh session even if last session exists
+- [ ] Auto-resume: if no flags, resume last session (plan §7)
+- [ ] Session-scoped grants restored from `approval.scope_granted` events
+- [ ] Pending state (in-progress turn) restored
+- [ ] Integration test: quit mid-task, resume, complete the turn — identical transcript, grants, valid message array
+
+**Must-know-before:** m4-d4 must reconstruct correctly.
+
+**Maps from old Task(s):** Task 2 (resume), with m4-d4.
+
+---
+
+## m4-d6 — Single-Instance Guard
+
+**Scope:** Advisory `flock` on `<workspace-hash>/.lock`; degrade-not-block (fresh start, `⚠ another Kirsch is running here`, grants disabled).
+
+**Dependencies:** m4-d2 (storage layout — needs the `<workspace-hash>` directory).
+
+**File ownership:** `internal/session/` (lock logic), `internal/app/` (wiring), `internal/tui/` (status bar warning).
+
+**Parallel execution:** Can run alongside m4-d3, m4-d4, m4-d5 (independent of event recording / resume logic).
+
+**Instruction items:**
+
+1. On start, take an advisory `flock` on `<workspace-hash>/.lock` (plan §7 single-instance guard).
+2. A second instance in the same workspace does **not** auto-resume (starts fresh), shows `⚠ another Kirsch is running here` in the status bar, and disables session-scoped grants (plan §7).
+3. Unit-test lock acquisition and second-instance degradation.
+4. Integration test: two instances, verify the second degrades.
+
+**Acceptance:**
+
+- [ ] On start, Kirsch takes advisory `flock` on `<workspace-hash>/.lock`
+- [ ] Second instance in same workspace: does not auto-resume (starts fresh), shows `⚠ another Kirsch is running here` in status bar, disables session-scoped grants
+- [ ] Unit tests: lock acquisition, second-instance degradation
+- [ ] Integration test: two instances, verify second degrades
+
+**Must-know-before:** m4-d2 must create the `<workspace-hash>` directory.
+
+**Maps from old Task(s):** Task 3 (single-instance guard).
+
+---
+
+## m4-d7 — Compaction
+
+**Scope:** The model call per plan §6.4 (original task verbatim + last four turns + structured summary; cancellable, never half-applied; failure surfaces `context_overflow`, no silent oversized request; thinking dropped not summarised).
+
+**Dependencies:** m4-d3 (event recording — needs the `compaction.applied` event type).
+
+**File ownership:** `internal/session/` (compaction logic), `internal/app/` (wiring), `internal/agent/` (may need compaction-aware `Turn`).
+
+**Parallel execution:** Can run alongside m4-d4, m4-d5, m4-d6 (independent of resume / lock logic).
+
+**Instruction items:**
+
+1. Compaction is a model call using the session's provider and model (plan §6.4).
+2. Keep: the original task verbatim, the last 4 turns verbatim, a structured summary of the middle (plan §6.4).
+3. Cancellable: a cancelled compaction leaves the session uncompacted and the pending turn unstarted (plan §6.4).
+4. On failure: surface `context_overflow` and tell the user to `/new` — no silent oversized request (plan §6.4).
+5. Drop thinking blocks (check `Thinking.DropOnSummary` — `agent.go:106`, set at `agent.go:758`), never summarise them (plan §6.5).
+6. Record a `compaction.applied` event with the replaced range + summary (plan §6.4, §7 schema).
+7. Unit-test compaction with thinking blocks, cancellation, and failure handling.
+
+**Acceptance:**
+
+- [ ] Compaction is a model call using the session's provider and model
+- [ ] Keeps: original task verbatim, last 4 turns verbatim, structured summary of middle
+- [ ] Cancellable: cancelled compaction leaves session uncompacted, pending turn unstarted
+- [ ] On failure: surfaces `context_overflow`, tells user to `/new` (no silent oversized request)
+- [ ] Thinking blocks dropped (check `Thinking.DropOnSummary` — `agent.go:106`)
+- [ ] `compaction.applied` event recorded with replaced range + summary
+- [ ] Unit tests: compaction with thinking blocks, cancellation, failure handling
+
+**Must-know-before:** m4-d3 must record events; the `Thinking.DropOnSummary` marker exists (`agent.go:106`, `agent.go:758`).
+
+**Maps from old Task(s):** Task 4 (compaction).
+
+---
+
+## m4-d8 — Slash Commands for Real
+
+**Scope:** `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit` on real state; `/status` fields per ui-spec line 525 incl. tokens (in/out/cache) — this resolves the m3-d2 cache_read carried item.
+
+**Dependencies:** m4-d3 (event recording — needs real session state), m4-d5 (resume — `/new` needs session management), m4-d7 (compaction — `/compact` needs compaction logic).
+
+**File ownership:** `internal/tui/` (slash command handlers), `internal/app/` (wiring).
+
+**Parallel execution:** None — depends on m4-d3, m4-d5, m4-d7.
+
+**Instruction items:**
+
+1. `/status` shows: model, branch, dirty count, session id, tokens (in/out/cache), compaction %, project-context file, active grants (ui-spec line 525).
+2. `/diff` shows the working tree diff.
+3. `/files` lists files touched this session.
+4. `/approvals` lists active grants, offers to clear.
+5. `/new` starts a new session (confirm if a turn is in flight).
+6. `/compact` triggers manual compaction.
+7. `/quit` and `/exit` quit (alias).
+8. Unknown `/command` → dim inline hint, not an error card, never sent to the model (ui-spec line 534).
+9. Display cache tokens in `/status` (resolves the m3-d2 cache_read carried item — the status bar currently sums cache tokens into the total at `internal/tui/update.go:339`; `/status` omits them per ui-spec line 525).
+
+**Acceptance:**
+
+- [ ] `/status` shows: model, branch, dirty count, session id, tokens (in/out/cache), compaction %, project-context file, active grants (ui-spec line 525)
+- [ ] `/diff` shows working tree diff
+- [ ] `/files` lists files touched this session
+- [ ] `/approvals` lists active grants, offers to clear
+- [ ] `/new` starts new session (confirm if turn in flight)
+- [ ] `/compact` triggers manual compaction
+- [ ] `/quit` and `/exit` quit (alias)
+- [ ] Unknown `/command` → dim inline hint, not error card, never sent to model (ui-spec line 534)
+- [ ] Cache tokens displayed in `/status` (resolves m3-d2 carried item)
+
+**Must-know-before:** m4-d3, m4-d5, m4-d7 must be complete.
+
+**Maps from old Task(s):** Task 5 (slash commands). **Carried item resolved:** m3-d2 live turn-two `cache_read` check → `/status` cache tokens (ui-spec line 525).
+
+---
+
+## m4-d9 — Token and Cost Tracking
+
+**Scope:** `internal/telemetry` (M1 built for this); status bar; `usage.json`; unknown-model degradation with warning + conservative budget.
+
+**Dependencies:** m4-d3 (event recording — needs `usage` events).
+
+**File ownership:** `internal/telemetry/`, `internal/tui/` (status bar), `internal/session/` (`usage.json`).
+
+**Parallel execution:** Can run alongside m4-d4, m4-d5, m4-d6 (independent of resume / lock logic).
+
+**Instruction items:**
+
+1. Record `usage` events to `usage.json` (cumulative token/cost totals) — resolves the m3-d3 "Turn drops Usage and StopReason" carried item (`EventUsage` at `agent.go:512–514` is emitted but not persisted).
+2. Status bar shows real token counts (input, output, cache read, cache write).
+3. Unknown models degrade with a warning + conservative budget (not a failure) — suggest the smallest context window in the §5 model table as the fallback budget.
+4. Cost calculated from model pricing (plan §5 model table).
+5. Unit-test usage accumulation and unknown-model degradation.
+
+**Acceptance:**
+
+- [ ] `usage` events recorded to `usage.json` (cumulative token/cost totals)
+- [ ] Status bar shows real token counts (input, output, cache read, cache write)
+- [ ] Unknown models degrade with warning + conservative budget (not failure)
+- [ ] Cost calculated from model pricing (plan §5 model table)
+- [ ] Unit tests: usage accumulation, unknown-model degradation
+
+**Must-know-before:** m4-d3 must record `usage` events.
+
+**Maps from old Task(s):** Task 6 (token/cost tracking). **Carried item resolved:** m3-d3 "Turn drops Usage and StopReason" → `usage` events recorded to JSONL and `usage.json`.
+
+---
+
+## m4-d10 — Final-Task Report
+
+**Scope:** Enforced in the system prompt: summary, files changed, commands run with pass/fail, limitations.
+
+**Dependencies:** m4-d7 (compaction — the report must survive compaction).
+
+**File ownership:** `internal/agent/prompt/` (system prompt), `internal/app/` (wiring).
+
+**Parallel execution:** Can run alongside m4-d8, m4-d9 (independent of slash commands / token tracking).
+
+**Instruction items:**
+
+1. The system prompt enforces the final-task report (plan §6.1 item 6).
+2. The report includes: summary, files changed, commands run with pass/fail, limitations.
+3. The report survives compaction (included in the summary).
+4. Unit-test that the system prompt includes the report instruction.
+
+**Acceptance:**
+
+- [ ] System prompt enforces final-task report (plan §6.1 item 6)
+- [ ] Report includes: summary, files changed, commands run with pass/fail, limitations
+- [ ] Report survives compaction (included in summary)
+- [ ] Unit tests: system prompt includes report instruction
+
+**Must-know-before:** m4-d7 must handle compaction correctly.
+
+**Maps from old Task(s):** Task 7 (final-task report).
+
+---
+
+## m4-d11 — Smoke Test
+
+**Scope:** `scripts/smoke-test.sh` against `testdata/repo-go-module` with a real model ("Add input validation to the Divide function and cover it with a test").
+
+**Dependencies:** m4-d1 through m4-d10 (all prior chunks).
+
+**File ownership:** `scripts/` (smoke test script).
+
+**Parallel execution:** None — depends on all prior chunks.
+
+**Instruction items:**
+
+1. Create `scripts/smoke-test.sh`, executable.
+2. Run it against `testdata/repo-go-module` with a real model.
+3. Prompt: "Add input validation to the Divide function and cover it with a test".
+4. The run produces a shown patch, applies it after approval, runs `go test ./...`, and ends with a report.
+5. The report names exactly the expected files.
+6. Integration test: full end-to-end run passes.
+
+**Acceptance:**
+
+- [ ] `scripts/smoke-test.sh` exists and is executable
+- [ ] Runs against `testdata/repo-go-module` with real model
+- [ ] Prompt: "Add input validation to the Divide function and cover it with a test"
+- [ ] Produces shown patch, applies after approval, runs `go test ./...`, ends with report
+- [ ] Report names exactly the expected files
+- [ ] Integration test: full end-to-end run passes
+
+**Must-know-before:** All prior chunks must be complete.
+
+**Maps from old Task(s):** Task 8 (smoke test).
+
+---
+
+## m4-d12 — Final Acceptance
+
+**Scope:** The old Task 9 boxes (milestone-4.md lines 142–152); the definition of done (every box checked, CHANGELOG updated, `../PROGRESS.md` ☑ Complete, commit tagged).
+
+**Dependencies:** m4-d11 (smoke test).
+
+**File ownership:** `plan/PROGRESS.md`, `CHANGELOG.md`, `plan/spec/kirsch-plan.md` (amendment log if needed).
+
+**Parallel execution:** None — final step.
+
+**Instruction items:**
+
+1. Tick every box below (the old Task 9 acceptance).
+2. Update `CHANGELOG.md` under `[Unreleased]` → `Added` with the Milestone 4 entries.
+3. Set `plan/PROGRESS.md` Milestone 4 to `☑ Complete`.
+4. Tag the commit `m4` (the operator's tag; the tree lands uncommitted from this planning mission, so the tag is applied at close-out).
+5. Run `go test -race ./...`, `golangci-lint fmt --diff`, `go vet ./...`, `golangci-lint run`, and CI — all clean.
+
+**Acceptance (old Task 9 boxes):**
 
 - [ ] Smoke test passes on a real model, end to end
-- [ ] Quit mid-task, resume, and **complete the turn** — identical transcript,
-      pending state and grants, and a valid message array
+- [ ] Quit mid-task, resume, and **complete the turn** — identical transcript, pending state and grants, and a valid message array
 - [ ] A session truncated by `kill -9` loads as `recovered` and is resumable
 - [ ] A second instance warns and degrades per §7
-- [ ] Compaction is cancellable and never half-applies; failure surfaces
-      `context_overflow` rather than an oversized request
+- [ ] Compaction is cancellable and never half-applies; failure surfaces `context_overflow` rather than an oversized request
 - [ ] All slash commands operate on real state
 - [ ] Token and cost tracking in the status bar and `usage.json`
-- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`,
-      `golangci-lint run`, CI all clean
+- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`, CI all clean
 
-**Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md`
-set to `☑ Complete`, commit tagged so Milestone 5 starts from a known point.
+**Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md` set to `☑ Complete`, and a commit tagged so Milestone 5 starts from a known point.
+
+**Must-know-before:** m4-d11 must pass.
+
+**Maps from old Task(s):** Task 9 (final acceptance).
+
+---
+
+## Carried items disposition (M4-relevant)
+
+From `plan/PROGRESS.md` *Carried from m3-d3* / *Carried from m3-d2*:
+
+| Source | Item | Disposition in M4 |
+|--------|------|-------------------|
+| m3-d3 | "Recorder has no error return" | **Resolved by the m4-d1 Recorder-seam decision** — no-error interface kept; durability and error-surfacing in the store layer. |
+| m3-d3 | "Turn drops Usage and StopReason" | **Resolved in m4-d9** — `usage` events recorded to JSONL and `usage.json` (emitted at `agent.go:512–514`, not persisted before M4). |
+| m3-d2 | "Live turn-two cache_read check" | **Resolved in m4-d8** — `/status` shows cache tokens (ui-spec line 525); the status bar already sums cache tokens (`internal/tui/update.go:339`) but `/status` omitted them. |
+
+Not M4-relevant carried items (resolved or deferred to M5) are unchanged and listed under their original headings in `plan/PROGRESS.md`.
 
 ---
 
@@ -163,10 +570,11 @@ session branching or search. Those are Milestone 5.
 
 ---
 
-## Note for whoever executes this
+## Executed record (replaces the old "Note for whoever executes this")
 
-Before starting, re-read this document against the code and rewrite what no
-longer fits. It was written before Milestones 2 and 3 existed, and the honest
-expectation is that the task breakdown is wrong in at least a few places —
-particularly Tasks 2 and 4, which depend closely on the shape the agent loop
-actually took. Amend the plan (§11) rather than working around the mismatch.
+The 2026-09-12 outline carried a note: "Before starting, re-read this document against the code and rewrite what no longer fits." This rewrite does exactly that, against the landed Milestone 3 (operator-accepted 2026-10-13):
+
+- The three questions the note said would come from M3's implementation are answered in *The three questions, answered*, each traced to `internal/agent/agent.go` and `internal/app/app.go` with file:line citations (research doc `m4-research.md`, @apone, mission-20261013-06 Step 1).
+- The old Tasks 1–9 are re-cut into twelve chunks (m4-d1…m4-d12). The mapping is recorded per chunk and consolidated in *Task→chunk coverage* (DIR-014) so the coverage count is mechanically checkable: every old task lands in exactly one chunk, and nothing in *Explicitly Out of Scope* appears in any chunk.
+- The Recorder-seam carried item (m3-d3) is resolved by a recorded Bishop decision in m4-d1, applied as the no-error `Recorder` interface with durability and error-surfacing in the store layer.
+- The plan was amended, not worked around: amendment 86 records this expansion.

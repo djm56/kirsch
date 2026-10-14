@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fidelity (plan §11 amendment 50): M2 executable as written, M3 settled in
   shape but provisional in detail, M4 a scope statement identifying the hard
   problems. M5 is left unwritten.
+- **Milestone 4 instruction set — the detailed deliverable breakdown.** `plan/milestones/milestone-4.md` is expanded from its 2026-09-12 scope statement (plan §11 amendment 50) into twelve deliverables (m4-d1…m4-d12), each sized for one small junior mission (one code step + one review, at most one fix round), grounded in the landed Milestone 3 and the operator's smaller-chunks directive. The three questions the old outline deferred to M3 are answered from the M3 code with file:line citations: state flows through `App.conv` → `RunTurn` → `Agent.Turn` (`conv.Messages` mutated in place); there is no session file yet — the `Recorder` interface exists at `internal/agent/agent.go:325–328` but is nil in production (`internal/app/app.go:628–632`); thinking is stored in `agent.Thinking` with the `DropOnSummary` marker (set at `agent.go:758`) and dropped, never summarised, by compaction. The Recorder-seam carried item (m3-d3) is resolved by a recorded Bishop decision in m4-d1: the no-error `Recorder` interface is kept, with durability and error-surfacing in the store layer. Plan §11 amendment 86 records the expansion.
+
 - **`/exit`**, an alias of `/quit` sharing one arm rather than a second
   behaviour, and tab-completable like every other command.
 - **`scripts/go-tool.sh`**, which every npm script now goes through to reach a

@@ -1,8 +1,8 @@
 # Progress — Kirsch
 
-**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is complete and operator-accepted on 2026-10-13: m3-d1 through m3-d6 are done (m3-d6 = wiring and integration, mission-20261007-02), the operator's manual walkthrough is all-green across §1–§8 (plan/testing/manual/user-testing/milestone-3-donovan.md), and Task 8 box 321 is ticked on the walkthrough's §8 evidence (mission-20261013-05).
+**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is complete and operator-accepted on 2026-10-13: m3-d1 through m3-d6 are done (m3-d6 = wiring and integration, mission-20261007-02), the operator's manual walkthrough is all-green across §1–§8 (plan/testing/manual/user-testing/milestone-3-donovan.md), and Task 8 box 321 is ticked on the walkthrough's §8 evidence (mission-20261013-05). Milestone 4's detailed instruction set is written (mission-20261013-06, uncommitted, awaiting operator review) — twelve deliverables m4-d1…m4-d12 grounded in the landed M3.
 
-**What's next:** Milestone 4 — the real task loop and sessions (plan/milestones/milestone-4.md). The operator has asked for its deliverables broken into smaller junior-developer chunks so coding and review do not get caught in loops. Carried items are listed under *Carried from m3-d6*, *Carried from m3-d5*, *Carried from m3-d4*, *Carried from m3-d3* and *Carried from m3-d2*.
+**What's next:** The operator reviews the Milestone 4 breakdown (mission-20261013-06, uncommitted) — twelve deliverables m4-d1…m4-d12 grounded in the landed M3. Coding starts at m4-d1 (session store core, applying the recorded Recorder-seam decision). Carried items are listed under *Carried from m3-d6*, *Carried from m3-d5*, *Carried from m3-d4*, *Carried from m3-d3* and *Carried from m3-d2*.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -40,6 +40,25 @@ Definitions are in `plan/milestones/milestone-3.md`. The live probe ran on 2026-
 | m3-d4 | System prompt and thinking | done | — | m3-d2, m3-d3 |
 | m3-d5 | Onboarding screens | done | — | m3-d1, m3-d2, m3-d3 |
 | m3-d6 | Wiring and integration | done | — | all |
+
+## Milestone 4 — deliverables
+
+Definitions are in `plan/milestones/milestone-4.md`. The detailed breakdown (mission-20261013-06) splits the old Tasks 1–9 into twelve small junior missions, each one code step + one review.
+
+| ID | Title | Status | Owner | Waits on |
+|---|---|---|---|---|
+| m4-d1 | Session Store Core | not started | — | — |
+| m4-d2 | Storage Layout + Repair | not started | — | m4-d1 |
+| m4-d3 | Event Recording Wiring | not started | — | m4-d1, m4-d2 |
+| m4-d4 | Resume Reconstruction | not started | — | m4-d3 |
+| m4-d5 | Resume State + CLI | not started | — | m4-d4 |
+| m4-d6 | Single-Instance Guard | not started | — | m4-d2 |
+| m4-d7 | Compaction | not started | — | m4-d3 |
+| m4-d8 | Slash Commands for Real | not started | — | m4-d3, m4-d5, m4-d7 |
+| m4-d9 | Token and Cost Tracking | not started | — | m4-d3 |
+| m4-d10 | Final-Task Report | not started | — | m4-d7 |
+| m4-d11 | Smoke Test | not started | — | m4-d1…m4-d10 |
+| m4-d12 | Final Acceptance | not started | — | m4-d11 |
 
 ## Carried from m3-d5
 
@@ -109,6 +128,7 @@ Deferred by the operator on 2026-10-02, when Milestone 2 was accepted. Details a
 | Completed | Deliverable | What landed |
 |---|---|---|
 | 2026-10-13 | Milestone 3 close-out | `mission-20261013-05`. The operator's manual walkthrough of the testing docs is all-green across §1–§8 (plan/testing/manual/user-testing/milestone-3-donovan.md — live smoke, endpoint/global config, project allowlist, redirects, agent turn loop, system prompt/thinking incl. the live round-trip on `minimax-m2.7`, onboarding, wiring/integration incl. the operator-observed §8 run). Task 8 box 321 ticked (operator) with evidence naming the cache-read status; every Task 8 box now checked. PROGRESS.md set to operator-accepted; CHANGELOG verified current; close-out committed and tagged `m3`. |
+| 2026-10-13 | Milestone 4 planning — the instruction set | `mission-20261013-06`. The detailed deliverable breakdown (m4-d1…m4-d12, one small junior mission each) written into `plan/milestones/milestone-4.md`, grounded in the landed M3 and the operator's smaller-chunks directive; plan §11 amendment 86 records the expansion; the Recorder-seam decision is recorded in m4-d1 (no-error `Recorder` interface kept, durability in the store layer). Tree left uncommitted pending operator review. |
 | 2026-10-07 | m3-d5 — onboarding screens | Screen 12 (state 14) drawn and golden-tested; TUI onboarding rendering (dim, never error cards); app CheckOnboarding wiring with endpoint key variables; ui-spec §13 gap closed. (mission-20261007-01) |
 | 2026-10-08 | m3-d6 — wiring and integration | `mission-20261007-02`. TUI turn-message pipeline (7 plain-field messages, thinking collapsed dimmed card); debug slash commands + help block deleted, screen 06 shrinks 80×34→80×28; submit() hands composer text to a real agent turn; status bar real Usage tokens + context budget indicator, hard-coded model removed; `/status` display (endpoint, base_url host, key source variable, proxy host, context file, data-flow notice) + prompt wiring at session start; approval IDs distinct via tool invocation ID; policy.New reads three settings from global config; run_command timeout default + 300 ceiling (amendment 85) + ProgressSink streaming; six config boxes covered; provider surface (Fake completeness, retry matrix, redirect refusal, request-shape, session header); security.md cases 7–11 + run_command-writes-config known limit; testing docs sections 5–8 runnable. Reviews: steps 2b, 4, 6b, 8, 10, 12, 16, 18b APPROVED; steps 6, 14, 18 NOT APPROVED then resolved. **Uncommitted** on top of `04e30cc`. |
 | 2026-10-06 | m3-d4 system prompt and thinking | `mission-20261006-03`. `internal/agent/prompt`: embedded six-section system prompt (plan §6.1 order, untrusted-input rule verbatim, project context fenced and labelled untrusted), `Env` + `Assemble`, and the project-context loader — consumer-declared `Engine` interface, first-existing FIFO, engine-refused entries skipped with named warnings, regular-file check before any read, bounded reader (never `Stat`-sized), cap `min(supplied, 32768)` with line-boundary truncation marker, chosen file/size/warnings exposed. `agent.Request.System`/`Agent.System` carried on every request. Injection test: instruction surfaced in the fenced untrusted section, exactly once in the system prompt, zero times in messages, rule sections byte-identical. Adapter thinking request field: `off` → `between_tools` + high effort, `low`/`medium`/`high` → `adaptive`, decided against the live Anthropic docs. Thinking blocks round-trip byte-identical (signature included) on the second request at every setting; `Thinking.DropOnSummary` marks blocks for M4 compaction drop. Opt-in live round-trip test built for the operator. Reviews: steps 2, 4b, 6b APPROVED; step 4 NOT APPROVED (DIR-016 process violation, resolved at 4a/4b); step 6 APPROVED with conditions (gosec G304) resolved by vasquez escalation 6a (one-line `#nosec` annotation). **Uncommitted** on top of `8e37449`. |
