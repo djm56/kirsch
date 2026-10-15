@@ -24,7 +24,7 @@ deliverables land.
 | 1 | m4-d1 Session Store Core | **Runnable now** |
 | 2 | m4-d2 Storage Layout + Repair | **Runnable now** |
 | 3 | m4-d3 Event Recording Wiring | **Runnable now** |
-| 4 | m4-d4 Resume Reconstruction | Not yet testable |
+| 4 | m4-d4 Resume Reconstruction | **Runnable now** |
 | 5 | m4-d5 Resume State + CLI | Not yet testable |
 | 6 | m4-d6 Single-Instance Guard | Not yet testable |
 | 7 | m4-d7 Compaction | Not yet testable |
@@ -296,14 +296,82 @@ This section is the operator's independent verification of the m4-d3 acceptance 
 
 ## 4 · Resume Reconstruction (m4-d4)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d4 lands.
+`internal/session` gained `Resume(path)` in mission-20261015-01. It rebuilds the
+`*agent.Conversation` and a plain `Transcript` from the JSONL session log per the
+locked reconstruction rule (plan §7): only `user.message`/`assistant.message`/
+`assistant.thinking`/`tool.completed` contribute; `assistant.delta` is explicitly
+skipped (UI replay only); `compaction.applied` replaces the conversation range
+with the summary, leaving the transcript intact; tool-call ids correlate via a
+pending map with `ErrMalformedSession` on mismatch/duplicate/orphan; and
+consecutive `user.message`/`tool.completed` merge (the `RecordMerge` semantics
+the store is documented to provide). This section runs the unit and race tests
+that back the m4-d4 acceptance, grouped to match the commands below. Tick each
+box as you run it.
 
-What will be checked (from milestone-4.md m4-d4 acceptance): `session.Resume(path)`
-rebuilds the `*agent.Conversation` and transcript from `user.message`,
-`assistant.message`, `assistant.thinking` and `tool.completed` only — never
-`assistant.delta`; `compaction.applied` events replace the compacted range with
-the summary; tool call ids correlate (every `tool.completed` matches its
-`assistant.message` tool_call); and the result is a valid provider message array.
+**Reconstruction + round-trip — the four event types rebuild the conversation and transcript, and full store-write/resume cycles are byte-identical:**
+
+```bash
+go test -run 'TestResumeEmptyFile|TestResumeMergesConsecutiveUserMessages|TestResumeReconstructsAssistantText|TestResumeReconstructsAssistantThinking|TestResumeReconstructsToolCallAndResult|TestResumeMergesConsecutiveToolResults|TestResumeRoundTripAllEventTypes|TestResumeRoundTripMerge' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestResumeEmptyFile`
+- [ ] `--- PASS: TestResumeMergesConsecutiveUserMessages`
+- [ ] `--- PASS: TestResumeReconstructsAssistantText`
+- [ ] `--- PASS: TestResumeReconstructsAssistantThinking`
+- [ ] `--- PASS: TestResumeReconstructsToolCallAndResult`
+- [ ] `--- PASS: TestResumeMergesConsecutiveToolResults`
+- [ ] `--- PASS: TestResumeRoundTripAllEventTypes`
+- [ ] `--- PASS: TestResumeRoundTripMerge`
+
+**Delta-ignoring + compaction + torn-line repair — `assistant.delta` is skipped, `compaction.applied` replaces the conversation range only, and an invalid final line truncates like repair-on-load:**
+
+```bash
+go test -run 'TestResumeIgnoresAssistantDelta|TestResumeAppliesCompactionToConversationNotTranscript|TestResumeTornLineTruncates' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestResumeIgnoresAssistantDelta`
+- [ ] `--- PASS: TestResumeAppliesCompactionToConversationNotTranscript`
+- [ ] `--- PASS: TestResumeTornLineTruncates`
+
+**Malformed sessions — a tool.id mismatch, duplicate, orphan, empty assistant.message, or out-of-bounds compaction range returns `ErrMalformedSession` (distinct from torn-line repair):**
+
+```bash
+go test -run 'TestResumeReturnsMalformedSessionOnToolMismatch|TestResumeReturnsMalformedSessionOnDuplicateToolResult|TestResumeReturnsMalformedSessionOnOrphanToolResult|TestResumeReturnsMalformedSessionOnEmptyAssistantMessage|TestResumeReturnsMalformedSessionOnCompactionRangeOutOfBounds' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnToolMismatch`
+- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnDuplicateToolResult`
+- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnOrphanToolResult`
+- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnEmptyAssistantMessage`
+- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnCompactionRangeOutOfBounds`
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree; the m4-d2 close's green race run was a lucky pass). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+
+```bash
+$(go env GOPATH)/bin/govulncheck ./internal/session/...
+```
+
+- [ ] `govulncheck ./internal/session/...` reports no vulnerabilities in Kirsch code (the full path is used so no PATH setup is needed; the binary installs to `$(go env GOPATH)/bin/govulncheck`, and `npm run tools` installs it and prints the directory)
+
+```bash
+FUZZTIME=10s npm run fuzz
+```
+
+- [ ] `FUZZTIME=10s npm run fuzz` — `FuzzResume` survives 10s (all fuzz targets survive 10s each)
+
+This section is the operator's independent verification of the m4-d4 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261015-01). It is the record for the six m4-d4 acceptance boxes: `session.Resume(path)` returns the reconstructed `*agent.Conversation` and transcript; reconstruction uses only `user.message`/`assistant.message`/`assistant.thinking`/`tool.completed` (never `assistant.delta`); `assistant.delta` is ignored; `compaction.applied` replaces the compacted range with the summary; tool call ids correlate; and the unit tests reconstruct from JSONL with all event types and verify the conversation matches the original.
 
 ---
 

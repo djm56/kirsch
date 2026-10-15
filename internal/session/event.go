@@ -33,6 +33,11 @@ const (
 	eventTypeUsage = "usage"
 	// eventTypeApprovalScopeGranted is the JSONL type for a session-scope grant.
 	eventTypeApprovalScopeGranted = "approval.scope_granted"
+	// eventTypeAssistantDelta is the JSONL type for a UI replay delta.
+	// It is never a source of truth for reconstruction; see plan §7.
+	eventTypeAssistantDelta = "assistant.delta"
+	// eventTypeCompactionApplied is the JSONL type for a compaction summary.
+	eventTypeCompactionApplied = "compaction.applied"
 )
 
 // baseEvent carries fields present on every JSONL line.
@@ -74,6 +79,15 @@ type assistantThinkingEvent struct {
 	baseEvent
 	Content   string `json:"content"`
 	Signature string `json:"signature,omitempty"`
+}
+
+// compactionAppliedEvent records a compaction that replaced a range of events
+// with a summary message.
+type compactionAppliedEvent struct {
+	baseEvent
+	ReplacedFrom int    `json:"replaced_from"`
+	ReplacedTo   int    `json:"replaced_to"`
+	Summary      string `json:"summary"`
 }
 
 // toolCompletedEvent records the result of a tool call.
@@ -312,6 +326,16 @@ func marshalApprovalScopeGranted(action, pattern string) ([]byte, error) {
 		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopeGranted},
 		Action:    action,
 		Pattern:   pattern,
+	})
+}
+
+// marshalCompactionApplied returns a JSONL line for a compaction.applied event.
+func marshalCompactionApplied(from, to int, summary string) ([]byte, error) {
+	return marshalLine(compactionAppliedEvent{
+		baseEvent:    baseEvent{Version: eventVersion, Type: eventTypeCompactionApplied},
+		ReplacedFrom: from,
+		ReplacedTo:   to,
+		Summary:      summary,
 	})
 }
 

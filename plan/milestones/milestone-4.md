@@ -283,12 +283,18 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance:**
 
-- [ ] `session.Resume(path)` returns reconstructed `*agent.Conversation` and transcript
-- [ ] Reconstruction uses only `user.message`, `assistant.message`, `assistant.thinking`, `tool.completed` (plan §7 reconstruction rule)
-- [ ] `assistant.delta` events are ignored for reconstruction (used only for UI replay)
-- [ ] `compaction.applied` events replace the compacted range with the summary
-- [ ] Tool call ids correlate: every `tool.completed` matches its `assistant.message` tool_call
-- [ ] Unit tests: reconstruct from JSONL with all event types, verify conversation matches original
+- [x] `session.Resume(path)` returns reconstructed `*agent.Conversation` and transcript
+  - (resume.go:49 `func Resume(path string) (*agent.Conversation, Transcript, error)`; Transcript/TranscriptMessage plain structs (resume.go:27–35, agent.Role/agent.Block, no TUI import))
+- [x] Reconstruction uses only `user.message`, `assistant.message`, `assistant.thinking`, `tool.completed` (plan §7 reconstruction rule)
+  - (resume.go:82–164 the switch handles exactly user.message/assistant.message/assistant.thinking/tool.completed + compaction.applied; assistant.delta explicitly skipped at resume.go:157–159)
+- [x] `assistant.delta` events are ignored for reconstruction (used only for UI replay)
+  - (resume.go:157–159 explicit skip; TestResumeIgnoresAssistantDelta proves it)
+- [x] `compaction.applied` events replace the compacted range with the summary
+  - (resume.go:147–155 + applyCompaction :256–269 (conversation only); TestResumeAppliesCompactionToConversationNotTranscript proves BOTH sides (conversation compacted, transcript intact))
+- [x] Tool call ids correlate: every `tool.completed` matches its `assistant.message` tool_call
+  - (resume.go:119–137 pending map; ErrMalformedSession on mismatch/duplicate/orphan; five malformed tests each fail on genuinely bad input)
+- [x] Unit tests: reconstruct from JSONL with all event types, verify conversation matches original
+  - (TestResumeRoundTripAllEventTypes + TestResumeRoundTripMerge (deep equality; RecordMerge semantics matching agent.go:468–479); 16 unit tests + FuzzResume (21,931 execs/10s) all pass; gates green)
 
 **Must-know-before:** m4-d3 must record all event types correctly.
 
