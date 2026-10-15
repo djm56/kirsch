@@ -25,6 +25,14 @@ const (
 	eventTypeAssistantThinking = "assistant.thinking"
 	// eventTypeToolCompleted is the JSONL type for a completed tool call.
 	eventTypeToolCompleted = "tool.completed"
+	// eventTypeTurnStarted is the JSONL type for the start of a turn.
+	eventTypeTurnStarted = "turn.started"
+	// eventTypeTurnCompleted is the JSONL type for the end of a turn.
+	eventTypeTurnCompleted = "turn.completed"
+	// eventTypeUsage is the JSONL type for a usage event.
+	eventTypeUsage = "usage"
+	// eventTypeApprovalScopeGranted is the JSONL type for a session-scope grant.
+	eventTypeApprovalScopeGranted = "approval.scope_granted"
 )
 
 // baseEvent carries fields present on every JSONL line.
@@ -41,7 +49,6 @@ type baseEvent struct {
 // by the loader so that a RecordMerge delta does not require a separate event
 type userMessageEvent struct {
 	baseEvent
-	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
@@ -76,10 +83,38 @@ type toolCompletedEvent struct {
 	Tool      string `json:"tool,omitempty"`
 	OK        bool   `json:"ok"`
 	Content   string `json:"content,omitempty"`
-	Truncated bool   `json:"truncated,omitempty"`
+	Truncated bool   `json:"truncated"`
 	// DurationMS is not populated in m4-d1; the agent layer does not yet
 	// surface timing. The field is reserved for m4-d3 end-to-end verification.
 	DurationMS int `json:"duration_ms,omitempty"`
+}
+
+// turnStartedEvent records the beginning of a turn.
+type turnStartedEvent struct {
+	baseEvent
+	Turn int `json:"turn"`
+}
+
+// turnCompletedEvent records the end of a turn.
+type turnCompletedEvent struct {
+	baseEvent
+	Status string `json:"status"`
+}
+
+// usageEvent records token usage for a turn.
+type usageEvent struct {
+	baseEvent
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
+	CacheRead    int `json:"cache_read"`
+	CacheWrite   int `json:"cache_write"`
+}
+
+// approvalScopeGrantedEvent records a session-scope approval grant.
+type approvalScopeGrantedEvent struct {
+	baseEvent
+	Action  string `json:"action"`
+	Pattern string `json:"pattern"`
 }
 
 // encode turns a RecordKind and Message into one or more JSONL lines.
@@ -121,7 +156,6 @@ func encodeMerge(m agent.Message) ([][]byte, error) {
 	}
 	line, err := marshalLine(userMessageEvent{
 		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeUserMessage},
-		Role:      "user",
 		Content:   m.Content[0].Text,
 	})
 	if err != nil {
@@ -152,7 +186,6 @@ func encodeUserAppend(m agent.Message) ([][]byte, error) {
 		}
 		line, err := marshalLine(userMessageEvent{
 			baseEvent: baseEvent{Version: eventVersion, Type: eventTypeUserMessage},
-			Role:      "user",
 			Content:   text,
 		})
 		if err != nil {
@@ -244,6 +277,42 @@ func marshalLine(v any) ([]byte, error) {
 		return nil, err
 	}
 	return append(b, '\n'), nil
+}
+
+// marshalTurnStarted returns a JSONL line for a turn.started event.
+func marshalTurnStarted(turn int) ([]byte, error) {
+	return marshalLine(turnStartedEvent{
+		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeTurnStarted},
+		Turn:      turn,
+	})
+}
+
+// marshalTurnCompleted returns a JSONL line for a turn.completed event.
+func marshalTurnCompleted(status string) ([]byte, error) {
+	return marshalLine(turnCompletedEvent{
+		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeTurnCompleted},
+		Status:    status,
+	})
+}
+
+// marshalUsage returns a JSONL line for a usage event.
+func marshalUsage(u agent.Usage) ([]byte, error) {
+	return marshalLine(usageEvent{
+		baseEvent:    baseEvent{Version: eventVersion, Type: eventTypeUsage},
+		InputTokens:  u.InputTokens,
+		OutputTokens: u.OutputTokens,
+		CacheRead:    u.CacheReadTokens,
+		CacheWrite:   u.CacheWriteTokens,
+	})
+}
+
+// marshalApprovalScopeGranted returns a JSONL line for an approval.scope_granted event.
+func marshalApprovalScopeGranted(action, pattern string) ([]byte, error) {
+	return marshalLine(approvalScopeGrantedEvent{
+		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopeGranted},
+		Action:    action,
+		Pattern:   pattern,
+	})
 }
 
 // blockKinds returns the kinds of blocks for error messages.

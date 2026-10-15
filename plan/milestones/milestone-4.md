@@ -240,13 +240,20 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance:**
 
-- [ ] `app.Submit()` sets `ag.Recorder` to the session store
-- [ ] Every event type from `agent.go` is recorded to JSONL with correct schema (plan §7)
-- [ ] `usage` events recorded (`agent.go:512–514` `EventUsage`)
-- [ ] `approval.scope_granted` events recorded when policy grants session scope
-- [ ] `turn.started` and `turn.completed` events recorded
-- [ ] Integration test: run a turn, verify JSONL contains expected events
-- [ ] The store's `OnError` hook is wired to the telemetry debug log — mid-turn write/`fsync` failures surface, never silently lost
+- [x] `app.Submit()` sets `ag.Recorder` to the session store
+  - (app.go:737 `Recorder: store` in the `agent.Agent` built by `Submit`; the store is created via `ensureStore` at app.go:706/548, which builds the m4-d2 layout; mission-20261014-09, review APPROVED after one fix round)
+- [x] Every event type from `agent.go` is recorded to JSONL with correct schema (plan §7)
+  - (event.go:21–35 event-type constants; store.go `Record` maps `RecordKind`→§7 type; the §7 mapping pasted and verified in Step 1 — turn.started, user.message, assistant.thinking, assistant.message, tool.completed, usage, turn.completed; assistant.delta excluded per the reconstruction rule §7:360; the `role`-field deviation removed in fix round 2a, re-verified 2b; mission-20261014-09)
+- [x] `usage` events recorded (`agent.go:512–514` `EventUsage`)
+  - (app.go:1069 `store.RecordUsage(*ev.Usage)` on `agent.EventUsage`; usage.json fed via `session.AddUsage` at app.go:1072; mission-20261014-09)
+- [x] `approval.scope_granted` events recorded when policy grants session scope
+  - (app.go:1318–1323 `store.RecordScopeGranted(action, strings.Join(app.argv, " "))` after `pol.Grant` succeeds in `Resolve`; mission-20261014-09)
+- [x] `turn.started` and `turn.completed` events recorded
+  - (app.go:959 `store.RecordTurnStarted(turn)` and app.go:988 `store.RecordTurnCompleted(status)` in `RunTurn`; mission-20261014-09)
+- [x] Integration test: run a turn, verify JSONL contains expected events
+  - (internal/app/session_recording_test.go:69 `TestSubmitRecordsFullEventSequence` — fake provider + real `Store` on a temp dir; full sequence asserted; mission-20261014-09)
+- [x] The store's `OnError` hook is wired to the telemetry debug log — mid-turn write/`fsync` failures surface, never silently lost
+  - (app.go:572–574 `session.WithOnError(func(err error){ a.log.Debug("session store error", "error", err) })` in `ensureStore`; verified by internal/app/session_recording_test.go:252 `TestSessionStoreOnErrorLogsToTelemetry`; mission-20261014-09)
   - (added 2026-10-14, mission-20261014-01, from the m4-d1 Step 1 improvement note — the default no-op hook is fine for tests but must be wired to telemetry in m4-d3 so turn-continuation mid-turn failures are never silently lost)
 
 **Must-know-before:** m4-d1, m4-d2 must be complete. The Recorder-seam decision (m4-d1) is applied.

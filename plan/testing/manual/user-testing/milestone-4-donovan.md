@@ -23,7 +23,7 @@ deliverables land.
 |---|---|---|
 | 1 | m4-d1 Session Store Core | **Runnable now** |
 | 2 | m4-d2 Storage Layout + Repair | **Runnable now** |
-| 3 | m4-d3 Event Recording Wiring | Not yet testable |
+| 3 | m4-d3 Event Recording Wiring | **Runnable now** |
 | 4 | m4-d4 Resume Reconstruction | Not yet testable |
 | 5 | m4-d5 Resume State + CLI | Not yet testable |
 | 6 | m4-d6 Single-Instance Guard | Not yet testable |
@@ -262,14 +262,52 @@ This section is the operator's independent verification of the m4-d2 acceptance 
 
 ## 3 · Event Recording Wiring (m4-d3)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d3 lands.
+`internal/app` wired the real M3 event stream into the session store in mission-20261014-09. `Submit()` sets `ag.Recorder` to the session store (app.go:737, store built via `ensureStore` at app.go:548/706); every plan §7 event type is recorded to JSONL — `turn.started`/`turn.completed` (app.go:959/988), `user.message`/`assistant.message`/`assistant.thinking`/`tool.completed` (store.go `Record` → event.go §7 mapping), `usage` (app.go:1069 `RecordUsage` + usage.json via `AddUsage` at app.go:1072), and `approval.scope_granted` (app.go:1318–1323 after `pol.Grant`); `assistant.delta` is excluded per the reconstruction rule (§7:360); the `user.message` `role` field was removed to match the §7 schema (fix round 2a, re-verified 2b); and the store's `OnError` hook is wired to the telemetry debug log (app.go:572–574). This section runs the integration and store tests that back the m4-d3 acceptance, grouped to match the commands below. Tick each box as you run it.
 
-What will be checked (from milestone-4.md m4-d3 acceptance): `app.Submit()` sets
-`ag.Recorder` to the session store; every M3 event type is recorded to JSONL with
-the correct plan §7 schema (`user.message`, `assistant.message`,
-`assistant.thinking`, `tool.completed`, `usage`, `approval.scope_granted`,
-`turn.started`/`turn.completed`); and the store's `OnError` hook is wired to the
-telemetry debug log so mid-turn write/`fsync` failures surface, never silently lost.
+**Integration — a full turn records the expected event sequence, and OnError reaches telemetry:**
+
+```bash
+go test -run 'TestSubmitRecordsFullEventSequence|TestSessionStoreOnErrorLogsToTelemetry' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestSubmitRecordsFullEventSequence`
+- [ ] `--- PASS: TestSessionStoreOnErrorLogsToTelemetry`
+
+**Session store — the event mapping and error hook (the m4-d3 delta removed the `role` assertion from `TestAppendMapping`):**
+
+```bash
+go test -run 'TestAppendMapping|TestAppendToolEvents|TestFlushDurability|TestConcurrentAppend|TestCadenceFlush|TestCloseSemantics|TestOnErrorHook' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestAppendMapping`
+- [ ] `--- PASS: TestAppendToolEvents`
+- [ ] `--- PASS: TestFlushDurability`
+- [ ] `--- PASS: TestConcurrentAppend`
+- [ ] `--- PASS: TestCadenceFlush`
+- [ ] `--- PASS: TestCloseSemantics`
+- [ ] `--- PASS: TestOnErrorHook`
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree; the m4-d2 close's green race run was a lucky pass). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+
+```bash
+$(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/...
+```
+
+- [ ] `govulncheck ./internal/session/... ./internal/app/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+
+This section is the operator's independent verification of the m4-d3 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261014-09). It is the record for the seven m4-d3 acceptance boxes: `app.Submit()` sets `ag.Recorder`; every §7 event type recorded (user.message, assistant.message, assistant.thinking, tool.completed, usage, approval.scope_granted, turn.started/turn.completed; assistant.delta excluded); usage feeds usage.json; OnError wired to telemetry; the user.message role-field deviation removed; and the integration test.
 
 ---
 

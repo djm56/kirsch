@@ -40,6 +40,8 @@ func writeJSONFile(path string, v any) error {
 	}
 
 	// Fsync the temporary file so the data is on disk before the rename.
+	// #nosec G304 -- tmp is generated in the same function from the target path,
+	// inside the caller-supplied state root; it is not user-controlled input.
 	tmpFile, err := os.Open(tmp)
 	if err != nil {
 		return fmt.Errorf("open temporary file for fsync: %w", err)

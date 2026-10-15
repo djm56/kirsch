@@ -182,6 +182,76 @@ func (s *Store) Record(kind agent.RecordKind, m agent.Message) {
 	}
 }
 
+// RecordTurnStarted writes a turn.started event for the given turn number.
+//
+// This is a non-conversation event; it does not flow through agent.Recorder.
+func (s *Store) RecordTurnStarted(turn int) {
+	line, err := marshalTurnStarted(turn)
+	if err != nil {
+		s.report(err)
+		return
+	}
+	s.postLine(line)
+}
+
+// RecordTurnCompleted writes a turn.completed event with the supplied status.
+//
+// Status values follow plan §7: "success", "cancelled", or "error".
+func (s *Store) RecordTurnCompleted(status string) {
+	line, err := marshalTurnCompleted(status)
+	if err != nil {
+		s.report(err)
+		return
+	}
+	s.postLine(line)
+}
+
+// RecordUsage writes a usage event carrying per-turn token counts.
+//
+// The JSONL event records input, output, cache read and cache write tokens.
+// Aggregate usage is updated separately via AddUsage in the app wiring layer.
+func (s *Store) RecordUsage(u agent.Usage) {
+	line, err := marshalUsage(u)
+	if err != nil {
+		s.report(err)
+		return
+	}
+	s.postLine(line)
+}
+
+// RecordScopeGranted writes an approval.scope_granted event.
+//
+// Action is the operation kind (e.g. "run_command") and pattern is the granted
+// argument pattern. This is emitted only after a successful session-scope grant.
+func (s *Store) RecordScopeGranted(action, pattern string) {
+	line, err := marshalApprovalScopeGranted(action, pattern)
+	if err != nil {
+		s.report(err)
+		return
+	}
+	s.postLine(line)
+}
+
+// postLine enqueues a single JSONL line for the writer goroutine.
+func (s *Store) postLine(line []byte) {
+	if len(line) == 0 {
+		return
+	}
+
+	select {
+	case <-s.closed:
+		s.report(ErrClosed)
+		return
+	default:
+	}
+
+	select {
+	case s.events <- [][]byte{line}:
+	case <-s.closed:
+		s.report(ErrClosed)
+	}
+}
+
 // Flush flushes the buffered writer and fsyncs the file.
 //
 // It returns any write or fsync error so that turn completion can surface

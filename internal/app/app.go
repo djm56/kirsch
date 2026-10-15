@@ -12,7 +12,9 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -28,6 +30,7 @@ import (
 	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/provider"
 	"github.com/djm56/kirsch/internal/provider/anthropic"
+	"github.com/djm56/kirsch/internal/session"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tool"
 	"github.com/djm56/kirsch/internal/tui"
@@ -370,6 +373,17 @@ type App struct {
 	// conv holds the multi-turn conversation. It is mutated by agent.Turn on a
 	// background goroutine and passed to every RunTurn call.
 	conv *agent.Conversation
+
+	// store persists the JSONL event log. It is lazily opened in Submit and
+	// reused across turns so that every event for this session lands in one file.
+	store *session.Store
+	// layout computes session paths under the configured state root.
+	layout *session.Layout
+	// storeMu protects lazy creation of store and layout.
+	storeMu sync.Mutex
+
+	// turnCount numbers turns for turn.started/completed events.
+	turnCount atomic.Int64
 }
 
 // providerBuilder constructs a provider.Provider from an endpoint configuration.
@@ -480,11 +494,93 @@ func (a *App) Close() {
 	case <-done:
 	case <-time.After(closeGrace):
 	}
+
+	a.storeMu.Lock()
+	if a.store != nil {
+		_ = a.store.Close()
+		a.store = nil
+	}
+	a.storeMu.Unlock()
+
 	_ = a.log.Close()
 }
 
 // closeGrace bounds how long Close waits for in-flight tools.
 const closeGrace = 2 * time.Second
+
+// stateRoot returns the session layout root derived from cfg.Session.StorageDir.
+//
+// The default StorageDir is ~/.local/share/kirsch/sessions, but Layout expects
+// the parent of the sessions directory, so this function strips a trailing
+// "sessions" basename. A leading "~" is expanded with os.UserHomeDir so tests
+// that pass config.Defaults() unexpanded still get a usable path.
+func (a *App) stateRoot() (string, error) {
+	dir := a.cfg.Session.StorageDir
+	if dir == "" {
+		return session.DefaultStateRoot()
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve home directory: %w", err)
+	}
+	if dir == "~" || strings.HasPrefix(dir, "~"+string(os.PathSeparator)) {
+		dir = filepath.Join(home, strings.TrimPrefix(dir, "~"))
+	}
+
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve session storage dir: %w", err)
+	}
+	abs = filepath.Clean(abs)
+
+	if filepath.Base(abs) == "sessions" {
+		return filepath.Dir(abs), nil
+	}
+	return abs, nil
+}
+
+// ensureStore lazily creates the session store and layout for this App.
+//
+// The store is reused across turns and closed in App.Close. Errors opening or
+// creating the session file are returned to the caller so Submit can surface
+// them as a turn error.
+func (a *App) ensureStore() (*session.Store, *session.Layout, error) {
+	a.storeMu.Lock()
+	defer a.storeMu.Unlock()
+
+	if a.store != nil {
+		return a.store, a.layout, nil
+	}
+
+	root, err := a.stateRoot()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	layout, err := session.NewLayout(root, a.ws.CanonicalRoot)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create session layout: %w", err)
+	}
+	path, _, err := layout.CreateSession(time.Now().UTC())
+	if err != nil {
+		return nil, nil, fmt.Errorf("create session file: %w", err)
+	}
+
+	store, err := session.New(
+		path,
+		session.WithOnError(func(err error) {
+			a.log.Debug("session store error", "error", err)
+		}),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open session store: %w", err)
+	}
+
+	a.store = store
+	a.layout = layout
+	return store, layout, nil
+}
 
 // ActiveModelInfo returns the model name and context window for the active
 // endpoint as plain TUI status fields. It keeps provider.LookupModel on the
@@ -607,6 +703,15 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 	// first calling StartSession while still reading the context only once.
 	a.StartSession(getenv)
 
+	store, _, err := a.ensureStore()
+	if err != nil {
+		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+			Kind:    "session_store",
+			Message: fmt.Sprintf("failed to open session store: %v", err),
+		}})
+		return
+	}
+
 	prov, err := a.providerBuilder(epName, ep, key, a.version, a.sessionID, a.log)
 	if err != nil {
 		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
@@ -629,6 +734,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 		Model:     model,
 		MaxTokens: info.MaxOutput,
 		System:    a.systemPrompt,
+		Recorder:  store,
 	}
 
 	// The tool specs are part of the request size, so attach the executor before
@@ -845,6 +951,14 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 		// correlated with the IDs allocated for EventToolCallStart.
 		ag.Tools = &toolExecutor{app: a}
 
+		turn := int(a.turnCount.Add(1))
+		a.storeMu.Lock()
+		store := a.store
+		a.storeMu.Unlock()
+		if store != nil {
+			store.RecordTurnStarted(turn)
+		}
+
 		emit := func(ev agent.Event) {
 			for _, msg := range a.adaptTurnEvent(ev, &textBlock, &thinkingBlock, callIDs) {
 				a.sendAsyncSequence([]tea.Msg{msg})
@@ -853,20 +967,37 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 
 		err := ag.Turn(ctx, conv, userText, emit)
 
+		var status string
 		var final tea.Msg
 		switch {
 		case err == nil:
+			status = "success"
 			final = tui.TurnCompleteMsg{}
 		case errors.Is(err, context.Canceled):
+			status = "cancelled"
 			final = tui.TurnCancelledMsg{}
 		default:
+			status = "error"
 			final = tui.TurnErrorMsg{
 				Kind:    turnErrorKind(err),
 				Message: err.Error(),
 				Detail:  turnErrorDetail(err),
 			}
 		}
+		if store != nil {
+			store.RecordTurnCompleted(status)
+		}
+
 		a.sendAsyncSequence([]tea.Msg{final})
+
+		if store != nil {
+			if flushErr := store.Flush(); flushErr != nil {
+				a.sendAsyncSequence([]tea.Msg{tui.ErrorMsg{
+					Kind:    "session_store",
+					Message: fmt.Sprintf("Failed to flush session log: %v", flushErr),
+				}})
+			}
+		}
 	}()
 }
 
@@ -928,6 +1059,21 @@ func (a *App) adaptTurnEvent(ev agent.Event, textBlock, thinkingBlock *int64, ca
 		if ev.Usage == nil {
 			return nil
 		}
+
+		a.storeMu.Lock()
+		store := a.store
+		layout := a.layout
+		a.storeMu.Unlock()
+
+		if store != nil {
+			store.RecordUsage(*ev.Usage)
+		}
+		if layout != nil {
+			if err := session.AddUsage(layout.Root, int64(ev.Usage.InputTokens), int64(ev.Usage.OutputTokens), time.Now().UTC()); err != nil {
+				a.log.Debug("usage update failed", "error", err)
+			}
+		}
+
 		return []tea.Msg{tui.UsageMsg{
 			InputTokens:      ev.Usage.InputTokens,
 			OutputTokens:     ev.Usage.OutputTokens,
@@ -1164,6 +1310,18 @@ func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
 			// Grant failed: the command runs allow-once, not for session.
 			confirmedOutcome = ApprovalOutcomeOnce
 			grantErr = err
+		} else {
+			// Record a successful session-scope grant in the durable log.
+			a.storeMu.Lock()
+			store := a.store
+			a.storeMu.Unlock()
+			if store != nil {
+				action := "run_command"
+				if app.operation == policy.OperationPatch {
+					action = "apply_patch"
+				}
+				store.RecordScopeGranted(action, strings.Join(app.argv, " "))
+			}
 		}
 	}
 

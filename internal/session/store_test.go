@@ -108,7 +108,6 @@ func TestAppendMapping(t *testing.T) {
 		kind     agent.RecordKind
 		msg      agent.Message
 		wantType string
-		wantRole string
 		wantText string
 	}{
 		{
@@ -116,7 +115,6 @@ func TestAppendMapping(t *testing.T) {
 			kind:     agent.RecordAppend,
 			msg:      userText("hello"),
 			wantType: eventTypeUserMessage,
-			wantRole: "user",
 			wantText: "hello",
 		},
 		{
@@ -124,7 +122,6 @@ func TestAppendMapping(t *testing.T) {
 			kind:     agent.RecordMerge,
 			msg:      userTextMerge(" world"),
 			wantType: eventTypeUserMessage,
-			wantRole: "user",
 			wantText: " world",
 		},
 		{
@@ -169,11 +166,6 @@ func TestAppendMapping(t *testing.T) {
 			}
 			if got := line["type"].(string); got != tt.wantType {
 				t.Errorf("type = %q, want %q", got, tt.wantType)
-			}
-			if tt.wantRole != "" {
-				if got := line["role"].(string); got != tt.wantRole {
-					t.Errorf("role = %q, want %q", got, tt.wantRole)
-				}
 			}
 			if tt.wantText != "" {
 				var got string
