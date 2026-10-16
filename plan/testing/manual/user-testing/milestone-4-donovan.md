@@ -25,7 +25,7 @@ deliverables land.
 | 2 | m4-d2 Storage Layout + Repair | **Runnable now** |
 | 3 | m4-d3 Event Recording Wiring | **Runnable now** |
 | 4 | m4-d4 Resume Reconstruction | **Runnable now** |
-| 5 | m4-d5 Resume State + CLI | Not yet testable |
+| 5 | m4-d5 Resume State + CLI | **Runnable now** |
 | 6 | m4-d6 Single-Instance Guard | Not yet testable |
 | 7 | m4-d7 Compaction | Not yet testable |
 | 8 | m4-d8 Slash Commands for Real | Not yet testable |
@@ -270,8 +270,8 @@ This section is the operator's independent verification of the m4-d2 acceptance 
 go test -run 'TestSubmitRecordsFullEventSequence|TestSessionStoreOnErrorLogsToTelemetry' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestSubmitRecordsFullEventSequence`
-- [ ] `--- PASS: TestSessionStoreOnErrorLogsToTelemetry`
+- [✅] `--- PASS: TestSubmitRecordsFullEventSequence`
+- [✅] `--- PASS: TestSessionStoreOnErrorLogsToTelemetry`
 
 **Session store — the event mapping and error hook (the m4-d3 delta removed the `role` assertion from `TestAppendMapping`):**
 
@@ -279,13 +279,13 @@ go test -run 'TestSubmitRecordsFullEventSequence|TestSessionStoreOnErrorLogsToTe
 go test -run 'TestAppendMapping|TestAppendToolEvents|TestFlushDurability|TestConcurrentAppend|TestCadenceFlush|TestCloseSemantics|TestOnErrorHook' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestAppendMapping`
-- [ ] `--- PASS: TestAppendToolEvents`
-- [ ] `--- PASS: TestFlushDurability`
-- [ ] `--- PASS: TestConcurrentAppend`
-- [ ] `--- PASS: TestCadenceFlush`
-- [ ] `--- PASS: TestCloseSemantics`
-- [ ] `--- PASS: TestOnErrorHook`
+- [✅] `--- PASS: TestAppendMapping`
+- [✅] `--- PASS: TestAppendToolEvents`
+- [✅] `--- PASS: TestFlushDurability`
+- [✅] `--- PASS: TestConcurrentAppend`
+- [✅] `--- PASS: TestCadenceFlush`
+- [✅] `--- PASS: TestCloseSemantics`
+- [✅] `--- PASS: TestOnErrorHook`
 
 **Gates:**
 
@@ -293,19 +293,19 @@ go test -run 'TestAppendMapping|TestAppendToolEvents|TestFlushDurability|TestCon
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [✅] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree; the m4-d2 close's green race run was a lucky pass). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+- [✅] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree; the m4-d2 close's green race run was a lucky pass). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
 
 ```bash
 $(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/...
 ```
 
-- [ ] `govulncheck ./internal/session/... ./internal/app/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+- [✅] `govulncheck ./internal/session/... ./internal/app/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
 
 This section is the operator's independent verification of the m4-d3 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261014-09). It is the record for the seven m4-d3 acceptance boxes: `app.Submit()` sets `ag.Recorder`; every §7 event type recorded (user.message, assistant.message, assistant.thinking, tool.completed, usage, approval.scope_granted, turn.started/turn.completed; assistant.delta excluded); usage feeds usage.json; OnError wired to telemetry; the user.message role-field deviation removed; and the integration test.
 
@@ -331,14 +331,14 @@ box as you run it.
 go test -run 'TestResumeEmptyFile|TestResumeMergesConsecutiveUserMessages|TestResumeReconstructsAssistantText|TestResumeReconstructsAssistantThinking|TestResumeReconstructsToolCallAndResult|TestResumeMergesConsecutiveToolResults|TestResumeRoundTripAllEventTypes|TestResumeRoundTripMerge' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestResumeEmptyFile`
-- [ ] `--- PASS: TestResumeMergesConsecutiveUserMessages`
-- [ ] `--- PASS: TestResumeReconstructsAssistantText`
-- [ ] `--- PASS: TestResumeReconstructsAssistantThinking`
-- [ ] `--- PASS: TestResumeReconstructsToolCallAndResult`
-- [ ] `--- PASS: TestResumeMergesConsecutiveToolResults`
-- [ ] `--- PASS: TestResumeRoundTripAllEventTypes`
-- [ ] `--- PASS: TestResumeRoundTripMerge`
+- [✅] `--- PASS: TestResumeEmptyFile`
+- [✅] `--- PASS: TestResumeMergesConsecutiveUserMessages`
+- [✅] `--- PASS: TestResumeReconstructsAssistantText`
+- [✅] `--- PASS: TestResumeReconstructsAssistantThinking`
+- [✅] `--- PASS: TestResumeReconstructsToolCallAndResult`
+- [✅] `--- PASS: TestResumeMergesConsecutiveToolResults`
+- [✅] `--- PASS: TestResumeRoundTripAllEventTypes`
+- [✅] `--- PASS: TestResumeRoundTripMerge`
 
 **Delta-ignoring + compaction + torn-line repair — `assistant.delta` is skipped, `compaction.applied` replaces the conversation range only, and an invalid final line truncates like repair-on-load:**
 
@@ -346,9 +346,9 @@ go test -run 'TestResumeEmptyFile|TestResumeMergesConsecutiveUserMessages|TestRe
 go test -run 'TestResumeIgnoresAssistantDelta|TestResumeAppliesCompactionToConversationNotTranscript|TestResumeTornLineTruncates' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestResumeIgnoresAssistantDelta`
-- [ ] `--- PASS: TestResumeAppliesCompactionToConversationNotTranscript`
-- [ ] `--- PASS: TestResumeTornLineTruncates`
+- [✅] `--- PASS: TestResumeIgnoresAssistantDelta`
+- [✅] `--- PASS: TestResumeAppliesCompactionToConversationNotTranscript`
+- [✅] `--- PASS: TestResumeTornLineTruncates`
 
 **Malformed sessions — a tool.id mismatch, duplicate, orphan, empty assistant.message, or out-of-bounds compaction range returns `ErrMalformedSession` (distinct from torn-line repair):**
 
@@ -356,11 +356,11 @@ go test -run 'TestResumeIgnoresAssistantDelta|TestResumeAppliesCompactionToConve
 go test -run 'TestResumeReturnsMalformedSessionOnToolMismatch|TestResumeReturnsMalformedSessionOnDuplicateToolResult|TestResumeReturnsMalformedSessionOnOrphanToolResult|TestResumeReturnsMalformedSessionOnEmptyAssistantMessage|TestResumeReturnsMalformedSessionOnCompactionRangeOutOfBounds' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnToolMismatch`
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnDuplicateToolResult`
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnOrphanToolResult`
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnEmptyAssistantMessage`
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnCompactionRangeOutOfBounds`
+- [✅] `--- PASS: TestResumeReturnsMalformedSessionOnToolMismatch`
+- [✅] `--- PASS: TestResumeReturnsMalformedSessionOnDuplicateToolResult`
+- [✅] `--- PASS: TestResumeReturnsMalformedSessionOnOrphanToolResult`
+- [✅] `--- PASS: TestResumeReturnsMalformedSessionOnEmptyAssistantMessage`
+- [✅] `--- PASS: TestResumeReturnsMalformedSessionOnCompactionRangeOutOfBounds`
 
 **Gates:**
 
@@ -368,7 +368,7 @@ go test -run 'TestResumeReturnsMalformedSessionOnToolMismatch|TestResumeReturnsM
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [✅] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
 
 ```bash
 npm run test:race
@@ -380,13 +380,13 @@ npm run test:race
 $(go env GOPATH)/bin/govulncheck ./internal/session/...
 ```
 
-- [ ] `govulncheck ./internal/session/...` reports no vulnerabilities in Kirsch code (the full path is used so no PATH setup is needed; the binary installs to `$(go env GOPATH)/bin/govulncheck`, and `npm run tools` installs it and prints the directory)
+- [✅] `govulncheck ./internal/session/...` reports no vulnerabilities in Kirsch code (the full path is used so no PATH setup is needed; the binary installs to `$(go env GOPATH)/bin/govulncheck`, and `npm run tools` installs it and prints the directory)
 
 ```bash
 FUZZTIME=10s npm run fuzz
 ```
 
-- [ ] `FUZZTIME=10s npm run fuzz` — `FuzzResume` survives 10s (all fuzz targets survive 10s each)
+- [✅] `FUZZTIME=10s npm run fuzz` — `FuzzResume` survives 10s (all fuzz targets survive 10s each)
 
 This section is the operator's independent verification of the m4-d4 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261015-01). It is the record for the six m4-d4 acceptance boxes: `session.Resume(path)` returns the reconstructed `*agent.Conversation` and transcript; reconstruction uses only `user.message`/`assistant.message`/`assistant.thinking`/`tool.completed` (never `assistant.delta`); `assistant.delta` is ignored; `compaction.applied` replaces the compacted range with the summary; tool call ids correlate; and the unit tests reconstruct from JSONL with all event types and verify the conversation matches the original.
 
@@ -394,15 +394,93 @@ This section is the operator's independent verification of the m4-d4 acceptance 
 
 ## 5 · Resume State + CLI (m4-d5)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d5 lands.
+`cmd/kirsch` gained the `resume` subcommand and `--new` flag plus no-flags
+auto-resume via `index.json` in mission-20261015-04. `chooseSessionInit`
+(main.go:151) routes the `resume` subcommand to `App.ResumeLastSession`
+(main.go:152–155), the `--new` flag to `App.StartNewSession` (main.go:157–160),
+and the no-flags path to auto-resume when `cfg.Session.AutoResume` is true
+(config.go:74/:114, default true) — falling back to a fresh session with a
+distinguishing notice on any resume error, so startup never blocks (main.go:162–175,
+fix round 2a, re-verified 2b). `internal/app` wires `ResumeLastSession`
+(app.go:599) → `Layout.LastSession` (app.go:613) + `session.Resume`, restores
+session-scoped grants from `approval.scope_granted` events via `session.LoadGrants`
+→ the existing `policy.Grant` API (app.go:661–675; apply_patch grants correctly
+skipped, `ErrPatchGrantForbidden`, policy.go:165–166), and restores pending state
+(`a.conv` = the reconstructed `*agent.Conversation`, app.go:647–648). The resumed
+transcript is rendered in the TUI via `tui.TranscriptLoadedMsg` (messages.go:171),
+including the ui-spec ⚠ recovered-session warning and the truncation-point notice
+(update.go:292–297). This section runs the unit, CLI-routing, and integration tests
+that back the m4-d5 acceptance, grouped to match the commands below. Tick each box
+as you run it.
 
-What will be checked (from milestone-4.md m4-d5 acceptance): `kirsch resume` loads
-the last session for the workspace via `index.json`; `kirsch --new` starts fresh
-even if a last session exists; with no flags Kirsch auto-resumes the last session;
-session-scoped grants are restored from `approval.scope_granted` events; pending
-state (the in-progress turn) is restored; and an integration test — quit mid-task,
-resume, complete the turn — yields an identical transcript, grants, and a valid
-message array.
+**Grants restoration — `approval.scope_granted` events replay through `policy.Grant`; patch grants refused:**
+
+```bash
+go test -run 'TestLoadGrantsReadsScopeGrantedEvents|TestLoadGrantsStopsAtTornLine|TestLoadGrantsEmptyFile|TestLoadGrantsMissingFile' -v ./internal/session/
+```
+
+- [✅] `--- PASS: TestLoadGrantsReadsScopeGrantedEvents`
+- [✅] `--- PASS: TestLoadGrantsStopsAtTornLine`
+- [✅] `--- PASS: TestLoadGrantsEmptyFile`
+- [✅] `--- PASS: TestLoadGrantsMissingFile`
+
+**CLI session-init routing — `resume` / `--new` / auto-resume (incl. the error-fallback paths):**
+
+```bash
+go test -run 'TestChooseSessionInitResume|TestChooseSessionInitNewFlag|TestChooseSessionInitAutoResumeNoSession|TestChooseSessionInitAutoResumeResumeError|TestChooseSessionInitAutoResumeDisabled' -v ./cmd/kirsch/
+```
+
+- [✅] `--- PASS: TestChooseSessionInitResume`
+- [✅] `--- PASS: TestChooseSessionInitNewFlag`
+- [✅] `--- PASS: TestChooseSessionInitAutoResumeNoSession`
+- [✅] `--- PASS: TestChooseSessionInitAutoResumeResumeError`
+- [✅] `--- PASS: TestChooseSessionInitAutoResumeDisabled`
+
+**Integration — quit mid-task, resume, complete the turn: identical transcript, grants, valid message array:**
+
+```bash
+go test -run 'TestResumeCompletesPartialTurn' -v ./internal/app/
+```
+
+- [✅] `--- PASS: TestResumeCompletesPartialTurn`
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [✅] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [✅] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md. This m4-d5 close-out run was green.
+
+```bash
+$(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/...
+```
+
+- [✅] `govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+
+**Operator-observed (optional, not automated) — the manual TUI resume path:**
+
+This step is operator-observed only; it is modelled on the M3 §8 pattern and is not covered by an automated test. Set up the scratch environment from the Setup section, then:
+
+```bash
+cd /Volumes/DATA/Github/kirsch
+export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
+# Start Kirsch, begin a task, and quit mid-turn (Ctrl+C twice / /quit before the turn completes)
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+# Restart with no flags — Kirsch auto-resumes the last session
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+```
+
+- [✅] (operator-observed) the resumed TUI shows the prior transcript (the ⚠ recovered-session warning if the session was repaired) and the active grants restored from the prior session
+- [✅] (operator-observed) continuing the turn from the resumed state completes it and the transcript is identical to a non-interrupted run
+
+This section is the operator's independent verification of the m4-d5 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261015-04). It is the record for the six m4-d5 acceptance boxes: `kirsch resume` loads the last session via `index.json`; `kirsch --new` starts fresh even if a last session exists; with no flags Kirsch auto-resumes the last session; session-scoped grants are restored from `approval.scope_granted` events; pending state (the in-progress turn) is restored; and the integration test — quit mid-task, resume, complete the turn — yields an identical transcript, grants, and a valid message array.
 
 ---
 

@@ -582,6 +582,197 @@ func (a *App) ensureStore() (*session.Store, *session.Layout, error) {
 	return store, layout, nil
 }
 
+// StartNewSession creates a fresh session store for the current workspace.
+// It is safe to call before the first turn; subsequent calls are no-ops.
+func (a *App) StartNewSession() error {
+	_, _, err := a.ensureStore()
+	return err
+}
+
+// ResumeLastSession loads the workspace's last session from index.json,
+// reconstructs the conversation and transcript, reopens the session store for
+// append, restores session-scoped grants, and sends the recovered transcript
+// into the TUI.
+//
+// If the workspace has no recorded session, it returns session.ErrNoSession so
+// the caller can fall back to a fresh session.
+func (a *App) ResumeLastSession() error {
+	a.storeMu.Lock()
+	defer a.storeMu.Unlock()
+
+	if a.store != nil {
+		return nil
+	}
+
+	root, err := a.stateRoot()
+	if err != nil {
+		return err
+	}
+
+	layout, err := session.NewLayout(root, a.ws.CanonicalRoot)
+	if err != nil {
+		return fmt.Errorf("create session layout: %w", err)
+	}
+
+	id, _, ok, err := layout.LastSession()
+	if err != nil {
+		return fmt.Errorf("read session index: %w", err)
+	}
+	if !ok {
+		return session.ErrNoSession
+	}
+
+	path := session.SessionPath(layout.Root, layout.Workspace, id)
+	conv, transcript, err := session.Resume(path)
+	if err != nil {
+		return fmt.Errorf("resume session: %w", err)
+	}
+
+	store, err := session.New(
+		path,
+		session.WithOnError(func(err error) {
+			a.log.Debug("session store error", "error", err)
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("open session store: %w", err)
+	}
+
+	if err := layout.RecordSession(id, time.Now().UTC()); err != nil {
+		a.log.Debug("failed to update session index", "error", err)
+	}
+
+	a.restoreGrants(path)
+
+	a.conv = conv
+	a.store = store
+	a.layout = layout
+
+	items := a.transcriptToItems(transcript)
+	a.sendAsyncSequence([]tea.Msg{
+		tui.NoticeMsg{Text: "session resumed"},
+		tui.TranscriptLoadedMsg{Items: items, Recovered: store.Recovered()},
+	})
+	return nil
+}
+
+// restoreGrants replays approval.scope_granted events from the session log
+// through policy.Grant. Invalid or refused grants are logged and skipped.
+func (a *App) restoreGrants(path string) {
+	grants, err := session.LoadGrants(path)
+	if err != nil {
+		a.log.Debug("failed to load session grants", "error", err)
+		return
+	}
+	for _, g := range grants {
+		op, argv, ok := parseGrantAction(g.Action, g.Pattern)
+		if !ok {
+			a.log.Debug("skipping unknown grant action", "action", g.Action)
+			continue
+		}
+		if err := a.pol.Grant(op, argv); err != nil {
+			a.log.Debug("restored grant rejected by policy", "action", g.Action, "pattern", g.Pattern, "error", err)
+		}
+	}
+}
+
+// parseGrantAction converts the action/pattern stored in a session log back
+// into a policy operation and argv. Only run_command grants are restorable;
+// apply_patch is refused by policy.Grant, so it is skipped here.
+func parseGrantAction(action, pattern string) (policy.Operation, []string, bool) {
+	switch action {
+	case "run_command":
+		return policy.OperationCommand, strings.Fields(pattern), true
+	case "apply_patch":
+		// OperationPatch is never grantable, so there is nothing to restore.
+		return 0, nil, false
+	default:
+		return 0, nil, false
+	}
+}
+
+// transcriptToItems maps the session package's plain transcript to TUI items.
+// Tool results are correlated to their calls by ID so completed cards render
+// with their output.
+func (a *App) transcriptToItems(trans session.Transcript) []tui.Item {
+	results := make(map[string]agent.ResultBlock)
+	for _, tm := range trans.Messages {
+		if tm.Role != agent.RoleUser {
+			continue
+		}
+		for _, b := range tm.Content {
+			if b.Kind == agent.BlockToolResult && b.Result != nil {
+				results[b.Result.CallID] = *b.Result
+			}
+		}
+	}
+
+	var items []tui.Item
+	for _, tm := range trans.Messages {
+		switch tm.Role {
+		case agent.RoleUser:
+			for _, b := range tm.Content {
+				if b.Kind == agent.BlockText && b.Text != "" {
+					items = append(items, tui.Item{
+						Kind: tui.KindUser,
+						Text: &tui.TextBlock{Lines: tui.SanitizeLines(b.Text)},
+					})
+				}
+				// Tool results are rendered as part of the assistant's tool-call card.
+			}
+
+		case agent.RoleAssistant:
+			for _, b := range tm.Content {
+				switch b.Kind {
+				case agent.BlockText:
+					if b.Text != "" {
+						items = append(items, tui.Item{
+							Kind: tui.KindAssistant,
+							Text: &tui.TextBlock{Lines: tui.SanitizeLines(b.Text)},
+						})
+					}
+				case agent.BlockThinking:
+					if b.Thinking != nil {
+						text := b.Thinking.Text
+						items = append(items, tui.Item{
+							Kind: tui.KindThinking,
+							Thinking: &tui.ThinkingCard{
+								Tokens: len(strings.Fields(text)),
+								Body:   tui.SanitizeLines(text),
+							},
+						})
+					}
+				case agent.BlockToolCall:
+					if b.ToolCall != nil {
+						tc := b.ToolCall
+						state := tui.StateRunning
+						out := ""
+						if res, ok := results[tc.ID]; ok {
+							state = tui.StateOK
+							if res.IsError {
+								state = tui.StateError
+							}
+							out = res.Content
+						}
+						items = append(items, tui.Item{
+							Kind: tui.KindTool,
+							Tool: &tui.ToolCard{
+								Name:   tc.Name,
+								Target: describeToolCallInput(tc.Input),
+								State:  state,
+								Out:    tui.SanitizeLines(out),
+							},
+						})
+					}
+				case agent.BlockToolResult:
+					// Tool results are rendered as part of the assistant's tool-call card.
+				}
+			}
+		}
+	}
+	return items
+}
+
 // ActiveModelInfo returns the model name and context window for the active
 // endpoint as plain TUI status fields. It keeps provider.LookupModel on the
 // app side of the boundary so internal/tui never imports internal/provider.
@@ -901,6 +1092,20 @@ func (a *App) deliverOne(msg tea.Msg) {
 	if a.program != nil {
 		a.program.Send(msg)
 	}
+}
+
+// SendNotice queues a non-blocking informational notice to the TUI. It is used
+// for best-effort messages that do not require user action, such as explaining
+// that a session resume fallback is happening.
+func (a *App) SendNotice(text string) {
+	a.sendAsyncSequence([]tea.Msg{tui.NoticeMsg{Text: text}})
+}
+
+// SetSendFn installs the function used to deliver messages to the TUI. It is
+// provided for tests in packages that cannot access unexported fields and must
+// not be used from production code.
+func (a *App) SetSendFn(fn func(any)) {
+	a.sendFn = fn
 }
 
 // BeginTurn starts a new turn context, cancelling any previous one.

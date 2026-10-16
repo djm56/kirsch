@@ -4,12 +4,17 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
 )
+
+// ErrNoSession is returned by resume helpers when the workspace has no recorded
+// previous session in index.json.
+var ErrNoSession = errors.New("no previous session for workspace")
 
 // sessionFileExt is the extension used for JSONL session logs.
 const sessionFileExt = ".jsonl"

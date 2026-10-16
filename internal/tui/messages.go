@@ -163,3 +163,12 @@ type StatusInfoMsg struct {
 	ContextSize        int    // on-disk size of ContextFile in bytes
 	ShowDataFlowNotice bool   // true when the ADR 0008 notice should be shown
 }
+
+// TranscriptLoadedMsg bulk-loads a transcript snapshot, for example when a
+// session is resumed from disk. The TUI appends every item through the normal
+// append path and, when Recovered is true, adds the recovered-session warning
+// required by ui-spec §2.3.
+type TranscriptLoadedMsg struct {
+	Items     []Item // pre-built transcript items to append
+	Recovered bool   // true when the session log was repaired on load
+}

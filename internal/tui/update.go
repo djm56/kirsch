@@ -289,6 +289,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.relayout(m.layout())
 		return m, nil
 
+	case TranscriptLoadedMsg:
+		for i := range msg.Items {
+			m.appendBlock(msg.Items[i])
+		}
+		if msg.Recovered {
+			m.status.Warnings = append(m.status.Warnings, "recovered session")
+			m.notice("session recovered")
+		}
+		m.relayout(m.layout())
+		return m, nil
+
 	case ApprovalRequestedMsg:
 		return m.receiveApprovalRequest(msg)
 

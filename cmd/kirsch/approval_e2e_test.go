@@ -531,7 +531,7 @@ func TestCheckOnboardingInvokedAtStartup(t *testing.T) {
 	}
 	defer func() { onboardingCheck = old }()
 
-	startupPostAttach(a, p, "0.1.0-test")
+	startupPostAttach(a, p, "0.1.0-test", func(aa *app.App) error { return aa.StartNewSession() })
 
 	if !called {
 		t.Fatal("startupPostAttach did not invoke onboardingCheck; CheckOnboarding is missing from startup")
@@ -583,7 +583,7 @@ func TestStartSessionInvokedAtStartup(t *testing.T) {
 	}
 	defer func() { startSessionCheck = old }()
 
-	startupPostAttach(a, p, "0.1.0-test")
+	startupPostAttach(a, p, "0.1.0-test", func(aa *app.App) error { return aa.StartNewSession() })
 
 	if !called {
 		t.Fatal("startupPostAttach did not invoke startSessionCheck; StartSession is missing from startup")

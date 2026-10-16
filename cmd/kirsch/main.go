@@ -8,14 +8,17 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/djm56/kirsch/internal/app"
 	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/session"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tui"
 	"github.com/djm56/kirsch/internal/workspace"
@@ -34,11 +37,27 @@ func main() {
 }
 
 func run() error {
-	var (
-		flagWorkspace = flag.String("workspace", "", "workspace root (defaults to the enclosing Git repository)")
-		flagDebug     = flag.Bool("debug", false, "write a structured debug log")
-	)
-	flag.Parse()
+	// Parse subcommands before flags so that `kirsch resume -workspace ...`
+	// and `kirsch --new` are both handled by the same flag set.
+	var subcommand string
+	args := os.Args[1:]
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		switch args[0] {
+		case "resume":
+			subcommand = "resume"
+			args = args[1:]
+		default:
+			return fmt.Errorf("unknown command %q", args[0])
+		}
+	}
+
+	fs := flag.NewFlagSet("kirsch", flag.ContinueOnError)
+	flagWorkspace := fs.String("workspace", "", "workspace root (defaults to the enclosing Git repository)")
+	flagNew := fs.Bool("new", false, "start a fresh session even when a previous session exists")
+	flagDebug := fs.Bool("debug", false, "write a structured debug log")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	ws, err := workspace.Detect(*flagWorkspace)
 	if err != nil {
@@ -60,6 +79,11 @@ func run() error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
+
+	// Decide how the TUI session will be initialised before the program starts.
+	// The initSession callback is invoked inside startupPostAttach so that the
+	// app is attached to the program before any recovery notices are sent.
+	initSession := chooseSessionInit(subcommand, *flagNew, cfg.Session.AutoResume)
 
 	debug := *flagDebug || os.Getenv("KIRSCH_DEBUG") == "1" || cfg.Telemetry.DebugLog
 	log, err := telemetry.New(telemetry.Options{
@@ -113,21 +137,58 @@ func run() error {
 	// Generate one session ID per invocation for the opencode endpoint and tell
 	// the app the version before any turn can start. This must happen after the
 	// program is attached so onboarding messages have somewhere to go.
-	startupPostAttach(a, p, version)
+	if err := startupPostAttach(a, p, version, initSession); err != nil {
+		return err
+	}
 
 	_, err = p.Run()
 	return err
 }
 
+// chooseSessionInit returns the startup callback that creates or resumes the
+// session according to the CLI shape: an explicit `resume` subcommand, an
+// explicit `--new` flag, or the configured auto_resume default.
+func chooseSessionInit(subcommand string, newFlag, autoResume bool) func(*app.App) error {
+	if subcommand == "resume" {
+		return func(a *app.App) error {
+			return a.ResumeLastSession()
+		}
+	}
+	if newFlag {
+		return func(a *app.App) error {
+			return a.StartNewSession()
+		}
+	}
+	return func(a *app.App) error {
+		if !autoResume {
+			return a.StartNewSession()
+		}
+		if err := a.ResumeLastSession(); err != nil {
+			if errors.Is(err, session.ErrNoSession) {
+				a.SendNotice("no previous session — starting fresh")
+			} else {
+				a.SendNotice(fmt.Sprintf("session resume failed — starting fresh: %v", err))
+			}
+			return a.StartNewSession()
+		}
+		return nil
+	}
+}
+
 // startupPostAttach runs the sequence that must happen after the TUI program
-// is attached: identity, version, and onboarding. It is extracted so that
-// run() and the startup tests share the exact same ordering.
-func startupPostAttach(a *app.App, p *tea.Program, version string) {
+// is attached: identity, version, session initialisation, and onboarding. It
+// is extracted so that run() and the startup tests share the exact same
+// ordering.
+func startupPostAttach(a *app.App, p *tea.Program, version string, initSession func(*app.App) error) error {
 	a.Attach(p)
 	a.SetSessionID(newSessionID())
 	a.SetVersion(version)
+	if err := initSession(a); err != nil {
+		return err
+	}
 	startSessionCheck(a)
 	onboardingCheck(a)
+	return nil
 }
 
 // startSessionCheck is a package-level hook so tests can verify that startup

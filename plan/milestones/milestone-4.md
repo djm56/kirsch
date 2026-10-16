@@ -323,12 +323,18 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance:**
 
-- [ ] `kirsch resume` loads last session for workspace (via `index.json`)
-- [ ] `kirsch --new` starts fresh session even if last session exists
-- [ ] Auto-resume: if no flags, resume last session (plan §7)
-- [ ] Session-scoped grants restored from `approval.scope_granted` events
-- [ ] Pending state (in-progress turn) restored
-- [ ] Integration test: quit mid-task, resume, complete the turn — identical transcript, grants, valid message array
+- [x] `kirsch resume` loads last session for workspace (via `index.json`)
+  - (cmd/kirsch/main.go:149–153 `chooseSessionInit` routes the `resume` subcommand to `App.ResumeLastSession` → `Layout.LastSession` at app.go:613 + `session.Resume`)
+- [x] `kirsch --new` starts fresh session even if last session exists
+  - (main.go:154–157 — the `--new` flag routes to `App.StartNewSession`, independent of any last session)
+- [x] Auto-resume: if no flags, resume last session (plan §7)
+  - (main.go:158–175 — `cfg.Session.AutoResume` defaults true (config.go:74, :114); post-fix-2a ANY resume error falls back to a fresh session with a distinguishing notice, so startup never blocks; only `StartNewSession`'s own failure surfaces)
+- [x] Session-scoped grants restored from `approval.scope_granted` events
+  - (app.go:661–675 — `session.LoadGrants` (grants.go) returns `(action, pattern)` pairs replayed through the existing `policy.Grant` API; `apply_patch` grants are correctly skipped — policy refuses patch grants with `ErrPatchGrantForbidden`, policy.go:165–166)
+- [x] Pending state (in-progress turn) restored
+  - (app.go:647–648 — `a.conv = conv`, the reconstructed `*agent.Conversation`; the next `Submit` continues from it)
+- [x] Integration test: quit mid-task, resume, complete the turn — identical transcript, grants, valid message array
+  - (resume_integration_test.go:24–172 `TestResumeCompletesPartialTurn` — quit mid-task, resume, complete the turn: identical transcript (3 items), grants restored (1 grant), valid message array (3 messages, tool call/result correlation verified by the fake provider))
 
 **Must-know-before:** m4-d4 must reconstruct correctly.
 

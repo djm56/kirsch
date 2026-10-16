@@ -25,7 +25,7 @@ deliverables land.
 | 2 | m4-d2 Storage Layout + Repair | **Runnable now** |
 | 3 | m4-d3 Event Recording Wiring | **Runnable now** |
 | 4 | m4-d4 Resume Reconstruction | **Runnable now** |
-| 5 | m4-d5 Resume State + CLI | Not yet testable |
+| 5 | m4-d5 Resume State + CLI | **Runnable now** |
 | 6 | m4-d6 Single-Instance Guard | Not yet testable |
 | 7 | m4-d7 Compaction | Not yet testable |
 | 8 | m4-d8 Slash Commands for Real | Not yet testable |
@@ -377,15 +377,93 @@ This section is the operator's independent verification of the m4-d4 acceptance 
 
 ## 5 · Resume State + CLI (m4-d5)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d5 lands.
+`cmd/kirsch` gained the `resume` subcommand and `--new` flag plus no-flags
+auto-resume via `index.json` in mission-20261015-04. `chooseSessionInit`
+(main.go:151) routes the `resume` subcommand to `App.ResumeLastSession`
+(main.go:152–155), the `--new` flag to `App.StartNewSession` (main.go:157–160),
+and the no-flags path to auto-resume when `cfg.Session.AutoResume` is true
+(config.go:74/:114, default true) — falling back to a fresh session with a
+distinguishing notice on any resume error, so startup never blocks (main.go:162–175,
+fix round 2a, re-verified 2b). `internal/app` wires `ResumeLastSession`
+(app.go:599) → `Layout.LastSession` (app.go:613) + `session.Resume`, restores
+session-scoped grants from `approval.scope_granted` events via `session.LoadGrants`
+→ the existing `policy.Grant` API (app.go:661–675; apply_patch grants correctly
+skipped, `ErrPatchGrantForbidden`, policy.go:165–166), and restores pending state
+(`a.conv` = the reconstructed `*agent.Conversation`, app.go:647–648). The resumed
+transcript is rendered in the TUI via `tui.TranscriptLoadedMsg` (messages.go:171),
+including the ui-spec ⚠ recovered-session warning and the truncation-point notice
+(update.go:292–297). This section runs the unit, CLI-routing, and integration tests
+that back the m4-d5 acceptance, grouped to match the commands below. Tick each box
+as you run it.
 
-What will be checked (from milestone-4.md m4-d5 acceptance): `kirsch resume` loads
-the last session for the workspace via `index.json`; `kirsch --new` starts fresh
-even if a last session exists; with no flags Kirsch auto-resumes the last session;
-session-scoped grants are restored from `approval.scope_granted` events; pending
-state (the in-progress turn) is restored; and an integration test — quit mid-task,
-resume, complete the turn — yields an identical transcript, grants, and a valid
-message array.
+**Grants restoration — `approval.scope_granted` events replay through `policy.Grant`; patch grants refused:**
+
+```bash
+go test -run 'TestLoadGrantsReadsScopeGrantedEvents|TestLoadGrantsStopsAtTornLine|TestLoadGrantsEmptyFile|TestLoadGrantsMissingFile' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestLoadGrantsReadsScopeGrantedEvents`
+- [ ] `--- PASS: TestLoadGrantsStopsAtTornLine`
+- [ ] `--- PASS: TestLoadGrantsEmptyFile`
+- [ ] `--- PASS: TestLoadGrantsMissingFile`
+
+**CLI session-init routing — `resume` / `--new` / auto-resume (incl. the error-fallback paths):**
+
+```bash
+go test -run 'TestChooseSessionInitResume|TestChooseSessionInitNewFlag|TestChooseSessionInitAutoResumeNoSession|TestChooseSessionInitAutoResumeResumeError|TestChooseSessionInitAutoResumeDisabled' -v ./cmd/kirsch/
+```
+
+- [ ] `--- PASS: TestChooseSessionInitResume`
+- [ ] `--- PASS: TestChooseSessionInitNewFlag`
+- [ ] `--- PASS: TestChooseSessionInitAutoResumeNoSession`
+- [ ] `--- PASS: TestChooseSessionInitAutoResumeResumeError`
+- [ ] `--- PASS: TestChooseSessionInitAutoResumeDisabled`
+
+**Integration — quit mid-task, resume, complete the turn: identical transcript, grants, valid message array:**
+
+```bash
+go test -run 'TestResumeCompletesPartialTurn' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestResumeCompletesPartialTurn`
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md. This m4-d5 close-out run was green.
+
+```bash
+$(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/...
+```
+
+- [ ] `govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+
+**Operator-observed (optional, not automated) — the manual TUI resume path:**
+
+This step is operator-observed only; it is modelled on the M3 §8 pattern and is not covered by an automated test. Set up the scratch environment from the Setup section, then:
+
+```bash
+cd /Volumes/DATA/Github/kirsch
+export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
+# Start Kirsch, begin a task, and quit mid-turn (Ctrl+C twice / /quit before the turn completes)
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+# Restart with no flags — Kirsch auto-resumes the last session
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+```
+
+- [ ] (operator-observed) the resumed TUI shows the prior transcript (the ⚠ recovered-session warning if the session was repaired) and the active grants restored from the prior session
+- [ ] (operator-observed) continuing the turn from the resumed state completes it and the transcript is identical to a non-interrupted run
+
+This section is the operator's independent verification of the m4-d5 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261015-04). It is the record for the six m4-d5 acceptance boxes: `kirsch resume` loads the last session via `index.json`; `kirsch --new` starts fresh even if a last session exists; with no flags Kirsch auto-resumes the last session; session-scoped grants are restored from `approval.scope_granted` events; pending state (the in-progress turn) is restored; and the integration test — quit mid-task, resume, complete the turn — yields an identical transcript, grants, and a valid message array.
 
 ---
 
