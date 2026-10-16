@@ -1,19 +1,6 @@
 # Kirsch
 
-> **Status: Milestones 0 and 1 complete; Milestone 2 accepted with deferred
-> items (see [`plan/PROGRESS.md`](plan/PROGRESS.md)); Milestone 3 (the model)
-> is in progress, with m3-d1 and m3-d2 done and m3-d3's core turn loop
-> landed.** Kirsch reads and searches
-> a real repository from inside the TUI, and, through the temporary `/patch`
-> and `/run` debug commands, can apply a patch or run a command: a patch
-> always waits for your approval, a command does unless it is on the short
-> exact-match allowlist or you have approved its prefix for the session, and
-> shells always ask. Every path crosses a containment check, the path
-> denylist is enforced in one place, and the `kirsch` binary still calls no
-> model: the Messages adapter is reached only by an opt-in live test until
-> m3-d6 wires it in. The authoritative build spec is
-> [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is
-> tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+> **Status: Milestones 0–3 complete (Milestone 3 operator-accepted 2026-10-13); Milestone 4 (the real task loop + sessions) is in progress — m4-d1…m4-d5 done and committed: the session store, storage layout + repair, event recording, resume reconstruction, and resume state + CLI.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. Remaining in M4: the single-instance guard, compaction, the real slash commands, token/cost tracking, the final-task report, and the smoke test. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
 > ```
 > go run ./cmd/kirsch
@@ -105,7 +92,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 
 ## Progress
 
-Milestones 0, 1 and 2 are complete. Milestone 2's deferred items are listed in [`plan/PROGRESS.md`](plan/PROGRESS.md), and Milestone 3 (provider and agent loop) is in progress: m3-d1 and m3-d2 are done, and m3-d3's core turn loop has landed. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+Milestones 0–3 are complete. Milestone 4 (the real task loop + sessions) is in progress, with m4-d1…m4-d5 done (session store, storage layout + repair, event recording, resume reconstruction, resume state + CLI) and m4-d6…m4-d12 remaining. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 
 ## What works today
 
@@ -114,19 +101,15 @@ go run ./cmd/kirsch
 ```
 
 Kirsch opens on a real repository, shows its project name, branch and dirty
-state, and can read, list, search and diff it from inside the TUI — and, through
-the temporary `/patch` and `/run` debug commands, apply a patch or run a command
-once you approve it. Every path crosses a containment check before anything
-touches the filesystem, and the path denylist (`.env`, `*.pem`, `*.key`, `.git/**`,
-`.kirsch/**`) is enforced in one place so no tool can forget it.
-
-The `kirsch` binary deliberately calls **no** model yet: the Messages adapter in
-`internal/provider/anthropic` is reached only by the opt-in live test (`npm run
-test:live`) until m3-d6 wires it in. Kirsch writes a file or runs a command
-only through the temporary `/patch` and `/run` debug commands: a patch always
-asks, and a command asks unless it is on the exact-match allowlist or you have
-approved its prefix for the session. Apart from commands run through `/run`,
-the only subprocesses are read-only `git` and `rg`.
+state, and runs real model turns: the agent investigates (read, list, search,
+diff), proposes small unified-diff patches — every patch waits for your approval
+— and runs verification commands under the policy (exact-match allowlist,
+session grant, or explicit approval; shells always ask). Every path crosses a
+containment check, and the path denylist (`.env`, `*.pem`, `*.key`, `.git/**`,
+`.kirsch/**`) is enforced in one place. Every turn is recorded to the local JSONL
+session log; quit mid-task and `kirsch resume` (or auto-resume) restores the
+transcript and grants. Apart from approved commands, the only subprocesses are
+read-only `git` and `rg`.
 
 ## Verifying it
 
