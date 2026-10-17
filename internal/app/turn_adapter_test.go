@@ -86,7 +86,7 @@ func TestRunTurnMapsTextDeltaToAssistantTextDeltaMsg(t *testing.T) {
 		},
 	}
 
-	a.RunTurn(ag, &agent.Conversation{}, "hi")
+	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	msgs := c.wait(t, 2*time.Second)
 
 	got := findMsg[tui.AssistantTextDeltaMsg](msgs)
@@ -119,7 +119,7 @@ func TestRunTurnMapsThinkingDeltaToThinkingDeltaMsg(t *testing.T) {
 		},
 	}
 
-	a.RunTurn(ag, &agent.Conversation{}, "hi")
+	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	msgs := c.wait(t, 2*time.Second)
 
 	got := findMsg[tui.ThinkingDeltaMsg](msgs)
@@ -150,7 +150,7 @@ func TestRunTurnErrorMsgPresenceControl(t *testing.T) {
 		},
 	}
 
-	a.RunTurn(ag, &agent.Conversation{}, "hi")
+	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	msgs := c.wait(t, 2*time.Second)
 
 	if !findMsgType[tui.TurnErrorMsg](msgs) {
@@ -178,7 +178,7 @@ func TestRunTurnMapsUsageToUsageMsg(t *testing.T) {
 		},
 	}
 
-	a.RunTurn(ag, &agent.Conversation{}, "hi")
+	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	msgs := c.wait(t, 2*time.Second)
 
 	got := findMsg[tui.UsageMsg](msgs)
@@ -217,7 +217,7 @@ func TestRunTurnMapsToolCallToToolStartedAndCompleted(t *testing.T) {
 		},
 	}
 
-	a.RunTurn(ag, &agent.Conversation{}, "hi")
+	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	msgs := c.wait(t, 2*time.Second)
 
 	started := findMsg[tui.ToolStartedMsg](msgs)
@@ -251,7 +251,7 @@ func TestRunTurnMapsContextOverflowToTurnErrorMsg(t *testing.T) {
 		},
 	}
 
-	a.RunTurn(ag, &agent.Conversation{}, "hi")
+	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	msgs := c.wait(t, 2*time.Second)
 
 	errMsg := findMsg[tui.TurnErrorMsg](msgs)
@@ -293,7 +293,7 @@ func TestRunTurnMapsMaxTurnsExceededToTurnErrorMsg(t *testing.T) {
 		},
 	}
 
-	a.RunTurn(ag, &agent.Conversation{}, "hi")
+	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	msgs := c.wait(t, 5*time.Second)
 
 	if !findMsgType[tui.TurnErrorMsg](msgs) {
@@ -325,7 +325,7 @@ func TestRunTurnCancellationMapsToTurnCancelledMsg(t *testing.T) {
 		},
 	}
 
-	a.RunTurn(ag, &agent.Conversation{}, "hi")
+	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	// Give RunTurn time to enter Stream before we cancel.
 	time.Sleep(50 * time.Millisecond)
 	a.CancelTurn()
@@ -384,7 +384,7 @@ func TestRunTurnApprovalToolUsesApprovalPath(t *testing.T) {
 		}
 	}()
 
-	a.RunTurn(ag, &agent.Conversation{}, "hi")
+	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	msgs := c.wait(t, 5*time.Second)
 
 	if !findMsgType[tui.ApprovalRequestedMsg](msgs) {
@@ -423,7 +423,7 @@ func TestRunTurnUsageNotStoredInConversation(t *testing.T) {
 		},
 	}
 
-	a.RunTurn(ag, conv, "hi")
+	a.RunTurn(ag, conv, "hi", compactionParams{})
 	msgs := c.wait(t, 2*time.Second)
 
 	if !findMsgType[tui.UsageMsg](msgs) {

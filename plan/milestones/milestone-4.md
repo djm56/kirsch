@@ -398,13 +398,20 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance:**
 
-- [ ] Compaction is a model call using the session's provider and model
-- [ ] Keeps: original task verbatim, last 4 turns verbatim, structured summary of middle
-- [ ] Cancellable: cancelled compaction leaves session uncompacted, pending turn unstarted
-- [ ] On failure: surfaces `context_overflow`, tells user to `/new` (no silent oversized request)
-- [ ] Thinking blocks dropped (check `Thinking.DropOnSummary` — `agent.go:106`)
-- [ ] `compaction.applied` event recorded with replaced range + summary
-- [ ] Unit tests: compaction with thinking blocks, cancellation, failure handling
+- [x] Compaction is a model call using the session's provider and model
+  - (app.go:1842 `runCompaction` passes session provider/model; compact.go:114 `Compact` makes the request; mission-20261017-02)
+- [x] Keeps: original task verbatim, last 4 turns verbatim, structured summary of middle
+  - (compact.go:114–200 keeps message 0 and last 4 turns, structures summary with Objective/Files inspected/Key findings/Files changed/Commands run/Open questions; mission-20261017-02)
+- [x] Cancellable: cancelled compaction leaves session uncompacted, pending turn unstarted
+  - (compact.go:114 Compact returns on context cancel; app.go:1842 runCompaction never applies on cancel; TestSubmitCancelDuringCompactionLeavesSessionUntouched and TestSubmitCancelAfterSummaryBeforeSwapNeverHalfApplies; mission-20261017-02)
+- [x] On failure: surfaces `context_overflow`, tells user to `/new` (no silent oversized request)
+  - (app.go:1842 RunTurn maps any compaction error other than cancellation to a `context_overflow` TurnErrorMsg telling the user to /new; TestSubmitCompactionProviderErrorSurfacesContextOverflow and TestCompactionModelError; mission-20261017-02)
+- [x] Thinking blocks dropped (check `Thinking.DropOnSummary` — `agent.go:106`)
+  - (renderMessagesForSummary at compact.go:208 drops every thinking block without checking the flag, and the flag is set on every assembled block anyway; TestThinkingBlocksNotInSummaryRequest, TestThinkingBlocksPreservedInResult; mission-20261017-02)
+- [x] `compaction.applied` event recorded with replaced range + summary
+  - (store.go:239 RecordCompaction; app.go:1842 calls store.RecordCompaction after successful Compact; TestSubmitAboveThresholdCompactsThenRunsTheTurn, TestCompactionRoundTrip; mission-20261017-02)
+- [x] Unit tests: compaction with thinking blocks, cancellation, failure handling
+  - (internal/session/compact_test.go: 19 tests covering structure, thinking, cancellation, errors, round-trip; internal/app/compaction_test.go: 9 tests; internal/tui/turn_messages_test.go: 4 tests; mission-20261017-02)
 
 **Must-know-before:** m4-d3 must record events; the `Thinking.DropOnSummary` marker exists (`agent.go:106`, `agent.go:758`).
 

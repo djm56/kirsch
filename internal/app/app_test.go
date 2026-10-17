@@ -168,11 +168,14 @@ func (f *fakeProvider) Stream(_ context.Context, _ provider.Request, _ func(prov
 	return nil
 }
 
-// TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget checks the budget
-// gate in Submit: a request large enough to exceed contextWindow - outputReserve
-// is rejected with a context_overflow TurnErrorMsg instead of reaching RunTurn.
+// TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget checks that a
+// request over contextWindow - outputReserve, with nothing to compact, ends in
+// a context_overflow TurnErrorMsg. Submit no longer gates on the budget itself:
+// the refusal now comes from RunTurn after compaction has been ruled out, so
+// the first message is the BudgetMsg and the error is found by type. The
+// compaction paths are covered in compaction_test.go.
 func TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget(t *testing.T) {
-	c := newCollector(1)
+	c := newCollector(2)
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 
@@ -185,9 +188,9 @@ func TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget(t *testing.T) {
 	a.Submit(strings.Repeat("x", 600_000), func(string) string { return "fake-key" })
 
 	msgs := c.wait(t, 5*time.Second)
-	errMsg, ok := msgs[0].(tui.TurnErrorMsg)
-	if !ok {
-		t.Fatalf("got %T, want TurnErrorMsg", msgs[0])
+	errMsg := findMsg[tui.TurnErrorMsg](msgs)
+	if errMsg == nil {
+		t.Fatalf("no TurnErrorMsg in %#v", msgs)
 	}
 	if errMsg.Kind != "context_overflow" {
 		t.Errorf("kind = %q, want context_overflow", errMsg.Kind)

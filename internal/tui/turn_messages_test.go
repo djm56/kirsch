@@ -309,3 +309,68 @@ func TestNoColourTurnMessagesEmitZeroEscapes(t *testing.T) {
 		t.Errorf("escape byte at %d", i)
 	}
 }
+
+// TestCompactingMsgSetsBusyVerbCompacting checks that CompactingMsg marks the
+// model busy with the verb "compacting", which the status bar shows.
+func TestCompactingMsgSetsBusyVerbCompacting(t *testing.T) {
+	m := sizedModel(t, 80, 24, false)
+	if m.busy.Active {
+		t.Fatal("precondition: a fresh model is busy")
+	}
+	m = drive(m, CompactingMsg{})
+	if !m.busy.Active || m.busy.Verb != "compacting" {
+		t.Errorf("busy = %+v, want Active with Verb \"compacting\"", m.busy)
+	}
+}
+
+// TestSessionCompactedMsgMarksHeaderCompactedAndKeepsBusy checks that
+// SessionCompactedMsg sets sess.Compacted and shows "(compacted)" in the
+// rendered header, and that it does not itself clear the busy state: the turn
+// that follows compaction is still running.
+func TestSessionCompactedMsgMarksHeaderCompactedAndKeepsBusy(t *testing.T) {
+	m := sizedModel(t, 80, 24, false)
+	if strings.Contains(m.View(), "(compacted)") {
+		t.Fatal("control: header shows (compacted) before SessionCompactedMsg")
+	}
+	m = drive(m, CompactingMsg{}, SessionCompactedMsg{})
+	if !m.sess.Compacted {
+		t.Error("sess.Compacted not set by SessionCompactedMsg")
+	}
+	if !strings.Contains(m.View(), "(compacted)") {
+		t.Error("header does not show (compacted) after SessionCompactedMsg")
+	}
+	if !m.busy.Active || m.busy.Verb != "compacting" {
+		t.Errorf("SessionCompactedMsg changed busy to %+v", m.busy)
+	}
+}
+
+// TestCompactingBusyIsClearedByTurnErrorMsg checks that a context_overflow (or
+// any) TurnErrorMsg after CompactingMsg clears the busy state, so a failed
+// compaction cannot leave the spinner running. The Compacting-only model is
+// the control: it is busy until the error arrives.
+func TestCompactingBusyIsClearedByTurnErrorMsg(t *testing.T) {
+	m := sizedModel(t, 80, 24, false)
+	m = drive(m, CompactingMsg{})
+	if !m.busy.Active {
+		t.Fatal("control: not busy after CompactingMsg")
+	}
+	m = drive(m, TurnErrorMsg{Kind: "context_overflow", Message: "too big", Detail: "/new"})
+	if m.busy.Active || m.busy.Verb != "" {
+		t.Errorf("busy = %+v after TurnErrorMsg, want cleared", m.busy)
+	}
+}
+
+// TestCompactingBusyIsClearedByTurnCancelledMsg checks that TurnCancelledMsg
+// after CompactingMsg clears the busy state, the way a cancelled compaction
+// ends.
+func TestCompactingBusyIsClearedByTurnCancelledMsg(t *testing.T) {
+	m := sizedModel(t, 80, 24, false)
+	m = drive(m, CompactingMsg{})
+	if !m.busy.Active {
+		t.Fatal("control: not busy after CompactingMsg")
+	}
+	m = drive(m, TurnCancelledMsg{})
+	if m.busy.Active || m.busy.Verb != "" {
+		t.Errorf("busy = %+v after TurnCancelledMsg, want cleared", m.busy)
+	}
+}

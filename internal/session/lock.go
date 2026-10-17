@@ -48,7 +48,7 @@ func Acquire(root, workspace string) (*Lock, error) {
 	// syscall.LOCK_EX = exclusive lock
 	// syscall.LOCK_NB = non-blocking (fail immediately if held)
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		file.Close()
+		_ = file.Close() // Flock failed; close error is secondary
 		// Check for EWOULDBLOCK, which means the lock is held by another process.
 		if errors.Is(err, syscall.EWOULDBLOCK) {
 			return nil, ErrLockHeld
@@ -69,7 +69,7 @@ func (l *Lock) Release() error {
 	file := l.file
 	l.file = nil
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_UN); err != nil {
-		file.Close()
+		_ = file.Close() // Unlock failed; close error is secondary
 		return fmt.Errorf("release lock: %w", err)
 	}
 	return file.Close()

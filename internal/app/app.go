@@ -42,6 +42,14 @@ import (
 // tool calls. architecture.md §4.
 type toolCallsKey struct{}
 
+// compactionParams holds the information needed to decide whether compaction
+// should run before the turn. It is computed in Submit and passed to RunTurn.
+type compactionParams struct {
+	estimatedTokens int // estimated token count for the pending request
+	contextWindow   int // model's context window in tokens
+	maxOutput       int // model's max output in tokens (for compaction's maxTokens)
+}
+
 // ApprovalRequest describes what is being asked for approval.
 //
 // There is deliberately no Kind field here. An earlier revision carried an
@@ -355,6 +363,18 @@ type App struct {
 	// endpoint. Production uses the Anthropic adapter; tests swap it for a fake.
 	providerBuilder providerBuilder
 
+	// modelInfo resolves the capability figures Submit budgets against.
+	// Production uses provider.LookupModel. Tests replace it so a model with a
+	// small context window can drive the compaction thresholds without
+	// building hundreds of kilobytes of conversation.
+	modelInfo func(id string) provider.ModelInfo
+
+	// afterCompactHook, when non-nil, runs inside runCompaction after the
+	// summary call has succeeded and before the pre-swap cancellation
+	// re-check. It exists only so a test can cancel the turn inside that
+	// window deterministically; production leaves it nil.
+	afterCompactHook func()
+
 	// sessionID is required for the opencode endpoint and generated once per
 	// invocation in main.go.
 	sessionID string
@@ -411,6 +431,7 @@ func New(ws *workspace.Workspace, cfg config.Config, log *telemetry.Logger) *App
 		rootCancel:       cancel,
 		approvals:        make(map[int64]*approval),
 		providerBuilder:  defaultProviderBuilder,
+		modelInfo:        provider.LookupModel,
 		loadProjectCtxFn: prompt.LoadProjectContext,
 		conv:             &agent.Conversation{},
 	}
@@ -984,7 +1005,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 		thinking:      parseThinkingLevel(ep.Thinking),
 	}
 
-	info := provider.LookupModel(ep.Model)
+	info := a.modelInfo(ep.Model)
 
 	ag := &agent.Agent{
 		Model:     model,
@@ -997,27 +1018,30 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 	// estimating the budget. RunTurn will set the same field again.
 	ag.Tools = &toolExecutor{app: a}
 
-	estimated := estimateTokens(a.systemPrompt, userText, a.conv, ag.Tools)
-	budget := info.ContextWindow - outputReserve
-	if budget < 0 {
-		budget = 0
-	}
-	if estimated > budget {
-		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
-			Kind:    "context_overflow",
-			Message: "The request exceeds the model's context window.",
-			Detail: fmt.Sprintf(
-				"Estimated %d tokens against a budget of %d after the %d-token output reserve. Start a new session with /new.",
-				estimated, budget, outputReserve),
-		}})
-		return
-	}
+	// There is deliberately no overflow gate here. A request over budget may
+	// still fit once compacted, so RunTurn owns the overflow decision: it
+	// compacts first and refuses only when compaction cannot help.
+	estimated := a.estimateRequest(userText, a.conv, ag.Tools)
 
 	a.sendAsyncSequence([]tea.Msg{tui.BudgetMsg{
 		EstimatedTokens: estimated,
 		ContextWindow:   info.ContextWindow,
 	}})
-	a.RunTurn(ag, a.conv, userText)
+
+	compParams := compactionParams{
+		estimatedTokens: estimated,
+		contextWindow:   info.ContextWindow,
+		maxOutput:       info.MaxOutput,
+	}
+	a.RunTurn(ag, a.conv, userText, compParams)
+}
+
+// estimateRequest estimates the tokens of the request that would be built from
+// the session system prompt, userText, conv and the tool definitions. Submit
+// and RunTurn both go through it so the pre-turn and post-compaction figures
+// cannot drift apart.
+func (a *App) estimateRequest(userText string, conv *agent.Conversation, tools agent.Tools) int {
+	return estimateTokens(a.systemPrompt, userText, conv, tools)
 }
 
 func (a *App) hasRG() bool {
@@ -1211,7 +1235,11 @@ func (a *App) CancelTurn() {
 // The adapter keeps the TUI-implementation boundary: every agent.Event is
 // translated into one of the plain-field messages in internal/tui/messages.go
 // before it crosses into the Bubble Tea program. architecture.md §3.
-func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string) {
+//
+// compParams contains the estimated token count, context window, and max output
+// needed to determine whether compaction should run before the turn. Compaction
+// runs on the turn's goroutine, after BeginTurn, so CancelTurn/Esc cancels it.
+func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string, compParams compactionParams) {
 	ctx := a.BeginTurn()
 
 	a.inFlight.Add(1)
@@ -1227,10 +1255,87 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 		// correlated with the IDs allocated for EventToolCallStart.
 		ag.Tools = &toolExecutor{app: a}
 
-		turn := int(a.turnCount.Add(1))
 		a.storeMu.Lock()
 		store := a.store
 		a.storeMu.Unlock()
+
+		// Compaction runs here, on the turn goroutine after BeginTurn, so a
+		// cancel reaches it, and before RecordTurnStarted, so the log reads
+		// compaction.applied then turn.started. RunTurn owns the overflow
+		// decision: Submit does not gate on the budget.
+		//
+		// Threshold is 75% of (contextWindow - outputReserve).
+		budget := compParams.contextWindow - outputReserve
+		if budget < 0 {
+			budget = 0
+		}
+		threshold := budget * 75 / 100
+
+		if compParams.estimatedTokens > threshold {
+			// Announce compaction only when there is something to compact, so
+			// the nothing-to-compact path does not flash the status.
+			if _, _, ok := session.PlanCompaction(conv.Messages); ok {
+				a.sendAsyncSequence([]tea.Msg{tui.CompactingMsg{}})
+			}
+			// The summary call is capped at the output reserve as well as the
+			// model's own maximum: the context is already at least 75% full.
+			maxTokens := min(compParams.maxOutput, outputReserve)
+			err := a.runCompaction(ctx, ag.Model, conv, maxTokens)
+			switch {
+			case errors.Is(err, context.Canceled):
+				// Cancelled: runCompaction returned before touching conv or
+				// the store. The turn is not started.
+				a.sendAsyncSequence([]tea.Msg{tui.TurnCancelledMsg{}})
+				a.flushStore(store)
+				return
+			case errors.Is(err, session.ErrNothingToCompact):
+				if compParams.estimatedTokens <= budget {
+					// Above the threshold but within budget: proceed.
+					break
+				}
+				a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+					Kind:    "context_overflow",
+					Message: "The request exceeds the model's context window.",
+					Detail: fmt.Sprintf(
+						"Estimated %d tokens against a budget of %d after the %d-token output reserve, and there is nothing to compact. Start a new session with /new.",
+						compParams.estimatedTokens, budget, outputReserve),
+				}})
+				a.flushStore(store)
+				return
+			case err != nil:
+				a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+					Kind:    "context_overflow",
+					Message: "Compaction failed. The request exceeds the model's context window.",
+					Detail: fmt.Sprintf(
+						"Compaction failed: %v. Start a new session with /new.", err),
+				}})
+				a.flushStore(store)
+				return
+			default:
+				// runCompaction replaced conv.Messages and recorded
+				// compaction.applied. Tell the header now, so it is right
+				// even if the compacted request is still too large.
+				a.sendAsyncSequence([]tea.Msg{tui.SessionCompactedMsg{}})
+				newEstimated := a.estimateRequest(userText, conv, ag.Tools)
+				if newEstimated > budget {
+					a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+						Kind:    "context_overflow",
+						Message: "The compacted request still exceeds the model's context window.",
+						Detail: fmt.Sprintf(
+							"Estimated %d tokens after compaction against a budget of %d. Start a new session with /new.",
+							newEstimated, budget),
+					}})
+					a.flushStore(store)
+					return
+				}
+				a.sendAsyncSequence([]tea.Msg{tui.BudgetMsg{
+					EstimatedTokens: newEstimated,
+					ContextWindow:   compParams.contextWindow,
+				}})
+			}
+		}
+
+		turn := int(a.turnCount.Add(1))
 		if store != nil {
 			store.RecordTurnStarted(turn)
 		}
@@ -1265,16 +1370,23 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 		}
 
 		a.sendAsyncSequence([]tea.Msg{final})
-
-		if store != nil {
-			if flushErr := store.Flush(); flushErr != nil {
-				a.sendAsyncSequence([]tea.Msg{tui.ErrorMsg{
-					Kind:    "session_store",
-					Message: fmt.Sprintf("Failed to flush session log: %v", flushErr),
-				}})
-			}
-		}
+		a.flushStore(store)
 	}()
+}
+
+// flushStore flushes store, if there is one, and reports a failure to the TUI.
+// RunTurn calls it on every exit, including the early returns of the
+// compaction block, so a compaction.applied event is never left unflushed.
+func (a *App) flushStore(store *session.Store) {
+	if store == nil {
+		return
+	}
+	if flushErr := store.Flush(); flushErr != nil {
+		a.sendAsyncSequence([]tea.Msg{tui.ErrorMsg{
+			Kind:    "session_store",
+			Message: fmt.Sprintf("Failed to flush session log: %v", flushErr),
+		}})
+	}
 }
 
 // adaptTurnEvent translates a single agent.Event into TUI messages. It mutates
@@ -1707,6 +1819,51 @@ func (a *App) ResolveToolApproval(id int64, decision policy.Decision) {
 	}
 
 	a.Resolve(id, outcome)
+}
+
+// runCompaction summarises the middle of conv.Messages with one model call,
+// replaces conv.Messages with the compacted result, and records
+// compaction.applied. maxTokens caps the summary request's output.
+//
+// It returns session.ErrNothingToCompact when there are fewer than 6 turns,
+// an error wrapping context.Canceled when the turn was cancelled, and another
+// error on model or provider failure. On any error conv and the store are
+// untouched.
+//
+// The cancellation check immediately before the swap is what keeps a cancel
+// that lands after session.Compact's own last check from half-applying: the
+// swap and the store write both follow it with no further wait.
+//
+// conv is not guarded by a lock. The turn goroutine is the only writer here
+// and ag.Turn mutates the same Conversation the same way afterwards; Submit
+// reads a.conv before RunTurn starts. BeginTurn cancels the previous turn but
+// does not wait for its goroutine, so two turns racing on one Conversation is
+// a hazard that predates this function and that this function does not close.
+func (a *App) runCompaction(ctx context.Context, model agent.Model, conv *agent.Conversation, maxTokens int) error {
+	comp, err := session.Compact(ctx, model, conv.Messages, maxTokens)
+	if err != nil {
+		return err
+	}
+
+	if a.afterCompactHook != nil {
+		a.afterCompactHook()
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("compaction cancelled before it was applied: %w", err)
+	}
+
+	conv.Messages = comp.Messages
+
+	// compaction.applied is recorded here, before the caller records
+	// turn.started, so the log reads: compaction.applied, turn.started, ...
+	a.storeMu.Lock()
+	store := a.store
+	a.storeMu.Unlock()
+	if store != nil {
+		store.RecordCompaction(comp.From, comp.To, comp.Summary)
+	}
+
+	return nil
 }
 
 // describeInput picks the field worth showing on a tool card.

@@ -144,6 +144,14 @@ type TurnErrorMsg struct {
 // TurnCancelledMsg reports that the user cancelled the in-flight turn.
 type TurnCancelledMsg struct{}
 
+// CompactingMsg indicates that compaction is in progress. It sets the status
+// bar verb to "compacting". Sent before the model call begins.
+type CompactingMsg struct{}
+
+// SessionCompactedMsg indicates successful compaction. It sets SessionInfo.Compacted
+// to true so the header shows "(compacted)".
+type SessionCompactedMsg struct{}
+
 // CommandOutputChunkMsg appends one chunk of output to a running command tool
 // card. ID is the app-side tool ID that was sent with ToolStartedMsg.
 type CommandOutputChunkMsg struct {

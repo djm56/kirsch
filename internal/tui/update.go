@@ -274,6 +274,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ToolCompletedMsg:
 		return m.applyToolResult(msg)
 
+	case CompactingMsg:
+		m.busy = Busy{Active: true, Verb: "compacting"}
+		m.relayout(m.layout())
+		return m, m.tickSpinnerOnce()
+
+	case SessionCompactedMsg:
+		m.sess.Compacted = true
+		m.relayout(m.layout())
+		return m, nil
+
 	case ErrorMsg:
 		m.appendBlock(Item{Kind: KindError, Err: &ErrorCard{
 			Kind: msg.Kind, Message: msg.Message,

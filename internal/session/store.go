@@ -232,6 +232,19 @@ func (s *Store) RecordScopeGranted(action, pattern string) {
 	s.postLine(line)
 }
 
+// RecordCompaction writes a compaction.applied event.
+//
+// from and to are the inclusive message indices (conversation-message indices)
+// of the range that was replaced. summary is the structured summary text.
+func (s *Store) RecordCompaction(from, to int, summary string) {
+	line, err := marshalCompactionApplied(from, to, summary)
+	if err != nil {
+		s.report(err)
+		return
+	}
+	s.postLine(line)
+}
+
 // postLine enqueues a single JSONL line for the writer goroutine.
 func (s *Store) postLine(line []byte) {
 	if len(line) == 0 {

@@ -27,7 +27,7 @@ deliverables land.
 | 4 | m4-d4 Resume Reconstruction | **Runnable now** |
 | 5 | m4-d5 Resume State + CLI | **Runnable now** |
 | 6 | m4-d6 Single-Instance Guard | **Runnable now** |
-| 7 | m4-d7 Compaction | Not yet testable |
+| 7 | m4-d7 Compaction | **Runnable now** |
 | 8 | m4-d8 Slash Commands for Real | Not yet testable |
 | 9 | m4-d9 Token and Cost Tracking | Not yet testable |
 | 10 | m4-d10 Final-Task Report | Not yet testable |
@@ -578,16 +578,89 @@ This section is the operator's independent verification of the m4-d6 acceptance 
 
 ## 7 · Compaction (m4-d7)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d7 lands.
+`internal/session` gained `type Compaction` in mission-20261017-02. The `PlanCompaction` and `Compact` functions estimate the request budget (if estimated > 75% of context window − 4096 output reserve), build a model request keeping the original task and last 4 turns verbatim with a structured summary of turns in between (Objective, Files inspected, Key findings, Files changed, Commands run, Open questions). Cancellation before or after the summary returns leaves the session unchanged and never half-applies. Failure (provider error, empty summary, timeout) surfaces `context_overflow` and directs the user to `/new`. ALL thinking blocks are dropped, never summarised (every assembled block carries the `DropOnSummary` flag anyway). The `compaction.applied` event records the replaced range and summary. This section runs the unit, integration, and TUI tests that back the m4-d7 acceptance.
 
-What will be checked (from milestone-4.md m4-d7 acceptance): compaction is a model
-call using the session's provider and model; it keeps the original task verbatim,
-the last 4 turns verbatim, and a structured summary of the middle; it is
-cancellable (a cancelled compaction leaves the session uncompacted and the pending
-turn unstarted); on failure it surfaces `context_overflow` and tells the user to
-`/new` rather than sending a silent oversized request; thinking blocks are dropped
-(not summarised) by checking `Thinking.DropOnSummary`; and a `compaction.applied`
-event is recorded with the replaced range and summary.
+**Session compaction — planning, structure, thinking handling:**
+
+```bash
+go test -run 'TestPlanCompactionNotEnoughTurns|TestPlanCompactionEmptySlice|TestPlanCompactionSevenTurns|TestPlanCompactionFirstMessageKept|TestPlanCompactionToolResultOnlyDoesNotStartTurn|TestThinkingBlocksNotInSummaryRequest' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestPlanCompactionNotEnoughTurns`
+- [ ] `--- PASS: TestPlanCompactionEmptySlice`
+- [ ] `--- PASS: TestPlanCompactionSevenTurns`
+- [ ] `--- PASS: TestPlanCompactionFirstMessageKept`
+- [ ] `--- PASS: TestPlanCompactionToolResultOnlyDoesNotStartTurn`
+- [ ] `--- PASS: TestThinkingBlocksNotInSummaryRequest`
+
+**Compaction correctness — immutability, request shape, thinking preservation, cancellation, error handling:**
+
+```bash
+go test -run 'TestCompactionSuccessPathImmutability|TestCompactionRequestShape|TestThinkingBlocksPreservedInResult|TestCompactionCancellation|TestCompactionModelError|TestCompactionEmptySummary|TestCompactionWhitespaceOnlySummary|TestCompactionCancelAndEmit|TestCompactionEventError|TestCompactionWithFiveTurns|TestCompactionRoundTrip|TestCompactionRoundTripWithToolCalls|TestCompactionOriginalTaskAndLastFourPreserved' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestCompactionSuccessPathImmutability`
+- [ ] `--- PASS: TestCompactionRequestShape`
+- [ ] `--- PASS: TestThinkingBlocksPreservedInResult`
+- [ ] `--- PASS: TestCompactionCancellation`
+- [ ] `--- PASS: TestCompactionModelError`
+- [ ] `--- PASS: TestCompactionEmptySummary`
+- [ ] `--- PASS: TestCompactionWhitespaceOnlySummary`
+- [ ] `--- PASS: TestCompactionCancelAndEmit`
+- [ ] `--- PASS: TestCompactionEventError`
+- [ ] `--- PASS: TestCompactionWithFiveTurns`
+- [ ] `--- PASS: TestCompactionRoundTrip`
+- [ ] `--- PASS: TestCompactionRoundTripWithToolCalls`
+- [ ] `--- PASS: TestCompactionOriginalTaskAndLastFourPreserved`
+
+**App compaction integration — threshold logic, request flow, cancellation, failure:**
+
+```bash
+go test -run 'TestSubmitBelowThresholdSendsOneRequestAndNoCompaction|TestSubmitAboveThresholdCompactsThenRunsTheTurn|TestSubmitCancelDuringCompactionLeavesSessionUntouched|TestSubmitCancelAfterSummaryBeforeSwapNeverHalfApplies|TestSubmitCompactionProviderErrorSurfacesContextOverflow|TestSubmitFewerThanSixTurnsOverBudgetSurfacesContextOverflow|TestSubmitOverBudgetCompactsInsteadOfRefusing|TestSubmitStillOverBudgetAfterCompactionSurfacesContextOverflow|TestSubmitCompactionSurvivesResume' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestSubmitBelowThresholdSendsOneRequestAndNoCompaction`
+- [ ] `--- PASS: TestSubmitAboveThresholdCompactsThenRunsTheTurn`
+- [ ] `--- PASS: TestSubmitCancelDuringCompactionLeavesSessionUntouched`
+- [ ] `--- PASS: TestSubmitCancelAfterSummaryBeforeSwapNeverHalfApplies`
+- [ ] `--- PASS: TestSubmitCompactionProviderErrorSurfacesContextOverflow`
+- [ ] `--- PASS: TestSubmitFewerThanSixTurnsOverBudgetSurfacesContextOverflow`
+- [ ] `--- PASS: TestSubmitOverBudgetCompactsInsteadOfRefusing`
+- [ ] `--- PASS: TestSubmitStillOverBudgetAfterCompactionSurfacesContextOverflow`
+- [ ] `--- PASS: TestSubmitCompactionSurvivesResume`
+
+**TUI compaction messages — status bar glyph, header update:**
+
+```bash
+go test -run 'TestCompactingMsgSetsBusyVerbCompacting|TestSessionCompactedMsgMarksHeaderCompactedAndKeepsBusy|TestCompactingBusyIsClearedByTurnErrorMsg|TestCompactingBusyIsClearedByTurnCancelledMsg' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestCompactingMsgSetsBusyVerbCompacting`
+- [ ] `--- PASS: TestSessionCompactedMsgMarksHeaderCompactedAndKeepsBusy`
+- [ ] `--- PASS: TestCompactingBusyIsClearedByTurnErrorMsg`
+- [ ] `--- PASS: TestCompactingBusyIsClearedByTurnCancelledMsg`
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree; the m4-d2 close's green race run was a lucky pass). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+
+```bash
+$(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/...
+```
+
+- [ ] `govulncheck ./internal/session/... ./internal/app/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+
+This section is the operator's independent verification of the m4-d7 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261017-02). It is the record for the seven m4-d7 acceptance boxes: compaction is a model call using the session's provider and model; it keeps the original task and last 4 turns verbatim with a structured summary of the middle; it is cancellable (cancelled compaction leaves session uncompacted and turn unstarted); on failure it surfaces `context_overflow` telling the user to `/new`; thinking blocks are dropped (never summarised, all assembled blocks carry the DropOnSummary flag); `compaction.applied` event recorded with range and summary; and unit tests covering planning, thinking preservation, cancellation, and failure handling.
 
 ---
 
