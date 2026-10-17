@@ -317,6 +317,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.relayout(m.layout())
 		return m, nil
 
+	case StatusWarningMsg:
+		m.status.Warnings = append(m.status.Warnings, msg.Text)
+		m.relayout(m.layout())
+		return m, nil
+
 	case AssistantTextDeltaMsg:
 		if id, ok := m.textBlocks[msg.BlockID]; ok {
 			if m.tr.AppendText(id, msg.Delta) {

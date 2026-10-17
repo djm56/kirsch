@@ -172,3 +172,10 @@ type TranscriptLoadedMsg struct {
 	Items     []Item // pre-built transcript items to append
 	Recovered bool   // true when the session log was repaired on load
 }
+
+// StatusWarningMsg adds a persistent warning to the status bar. Warnings are
+// used for conditions that must be visible to the user at all times (e.g.,
+// "another Kirsch is running here").
+type StatusWarningMsg struct {
+	Text string
+}

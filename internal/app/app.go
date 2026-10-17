@@ -382,6 +382,13 @@ type App struct {
 	// storeMu protects lazy creation of store and layout.
 	storeMu sync.Mutex
 
+	// lock guards against concurrent instances in the same workspace. Acquired
+	// at startup before session initialization. If ErrLockHeld is returned, the
+	// app marks itself as running-concurrently and disables session grants.
+	lock                  *session.Lock
+	concurrentInstance    bool // true if another instance holds the lock
+	sessionGrantsDisabled bool // true if session grants should be disabled
+
 	// turnCount numbers turns for turn.started/completed events.
 	turnCount atomic.Int64
 }
@@ -440,6 +447,19 @@ func (a *App) SetSessionID(id string) { a.sessionID = id }
 // SetVersion sets the Kirsch version used in the provider User-Agent.
 func (a *App) SetVersion(v string) { a.version = v }
 
+// ConcurrentInstance reports whether another instance holds the workspace lock.
+func (a *App) ConcurrentInstance() bool {
+	return a.concurrentInstance
+}
+
+// SetConcurrentInstance sets the concurrent instance flag and disables session grants.
+// This is provided for tests in packages that cannot access unexported fields and must
+// not be used from production code.
+func (a *App) SetConcurrentInstance(concurrent bool) {
+	a.concurrentInstance = concurrent
+	a.sessionGrantsDisabled = concurrent
+}
+
 // StartSession assembles the system prompt once per session and stores the
 // chosen project-context file and size for /status. It is called from
 // cmd/kirsch/main.go after the TUI is attached; subsequent turns reuse the
@@ -475,6 +495,41 @@ func (a *App) loadAndStoreSessionPrompt(getenv func(string) string) {
 	a.contextSize = size
 }
 
+// AcquireLock attempts to acquire an advisory flock on the workspace's session
+// directory. If another instance holds the lock, it sets concurrentInstance to true
+// (which skips resume and disables session grants), sends a status warning, and logs
+// the event. Other errors are logged but do not block startup: the lock is advisory
+// and a real error should not prevent the instance from running.
+func (a *App) AcquireLock() error {
+	root, err := a.stateRoot()
+	if err != nil {
+		// Log but do not block on state root errors. The lock is best-effort.
+		a.log.Debug("lock state root error", "error", err)
+		return nil
+	}
+
+	lock, err := session.Acquire(root, a.ws.CanonicalRoot)
+	if err == nil {
+		a.lock = lock
+		return nil
+	}
+
+	// Check if the lock is held by another instance.
+	if errors.Is(err, session.ErrLockHeld) {
+		a.log.Debug("lock held by another instance")
+		a.concurrentInstance = true
+		a.sessionGrantsDisabled = true
+		a.SendStatusWarning("another Kirsch is running here")
+		return nil
+	}
+
+	// Real error: log at Warn level and send a status warning so the user knows
+	// the single-instance guard is off. The lock is advisory and best-effort.
+	a.log.Warn("lock unavailable — single-instance guard off", "error", err)
+	a.SendStatusWarning("lock unavailable — single-instance guard off")
+	return nil
+}
+
 // Close cancels everything and waits, briefly, for in-flight tools.
 //
 // The wait is bounded on purpose. A tool goroutine finishing after the Bubble
@@ -493,6 +548,11 @@ func (a *App) Close() {
 	select {
 	case <-done:
 	case <-time.After(closeGrace):
+	}
+
+	if a.lock != nil {
+		_ = a.lock.Release()
+		a.lock = nil
 	}
 
 	a.storeMu.Lock()
@@ -658,7 +718,12 @@ func (a *App) ResumeLastSession() error {
 
 // restoreGrants replays approval.scope_granted events from the session log
 // through policy.Grant. Invalid or refused grants are logged and skipped.
+// If session grants are disabled (e.g., because another instance is running),
+// this method returns early without restoring any grants.
 func (a *App) restoreGrants(path string) {
+	if a.sessionGrantsDisabled {
+		return
+	}
 	grants, err := session.LoadGrants(path)
 	if err != nil {
 		a.log.Debug("failed to load session grants", "error", err)
@@ -1101,6 +1166,12 @@ func (a *App) SendNotice(text string) {
 	a.sendAsyncSequence([]tea.Msg{tui.NoticeMsg{Text: text}})
 }
 
+// SendStatusWarning queues a persistent warning to the status bar. It is safe
+// to call from outside the Bubble Tea event loop.
+func (a *App) SendStatusWarning(text string) {
+	a.sendAsyncSequence([]tea.Msg{tui.StatusWarningMsg{Text: text}})
+}
+
 // SetSendFn installs the function used to deliver messages to the TUI. It is
 // provided for tests in packages that cannot access unexported fields and must
 // not be used from production code.
@@ -1391,6 +1462,16 @@ func (a *App) RunTool(name string, input map[string]any) {
 	}()
 }
 
+// canApproveForSession determines whether a session-scope grant is possible
+// by consulting policy and the sessionGrantsDisabled flag. Both the operation
+// type AND the specific argv must be acceptable, and session grants must not
+// be disabled (e.g. by concurrent instance contention).
+func (a *App) canApproveForSession(op policy.Operation, argv []string) bool {
+	return !a.sessionGrantsDisabled &&
+		a.pol.CanApproveForSession(op) &&
+		a.pol.CanGrant(op, argv)
+}
+
 // Request asks the user for approval, blocking until the user responds or a
 // context is cancelled. It is called only from tool goroutines, never from
 // Update or View. It sends ApprovalRequestedMsg to the TUI and waits for
@@ -1419,10 +1500,9 @@ func (a *App) Request(ctx context.Context, req ApprovalRequest) (ApprovalOutcome
 
 	// Calculate whether session approval is possible by consulting policy.
 	// Both the operation type AND the specific argv must be acceptable.
-	// CanApproveForSession checks the operation type; CanGrant checks whether
-	// the specific argv would be accepted (shells, bare wildcards, empty argv, etc).
-	canApproveForSession := a.pol.CanApproveForSession(req.Operation) &&
-		a.pol.CanGrant(req.Operation, req.Argv)
+	// If session grants are disabled (e.g. because another instance is running),
+	// session approval is never offered.
+	canApproveForSession := a.canApproveForSession(req.Operation, req.Argv)
 
 	// Compute display strings for the card
 	var subject, grantScope string

@@ -184,3 +184,67 @@ func TestChooseSessionInitAutoResumeDisabled(t *testing.T) {
 		t.Fatalf("store not created with auto_resume=false: ResumeLastSession error = %v", err)
 	}
 }
+
+// TestChooseSessionInitExplicitResumeConcurrentInstance verifies that explicit
+// `resume` is skipped when another instance is running, and a fresh session
+// is started instead with a notice.
+func TestChooseSessionInitExplicitResumeConcurrentInstance(t *testing.T) {
+	a := newTestApp(t)
+	defer a.Close()
+
+	c := newNoticeCollector()
+	a.SetSendFn(c.send)
+
+	// Simulate another instance holding the lock by marking the app as concurrent.
+	a.SetConcurrentInstance(true)
+
+	init := chooseSessionInit("resume", false, true)
+	if err := init(a); err != nil {
+		t.Fatalf("init error = %v", err)
+	}
+
+	// Verify a fresh session was created.
+	if err := a.ResumeLastSession(); err != nil {
+		t.Fatalf("store not created by concurrent-instance fallback: ResumeLastSession error = %v", err)
+	}
+
+	nm := c.wait(t, time.Second)
+	if !strings.Contains(nm.Text, "resume skipped") {
+		t.Errorf("notice text = %q, want it to contain 'resume skipped'", nm.Text)
+	}
+	if !strings.Contains(nm.Text, "another Kirsch instance is running") {
+		t.Errorf("notice text = %q, want it to contain 'another Kirsch instance is running'", nm.Text)
+	}
+}
+
+// TestChooseSessionInitAutoResumeConcurrentInstance verifies that auto-resume
+// is skipped when another instance is running, and a fresh session is started
+// instead with a notice.
+func TestChooseSessionInitAutoResumeConcurrentInstance(t *testing.T) {
+	a := newTestApp(t)
+	defer a.Close()
+
+	c := newNoticeCollector()
+	a.SetSendFn(c.send)
+
+	// Simulate another instance holding the lock by marking the app as concurrent.
+	a.SetConcurrentInstance(true)
+
+	init := chooseSessionInit("", false, true)
+	if err := init(a); err != nil {
+		t.Fatalf("init error = %v", err)
+	}
+
+	// Verify a fresh session was created.
+	if err := a.ResumeLastSession(); err != nil {
+		t.Fatalf("store not created by concurrent-instance fallback: ResumeLastSession error = %v", err)
+	}
+
+	nm := c.wait(t, time.Second)
+	if !strings.Contains(nm.Text, "auto-resume skipped") {
+		t.Errorf("notice text = %q, want it to contain 'auto-resume skipped'", nm.Text)
+	}
+	if !strings.Contains(nm.Text, "another Kirsch instance is running") {
+		t.Errorf("notice text = %q, want it to contain 'another Kirsch instance is running'", nm.Text)
+	}
+}

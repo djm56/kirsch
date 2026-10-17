@@ -361,10 +361,14 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance:**
 
-- [ ] On start, Kirsch takes advisory `flock` on `<workspace-hash>/.lock`
-- [ ] Second instance in same workspace: does not auto-resume (starts fresh), shows `⚠ another Kirsch is running here` in status bar, disables session-scoped grants
-- [ ] Unit tests: lock acquisition, second-instance degradation
-- [ ] Integration test: two instances, verify second degrades
+- [x] On start, Kirsch takes advisory `flock` on `<workspace-hash>/.lock`
+  - (internal/session/lock.go:29 `Acquire` acquires flock on `<workspace-hash>/.lock` (Unix only); cmd/kirsch/main.go:202 calls `(*App).AcquireLock` at startup before the resume decision; mission-20261016-02, review APPROVED, 0 CRITICAL, 2 warnings carried)
+- [x] Second instance in same workspace: does not auto-resume (starts fresh), shows `⚠ another Kirsch is running here` in status bar, disables session-scoped grants
+  - (app.go:522 sends `another Kirsch is running here` when lock held; app.go:528–529 logs lock error and guard off; main.go:174 skips auto-resume via `ConcurrentInstance()` check; app.go:1469 `canApproveForSession` withholds approval; internal/tui/statusbar.go:39–40 status bar shows `⚠ another Kirsch is running here`; mission-20261016-02)
+- [x] Unit tests: lock acquisition, second-instance degradation
+  - (internal/session/lock_test.go: TestAcquireSucceeds, TestSecondAcquireContends; internal/app/lock_integration_test.go: TestAcquireLockNonHeldError, TestLockSecondInstanceDegrades; cmd/kirsch/main_test.go: TestChooseSessionInitExplicitResumeConcurrentInstance, TestChooseSessionInitAutoResumeConcurrentInstance; internal/tui/status_test.go: TestStatusWarningRendersWithGlyph; mission-20261016-02)
+- [x] Integration test: two instances, verify second degrades
+  - (internal/app/lock_integration_test.go: TestLockSecondInstanceDegrades — two App instances on same workspace, second locked out; mission-20261016-02)
 
 **Must-know-before:** m4-d2 must create the `<workspace-hash>` directory.
 

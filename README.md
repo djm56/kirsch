@@ -1,6 +1,6 @@
 # Kirsch
 
-> **Status: Milestones 0–3 complete (Milestone 3 operator-accepted 2026-10-13); Milestone 4 (the real task loop + sessions) is in progress — m4-d1…m4-d5 done and committed: the session store, storage layout + repair, event recording, resume reconstruction, and resume state + CLI.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. Remaining in M4: the single-instance guard, compaction, the real slash commands, token/cost tracking, the final-task report, and the smoke test. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+> **Status: Milestones 0–3 complete (Milestone 3 operator-accepted 2026-10-13); Milestone 4 (the real task loop + sessions) is in progress — m4-d1…m4-d6 done and committed: the session store, storage layout + repair, event recording, resume reconstruction, resume state + CLI, and single-instance guard.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. A second instance in the same workspace is detected and degraded gracefully (fresh start, status-bar warning, grants disabled). Remaining in M4: compaction, the real slash commands, token/cost tracking, the final-task report, and the smoke test. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
 > ```
 > go run ./cmd/kirsch
@@ -92,7 +92,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 
 ## Progress
 
-Milestones 0–3 are complete. Milestone 4 (the real task loop + sessions) is in progress, with m4-d1…m4-d5 done (session store, storage layout + repair, event recording, resume reconstruction, resume state + CLI) and m4-d6…m4-d12 remaining. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+Milestones 0–3 are complete. Milestone 4 (the real task loop + sessions) is in progress, with m4-d1…m4-d6 done (session store, storage layout + repair, event recording, resume reconstruction, resume state + CLI, single-instance guard) and m4-d7…m4-d12 remaining. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 
 ## What works today
 

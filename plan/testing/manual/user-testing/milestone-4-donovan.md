@@ -26,7 +26,7 @@ deliverables land.
 | 3 | m4-d3 Event Recording Wiring | **Runnable now** |
 | 4 | m4-d4 Resume Reconstruction | **Runnable now** |
 | 5 | m4-d5 Resume State + CLI | **Runnable now** |
-| 6 | m4-d6 Single-Instance Guard | Not yet testable |
+| 6 | m4-d6 Single-Instance Guard | **Runnable now** |
 | 7 | m4-d7 Compaction | Not yet testable |
 | 8 | m4-d8 Slash Commands for Real | Not yet testable |
 | 9 | m4-d9 Token and Cost Tracking | Not yet testable |
@@ -486,12 +486,95 @@ This section is the operator's independent verification of the m4-d5 acceptance 
 
 ## 6 · Single-Instance Guard (m4-d6)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d6 lands.
+`internal/session` gained advisory `flock` support in mission-20261016-02. `Acquire(root, workspace)` takes a non-blocking advisory `flock` on `<workspace-hash>/.lock` (Unix only; non-unix stub at lock_other.go:28, not supported in v0.1); `Release` at lock.go:63, `Close` at :79; `ErrLockHeld` at lock_error.go:8. `cmd/kirsch/main.go:202` calls `(*App).AcquireLock` at startup before the resume decision; on lock held, app.go:522 sends `another Kirsch is running here`, app.go:528–529 logs and guard off; app.go:1469 `canApproveForSession` withholds approval; status bar internal/tui/statusbar.go:39–40 shows `⚠ another Kirsch is running here`. This section runs the unit, integration, and CLI-routing tests that back the m4-d6 acceptance, grouped to match the commands below.
 
-What will be checked (from milestone-4.md m4-d6 acceptance): on start Kirsch takes
-an advisory `flock` on `<workspace-hash>/.lock`; a second instance in the same
-workspace does **not** auto-resume (starts fresh), shows `⚠ another Kirsch is
-running here` in the status bar, and disables session-scoped grants.
+**Lock acquisition and second-instance detection — `Acquire` on `<workspace-hash>/.lock`, `ConcurrentInstance()` on lock failure:**
+
+```bash
+go test -run 'TestAcquireSucceeds|TestSecondAcquireContends' -v ./internal/session/ && go test -run 'TestAcquireLockNonHeldError' -v ./internal/app/lock_integration_test.go
+```
+
+- [ ] `--- PASS: TestAcquireSucceeds`
+- [ ] `--- PASS: TestAcquireLockNonHeldError`
+
+**Second-instance degradation — sessionGrantsDisabled flag, auto-resume skipped:**
+
+```bash
+go test -run 'TestLockSecondInstanceDegrades' -v ./internal/app/lock_integration_test.go
+```
+
+- [ ] `--- PASS: TestLockSecondInstanceDegrades`
+
+**Integration — two instances in same workspace, second degrades:**
+
+```bash
+go test -run 'TestLockSecondInstanceDegrades' -v ./internal/app/lock_integration_test.go
+```
+
+- [ ] `--- PASS: TestLockSecondInstanceDegrades`
+
+**CLI routing — explicit `kirsch resume` refused, auto-resume skipped when concurrent instance:**
+
+```bash
+go test -run 'TestChooseSessionInitExplicitResumeConcurrentInstance|TestChooseSessionInitAutoResumeConcurrentInstance' -v ./cmd/kirsch/
+```
+
+- [ ] `--- PASS: TestChooseSessionInitExplicitResumeConcurrentInstance`
+- [ ] `--- PASS: TestChooseSessionInitAutoResumeConcurrentInstance`
+
+**Status bar — the `⚠ another Kirsch is running here` glyph:**
+
+```bash
+go test -run 'TestStatusWarningRendersWithGlyph' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestStatusWarningRendersWithGlyph`
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md. This m4-d6 close-out run was green.
+
+```bash
+$(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/... ./internal/tui/...
+```
+
+- [ ] `govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/... ./internal/tui/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+
+**Operator-observed (optional, not automated) — the manual guard in a running TUI:**
+
+This step is operator-observed only; it is modelled on the M3 §8 pattern and is not covered by an automated test. Set up the scratch environment from the Setup section, with two terminal windows open to the same `$WORKSPACE`:
+
+Terminal A (hold the lock):
+```bash
+cd /Volumes/DATA/Github/kirsch
+export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+```
+
+Terminal B (attempt to start while A holds the lock):
+```bash
+cd /Volumes/DATA/Github/kirsch
+export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+```
+
+- [ ] (operator-observed) Terminal A acquires the lock and runs normally
+- [ ] (operator-observed) Terminal B shows `⚠ another Kirsch is running here` in the status bar
+- [ ] (operator-observed) Terminal B does not auto-resume (shows a fresh workspace, no prior session transcript)
+- [ ] (operator-observed) Terminal B offers no session-grant approval option (if a session grant check is available, no `[a]` approval-for-session key is shown)
+- [ ] (operator-observed) Quit Terminal A (Ctrl+C twice or `/quit`), then Terminal B continues — it now acquires the lock and proceeds normally
+
+This section is the operator's independent verification of the m4-d6 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261016-02). It is the record for the four m4-d6 acceptance boxes: on start Kirsch takes advisory `flock` on `<workspace-hash>/.lock`; second instance in same workspace does not auto-resume (starts fresh), shows `⚠ another Kirsch is running here`, and disables session-scoped grants; unit tests for lock acquisition and second-instance degradation; and integration test verifying two instances.
 
 ---
 

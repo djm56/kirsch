@@ -47,6 +47,20 @@ func (c *collector) send(msg any) {
 	}
 }
 
+// count returns the number of messages received so far.
+func (c *collector) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.msgs)
+}
+
+// snapshot returns a copy of the messages received so far.
+func (c *collector) snapshot() []any {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]any(nil), c.msgs...)
+}
+
 func (c *collector) wait(t *testing.T, d time.Duration) []any {
 	t.Helper()
 	select {

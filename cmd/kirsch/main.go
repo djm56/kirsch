@@ -148,9 +148,16 @@ func run() error {
 // chooseSessionInit returns the startup callback that creates or resumes the
 // session according to the CLI shape: an explicit `resume` subcommand, an
 // explicit `--new` flag, or the configured auto_resume default.
+//
+// If another instance holds the lock (concurrentInstance is true), resume is
+// skipped and a fresh session is started instead.
 func chooseSessionInit(subcommand string, newFlag, autoResume bool) func(*app.App) error {
 	if subcommand == "resume" {
 		return func(a *app.App) error {
+			if a.ConcurrentInstance() {
+				a.SendNotice("resume skipped — another Kirsch instance is running")
+				return a.StartNewSession()
+			}
 			return a.ResumeLastSession()
 		}
 	}
@@ -161,6 +168,11 @@ func chooseSessionInit(subcommand string, newFlag, autoResume bool) func(*app.Ap
 	}
 	return func(a *app.App) error {
 		if !autoResume {
+			return a.StartNewSession()
+		}
+		// Never resume if another instance holds the lock.
+		if a.ConcurrentInstance() {
+			a.SendNotice("auto-resume skipped — another Kirsch instance is running")
 			return a.StartNewSession()
 		}
 		if err := a.ResumeLastSession(); err != nil {
@@ -176,13 +188,20 @@ func chooseSessionInit(subcommand string, newFlag, autoResume bool) func(*app.Ap
 }
 
 // startupPostAttach runs the sequence that must happen after the TUI program
-// is attached: identity, version, session initialisation, and onboarding. It
-// is extracted so that run() and the startup tests share the exact same
-// ordering.
+// is attached: identity, version, lock acquisition, session initialisation, and onboarding.
+// It is extracted so that run() and the startup tests share the exact same ordering.
+//
+// The lock is acquired before session initialization to determine whether this
+// instance can resume the previous session (and to disable grants if another
+// instance is running).
 func startupPostAttach(a *app.App, p *tea.Program, version string, initSession func(*app.App) error) error {
 	a.Attach(p)
 	a.SetSessionID(newSessionID())
 	a.SetVersion(version)
+	// Acquire the lock before session initialization so we can skip resume if needed.
+	if err := a.AcquireLock(); err != nil {
+		return err
+	}
 	if err := initSession(a); err != nil {
 		return err
 	}

@@ -127,3 +127,37 @@ func TestStatusCommandShowsCleanContextWhenNoneLoaded(t *testing.T) {
 		t.Errorf("/status output missing 'context none'\n%s", text)
 	}
 }
+
+// TestStatusWarningRendersWithGlyph verifies that StatusWarningMsg places a
+// warning in the status bar and renders it with the warning glyph.
+func TestStatusWarningRendersWithGlyph(t *testing.T) {
+	m := New(Options{
+		Version: "0.1.0",
+		Caps:    Caps{Colour: false, Unicode: true},
+		Status:  Status{Model: "claude-sonnet-5-5"},
+	})
+
+	// Send a StatusWarningMsg.
+	result, _ := m.Update(StatusWarningMsg{Text: "another Kirsch is running here"})
+	m = result.(Model)
+
+	// Verify the warning is in the status.Warnings list.
+	if len(m.status.Warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(m.status.Warnings))
+	}
+	if m.status.Warnings[0] != "another Kirsch is running here" {
+		t.Errorf("warning text mismatch: got %q", m.status.Warnings[0])
+	}
+
+	// Render the status row and verify it contains the warning with the glyph.
+	statusRow := m.statusRow(Layout{TermW: 120, ContentW: 116, Pad: 2})
+
+	// The glyph.Warn should be rendered before the warning text.
+	// In Unicode mode, the warn glyph is "⚠".
+	warnGlyph := "⚠"
+	expectedText := warnGlyph + " another Kirsch is running here"
+
+	if !strings.Contains(statusRow, expectedText) {
+		t.Errorf("status row missing expected text %q.\nGot: %q", expectedText, statusRow)
+	}
+}
