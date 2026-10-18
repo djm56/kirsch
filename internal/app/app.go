@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -45,9 +46,10 @@ type toolCallsKey struct{}
 // compactionParams holds the information needed to decide whether compaction
 // should run before the turn. It is computed in Submit and passed to RunTurn.
 type compactionParams struct {
-	estimatedTokens int // estimated token count for the pending request
-	contextWindow   int // model's context window in tokens
-	maxOutput       int // model's max output in tokens (for compaction's maxTokens)
+	estimatedTokens int    // estimated token count for the pending request
+	contextWindow   int    // model's context window in tokens
+	modelID         string // the model ID for cost computation
+	maxOutput       int    // model's max output in tokens (for compaction's maxTokens)
 }
 
 // ApprovalRequest describes what is being asked for approval.
@@ -302,6 +304,11 @@ func (te *toolExecutor) Invoke(ctx context.Context, c agent.ToolCall) agent.Tool
 
 	res := te.app.reg.Invoke(ctx, c.Name, c.Input)
 
+	// Track touched files when apply_patch succeeds.
+	if res.OK && c.Name == "apply_patch" {
+		te.app.recordTouchedFilesFromDiff(c.Input)
+	}
+
 	msg := tui.ToolCompletedMsg{
 		ID: id, Name: c.Name, Target: target,
 		OK:        res.OK,
@@ -354,6 +361,20 @@ type App struct {
 	nextID   atomic.Int64
 	inFlight sync.WaitGroup
 
+	// opMu serialises the operations that start or replace session work:
+	// Submit (through its inFlight.Add in RunTurn), ManualCompact (through
+	// its own inFlight.Add) and NewSession (cancel, inFlight.Wait, swap).
+	// Holding it across a Submit means NewSession's Wait either sees that
+	// turn's Add or runs entirely before the Submit starts, so an Add can
+	// never race a Wait at zero. It is never held by a turn goroutine.
+	opMu sync.Mutex
+	// turnsLive counts RunTurn goroutines that have not yet returned, and
+	// compacting reports a ManualCompact in progress. Both are protected by mu.
+	// ManualCompact refuses while either is set; Submit refuses while
+	// compacting is set, so conv has one writer at a time.
+	turnsLive  int
+	compacting bool
+
 	// Approval state: tracks pending approvals.
 	approveMu sync.Mutex
 	approvals map[int64]*approval
@@ -384,10 +405,15 @@ type App struct {
 	// Session-scoped prompt state. Assembled once at session start and reused
 	// for every turn; the chosen context file and size are kept for /status.
 	// architecture.md §5 and kirsch-plan.md §6.2.
+	//
+	// promptMu protects systemPrompt, contextFile, contextSize and
+	// promptLoaded. StartSession and NewSession write them under it;
+	// production reads go through promptState and contextState.
+	promptMu         sync.Mutex
+	promptLoaded     bool
 	systemPrompt     string
 	contextFile      string
 	contextSize      int
-	startOnce        sync.Once
 	loadProjectCtxFn func(candidates []string, maxBytes int, engine prompt.Engine) (string, string, int, []string, error)
 
 	// conv holds the multi-turn conversation. It is mutated by agent.Turn on a
@@ -411,6 +437,36 @@ type App struct {
 
 	// turnCount numbers turns for turn.started/completed events.
 	turnCount atomic.Int64
+
+	// Session token tracking. These accumulate across all turns in the session.
+	// Protected by storeMu.
+	sessionTokensIn    int64
+	sessionTokensOut   int64
+	sessionTokensRead  int64
+	sessionTokensWrite int64
+	// sessionCostUSD is the sum of each call's cost priced at that call's own
+	// model, the same per-call figure usage.json accumulates. A flat or unknown
+	// model adds nothing. Protected by storeMu.
+	sessionCostUSD float64
+	// currentSessionID tracks the ID of the current session for /status display.
+	// Protected by storeMu.
+	currentSessionID string
+	// lastEstimatedTokens and lastContextWindow track the most recent budget
+	// estimates for compaction % display. Protected by storeMu.
+	lastEstimatedTokens int
+	lastContextWindow   int
+
+	// touchedFiles tracks workspace-relative paths changed by successful apply_patch
+	// calls in this process, in first-touched order, cleaned with path.Clean and
+	// de-duplicated. It is in memory only: a resumed session starts empty, because
+	// nothing here is read from or written to the session store. Protected by mu.
+	touchedFiles []string
+	// touchedFilesSeen maps each touched file to true for fast duplicate detection.
+	// Protected by mu.
+	touchedFilesSeen map[string]bool
+	// diffTimeout bounds one /diff git run; zero means defaultDiffTimeout. Set
+	// only before the App is used.
+	diffTimeout time.Duration
 }
 
 // providerBuilder constructs a provider.Provider from an endpoint configuration.
@@ -434,6 +490,7 @@ func New(ws *workspace.Workspace, cfg config.Config, log *telemetry.Logger) *App
 		modelInfo:        provider.LookupModel,
 		loadProjectCtxFn: prompt.LoadProjectContext,
 		conv:             &agent.Conversation{},
+		touchedFilesSeen: make(map[string]bool),
 	}
 	a.reg.Register(&tool.ReadFile{WS: ws})
 	a.reg.Register(&tool.ListFiles{WS: ws})
@@ -455,6 +512,144 @@ func (a *App) Grants() []string { return a.pol.Grants() }
 
 // ClearGrants removes all active session-scoped command grants.
 func (a *App) ClearGrants() { a.pol.ClearGrants() }
+
+// GetTouchedFiles returns the list of workspace-relative paths changed by
+// successful apply_patch calls in this session. The list is ordered and
+// de-duplicated.
+func (a *App) GetTouchedFiles() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	// Return a copy to prevent external mutation.
+	result := make([]string, len(a.touchedFiles))
+	copy(result, a.touchedFiles)
+	return result
+}
+
+// addTouchedFile records a path as touched by apply_patch. The path is
+// normalised with path.Clean first, so "./a.go", "a.go" and "sub/../a.go" are
+// one entry. An empty path is ignored. A path already recorded is not added
+// again. The caller must hold mu.
+func (a *App) addTouchedFile(p string) {
+	if p == "" {
+		return
+	}
+	p = path.Clean(p)
+	if !a.touchedFilesSeen[p] {
+		a.touchedFilesSeen[p] = true
+		a.touchedFiles = append(a.touchedFiles, p)
+	}
+}
+
+// recordTouchedFilesFromDiff parses the apply_patch input and records the
+// target path of every file change, plus the source path of a rename (which no
+// longer exists in the tree but was touched). Both parses repeat what the tool
+// already did, so a failure here means the input shape and the tool's parse
+// have diverged; it is logged and nothing is recorded.
+func (a *App) recordTouchedFilesFromDiff(raw json.RawMessage) {
+	var in struct {
+		Diff string `json:"diff"`
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		a.log.Warn("touched files: apply_patch input not decodable", "err", err.Error())
+		return
+	}
+
+	changes, err := patch.Parse([]byte(in.Diff))
+	if err != nil {
+		a.log.Warn("touched files: apply_patch diff not parseable", "err", err.Error())
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, change := range changes {
+		a.addTouchedFile(change.Path)
+		if change.OldPath != "" {
+			a.addTouchedFile(change.OldPath)
+		}
+	}
+}
+
+// defaultDiffTimeout bounds the /diff git invocation when a.diffTimeout is unset.
+const defaultDiffTimeout = 10 * time.Second
+
+// GetDiff returns the unstaged working tree diff for /diff. It runs git with
+// the same arguments as the git_diff tool (tool.DiffArgs), bounded by a
+// timeout, and applies the tool's MaxDiffBytes cap before sanitising.
+//
+// A clean tree returns no Lines and no Err; the TUI turns that into a notice.
+// Added and Removed count the whole git output, not the capped part, so the
+// modal header reflects the real change size.
+//
+// The call blocks for as long as git runs; callers on the Bubble Tea Update
+// goroutine must run it inside a tea.Cmd.
+func (a *App) GetDiff() tui.DiffResult {
+	if !a.ws.IsGit {
+		return tui.DiffResult{Err: "not a Git repository"}
+	}
+
+	timeout := a.diffTimeout
+	if timeout <= 0 {
+		timeout = defaultDiffTimeout
+	}
+	ctx, cancel := context.WithTimeout(a.rootCtx, timeout)
+	defer cancel()
+
+	out, err := tool.RunGit(ctx, a.ws.Root, tool.DiffArgs(false, "")...)
+	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return tui.DiffResult{Err: fmt.Sprintf("git diff timed out after %s", timeout)}
+		}
+		return tui.DiffResult{Err: fmt.Sprintf("git diff failed: %v", err)}
+	}
+	if out == "" {
+		return tui.DiffResult{}
+	}
+
+	added, removed := countDiffLines(out)
+	content, truncated := tool.Truncate(out, tool.MaxDiffBytes)
+	// Sanitise for safe rendering (ui-spec §7.1); drop the final newline so the
+	// modal has no blank last row.
+	lines := tui.SanitizeLines(strings.TrimSuffix(content, "\n"))
+
+	return tui.DiffResult{
+		Lines:     lines,
+		Added:     added,
+		Removed:   removed,
+		Truncated: truncated,
+		CapBytes:  tool.MaxDiffBytes,
+	}
+}
+
+// countDiffLines counts added and removed lines in unified git diff output. A
+// file section starts at a "diff --git " line; everything up to its first "@@"
+// is header (including the "--- " and "+++ " file lines) and is not counted.
+// After the first "@@" every line starting "+" or "-" is content, so an added
+// line whose text starts with "++" ("+++x") is counted as one addition.
+func countDiffLines(out string) (added, removed int) {
+	inHeader := true
+	for len(out) > 0 {
+		line := out
+		if i := strings.IndexByte(out, '\n'); i >= 0 {
+			line, out = out[:i], out[i+1:]
+		} else {
+			out = ""
+		}
+		switch {
+		case strings.HasPrefix(line, "diff --git "):
+			inHeader = true
+		case inHeader:
+			if strings.HasPrefix(line, "@@") {
+				inHeader = false
+			}
+		case strings.HasPrefix(line, "+"):
+			added++
+		case strings.HasPrefix(line, "-"):
+			removed++
+		}
+	}
+	return added, removed
+}
 
 // Attach connects the Bubble Tea program. Results reach the TUI only through
 // program.Send — architecture.md §3 rule 4, since TUI state may be mutated
@@ -486,9 +681,31 @@ func (a *App) SetConcurrentInstance(concurrent bool) {
 // cmd/kirsch/main.go after the TUI is attached; subsequent turns reuse the
 // cached prompt rather than re-reading the project context. kirsch-plan.md §6.2.
 func (a *App) StartSession(getenv func(string) string) {
-	a.startOnce.Do(func() { a.loadAndStoreSessionPrompt(getenv) })
+	a.promptMu.Lock()
+	defer a.promptMu.Unlock()
+	if a.promptLoaded {
+		return
+	}
+	a.loadAndStoreSessionPrompt(getenv)
 }
 
+// promptState returns the session system prompt under promptMu.
+func (a *App) promptState() string {
+	a.promptMu.Lock()
+	defer a.promptMu.Unlock()
+	return a.systemPrompt
+}
+
+// contextState returns the loaded project-context file and its size under
+// promptMu, for /status.
+func (a *App) contextState() (string, int) {
+	a.promptMu.Lock()
+	defer a.promptMu.Unlock()
+	return a.contextFile, a.contextSize
+}
+
+// loadAndStoreSessionPrompt reads the project context, assembles the system
+// prompt and marks it loaded. The caller must hold promptMu.
 func (a *App) loadAndStoreSessionPrompt(getenv func(string) string) {
 	content, chosen, size, warnings, err := a.loadProjectCtxFn(
 		a.cfg.Context.ProjectFiles,
@@ -514,6 +731,7 @@ func (a *App) loadAndStoreSessionPrompt(getenv func(string) string) {
 	a.systemPrompt = prompt.Assemble(env, content)
 	a.contextFile = chosen
 	a.contextSize = size
+	a.promptLoaded = true
 }
 
 // AcquireLock attempts to acquire an advisory flock on the workspace's session
@@ -634,18 +852,47 @@ func (a *App) ensureStore() (*session.Store, *session.Layout, error) {
 		return a.store, a.layout, nil
 	}
 
-	root, err := a.stateRoot()
+	store, layout, sessionID, err := a.createSessionStore()
 	if err != nil {
 		return nil, nil, err
 	}
 
+	a.store = store
+	a.layout = layout
+	a.currentSessionID = sessionID
+	// Reset token totals for the new session
+	a.sessionTokensIn = 0
+	a.sessionTokensOut = 0
+	a.sessionTokensRead = 0
+	a.sessionTokensWrite = 0
+	a.sessionCostUSD = 0
+	return store, layout, nil
+}
+
+// StartNewSession creates a fresh session store for the current workspace.
+// It is safe to call before the first turn; subsequent calls are no-ops.
+func (a *App) StartNewSession() error {
+	_, _, err := a.ensureStore()
+	return err
+}
+
+// createSessionStore creates a session file under the state root and opens a
+// store on it. It touches no App state, so a failure leaves the App exactly as
+// it was.
+func (a *App) createSessionStore() (*session.Store, *session.Layout, string, error) {
+	root, err := a.stateRoot()
+	if err != nil {
+		return nil, nil, "", err
+	}
+
 	layout, err := session.NewLayout(root, a.ws.CanonicalRoot)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create session layout: %w", err)
+		return nil, nil, "", fmt.Errorf("create session layout: %w", err)
 	}
-	path, _, err := layout.CreateSession(time.Now().UTC())
+
+	path, sessionID, err := layout.CreateSession(time.Now().UTC())
 	if err != nil {
-		return nil, nil, fmt.Errorf("create session file: %w", err)
+		return nil, nil, "", fmt.Errorf("create session file: %w", err)
 	}
 
 	store, err := session.New(
@@ -655,19 +902,83 @@ func (a *App) ensureStore() (*session.Store, *session.Layout, error) {
 		}),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("open session store: %w", err)
+		return nil, nil, "", fmt.Errorf("open session store: %w", err)
 	}
-
-	a.store = store
-	a.layout = layout
-	return store, layout, nil
+	return store, layout, sessionID, nil
 }
 
-// StartNewSession creates a fresh session store for the current workspace.
-// It is safe to call before the first turn; subsequent calls are no-ops.
-func (a *App) StartNewSession() error {
-	_, _, err := a.ensureStore()
-	return err
+// NewSession abandons the current session and starts a fresh one. It blocks
+// until the in-flight turn has stopped, so the TUI calls it from a tea.Cmd and
+// never from Update.
+//
+// The new session store is created first. If that fails, NewSession returns
+// the error and the App is unchanged: the running turn is not cancelled and
+// the conversation, store, totals, grants and prompt are as they were. Once
+// the store exists, NewSession:
+//   - cancels the in-flight turn and waits for its goroutines to finish;
+//   - installs the new store, session ID and an empty conversation, zeroes the
+//     token totals and budget estimates, and closes the old store (see
+//     installSession);
+//   - clears touched files and session grants and resets the turn counter;
+//   - re-reads the project context and rebuilds the system prompt.
+//
+// The advisory lock is not released; this process keeps holding it.
+// NewSession holds opMu throughout, so Submit and ManualCompact cannot start
+// work between the Wait and the swap.
+func (a *App) NewSession(getenv func(string) string) error {
+	a.opMu.Lock()
+	defer a.opMu.Unlock()
+
+	store, layout, sessionID, err := a.createSessionStore()
+	if err != nil {
+		return err
+	}
+
+	// Cancel any in-flight turn and wait for its goroutines to finish. The
+	// turn goroutines hold the old store; after Wait none of them can write.
+	a.CancelTurn()
+	a.inFlight.Wait()
+
+	a.installSession(store, layout, sessionID)
+
+	a.promptMu.Lock()
+	a.loadAndStoreSessionPrompt(getenv)
+	a.promptMu.Unlock()
+	return nil
+}
+
+// installSession makes store the live session and resets every piece of
+// session-scoped state in one place: conversation, token totals, budget
+// estimates, turn counter, touched files and grants. The previous store is
+// closed last. The caller must have waited for in-flight work to finish.
+func (a *App) installSession(store *session.Store, layout *session.Layout, sessionID string) {
+	a.storeMu.Lock()
+	old := a.store
+	a.store = store
+	a.layout = layout
+	a.currentSessionID = sessionID
+	a.conv = &agent.Conversation{}
+	a.sessionTokensIn = 0
+	a.sessionTokensOut = 0
+	a.sessionTokensRead = 0
+	a.sessionTokensWrite = 0
+	a.sessionCostUSD = 0
+	a.lastEstimatedTokens = 0
+	a.lastContextWindow = 0
+	a.storeMu.Unlock()
+
+	a.turnCount.Store(0)
+
+	a.mu.Lock()
+	a.touchedFiles = nil
+	a.touchedFilesSeen = make(map[string]bool)
+	a.mu.Unlock()
+
+	a.pol.ClearGrants()
+
+	if old != nil {
+		_ = old.Close()
+	}
 }
 
 // ResumeLastSession loads the workspace's last session from index.json,
@@ -728,6 +1039,13 @@ func (a *App) ResumeLastSession() error {
 	a.conv = conv
 	a.store = store
 	a.layout = layout
+	a.currentSessionID = id
+	// Reset token totals when resuming a session
+	a.sessionTokensIn = 0
+	a.sessionTokensOut = 0
+	a.sessionTokensRead = 0
+	a.sessionTokensWrite = 0
+	a.sessionCostUSD = 0
 
 	items := a.transcriptToItems(transcript)
 	a.sendAsyncSequence([]tea.Msg{
@@ -884,14 +1202,54 @@ func (a *App) StatusInfo(getenv func(string) string) tui.StatusInfoMsg {
 
 	_, keySource := ep.ResolveKey(getenv)
 
+	// Get the dirty count from the workspace
+	dirtyCount := 0
+	if a.ws != nil {
+		count, err := a.ws.DirtyCount()
+		if err != nil {
+			dirtyCount = -1
+		} else {
+			dirtyCount = count
+		}
+	}
+
+	// Get grants count
+	grants := a.Grants()
+	grantsCount := len(grants)
+
+	// Get session ID, token totals, and compaction percent under lock
+	a.storeMu.Lock()
+	sessionID := a.currentSessionID
+	if sessionID == "" {
+		sessionID = "none"
+	}
+	tokensIn := int(a.sessionTokensIn)
+	tokensOut := int(a.sessionTokensOut)
+	tokensCache := int(a.sessionTokensRead + a.sessionTokensWrite)
+	compactionPct := -1
+	// A window no larger than outputReserve has no budget to measure against;
+	// compactPercent would report 0%, which reads as "nothing used".
+	if a.lastEstimatedTokens >= 0 && a.lastContextWindow-outputReserve > 0 {
+		compactionPct = compactPercent(a.lastEstimatedTokens, a.lastContextWindow)
+	}
+	a.storeMu.Unlock()
+	contextFile, contextSize := a.contextState()
+
 	return tui.StatusInfoMsg{
 		Endpoint:           epName,
 		BaseURLHost:        hostOnly(ep.BaseURL),
 		KeySource:          keySource,
 		ProxyHost:          proxyHost(getenv),
-		ContextFile:        a.contextFile,
-		ContextSize:        a.contextSize,
+		ContextFile:        contextFile,
+		ContextSize:        contextSize,
 		ShowDataFlowNotice: epName == "opencode",
+		DirtyCount:         dirtyCount,
+		SessionID:          sessionID,
+		TokensIn:           tokensIn,
+		TokensOut:          tokensOut,
+		TokensCache:        tokensCache,
+		CompactionPercent:  compactionPct,
+		ActiveGrants:       grantsCount,
 	}
 }
 
@@ -956,6 +1314,29 @@ func (a *App) CheckOnboarding(getenv func(string) string) {
 // agent.Model, assembles the system prompt, and hands everything to RunTurn.
 // The conversation is preserved across calls so later turns retain context.
 func (a *App) Submit(userText string, getenv func(string) string) {
+	// opMu is held until RunTurn has registered its goroutine with inFlight,
+	// so NewSession cannot Wait between the two. TryLock keeps a caller on the
+	// Bubble Tea goroutine from freezing behind a NewSession that is waiting
+	// for a turn to stop.
+	if !a.opMu.TryLock() {
+		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+			Kind:    "busy",
+			Message: "A session operation is in progress. Try again in a moment.",
+		}})
+		return
+	}
+	defer a.opMu.Unlock()
+
+	// A manual compaction owns conv until it returns; a turn started now would
+	// write the same Conversation.
+	if a.isCompacting() {
+		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+			Kind:    "busy",
+			Message: "Compaction is running. Wait for it to finish, or press Esc to cancel it.",
+		}})
+		return
+	}
+
 	epName := a.cfg.Provider.Default
 	ep, ok := a.cfg.Provider.Endpoints[epName]
 	if !ok {
@@ -1010,7 +1391,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 	ag := &agent.Agent{
 		Model:     model,
 		MaxTokens: info.MaxOutput,
-		System:    a.systemPrompt,
+		System:    a.promptState(),
 		Recorder:  store,
 	}
 
@@ -1023,6 +1404,12 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 	// compacts first and refuses only when compaction cannot help.
 	estimated := a.estimateRequest(userText, a.conv, ag.Tools)
 
+	// Store the estimated and context window for /status display
+	a.storeMu.Lock()
+	a.lastEstimatedTokens = estimated
+	a.lastContextWindow = info.ContextWindow
+	a.storeMu.Unlock()
+
 	a.sendAsyncSequence([]tea.Msg{tui.BudgetMsg{
 		EstimatedTokens: estimated,
 		ContextWindow:   info.ContextWindow,
@@ -1032,6 +1419,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 		estimatedTokens: estimated,
 		contextWindow:   info.ContextWindow,
 		maxOutput:       info.MaxOutput,
+		modelID:         ep.Model,
 	}
 	a.RunTurn(ag, a.conv, userText, compParams)
 }
@@ -1041,7 +1429,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 // and RunTurn both go through it so the pre-turn and post-compaction figures
 // cannot drift apart.
 func (a *App) estimateRequest(userText string, conv *agent.Conversation, tools agent.Tools) int {
-	return estimateTokens(a.systemPrompt, userText, conv, tools)
+	return estimateTokens(a.promptState(), userText, conv, tools)
 }
 
 func (a *App) hasRG() bool {
@@ -1242,9 +1630,17 @@ func (a *App) CancelTurn() {
 func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string, compParams compactionParams) {
 	ctx := a.BeginTurn()
 
+	a.mu.Lock()
+	a.turnsLive++
+	a.mu.Unlock()
 	a.inFlight.Add(1)
 	go func() {
 		defer a.inFlight.Done()
+		defer func() {
+			a.mu.Lock()
+			a.turnsLive--
+			a.mu.Unlock()
+		}()
 
 		var textBlock, thinkingBlock int64
 		callIDs := make(map[string]int64)
@@ -1280,7 +1676,10 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 			// The summary call is capped at the output reserve as well as the
 			// model's own maximum: the context is already at least 75% full.
 			maxTokens := min(compParams.maxOutput, outputReserve)
-			err := a.runCompaction(ctx, ag.Model, conv, maxTokens)
+			comp, err := a.runCompaction(ctx, ag.Model, conv, maxTokens)
+			// Record before the switch: the summary call is billed whether or
+			// not the compaction was applied.
+			a.recordCompactionUsage(comp, compParams.modelID)
 			switch {
 			case errors.Is(err, context.Canceled):
 				// Cancelled: runCompaction returned before touching conv or
@@ -1328,6 +1727,11 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 					a.flushStore(store)
 					return
 				}
+				// Update the stored estimate for /status display
+				a.storeMu.Lock()
+				a.lastEstimatedTokens = newEstimated
+				a.lastContextWindow = compParams.contextWindow
+				a.storeMu.Unlock()
 				a.sendAsyncSequence([]tea.Msg{tui.BudgetMsg{
 					EstimatedTokens: newEstimated,
 					ContextWindow:   compParams.contextWindow,
@@ -1341,7 +1745,7 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 		}
 
 		emit := func(ev agent.Event) {
-			for _, msg := range a.adaptTurnEvent(ev, &textBlock, &thinkingBlock, callIDs) {
+			for _, msg := range a.adaptTurnEvent(ev, &textBlock, &thinkingBlock, callIDs, compParams.modelID) {
 				a.sendAsyncSequence([]tea.Msg{msg})
 			}
 		}
@@ -1389,10 +1793,106 @@ func (a *App) flushStore(store *session.Store) {
 	}
 }
 
+// recordCompactionUsage records the usage a compaction's summary call reported
+// and sends the new session totals to the status bar (m4-d9), so the automatic
+// and the manual compaction paths both update it. comp is what runCompaction
+// returned alongside its error: non-nil on every failure after the model call
+// began, carrying Usage only (or, on a cancel after the summary arrived, Usage
+// plus an unapplied Messages). A nil comp or an all-zero Usage records and sends
+// nothing.
+func (a *App) recordCompactionUsage(comp *session.Compaction, modelID string) {
+	if comp == nil || !comp.Usage.Nonzero() {
+		return
+	}
+	a.recordUsage(comp.Usage, modelID)
+	a.sendAsyncSequence([]tea.Msg{a.buildSessionUsageMsg(modelID)})
+}
+
+// buildSessionUsageMsg builds a SessionUsageMsg from the current session totals.
+// Used after both turn and compaction usage events to update the status bar (m4-d9).
+//
+// The cost is the running per-call sum, not the cumulative tokens priced at
+// modelID's rates, so it agrees with usage.json after a mid-session model
+// switch. CostState and ModelKnown describe modelID, the model in use now.
+func (a *App) buildSessionUsageMsg(modelID string) tui.SessionUsageMsg {
+	a.storeMu.Lock()
+	in, out := a.sessionTokensIn, a.sessionTokensOut
+	read, write := a.sessionTokensRead, a.sessionTokensWrite
+	cost := a.sessionCostUSD
+	a.storeMu.Unlock()
+
+	modelInfo := provider.LookupModel(modelID)
+	return tui.SessionUsageMsg{
+		TokensIn:   int(in),
+		TokensOut:  int(out),
+		CacheRead:  int(read),
+		CacheWrite: int(write),
+		CostUSD:    cost,
+		CostState:  provider.CostState(modelInfo.Pricing),
+		ModelKnown: modelInfo.Known,
+	}
+}
+
+// recordUsage records one model call's usage in three places: the session store
+// (a usage event), the TUI session totals that /status reads, and, when a
+// layout is present, usage.json with the cost for modelID. The same per-call
+// cost is added to the running session cost that buildSessionUsageMsg reports.
+//
+// Turn calls and compaction calls both come through here, so the totals count
+// every billed call. The header's per-call token figure is a separate message
+// (tui.UsageMsg) that only turns send.
+//
+// A failed usage.json update is logged at Warn and dropped. So is the move of a
+// corrupt usage.json: session.AddUsage reports it through its first return
+// value, because that package must not write to the terminal.
+func (a *App) recordUsage(usage agent.Usage, modelID string) {
+	modelInfo := provider.LookupModel(modelID)
+	costUSD, costOK := modelInfo.Cost(
+		int64(usage.InputTokens),
+		int64(usage.OutputTokens),
+		int64(usage.CacheReadTokens),
+		int64(usage.CacheWriteTokens),
+	)
+
+	a.storeMu.Lock()
+	store := a.store
+	layout := a.layout
+	a.sessionTokensIn += int64(usage.InputTokens)
+	a.sessionTokensOut += int64(usage.OutputTokens)
+	a.sessionTokensRead += int64(usage.CacheReadTokens)
+	a.sessionTokensWrite += int64(usage.CacheWriteTokens)
+	if costOK {
+		a.sessionCostUSD += costUSD
+	}
+	a.storeMu.Unlock()
+
+	if store != nil {
+		store.RecordUsage(usage)
+	}
+	if layout != nil {
+		recovered, err := session.AddUsage(
+			layout.Root,
+			int64(usage.InputTokens),
+			int64(usage.OutputTokens),
+			int64(usage.CacheReadTokens),
+			int64(usage.CacheWriteTokens),
+			costUSD,
+			costOK,
+			time.Now().UTC(),
+		)
+		if recovered != "" {
+			a.log.Warn("recovered from corrupt usage.json", "moved_to", recovered)
+		}
+		if err != nil {
+			a.log.Warn("usage update failed", "error", err)
+		}
+	}
+}
+
 // adaptTurnEvent translates a single agent.Event into TUI messages. It mutates
 // the adapter state (text/thinking block IDs and the provider-call-id map) so
 // deltas for the same block reuse the transcript item they created.
-func (a *App) adaptTurnEvent(ev agent.Event, textBlock, thinkingBlock *int64, callIDs map[string]int64) []tea.Msg {
+func (a *App) adaptTurnEvent(ev agent.Event, textBlock, thinkingBlock *int64, callIDs map[string]int64, modelID string) []tea.Msg {
 	switch ev.Type {
 	case agent.EventTextDelta:
 		if *textBlock == 0 {
@@ -1448,26 +1948,18 @@ func (a *App) adaptTurnEvent(ev agent.Event, textBlock, thinkingBlock *int64, ca
 			return nil
 		}
 
-		a.storeMu.Lock()
-		store := a.store
-		layout := a.layout
-		a.storeMu.Unlock()
+		// recordUsage also adds the call to the session totals.
+		a.recordUsage(*ev.Usage, modelID)
 
-		if store != nil {
-			store.RecordUsage(*ev.Usage)
+		return []tea.Msg{
+			tui.UsageMsg{
+				InputTokens:      ev.Usage.InputTokens,
+				OutputTokens:     ev.Usage.OutputTokens,
+				CacheReadTokens:  ev.Usage.CacheReadTokens,
+				CacheWriteTokens: ev.Usage.CacheWriteTokens,
+			},
+			a.buildSessionUsageMsg(modelID),
 		}
-		if layout != nil {
-			if err := session.AddUsage(layout.Root, int64(ev.Usage.InputTokens), int64(ev.Usage.OutputTokens), time.Now().UTC()); err != nil {
-				a.log.Debug("usage update failed", "error", err)
-			}
-		}
-
-		return []tea.Msg{tui.UsageMsg{
-			InputTokens:      ev.Usage.InputTokens,
-			OutputTokens:     ev.Usage.OutputTokens,
-			CacheReadTokens:  ev.Usage.CacheReadTokens,
-			CacheWriteTokens: ev.Usage.CacheWriteTokens,
-		}}
 
 	case agent.EventError:
 		// Turn returns the same error after the stream ends, so we surface it as TurnErrorMsg from the final return path rather than duplicating it here.
@@ -1825,31 +2317,39 @@ func (a *App) ResolveToolApproval(id int64, decision policy.Decision) {
 // replaces conv.Messages with the compacted result, and records
 // compaction.applied. maxTokens caps the summary request's output.
 //
-// It returns session.ErrNothingToCompact when there are fewer than 6 turns,
-// an error wrapping context.Canceled when the turn was cancelled, and another
-// error on model or provider failure. On any error conv and the store are
-// untouched.
+// It returns the applied Compaction (including its Usage) on success. It returns
+// session.ErrNothingToCompact, with a nil Compaction, when there are fewer than 6
+// turns, an error wrapping context.Canceled when the turn was cancelled, and another
+// error on model or provider failure. On any error conv and the store are untouched.
+// On every error after the model call began the Compaction is still non-nil, so the
+// caller can record its Usage; it was not applied and must not be used for anything
+// else. A cancel after the summary arrived returns a Compaction that also carries
+// the unapplied Messages.
 //
 // The cancellation check immediately before the swap is what keeps a cancel
 // that lands after session.Compact's own last check from half-applying: the
 // swap and the store write both follow it with no further wait.
 //
-// conv is not guarded by a lock. The turn goroutine is the only writer here
-// and ag.Turn mutates the same Conversation the same way afterwards; Submit
-// reads a.conv before RunTurn starts. BeginTurn cancels the previous turn but
-// does not wait for its goroutine, so two turns racing on one Conversation is
-// a hazard that predates this function and that this function does not close.
-func (a *App) runCompaction(ctx context.Context, model agent.Model, conv *agent.Conversation, maxTokens int) error {
+// conv is not guarded by a lock. Its single-writer guarantee comes from two
+// callers: RunTurn's goroutine, which Submit starts only when no manual
+// compaction is running, and ManualCompact, which starts only when no turn
+// goroutine is live. NewSession waits for both before it replaces a.conv.
+// Callers that bypass Submit and ManualCompact, as tests do, must keep to the
+// same rule themselves.
+func (a *App) runCompaction(ctx context.Context, model agent.Model, conv *agent.Conversation, maxTokens int) (*session.Compaction, error) {
 	comp, err := session.Compact(ctx, model, conv.Messages, maxTokens)
+	// comp may be non-nil even on error, carrying usage from the stream.
+	// Return early on error, but allow callers to record usage from comp before
+	// they switch on the error type.
 	if err != nil {
-		return err
+		return comp, err
 	}
 
 	if a.afterCompactHook != nil {
 		a.afterCompactHook()
 	}
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("compaction cancelled before it was applied: %w", err)
+		return comp, fmt.Errorf("compaction cancelled before it was applied: %w", err)
 	}
 
 	conv.Messages = comp.Messages
@@ -1863,7 +2363,121 @@ func (a *App) runCompaction(ctx context.Context, model agent.Model, conv *agent.
 		store.RecordCompaction(comp.From, comp.To, comp.Summary)
 	}
 
-	return nil
+	return comp, nil
+}
+
+// GetActiveModel builds the active model from the current endpoint configuration.
+// It returns nil if the endpoint or API key is not available.
+func (a *App) GetActiveModel(getenv func(string) string) agent.Model {
+	epName := a.cfg.Provider.Default
+	ep, ok := a.cfg.Provider.Endpoints[epName]
+	if !ok {
+		return nil
+	}
+
+	key, _ := ep.ResolveKey(getenv)
+	if key == "" {
+		return nil
+	}
+
+	prov, err := a.providerBuilder(epName, ep, key, a.version, a.sessionID, a.log)
+	if err != nil {
+		return nil
+	}
+
+	return &providerModel{
+		p:             prov,
+		model:         ep.Model,
+		promptCaching: ep.PromptCaching,
+		thinking:      parseThinkingLevel(ep.Thinking),
+	}
+}
+
+// isCompacting reports whether a ManualCompact is running.
+func (a *App) isCompacting() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.compacting
+}
+
+// beginManualCompact claims the right to compact. It returns ok=false, with
+// nothing claimed, when another session operation holds opMu, a turn goroutine
+// is live, or a compaction is already running. On success it has started the
+// turn context, marked compacting and registered with inFlight, so
+// NewSession's Wait covers the compaction; the caller must call the returned
+// done exactly once.
+func (a *App) beginManualCompact() (ctx context.Context, conv *agent.Conversation, done func(), ok bool) {
+	if !a.opMu.TryLock() {
+		return nil, nil, nil, false
+	}
+	defer a.opMu.Unlock()
+
+	a.mu.Lock()
+	if a.compacting || a.turnsLive > 0 {
+		a.mu.Unlock()
+		return nil, nil, nil, false
+	}
+	a.compacting = true
+	a.mu.Unlock()
+
+	ctx = a.BeginTurn()
+	a.inFlight.Add(1)
+	return ctx, a.conv, func() {
+		a.mu.Lock()
+		a.compacting = false
+		a.mu.Unlock()
+		a.inFlight.Done()
+	}, true
+}
+
+// ManualCompact compacts the current conversation without starting a turn and
+// returns the real outcome as the one ManualCompactMsg the TUI will see. It
+// blocks for the whole summary call, so the TUI runs it inside a tea.Cmd and
+// keeps its busy state until the returned message arrives. It sends no TUI
+// message itself.
+//
+// It gets its own turn context from BeginTurn, so CancelTurn (Esc) cancels
+// it, and it goes through runCompaction, the path RunTurn uses, so the
+// afterCompactHook seam, the cancellation re-check before the swap and the
+// compaction.applied record are shared. Outcomes are classified with
+// errors.Is. The store is flushed on every exit, as RunTurn does.
+func (a *App) ManualCompact(getenv func(string) string) tui.ManualCompactMsg {
+	ctx, conv, done, ok := a.beginManualCompact()
+	if !ok {
+		return tui.ManualCompactMsg{Outcome: tui.ManualCompactBusy}
+	}
+	defer done()
+
+	model := a.GetActiveModel(getenv)
+	if model == nil {
+		return tui.ManualCompactMsg{
+			Outcome: tui.ManualCompactFailed,
+			Detail:  "no active model available",
+		}
+	}
+	ep := a.cfg.Provider.Endpoints[a.cfg.Provider.Default]
+	maxTokens := min(a.modelInfo(ep.Model).MaxOutput, outputReserve)
+
+	a.storeMu.Lock()
+	store := a.store
+	a.storeMu.Unlock()
+
+	comp, err := a.runCompaction(ctx, model, conv, maxTokens)
+	// Record before classifying the outcome: the summary call is billed whether
+	// or not the compaction was applied.
+	a.recordCompactionUsage(comp, ep.Model)
+	a.flushStore(store)
+
+	switch {
+	case err == nil:
+		return tui.ManualCompactMsg{Outcome: tui.ManualCompactApplied}
+	case errors.Is(err, session.ErrNothingToCompact):
+		return tui.ManualCompactMsg{Outcome: tui.ManualCompactNothing}
+	case errors.Is(err, context.Canceled):
+		return tui.ManualCompactMsg{Outcome: tui.ManualCompactCancelled}
+	default:
+		return tui.ManualCompactMsg{Outcome: tui.ManualCompactFailed, Detail: err.Error()}
+	}
 }
 
 // describeInput picks the field worth showing on a tool card.

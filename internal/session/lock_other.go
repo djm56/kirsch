@@ -59,3 +59,8 @@ func (l *Lock) Release() error {
 func (l *Lock) Close() error {
 	return l.Release()
 }
+
+// tryLock is a no-op stub on non-Unix platforms; the lock is always acquired.
+func tryLock(_ *os.File) error {
+	return nil
+}

@@ -367,6 +367,25 @@ func (w *Workspace) IsDirty() bool {
 // RefreshMeta forces a re-read of branch and dirty state.
 func (w *Workspace) RefreshMeta() { w.refreshMeta(true) }
 
+// DirtyCount returns the number of uncommitted changes in the workspace.
+// It counts the entries in git status --porcelain. Returns 0 outside a repo.
+// On git error, returns -1 and the error.
+func (w *Workspace) DirtyCount() (int, error) {
+	if !w.IsGit {
+		return 0, nil
+	}
+	out, err := w.git("status", "--porcelain")
+	if err != nil {
+		return -1, err
+	}
+	trimmed := strings.TrimSpace(out)
+	if trimmed == "" {
+		return 0, nil
+	}
+	// One line per entry in the porcelain output.
+	return len(strings.Split(trimmed, "\n")), nil
+}
+
 // git runs a read-only git subcommand in the workspace.
 //
 // One helper rather than three call sites, so the security argument is made

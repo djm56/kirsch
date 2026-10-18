@@ -443,15 +443,15 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance:**
 
-- [ ] `/status` shows: model, branch, dirty count, session id, tokens (in/out/cache), compaction %, project-context file, active grants (ui-spec line 525)
-- [ ] `/diff` shows working tree diff
-- [ ] `/files` lists files touched this session
-- [ ] `/approvals` lists active grants, offers to clear
-- [ ] `/new` starts new session (confirm if turn in flight)
-- [ ] `/compact` triggers manual compaction
-- [ ] `/quit` and `/exit` quit (alias)
-- [ ] Unknown `/command` → dim inline hint, not error card, never sent to model (ui-spec line 534)
-- [ ] Cache tokens displayed in `/status` (resolves m3-d2 carried item)
+- [x] `/status` shows: model, branch, dirty count, session id, tokens (in/out/cache), compaction %, project-context file, active grants (ui-spec line 525) — mission-20261017-03 Step 6, TestStatusInfoSessionID + TestStatusInfoCompactionPercent + TestStatusInfoActiveGrants + TestStatusInfoDirtyCount + TestStatusInfoShowsAccumulatedTokens
+- [x] `/diff` shows working tree diff — mission-20261017-03 Step 6, TestDiffCommandDoesNotBlockUpdate + TestDiffCommandOpensModalWithCallbackLines + TestDiffCommandCleanTreeShowsNotice + TestDiffCommandErrorShowsNotice + TestDiffCommandWithoutCallbackShowsNotice + TestDiffResultTruncationMarkerDerivesFromCap + TestDiffResultDoesNotReplaceAnOpenModal + TestDiffModalLinesAreSanitised + TestDiffResultIgnoresStaleSequence + TestDiffResultDroppedAfterNewSession + TestDiffResultBlockedByConfirmPrompt
+- [x] `/files` lists files touched this session — mission-20261017-03 Step 6, TestFilesCommandListsPaths + TestFilesCommandEmptyNotice + TestFilesCommandWithoutCallbackShowsNotice + TestFilesCommandSanitisesPaths
+- [x] `/approvals` lists active grants, offers to clear — mission-20261017-03 Step 6, TestApprovalsNoticeSanitisesGrants
+- [x] `/new` starts new session (confirm if turn in flight) — mission-20261017-03 Step 6, TestSlashNewRunsCallbackInCmdAndResetsOnDone + TestSlashNewDoesNotBlockUpdate + TestSlashNewFailureKeepsTranscript + TestNewSessionIsolatesTheOldTurnFromTheNewSession + TestNewSessionFailureLeavesTheSessionIntact + TestSubmitRefusesWhileNewSessionWaitsForATurn
+- [x] `/compact` triggers manual compaction — mission-20261017-03 Step 6, TestCompactCommandHoldsBusyUntilRealOutcome + TestCompactCommandRefusesSubmitAndKeepsBusyOnEsc + TestManualCompactMsgOutcomesShowDistinctNotices + TestCompactCommandWithoutCallback + TestManualCompactAppliesWithoutStartingATurn + TestManualCompactWithTooFewTurnsReportsNothing + TestManualCompactProviderErrorIsAFailureNotAnOverflow + TestManualCompactCancelDuringModelCallReportsCancelled + TestManualCompactCancelAfterSummaryBeforeSwapNeverHalfApplies + TestManualCompactRefusesWhileATurnIsLive + TestSubmitRefusesWhileManualCompactIsRunning
+- [x] `/quit` and `/exit` quit (alias) — mission-20261017-03 Step 6, unchanged from baseline
+- [x] Unknown `/command` → dim inline hint, not error card, never sent to model (ui-spec line 534) — mission-20261017-03 Step 6, baseline behavior
+- [x] Cache tokens displayed in `/status` (resolves m3-d2 carried item) — mission-20261017-03 Step 6, TestStatusInfoShowsAccumulatedTokens + TestGetDiffCountsExactlyAndExcludesUntracked + TestStatusInfoDirtyCount
 
 **Must-know-before:** m4-d3, m4-d5, m4-d7 must be complete.
 
@@ -479,11 +479,11 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance:**
 
-- [ ] `usage` events recorded to `usage.json` (cumulative token/cost totals)
-- [ ] Status bar shows real token counts (input, output, cache read, cache write)
-- [ ] Unknown models degrade with warning + conservative budget (not failure)
-- [ ] Cost calculated from model pricing (plan §5 model table)
-- [ ] Unit tests: usage accumulation, unknown-model degradation
+- [x] `usage` events recorded to `usage.json` (cumulative token/cost totals) — mission-20261017-05: TestUsageAddUpdatesTotals, TestAddUsageRootUpdatesFile, TestUsageAccumulationWithUnknownCost, TestUsageBackwardCompatibility, TestSubmitSendsExactSessionTotalsPerTurn
+- [x] Status bar shows real token counts (input, output, cache read, cache write) — mission-20261017-05: TestSessionUsageWideRender, TestSessionUsageFlatNoCost, TestSessionUsageSmallCostFormat, TestStatusLadderDropsTokensBeforeGrants
+- [x] Unknown models degrade with warning + conservative budget (not failure) — mission-20261017-05: TestUnknownModelFallback, TestConservativeBudgetEqualsTableMinimum, TestConservativeBudgetFollowsTheTable, TestUnknownModelNoticeOnceAcrossTwoTurns
+- [x] Cost calculated from model pricing (plan §5 model table) — mission-20261017-05: TestCostPerTokenModel, TestCostFlatModel, TestCostUnknownModel, TestCostAllPerTokenModels, TestSessionCostPricesEachCallAtItsOwnModel
+- [x] Unit tests: usage accumulation, unknown-model degradation — mission-20261017-05: 38 passing tests across internal/provider/models_test.go, internal/session/usage_test.go, internal/session/lock_test.go, internal/session/compact_test.go, internal/app/session_usage_test.go, internal/app/compaction_test.go, internal/agent/agent_test.go, internal/tui/turn_messages_test.go, cmd/kirsch/usage_wiring_test.go
 
 **Must-know-before:** m4-d3 must record `usage` events.
 

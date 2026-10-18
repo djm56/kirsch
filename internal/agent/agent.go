@@ -254,6 +254,13 @@ type Usage struct {
 	CacheWriteTokens int
 }
 
+// Nonzero reports whether any of the four token counts is above zero. A Usage
+// that is all zero carries nothing worth recording.
+func (u Usage) Nonzero() bool {
+	return u.InputTokens > 0 || u.OutputTokens > 0 ||
+		u.CacheReadTokens > 0 || u.CacheWriteTokens > 0
+}
+
 // Event is an event emitted during model streaming.
 type Event struct {
 	// Type is the event type.

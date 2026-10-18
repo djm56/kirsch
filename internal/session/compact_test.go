@@ -679,8 +679,160 @@ func TestCompactionWithFiveTurns(t *testing.T) {
 	if streamCalled {
 		t.Errorf("Model's Stream should not have been called for 5 turns")
 	}
-	if result.Messages != nil || result.Summary != "" {
-		t.Errorf("Compact should return empty Compaction on error")
+	if result != nil {
+		t.Errorf("Compact should return nil Compaction on ErrNothingToCompact")
+	}
+}
+
+// TestCompactionUsageCapture tests that usage from EventMessageDone is captured
+// in the Compaction result.
+func TestCompactionUsageCapture(t *testing.T) {
+	msgs := buildMessages(7, true)
+
+	expectedUsage := agent.Usage{
+		InputTokens:      100,
+		OutputTokens:     50,
+		CacheReadTokens:  10,
+		CacheWriteTokens: 5,
+	}
+
+	model := &FakeModel{
+		onStream: func(ctx context.Context, req agent.Request, onEvent func(agent.Event)) error {
+			onEvent(agent.Event{Type: agent.EventTextDelta, Text: "summary text"})
+			// Emit EventMessageDone with usage, as the provider adapter does.
+			onEvent(agent.Event{Type: agent.EventMessageDone, Usage: &expectedUsage})
+			return nil
+		},
+	}
+
+	comp, err := Compact(context.Background(), model, msgs, 1000)
+	if err != nil {
+		t.Fatalf("Compact failed: %v", err)
+	}
+
+	if comp == nil {
+		t.Fatal("Compact should return non-nil Compaction on success")
+	}
+
+	if comp.Usage.InputTokens != expectedUsage.InputTokens ||
+		comp.Usage.OutputTokens != expectedUsage.OutputTokens ||
+		comp.Usage.CacheReadTokens != expectedUsage.CacheReadTokens ||
+		comp.Usage.CacheWriteTokens != expectedUsage.CacheWriteTokens {
+		t.Errorf("Usage mismatch: got %+v, want %+v", comp.Usage, expectedUsage)
+	}
+}
+
+// TestCompactionUsageReturnedOnError tests that usage is returned even when
+// compaction fails after the model emits EventMessageDone with usage.
+func TestCompactionUsageReturnedOnError(t *testing.T) {
+	msgs := buildMessages(7, true)
+
+	expectedUsage := agent.Usage{
+		InputTokens:      100,
+		OutputTokens:     50,
+		CacheReadTokens:  10,
+		CacheWriteTokens: 5,
+	}
+
+	model := &FakeModel{
+		onStream: func(ctx context.Context, req agent.Request, onEvent func(agent.Event)) error {
+			onEvent(agent.Event{Type: agent.EventTextDelta, Text: "summary"})
+			// Emit usage on EventMessageDone
+			onEvent(agent.Event{Type: agent.EventMessageDone, Usage: &expectedUsage})
+			// Then emit an error event
+			onEvent(agent.Event{Type: agent.EventError, Err: errors.New("model error after usage")})
+			return nil
+		},
+	}
+
+	comp, err := Compact(context.Background(), model, msgs, 1000)
+	if err == nil {
+		t.Fatal("Compact should have failed with model error")
+	}
+
+	// Even on error, comp should be non-nil and carry the usage that was emitted.
+	if comp == nil {
+		t.Fatal("Compact should return non-nil Compaction even on error, to carry usage")
+	}
+
+	if comp.Usage.InputTokens != expectedUsage.InputTokens ||
+		comp.Usage.OutputTokens != expectedUsage.OutputTokens ||
+		comp.Usage.CacheReadTokens != expectedUsage.CacheReadTokens ||
+		comp.Usage.CacheWriteTokens != expectedUsage.CacheWriteTokens {
+		t.Errorf("Usage mismatch on error: got %+v, want %+v", comp.Usage, expectedUsage)
+	}
+}
+
+// TestCompactionUsageReturnedOnEveryErrorPath drives Compact down each of its
+// four error returns that follow a model call, with the model reporting usage
+// on EventMessageDone first. Every return must carry that usage in a non-nil
+// Compaction that was not applied (no Messages). Each subtest is one return,
+// with its own failure text, so deleting the usage from one return cannot be
+// masked by the others.
+func TestCompactionUsageReturnedOnEveryErrorPath(t *testing.T) {
+	want := agent.Usage{InputTokens: 111, OutputTokens: 22, CacheReadTokens: 33, CacheWriteTokens: 4}
+
+	for _, tc := range []struct {
+		name   string
+		stream func(ctx context.Context, cancel context.CancelFunc, onEvent func(agent.Event)) error
+	}{
+		{
+			name: "Stream returns an error after MessageDone",
+			stream: func(_ context.Context, _ context.CancelFunc, onEvent func(agent.Event)) error {
+				onEvent(agent.Event{Type: agent.EventTextDelta, Text: "summary"})
+				onEvent(agent.Event{Type: agent.EventMessageDone, Usage: &want})
+				return errors.New("transport broke after MessageDone")
+			},
+		},
+		{
+			name: "context cancelled after Stream returned nil",
+			stream: func(_ context.Context, cancel context.CancelFunc, onEvent func(agent.Event)) error {
+				onEvent(agent.Event{Type: agent.EventTextDelta, Text: "summary"})
+				onEvent(agent.Event{Type: agent.EventMessageDone, Usage: &want})
+				cancel()
+				return nil
+			},
+		},
+		{
+			name: "EventError after MessageDone with Stream nil",
+			stream: func(_ context.Context, _ context.CancelFunc, onEvent func(agent.Event)) error {
+				onEvent(agent.Event{Type: agent.EventTextDelta, Text: "summary"})
+				onEvent(agent.Event{Type: agent.EventMessageDone, Usage: &want})
+				onEvent(agent.Event{Type: agent.EventError, Err: errors.New("error event after MessageDone")})
+				return nil
+			},
+		},
+		{
+			name: "whitespace-only summary",
+			stream: func(_ context.Context, _ context.CancelFunc, onEvent func(agent.Event)) error {
+				onEvent(agent.Event{Type: agent.EventTextDelta, Text: " \n\t "})
+				onEvent(agent.Event{Type: agent.EventMessageDone, Usage: &want})
+				return nil
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			model := &FakeModel{onStream: func(ctx context.Context, _ agent.Request, onEvent func(agent.Event)) error {
+				return tc.stream(ctx, cancel, onEvent)
+			}}
+
+			comp, err := Compact(ctx, model, buildMessages(7, true), 1000)
+
+			if !errors.Is(err, ErrCompactionFailed) {
+				t.Fatalf("%s: error = %v, want ErrCompactionFailed", tc.name, err)
+			}
+			if comp == nil {
+				t.Fatalf("%s: Compaction is nil, so the usage the model reported is lost", tc.name)
+			}
+			if comp.Usage != want {
+				t.Errorf("%s: Usage = %+v, want %+v", tc.name, comp.Usage, want)
+			}
+			if comp.Messages != nil || comp.Summary != "" {
+				t.Errorf("%s: failed Compaction carries a result (summary %q, %d messages)", tc.name, comp.Summary, len(comp.Messages))
+			}
+		})
 	}
 }
 
@@ -725,7 +877,7 @@ func TestCompactionRoundTripWithToolCalls(t *testing.T) {
 // roundTrip compacts msgs, writes msgs plus the compaction event to a Store,
 // resumes the file, and requires the resumed conversation to equal
 // comp.Messages exactly. It returns the compaction for further checks.
-func roundTrip(t *testing.T, msgs []agent.Message) Compaction {
+func roundTrip(t *testing.T, msgs []agent.Message) *Compaction {
 	t.Helper()
 
 	model := &FakeModel{

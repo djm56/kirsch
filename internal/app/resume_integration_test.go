@@ -108,13 +108,18 @@ func TestResumeCompletesPartialTurn(t *testing.T) {
 		return fake, nil
 	}
 
-	c2 := newCollector(6)
+	// The turn's message count has changed before (SessionUsageMsg added one),
+	// and a count that is short returns while the turn goroutine is still
+	// writing a.conv. So this wait is for the terminal message by type, and
+	// then for the goroutine itself to exit. The collector's mutex orders every
+	// send before the receive below.
+	c2 := newCollector(0)
 	a.sendFn = c2.send
 
 	a.Submit("continue", func(string) string { return "fake-key" })
 
-	// Wait for the BudgetMsg, assistant text deltas, usage, and turn completion.
-	c2.wait(t, 2*time.Second)
+	waitForMsg[tui.TurnCompleteMsg](t, c2, 2*time.Second)
+	a.inFlight.Wait()
 
 	requests := fake.Requests()
 	if len(requests) != 1 {

@@ -850,57 +850,6 @@ func TestModalFooterNamesTheWayOutAtEveryWidth(t *testing.T) {
 	}
 }
 
-// TestGrantsModalFooterNamesTheConfirmClearAtEveryWidth pins the grants modal's
-// footer ladder. The 'c' key does not clear immediately: it closes the modal and
-// shows a confirm prompt. The footer must signal this intervening step rather than
-// claiming 'c' clears outright. This test walks the width ladder to ensure the
-// clear instruction is present when it fits, and pins the floor behaviour where
-// the instruction is deliberately absent.
-// The footer "c to clear (confirm)" needs width 40+ to fit; it is absent at 38.
-func TestGrantsModalFooterNamesTheConfirmClearAtEveryWidth(t *testing.T) {
-	widthsWithInstruction := []int{40, 45, 50, 60, 80, 120, 200}
-	for _, w := range widthsWithInstruction {
-		m := headerModel(t, defaultSession(), w, 24)
-		// Use GrantsModalTitle constant to build the modal, matching the title
-		// that update.go:1108 assigns. This ensures the test exercises the same
-		// modal state that the real code produces.
-		m.openModal(ModalState{Kind: ModalContent, Title: GrantsModalTitle, Lines: []string{"grant1", "grant2"}})
-		lay := m.layout()
-		box, _, _ := m.modalBox(lay)
-		if len(box) < 2 {
-			t.Errorf("width=%d: box is %d row(s); no footer to read", w, len(box))
-			continue
-		}
-		footer := stripSGR(box[len(box)-2])
-		// At every width where the grants footer is rendered, it must include
-		// the clear confirmation instruction to signal the intervening confirmation step.
-		if !strings.Contains(footer, "to clear (confirm)") {
-			t.Errorf("width=%d: footer is %q, want it to contain %q", w, footer, "to clear (confirm)")
-		}
-	}
-
-	// At the narrow floor (around 30 columns), the clear confirmation instruction is
-	// deliberately absent due to space constraints. Verify the floor shows no
-	// inert bindings and includes the exit key.
-	floorWidth := 30
-	m := headerModel(t, defaultSession(), floorWidth, 24)
-	m.openModal(ModalState{Kind: ModalContent, Title: GrantsModalTitle, Lines: []string{"grant1", "grant2"}})
-	lay := m.layout()
-	box, _, _ := m.modalBox(lay)
-	if len(box) < 2 {
-		t.Errorf("width=%d (floor): box is %d row(s); no footer to read", floorWidth, len(box))
-	} else {
-		footer := stripSGR(box[len(box)-2])
-		// The floor shows the exit key and nothing else.
-		if strings.Contains(footer, "to clear (confirm)") {
-			t.Errorf("width=%d (floor): footer is %q, should not contain %q", floorWidth, footer, "to clear (confirm)")
-		}
-		if !strings.Contains(footer, "Esc") {
-			t.Errorf("width=%d (floor): footer is %q, should contain exit key %q", floorWidth, footer, "Esc")
-		}
-	}
-}
-
 // TestModalNamesNoInertBindingAtTheBodylessRung pins the other half of what the
 // footer is for. The rung above the notice keeps the footer and drops the body,
 // so the box is two borders and a footer over nothing — and the footer was still
@@ -1158,9 +1107,9 @@ func confirmPrompts(t *testing.T) []string {
 		m.busy.Active = true
 		return m.runSlash("new", "", m.layout())
 	})
-	// /approvals no longer directly raises a confirm — it opens a modal listing grants,
-	// and pressing 'c' in the modal raises the clear-confirm. Both paths are tested in
-	// internal/tui tests (TestGrantsModalCKeyShowsConfirm, TestApprovalsListsRealGrants).
+	// /approvals with grants also raises a confirm (update.go, runSlash "approvals"
+	// arm) but is not a row in this list; update_test.go TestApprovalsWithGrants and
+	// TestApprovalsConfirmAction cover it.
 
 	// A paste over the §7.2 warning threshold. update.go, handlePaste. The size
 	// is part of the prompt, so this one has no single length — twelve kilobytes

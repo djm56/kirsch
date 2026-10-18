@@ -491,6 +491,80 @@ func TestGitToolsOnRealRepo(t *testing.T) {
 	}
 }
 
+// TestDiffArgsShape pins the argument list shared by git_diff and /diff: the
+// driver-disabling flags are always present, --staged and the `--` path
+// terminator appear only when asked for, and the path comes last.
+func TestDiffArgsShape(t *testing.T) {
+	cases := []struct {
+		name   string
+		staged bool
+		path   string
+		want   []string
+	}{
+		{"plain", false, "", []string{"diff", "--no-color", "--no-ext-diff", "--no-textconv"}},
+		{"staged", true, "", []string{"diff", "--no-color", "--no-ext-diff", "--no-textconv", "--staged"}},
+		{"path", false, "a.txt", []string{"diff", "--no-color", "--no-ext-diff", "--no-textconv", "--", "a.txt"}},
+		{"staged path", true, "a.txt", []string{"diff", "--no-color", "--no-ext-diff", "--no-textconv", "--staged", "--", "a.txt"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := DiffArgs(tc.staged, tc.path); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("DiffArgs(%v, %q) = %v, want %v", tc.staged, tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestGitDiffDoesNotRunConfiguredDiffDrivers sets a repo-config external diff
+// that would create a marker file, runs the git_diff tool, and expects no
+// marker. The positive control is the diff content still coming back: with the
+// driver running, git prints the driver's output instead of "+two".
+func TestGitDiffDoesNotRunConfiguredDiffDrivers(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not on PATH")
+	}
+	dir := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "driver-ran")
+	script := filepath.Join(t.TempDir(), "driver.sh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\ntouch '"+marker+"'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"config", "user.email", "t@e.com"},
+		{"config", "user.name", "T"},
+		{"config", "diff.external", script},
+	} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "."}, {"commit", "-qm", "init"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("one\ntwo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.Detect(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	df := registryFor(ws).Invoke(context.Background(), "git_diff", json.RawMessage(`{}`))
+
+	if _, err := os.Stat(marker); err == nil {
+		t.Error("the repo's diff.external driver ran under git_diff")
+	}
+	if !df.OK || !strings.Contains(df.Content, "+two") {
+		t.Errorf("git_diff did not return the built-in diff (ok=%v):\n%s", df.OK, df.Content)
+	}
+}
+
 func TestSchemasAreValidJSON(t *testing.T) {
 	ws := fixtureWS(t, "repo-small")
 	for _, tool := range registryFor(ws).List() {

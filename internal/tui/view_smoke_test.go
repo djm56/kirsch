@@ -706,7 +706,7 @@ func TestClosingAConfirmRepaintsInTheSameFrame(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newDrivenColour(t, 80, 24)
-			// Wire GetGrants to return a grant, so /approvals shows the modal
+			// Wire GetGrants to return a grant, so /approvals shows a notice and raises a confirm
 			grantsList := []string{"go test"}
 			m.GetGrants = func() []string {
 				return grantsList
@@ -731,26 +731,70 @@ func TestClosingAConfirmRepaintsInTheSameFrame(t *testing.T) {
 				open = drive(open, key(r))
 			}
 			open = drive(open, keyType(tea.KeyEnter))
-			// /approvals with grants opens a modal listing them
-			if open.mode() != ModeModal {
-				t.Fatalf("/approvals should open a modal with grants: mode = %v", open.mode())
-			}
-			// Press 'c' to open the clear-grants confirm from the modal
-			open = drive(open, key('c'))
+			// /approvals with grants shows a notice and raises a confirm
 			if open.mode() != ModeConfirm {
-				t.Fatalf("pressing 'c' on grants modal should open confirm: mode = %v", open.mode())
+				t.Fatalf("/approvals should raise a confirm with grants: mode = %v", open.mode())
 			}
-			if transcriptBand(t, open) == before {
-				t.Fatal("the confirm prompt changed nothing on screen")
+			// The notice is appended before the confirm opens, so `before` differs
+			// from the open frame for that reason alone and is not a dimming check.
+			// The dimming check is the pair below: the same transcript, notice
+			// included, drawn with the confirm open and with it closed.
+			openBand := transcriptBand(t, open)
+			if openBand == before {
+				t.Fatal("/approvals changed nothing on screen: no notice reached the transcript")
 			}
 
 			closed := drive(open, tc.k)
 			if closed.mode() != ModeComposing {
 				t.Fatalf("closing the confirm prompt went to %v, want Composing", closed.mode())
 			}
-			assertSameBand(t, "the transcript is still flat on the frame that closed the confirm prompt",
-				before, transcriptBand(t, closed))
+
+			// Positive control for the rebuild comparison below: the open-confirm
+			// band must be dimmed relative to the closed band. Comparing whole
+			// bands would not show that, because the confirm box is drawn inside
+			// the band and makes the two differ even when nothing is dimmed, so
+			// the comparison is confined to rows the box did not touch. The closed
+			// side is a forced rebuild, not closed's own cache, so a stale closed
+			// frame is the rebuild assertion's failure alone and cannot also trip
+			// this one.
+			fresh := closed
+			fresh.relayout(fresh.layout())
+			assertRowsDimmedByOverlay(t, openBand, transcriptBand(t, fresh))
+
+			// The closed frame must equal a forced rebuild: dimming was cleared on
+			// the frame that closed the confirm, not on the next one.
+			assertBandMatchesRebuild(t, "the transcript is rendered correctly after closing the confirm prompt", closed)
 		})
+	}
+}
+
+// assertRowsDimmedByOverlay fails unless some transcript row the overlay left
+// alone is drawn with different escapes in the open band than in the closed one.
+//
+// A row is "left alone" when its visible text is non-blank and identical on both
+// sides, so only the palette can account for a byte difference. Rows the confirm
+// box covers differ in text and are skipped. The matching-text count is its own
+// failure, so an overlay that covered every row cannot make the check pass or
+// fail by accident.
+func assertRowsDimmedByOverlay(t *testing.T, openBand, closedBand string) {
+	t.Helper()
+	ol, cl := strings.Split(openBand, "\n"), strings.Split(closedBand, "\n")
+	same, dimmed := 0, 0
+	for i := 0; i < len(ol) && i < len(cl); i++ {
+		po, pc := stripSGR(ol[i]), stripSGR(cl[i])
+		if po != pc || strings.TrimSpace(po) == "" {
+			continue
+		}
+		same++
+		if ol[i] != cl[i] {
+			dimmed++
+		}
+	}
+	if same == 0 {
+		t.Fatal("no transcript row survives the confirm box with visible text: the dimming control has nothing to compare")
+	}
+	if dimmed == 0 {
+		t.Fatalf("the open confirm prompt did not dim the transcript: %d untouched rows carry the same escapes as the closed band", same)
 	}
 }
 
@@ -966,20 +1010,25 @@ func TestSlashNoticeCommandsRebuildTheCache(t *testing.T) {
 	// want is a fragment of the notice each command appends — short enough to
 	// survive the card's wrapping at 80 columns.
 	//
-	// pre asserts the model state a command's notice branch depends on, and exists
-	// for the one command that has such a dependency. Without it a fixture that
-	// started with a session grant would send /approvals down the confirm branch,
-	// and the failure would surface in the first vacuity guard as "it appended no
-	// notice card" — true, but pointing at the transcript rather than at the
-	// precondition that actually moved.
+	// pre sets up or asserts the model state a command's notice branch depends on,
+	// and is given a pointer so a change reaches the model the case runs on.
+	// /files sets an empty touched-files callback, which selects its "no files
+	// touched this session" arm rather than the nil-callback arm. /approvals
+	// asserts the fixture holds no session grant: one would send it down the
+	// confirm branch, and the failure would surface in the first vacuity guard as
+	// "it appended no notice card" — true, but pointing at the transcript rather
+	// than at the precondition that actually moved.
 	cases := []struct {
 		cmd, want string
-		pre       func(*testing.T, Model)
+		pre       func(*testing.T, *Model)
 	}{
 		{cmd: "/status", want: "branch"},
-		{cmd: "/files", want: "files touched this session"},
+		{cmd: "/files", want: "no files touched this session", pre: func(t *testing.T, m *Model) {
+			t.Helper()
+			m.GetTouchedFiles = func() []string { return []string{} }
+		}},
 		{cmd: "/compact", want: "nothing to compact yet"},
-		{cmd: "/approvals", want: "no active session grants", pre: func(t *testing.T, m Model) {
+		{cmd: "/approvals", want: "no active session grants", pre: func(t *testing.T, m *Model) {
 			t.Helper()
 			var grantCount int
 			if m.GetGrants != nil {
@@ -1001,7 +1050,7 @@ func TestSlashNoticeCommandsRebuildTheCache(t *testing.T) {
 				t.Fatalf("mode = %v, want Composing", m.mode())
 			}
 			if tc.pre != nil {
-				tc.pre(t, m)
+				tc.pre(t, &m)
 			}
 			before := m.tr.Len()
 

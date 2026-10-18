@@ -42,7 +42,7 @@ func (t *GitStatus) Invoke(ctx context.Context, raw json.RawMessage) Result {
 		return Fail(KindToolInputInvalid,
 			"this workspace is not a Git repository, so there is no status to report")
 	}
-	out, err := runGit(ctx, t.WS.Root, "status", "--porcelain")
+	out, err := RunGit(ctx, t.WS.Root, "status", "--porcelain")
 	if err != nil {
 		return gitFailure(ctx, "git status", err, out)
 	}
@@ -101,20 +101,15 @@ func (t *GitDiff) Invoke(ctx context.Context, raw json.RawMessage) Result {
 			"this workspace is not a Git repository, so there is nothing to diff")
 	}
 
-	args := []string{"diff", "--no-color"}
-	if in.Staged {
-		args = append(args, "--staged")
-	}
 	if in.Path != "" {
 		// Even a path handed straight to git crosses Resolve first: "git will
 		// handle it" is exactly the reasoning that lets ../../etc through.
 		if _, res, bad := resolve(t.WS, in.Path); bad {
 			return res
 		}
-		args = append(args, "--", in.Path)
 	}
 
-	out, err := runGit(ctx, t.WS.Root, args...)
+	out, err := RunGit(ctx, t.WS.Root, DiffArgs(in.Staged, in.Path)...)
 	if err != nil {
 		return gitFailure(ctx, "git diff", err, out)
 	}
@@ -134,12 +129,28 @@ func (t *GitDiff) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	return OKResult(content, summary, truncated)
 }
 
-func runGit(ctx context.Context, dir string, args ...string) (string, error) {
-	// The executable is a literal, never a variable, so there is no command
-	// injection surface. The only argument that originates outside Kirsch is
-	// git_diff's path, which crosses workspace.Resolve before it gets here and
-	// is passed after a `--` terminator so it cannot be read as an option.
-	// gosec G204.
+// DiffArgs builds the argument list for a git diff, shared by the git_diff tool
+// and the TUI's /diff so the two cannot drift. --no-ext-diff and --no-textconv
+// stop a diff driver named in repository config from running a command. A
+// non-empty path is appended after a `--` terminator and must already have
+// crossed workspace.Resolve.
+func DiffArgs(staged bool, path string) []string {
+	args := []string{"diff", "--no-color", "--no-ext-diff", "--no-textconv"}
+	if staged {
+		args = append(args, "--staged")
+	}
+	if path != "" {
+		args = append(args, "--", path)
+	}
+	return args
+}
+
+// RunGit executes a git command in the given directory and returns its output.
+// The executable is a literal, never a variable, so there is no command
+// injection surface. Arguments must be pre-validated; git_diff's path argument
+// crosses workspace.Resolve before calling here and is passed after a `--`
+// terminator so it cannot be read as an option. gosec G204.
+func RunGit(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...) // #nosec G204 -- literal binary, resolved args
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr

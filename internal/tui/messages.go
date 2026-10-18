@@ -121,6 +121,28 @@ type UsageMsg struct {
 	CacheWriteTokens int
 }
 
+// SessionUsageMsg reports cumulative token and cost totals for the session.
+// It carries only plain ints, a float and strings so the status bar can show
+// real session totals without importing the provider package.
+//
+// CostState is one of: "unknown" (no pricing figures), "flat" (subscription),
+// or "per_token" (charged by the token). CostUSD is meaningful only for
+// per_token, and is the sum of each call priced at its own model's rates.
+//
+// ModelKnown reports whether the current model is in the model table. It is a
+// separate signal from CostState: a known model can have unknown pricing, and
+// only an unknown model runs on the conservative budget. The zero value reads
+// as unknown, so a sender that omits it asks for the notice.
+type SessionUsageMsg struct {
+	TokensIn   int
+	TokensOut  int
+	CacheRead  int
+	CacheWrite int
+	CostUSD    float64
+	CostState  string // "unknown", "flat", "per_token"
+	ModelKnown bool
+}
+
 // BudgetMsg carries the estimated token count and model context window so the
 // status bar can show the budget indicator. It crosses the TUI-implementation
 // boundary as plain ints, so internal/tui imports no provider package.
@@ -170,6 +192,20 @@ type StatusInfoMsg struct {
 	ContextFile        string // chosen project-context file, or empty if none
 	ContextSize        int    // on-disk size of ContextFile in bytes
 	ShowDataFlowNotice bool   // true when the ADR 0008 notice should be shown
+	DirtyCount         int    // number of uncommitted changes in the workspace
+	SessionID          string // current session identifier, or "none" if no session has started
+	TokensIn           int    // cumulative input tokens for this session
+	TokensOut          int    // cumulative output tokens for this session
+	TokensCache        int    // cumulative cache tokens (read + write) for this session
+	CompactionPercent  int    // estimated budget consumption as a percentage, or -1 if not yet computed
+	ActiveGrants       int    // number of active session grants, or 0 if none
+}
+
+// DiffResultMsg delivers the outcome of the /diff command's GetDiff call, which
+// runs in a tea.Cmd so that git never blocks Update.
+type DiffResultMsg struct {
+	Result DiffResult
+	Seq    int // sequence number for /diff requests; ignored if stale (W-B)
 }
 
 // TranscriptLoadedMsg bulk-loads a transcript snapshot, for example when a
@@ -186,4 +222,37 @@ type TranscriptLoadedMsg struct {
 // "another Kirsch is running here").
 type StatusWarningMsg struct {
 	Text string
+}
+
+// ManualCompactOutcome is how a manual /compact ended. The zero value is not
+// an outcome, so a message built without one cannot read as success.
+type ManualCompactOutcome uint8
+
+// The manual compaction outcomes.
+const (
+	_ ManualCompactOutcome = iota
+	// ManualCompactApplied: the conversation was replaced and recorded.
+	ManualCompactApplied
+	// ManualCompactNothing: too few turns to compact; no model call was made.
+	ManualCompactNothing
+	// ManualCompactCancelled: cancelled; the conversation and log are unchanged.
+	ManualCompactCancelled
+	// ManualCompactBusy: refused because a turn or another compaction is live.
+	ManualCompactBusy
+	// ManualCompactFailed: the summary call or the swap failed; Detail says why.
+	ManualCompactFailed
+)
+
+// ManualCompactMsg reports how a manual /compact ended. The app produces it
+// once, when compaction has really finished; the TUI never builds one.
+type ManualCompactMsg struct {
+	Outcome ManualCompactOutcome
+	Detail  string // failure cause, for ManualCompactFailed
+}
+
+// NewSessionDoneMsg reports the end of the NewSession callback that /new runs
+// in a tea.Cmd. Err is non-nil when no new session was started; the old one
+// is then still in place.
+type NewSessionDoneMsg struct {
+	Err error
 }

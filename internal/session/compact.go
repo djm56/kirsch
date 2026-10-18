@@ -39,6 +39,7 @@ type Compaction struct {
 	To       int
 	Summary  string
 	Messages []agent.Message
+	Usage    agent.Usage // Token usage for the summary model call
 }
 
 // PlanCompaction returns the inclusive message-index range to replace for compaction.
@@ -98,9 +99,15 @@ func PlanCompaction(msgs []agent.Message) (from, to int, ok bool) {
 }
 
 // Compact makes one model call that summarizes the messages in the range
-// PlanCompaction selects, and returns a Compaction carrying that range, the
+// PlanCompaction selects. It returns a Compaction carrying that range, the
 // summary text, and the conversation with the range replaced by one assistant
 // message holding the summary.
+//
+// Usage is read from the EventMessageDone the model emits. On every error
+// return after the model call began, the returned Compaction is non-nil and
+// carries only that Usage, so a caller can record billable tokens for a
+// compaction it does not apply; its From, To, Summary and Messages are zero.
+// ErrNothingToCompact returns a nil Compaction because no call was made.
 //
 // It returns ErrNothingToCompact, without calling the model, when
 // PlanCompaction finds fewer than 6 turns. Every other failure (model error,
@@ -111,10 +118,10 @@ func PlanCompaction(msgs []agent.Message) (from, to int, ok bool) {
 // maxTokens is the output cap on the summary request only. Compact does not
 // measure the compacted result against any budget. All thinking blocks are
 // dropped from the summary request.
-func Compact(ctx context.Context, m agent.Model, msgs []agent.Message, maxTokens int) (Compaction, error) {
+func Compact(ctx context.Context, m agent.Model, msgs []agent.Message, maxTokens int) (*Compaction, error) {
 	from, to, ok := PlanCompaction(msgs)
 	if !ok {
-		return Compaction{}, ErrNothingToCompact
+		return nil, ErrNothingToCompact
 	}
 
 	// Extract the messages to compact (the middle range).
@@ -141,8 +148,10 @@ func Compact(ctx context.Context, m agent.Model, msgs []agent.Message, maxTokens
 	}
 
 	// Collect the summary text from the model's response.
+	// Usage is captured even if later errors occur (stream, cancellation, or validation).
 	var summaryBuf strings.Builder
 	var streamErr error
+	var usage agent.Usage
 
 	onEvent := func(ev agent.Event) {
 		switch ev.Type {
@@ -150,6 +159,13 @@ func Compact(ctx context.Context, m agent.Model, msgs []agent.Message, maxTokens
 			summaryBuf.WriteString(ev.Text)
 		case agent.EventError:
 			streamErr = ev.Err
+		case agent.EventMessageDone:
+			// The model adapter attaches token counts to EventMessageDone;
+			// it never emits agent.EventUsage (the agent does, after the
+			// stream), so this is the only place usage can arrive from.
+			if ev.Usage != nil {
+				usage = *ev.Usage
+			}
 		default:
 			// Other event types (thinking, tool calls, etc.) are not relevant
 			// for the summary request and are ignored.
@@ -158,22 +174,22 @@ func Compact(ctx context.Context, m agent.Model, msgs []agent.Message, maxTokens
 
 	err := m.Stream(ctx, req, onEvent)
 	if err != nil {
-		return Compaction{}, fmt.Errorf("%w: %w", ErrCompactionFailed, err)
+		return &Compaction{Usage: usage}, fmt.Errorf("%w: %w", ErrCompactionFailed, err)
 	}
 
 	// Check for cancellation after Stream returns, even if it returned nil error.
 	if ctx.Err() != nil {
-		return Compaction{}, fmt.Errorf("%w: %w", ErrCompactionFailed, ctx.Err())
+		return &Compaction{Usage: usage}, fmt.Errorf("%w: %w", ErrCompactionFailed, ctx.Err())
 	}
 
 	if streamErr != nil {
-		return Compaction{}, fmt.Errorf("%w: %w", ErrCompactionFailed, streamErr)
+		return &Compaction{Usage: usage}, fmt.Errorf("%w: %w", ErrCompactionFailed, streamErr)
 	}
 
 	// Reject whitespace-only summaries.
 	summary := summaryBuf.String()
 	if strings.TrimSpace(summary) == "" {
-		return Compaction{}, fmt.Errorf("%w: empty or whitespace-only summary", ErrCompactionFailed)
+		return &Compaction{Usage: usage}, fmt.Errorf("%w: empty or whitespace-only summary", ErrCompactionFailed)
 	}
 
 	// Apply the compaction to create the new message slice.
@@ -192,14 +208,15 @@ func Compact(ctx context.Context, m agent.Model, msgs []agent.Message, maxTokens
 
 	newMsgs, err := applyCompaction(msgsCopy, from, to, summary)
 	if err != nil {
-		return Compaction{}, fmt.Errorf("%w: %w", ErrCompactionFailed, err)
+		return &Compaction{Usage: usage}, fmt.Errorf("%w: %w", ErrCompactionFailed, err)
 	}
 
-	return Compaction{
+	return &Compaction{
 		From:     from,
 		To:       to,
 		Summary:  summary,
 		Messages: newMsgs,
+		Usage:    usage,
 	}, nil
 }
 

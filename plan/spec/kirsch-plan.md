@@ -262,16 +262,16 @@ API key resolution: each endpoint names its key variable in `api_key_env`. Kirsc
 
 `internal/provider` ships a table of known models, because two separate features need it: §6.3's budget maths needs the context window, and the status bar's cost display needs pricing.
 
-| Model | Endpoint | Context window | Max output | In $/Mtok | Out $/Mtok |
-|---|---|---|---|---|---|
-| `claude-sonnet-5-5` (`anthropic` default) | `anthropic` | 1M | 128K | 2 | 10 |
-| `claude-opus-5-5` | `anthropic` | 1M | 128K | 4 | 20 |
-| `claude-fable-5-1` | `anthropic` | 1M | 128K | 10 | 50 |
-| `claude-haiku-4-5-20251001` (retirement not sooner than 2026-10-15) | `anthropic` | 200K | 64K | 1 | 5 |
-| `minimax-m2.7` (`opencode` default) | `opencode` | — | — | flat rate | flat rate |
-| `minimax-m3` | `opencode` | — | — | flat rate | flat rate |
+| Model | Endpoint | Context window | Max output | In $/Mtok | Out $/Mtok | Cache write $/Mtok (derived 1.25× input, unverified) |
+|---|---|---|---|---|---|---|
+| `claude-sonnet-5-5` (`anthropic` default) | `anthropic` | 1M | 128K | 2 | 10 | 2.5 |
+| `claude-opus-5-5` | `anthropic` | 1M | 128K | 4 | 20 | 5 |
+| `claude-fable-5-1` | `anthropic` | 1M | 128K | 10 | 50 | 12.5 |
+| `claude-haiku-4-5-20251001` (retirement not sooner than 2026-10-15) | `anthropic` | 200K | 64K | 1 | 5 | 1.25 |
+| `minimax-m2.7` (`opencode` default) | `opencode` | — | — | flat rate | flat rate | flat rate |
+| `minimax-m3` | `opencode` | — | — | flat rate | flat rate | flat rate |
 
-Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview and the pricing page, read 2026-10-02. Cache reads are billed at 10% of the input price (5% on `claude-opus-5-5`, 2.5% on `claude-fable-5-1`). The legacy `claude-sonnet-5` and `claude-opus-5` are not listed. OpenCode Go publishes per-token prices that count against a flat monthly allowance, but no context window or output limit (opencode.ai/docs/go, read 2026-10-05), so its size columns stay `—`. Until then the unknown-model fallback applies. **Do not guess figures.** An unknown model ID falls back to a conservative default (128k context, 4k output reserve, cost rendered as `?`) and logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
+Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview and the pricing page, read 2026-10-02. Cache reads are billed at 10% of the input price (5% on `claude-opus-5-5`, 2.5% on `claude-fable-5-1`). The cache-write column is not read from a price sheet: it is derived as 1.25× the input price and is unverified. Confirm it against current pricing before relying on `cost_usd` for cache-heavy sessions (`CacheWritePerMTok` in `internal/provider/models.go` carries the same caveat). The legacy `claude-sonnet-5` and `claude-opus-5` are not listed. OpenCode Go publishes per-token prices that count against a flat monthly allowance, but no context window or output limit (opencode.ai/docs/go, read 2026-10-05), so its size columns stay `—`. Until then the unknown-model fallback applies. **Do not guess figures.** An unknown model ID falls back to a conservative default (128k context, 4k output reserve, cost rendered as `?`) and logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
 
 Token/cost: track input/output/cache tokens per turn and cumulative per session; show in status bar; persist totals to `~/.local/share/kirsch/usage.json`.
 

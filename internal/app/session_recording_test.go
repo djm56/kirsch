@@ -240,8 +240,15 @@ func TestSubmitRecordsFullEventSequence(t *testing.T) {
 	if usage.CompletionTokens != 6 {
 		t.Errorf("usage.CompletionTokens = %d, want 6", usage.CompletionTokens)
 	}
-	if usage.TotalTokens != 17 {
-		t.Errorf("usage.TotalTokens = %d, want 17", usage.TotalTokens)
+	if usage.CacheReadTokens != 1 {
+		t.Errorf("usage.CacheReadTokens = %d, want 1", usage.CacheReadTokens)
+	}
+	if usage.CacheWriteTokens != 2 {
+		t.Errorf("usage.CacheWriteTokens = %d, want 2", usage.CacheWriteTokens)
+	}
+	// TotalTokens = in + out + cacheRead + cacheWrite
+	if usage.TotalTokens != 20 {
+		t.Errorf("usage.TotalTokens = %d, want 20", usage.TotalTokens)
 	}
 }
 

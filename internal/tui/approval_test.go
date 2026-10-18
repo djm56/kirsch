@@ -1029,43 +1029,6 @@ func TestCommandApprovalArrivesWithDetail(t *testing.T) {
 	}
 }
 
-// TestApprovalsListsRealGrants verifies that /approvals lists grants created
-// by calling GetGrants() callback which reads the actual grants from the policy.
-func TestApprovalsListsRealGrants(t *testing.T) {
-	m := New(Options{})
-
-	// Wire a mock GetGrants callback that returns two grants
-	m.GetGrants = func() []string {
-		return []string{"go test", "go build"}
-	}
-
-	// Run /approvals command
-	for _, r := range "/approvals" {
-		updatedModel, _ := m.Update(key(r))
-		m = updatedModel.(Model)
-	}
-	updatedModel, _ := m.Update(keyType(tea.KeyEnter))
-	m = updatedModel.(Model)
-
-	// Should open a modal with the grants
-	if m.mode() != ModeModal {
-		t.Fatalf("mode after /approvals = %v, want Modal", m.mode())
-	}
-
-	if m.modal.Title != "session grants" {
-		t.Errorf("modal.Title = %q, want 'session grants'", m.modal.Title)
-	}
-
-	// Verify the grants are in the modal lines
-	grantStr := strings.Join(m.modal.Lines, "\n")
-	if !strings.Contains(grantStr, "go test") {
-		t.Errorf("modal does not contain 'go test' grant: %v", m.modal.Lines)
-	}
-	if !strings.Contains(grantStr, "go build") {
-		t.Errorf("modal does not contain 'go build' grant: %v", m.modal.Lines)
-	}
-}
-
 // TestStatusBarCountMatchesPolicyGrants verifies that statusbar uses the
 // GetGrantCount callback to display the grant count.
 func TestStatusBarCountMatchesPolicyGrants(t *testing.T) {
@@ -1106,53 +1069,14 @@ func TestStatusBarCountMatchesPolicyGrants(t *testing.T) {
 	}
 }
 
-// TestGrantsModalCKeyShowsConfirm verifies that pressing 'c' on a grants modal
-// closes the modal and shows the clear confirmation prompt.
-func TestGrantsModalCKeyShowsConfirm(t *testing.T) {
-	m := New(Options{})
-
-	// Wire callbacks
-	m.GetGrants = func() []string {
-		return []string{"go test"}
-	}
-
-	// Open the grants modal by simulating /approvals
-	for _, r := range "/approvals" {
-		updatedModel, _ := m.Update(key(r))
-		m = updatedModel.(Model)
-	}
-	updatedModel, _ := m.Update(keyType(tea.KeyEnter))
-	m = updatedModel.(Model)
-
-	if m.mode() != ModeModal {
-		t.Fatalf("initial mode = %v, want Modal", m.mode())
-	}
-
-	// Press 'c' to trigger clear
-	updatedModel, _ = m.Update(key('c'))
-	m = updatedModel.(Model)
-
-	// Should now be in Confirm mode
-	if m.mode() != ModeConfirm {
-		t.Errorf("after 'c' press, mode = %v, want Confirm", m.mode())
-	}
-
-	// Verify the confirm prompt is asking about clearing grants
-	if m.confirm == nil {
-		t.Fatal("confirm state is nil after 'c' press")
-	}
-	if m.confirm.Action != ConfirmClearGrants {
-		t.Errorf("confirm action = %v, want ConfirmClearGrants", m.confirm.Action)
-	}
-}
-
-// TestApprovalsModalSanitisesGrants verifies that the /approvals command
-// sanitises grant text to strip ANSI escape sequences, OSC sequences, and
-// embedded newlines before displaying them in a modal. This is the regression
-// test for update.go's SanitizeSingleLine call in the /approvals arm.
-func TestApprovalsModalSanitisesGrants(t *testing.T) {
-	m := New(Options{})
-
+// TestApprovalsNoticeSanitisesGrants is the regression test for the
+// SanitizeSingleLine call in the /approvals arm of runSlash (update.go). The
+// grants are joined into one notice, so each hostile class is also run alone,
+// as the only grant, so that the CR-overwrite and truncation checks are not
+// confounded by the other grants in the string.
+// Entry point: Update(key) typing "/approvals" then Enter, so the real submit
+// path reaches runSlash; the result is read from the last transcript notice.
+func TestApprovalsNoticeSanitisesGrants(t *testing.T) {
 	// Build adversarial grant text with ANSI escapes, OSC sequences, and newlines
 	ansiRed := "\x1b[31m"
 	ansiReset := "\x1b[0m"
@@ -1179,6 +1103,7 @@ func TestApprovalsModalSanitisesGrants(t *testing.T) {
 		overLong,
 	}
 
+	m := New(Options{})
 	m.GetGrants = func() []string {
 		return grants
 	}
@@ -1191,91 +1116,147 @@ func TestApprovalsModalSanitisesGrants(t *testing.T) {
 	updatedModel, _ := m.Update(keyType(tea.KeyEnter))
 	m = updatedModel.(Model)
 
-	// Verify the modal opened
-	if m.mode() != ModeModal {
-		t.Fatalf("mode after /approvals = %v, want Modal", m.mode())
+	// Verify a notice was appended (not a modal)
+	items := m.tr.Items()
+	if len(items) == 0 {
+		t.Fatal("no items appended")
+	}
+	last := items[len(items)-1]
+	if last.Kind != KindNotice {
+		t.Fatalf("last item is not a notice: %v", last.Kind)
 	}
 
-	if m.modal.Title != "session grants" {
-		t.Errorf("modal.Title = %q, want 'session grants'", m.modal.Title)
+	noticeText := last.Notice.Text
+
+	// Verify notice starts with the correct prefix
+	if !strings.HasPrefix(noticeText, "Active session grants: ") {
+		t.Errorf("notice text should start with 'Active session grants: ', got: %s", noticeText)
 	}
 
-	// Verify all lines are sanitised: no ANSI escapes, no OSC sequences, no newlines
-	for i, line := range m.modal.Lines {
-		if containsANSI(line) {
-			t.Errorf("modal.Lines[%d] contains ANSI sequences: %q", i, line)
-		}
-		if strings.Contains(line, "\n") {
-			t.Errorf("modal.Lines[%d] contains embedded newline: %q", i, line)
-		}
+	// Verify no ANSI escapes or OSC sequences in the notice
+	if containsANSI(noticeText) {
+		t.Errorf("notice text contains ANSI sequences: %q", noticeText)
+	}
+	if strings.Contains(noticeText, "\n") {
+		t.Errorf("notice text contains embedded newline: %q", noticeText)
 	}
 
 	// Verify content is preserved (the text survives sanitisation)
-	allLines := strings.Join(m.modal.Lines, "|")
-	if !strings.Contains(allLines, "go test") {
-		t.Errorf("modal lost grant text 'go test': lines = %v", m.modal.Lines)
+	if !strings.Contains(noticeText, "go test") {
+		t.Errorf("notice lost grant text 'go test': %q", noticeText)
 	}
-	if !strings.Contains(allLines, "go build") {
-		t.Errorf("modal lost grant text 'go build': lines = %v", m.modal.Lines)
+	if !strings.Contains(noticeText, "go build") {
+		t.Errorf("notice lost grant text 'go build': %q", noticeText)
 	}
-	if !strings.Contains(allLines, "go vet") {
-		t.Errorf("modal lost grant text 'go vet': lines = %v", m.modal.Lines)
-	}
-
-	// Bare C1 control byte (index 4): replaceControls maps it to '·' rather
-	// than dropping it or leaving it raw.
-	c1Line := m.modal.Lines[4]
-	if strings.ContainsRune(c1Line, '') {
-		t.Errorf("modal.Lines[4] still contains raw C1 byte: %q", c1Line)
-	}
-	if !strings.Contains(c1Line, "go") || !strings.Contains(c1Line, "test") {
-		t.Errorf("modal.Lines[4] lost surrounding text: %q", c1Line)
+	if !strings.Contains(noticeText, "go vet") {
+		t.Errorf("notice lost grant text 'go vet': %q", noticeText)
 	}
 
-	// Bare carriage return (index 5): Sanitize treats \r as a terminal
-	// overwrite and keeps only the segment after the last \r — so "go build"
-	// must be gone and only "go test" must remain.
-	crLine := m.modal.Lines[5]
-	if strings.Contains(crLine, "go build") {
-		t.Errorf("modal.Lines[5] kept the overwritten segment: %q", crLine)
-	}
-	if !strings.Contains(crLine, "go test") {
-		t.Errorf("modal.Lines[5] lost the surviving segment: %q", crLine)
+	// Test individual grants by re-running with one grant at a time
+	tests := []struct {
+		name      string
+		grant     string
+		checkFunc func(string) bool
+	}{
+		{
+			name:  "ANSI escape",
+			grant: ansiRed + "go test" + ansiReset,
+			checkFunc: func(text string) bool {
+				return !containsANSI(text) && strings.Contains(text, "go test")
+			},
+		},
+		{
+			name:  "OSC sequence",
+			grant: oscSeq + "go build" + ansiRed,
+			checkFunc: func(text string) bool {
+				// "evil" is the OSC payload: a sanitiser that strips only the ESC
+				// byte leaves "]0;evil" behind and must fail here.
+				return !strings.Contains(text, oscSeq) && !strings.Contains(text, "evil") && strings.Contains(text, "go build")
+			},
+		},
+		{
+			name:  "embedded newline",
+			grant: "go\nvet",
+			checkFunc: func(text string) bool {
+				return !strings.Contains(text, "\n") && strings.Contains(text, "go") && strings.Contains(text, "vet")
+			},
+		},
+		{
+			name:  "bare C1 control byte",
+			grant: bareC1,
+			checkFunc: func(text string) bool {
+				return !strings.ContainsRune(text, rune(0x85)) && strings.Contains(text, "go") && strings.Contains(text, "test")
+			},
+		},
+		{
+			name:  "CR overwrite",
+			grant: crOverwrite,
+			checkFunc: func(text string) bool {
+				return !strings.Contains(text, "go build") && strings.Contains(text, "go test")
+			},
+		},
+		{
+			name:  "tab expansion",
+			grant: tabbed,
+			checkFunc: func(text string) bool {
+				return !strings.Contains(text, "\t") && strings.Contains(text, "go") && strings.Contains(text, "test")
+			},
+		},
+		{
+			name:  "over-length truncation",
+			grant: overLong,
+			checkFunc: func(text string) bool {
+				return cellWidth(text) <= MaxRenderedLineWidth && strings.HasSuffix(text, "⋯")
+			},
+		},
 	}
 
-	// Tab expansion (index 6): no literal tab byte survives, and the
-	// expansion still separates the two words.
-	tabLine := m.modal.Lines[6]
-	if strings.Contains(tabLine, "\t") {
-		t.Errorf("modal.Lines[6] still contains a literal tab: %q", tabLine)
-	}
-	if !strings.Contains(tabLine, "go") || !strings.Contains(tabLine, "test") {
-		t.Errorf("modal.Lines[6] lost surrounding text: %q", tabLine)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := New(Options{})
+			m.GetGrants = func() []string {
+				return []string{tt.grant}
+			}
 
-	// Over-length truncation (index 7): capWidth caps the line at
-	// MaxRenderedLineWidth display columns, marker included.
-	longLine := m.modal.Lines[7]
-	if cellWidth(longLine) > MaxRenderedLineWidth {
-		t.Errorf("modal.Lines[7] width = %d, want <= %d", cellWidth(longLine), MaxRenderedLineWidth)
-	}
-	if !strings.HasSuffix(longLine, "⋯") {
-		t.Errorf("modal.Lines[7] not truncated with marker: %q", longLine)
+			// Simulate typing /approvals and pressing Enter
+			for _, r := range "/approvals" {
+				updatedModel, _ := m.Update(key(r))
+				m = updatedModel.(Model)
+			}
+			updatedModel, _ := m.Update(keyType(tea.KeyEnter))
+			m = updatedModel.(Model)
+
+			items := m.tr.Items()
+			if len(items) == 0 {
+				t.Error("no items appended")
+				return
+			}
+			last := items[len(items)-1]
+			if last.Kind != KindNotice {
+				t.Errorf("last item is not a notice: %v", last.Kind)
+				return
+			}
+
+			noticeText := last.Notice.Text
+			// Extract the grant portion after the prefix "Active session grants: "
+			const prefix = "Active session grants: "
+			if !strings.HasPrefix(noticeText, prefix) {
+				t.Errorf("notice missing prefix, got: %q", noticeText)
+				return
+			}
+			grantText := noticeText[len(prefix):]
+			if !tt.checkFunc(grantText) {
+				t.Errorf("sanitization failed: %q", grantText)
+			}
+		})
 	}
 }
 
-// TestClearGrantsViaKeypressInvokesCallbackAndEmptiesPolicy merges what were
-// two near-identical tests (TestClearGrantsEmptiesPolicy and
-// TestClearGrantsCalibration): both wired the same mocks and both called
-// applyConfirm directly, so neither exercised keypress dispatch. This one
-// does the job neither original did — it drives the real 'c' then 'y'
-// keypresses through Update(), the same path a user's terminal produces —
-// while keeping both original assertions: the pre-state check (grants exist,
-// callback not yet invoked) and the calibration check (the callback flag is
-// set only when ClearGrants actually runs, not merely when the end-state
-// happens to be empty). This is the mocked-callback, package-tui complement
-// to cmd/kirsch's TestClearGrantsEmptiesPolicyE2E, which drives the same
-// keypresses against the real policy.
+// TestClearGrantsViaKeypressInvokesCallbackAndEmptiesPolicy verifies that /approvals
+// with grants shows a notice and raises a confirm that, when accepted ('y'), calls
+// ClearGrants and empties the policy. This tests the complete accept path driven by
+// keypresses through Update(), the same path a user's terminal produces. This is the
+// mocked-callback, package-tui complement to cmd/kirsch's TestClearGrantsEmptiesPolicyE2E.
 func TestClearGrantsViaKeypressInvokesCallbackAndEmptiesPolicy(t *testing.T) {
 	m := New(Options{})
 
@@ -1297,8 +1278,7 @@ func TestClearGrantsViaKeypressInvokesCallbackAndEmptiesPolicy(t *testing.T) {
 		t.Fatal("setup: callback should not be invoked before clear")
 	}
 
-	// Open the grants modal via /approvals, then dispatch the real keypresses
-	// a user sends: 'c' to raise the clear confirmation, 'y' to confirm it.
+	// Simulate /approvals: /approvals with grants directly raises a confirm
 	for _, r := range "/approvals" {
 		updatedModel, _ := m.Update(key(r))
 		m = updatedModel.(Model)
@@ -1306,17 +1286,20 @@ func TestClearGrantsViaKeypressInvokesCallbackAndEmptiesPolicy(t *testing.T) {
 	updatedModel, _ := m.Update(keyType(tea.KeyEnter))
 	m = updatedModel.(Model)
 
-	if m.mode() != ModeModal {
-		t.Fatalf("mode after /approvals = %v, want Modal", m.mode())
-	}
-
-	updatedModel, _ = m.Update(key('c'))
-	m = updatedModel.(Model)
-
+	// /approvals with grants should raise a confirm directly
 	if m.mode() != ModeConfirm {
-		t.Fatalf("mode after 'c' = %v, want Confirm", m.mode())
+		t.Fatalf("mode after /approvals = %v, want Confirm", m.mode())
 	}
 
+	// Verify the confirm has the right action
+	if m.confirm == nil {
+		t.Fatal("confirm state is nil after /approvals")
+	}
+	if m.confirm.Action != ConfirmClearGrants {
+		t.Fatalf("confirm action = %v, want ConfirmClearGrants", m.confirm.Action)
+	}
+
+	// Press 'y' to accept and clear grants
 	updatedModel, _ = m.Update(key('y'))
 	m = updatedModel.(Model)
 
@@ -1330,6 +1313,11 @@ func TestClearGrantsViaKeypressInvokesCallbackAndEmptiesPolicy(t *testing.T) {
 	// Verification: the policy is now empty (callback did its job).
 	if len(m.GetGrants()) != 0 {
 		t.Errorf("after clear, GetGrants() = %v, want empty", m.GetGrants())
+	}
+
+	// Verify we're back in Composing mode
+	if m.mode() != ModeComposing {
+		t.Errorf("mode after 'y' = %v, want Composing", m.mode())
 	}
 }
 

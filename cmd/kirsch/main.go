@@ -279,4 +279,22 @@ func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger) {
 	m.StatusInfo = func() tui.StatusInfoMsg {
 		return a.StatusInfo(os.Getenv)
 	}
+	// GetDiff wires the /diff command to read the working tree.
+	m.GetDiff = func() tui.DiffResult {
+		return a.GetDiff()
+	}
+	// GetTouchedFiles wires the /files command to the app's tracked touched files.
+	m.GetTouchedFiles = func() []string {
+		return a.GetTouchedFiles()
+	}
+	// NewSession wires the /new command to create a fresh session.
+	m.NewSession = func(getenv func(string) string) error {
+		return a.NewSession(getenv)
+	}
+	// ManualCompact wires the /compact command. The app method blocks until
+	// compaction has finished and returns the one real outcome; the TUI runs it
+	// in a tea.Cmd and delivers the result to Update unchanged.
+	m.ManualCompact = func() tui.ManualCompactMsg {
+		return a.ManualCompact(os.Getenv)
+	}
 }

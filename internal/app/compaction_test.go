@@ -4,7 +4,9 @@ package app
 //
 // Every test here drives App.Submit, the production entry point, with a
 // provider.Fake behind a.providerBuilder and a real session.Store on a
-// temporary directory. Nothing calls RunTurn or runCompaction directly.
+// temporary directory, except the tests whose own comment names another entry
+// point: ManualCompact, or recordUsage called directly. Nothing calls RunTurn
+// or runCompaction directly.
 //
 // The model's context window is made small through the a.modelInfo seam
 // (production uses provider.LookupModel), so the 75% threshold is reached with
@@ -18,10 +20,13 @@ package app
 // asserted only on the JSONL log, which one writer goroutine produces.
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -60,12 +65,25 @@ type compactionEnv struct {
 	logAtExit []string
 }
 
-// newCompactionEnv builds the App. maxOutput is the model's MaxOutput as the
-// modelInfo seam reports it. script is the fake provider's reply sequence.
+// newCompactionEnv builds the App on the default endpoint. maxOutput is the
+// model's MaxOutput as the modelInfo seam reports it. script is the fake
+// provider's reply sequence.
 func newCompactionEnv(t *testing.T, maxOutput int, script ...provider.Turn) *compactionEnv {
+	t.Helper()
+	return newCompactionEnvOn(t, "", maxOutput, script...)
+}
+
+// newCompactionEnvOn is newCompactionEnv with the named endpoint made the
+// default, or the config's own default when endpoint is empty. The usage tests
+// pick "anthropic" because its model, claude-sonnet-5-5, has per-token pricing,
+// so usage.json's cost fields are exercised; the opencode default is flat-rate.
+func newCompactionEnvOn(t *testing.T, endpoint string, maxOutput int, script ...provider.Turn) *compactionEnv {
 	t.Helper()
 	dir := t.TempDir()
 	cfg := config.Defaults()
+	if endpoint != "" {
+		cfg.Provider.Default = endpoint
+	}
 	cfg.Session.StorageDir = filepath.Join(dir, "sessions")
 
 	c := newCollector(-1) // never closes done; tests poll snapshot()
@@ -651,4 +669,312 @@ func TestSubmitCompactionSurvivesResume(t *testing.T) {
 	if !reflect.DeepEqual(got.Messages, want) {
 		t.Errorf("resumed conversation differs from the live one: %d messages vs %d", len(got.Messages), len(want))
 	}
+}
+
+// Usage the scripted summary and turn calls report. Every count differs from
+// every other, in both calls, so a swapped or dropped field changes a total.
+var (
+	summaryUsage = provider.Usage{InputTokens: 1000, OutputTokens: 200, CacheReadTokens: 30, CacheWriteTokens: 7}
+	turnUsage    = provider.Usage{InputTokens: 4000, OutputTokens: 900, CacheReadTokens: 60, CacheWriteTokens: 11}
+)
+
+// usageCost is claude-sonnet-5-5's cost for a call, from the prices in
+// internal/provider/models.go: 2.0 in, 10.0 out, 0.2 cache read, 2.5 cache
+// write, per million tokens. The arithmetic is written out here, not taken
+// from ModelInfo.Cost, so a bug in Cost cannot hide in the expectation.
+func usageCost(u provider.Usage) float64 {
+	return (float64(u.InputTokens)*2.0 + float64(u.OutputTokens)*10.0 +
+		float64(u.CacheReadTokens)*0.2 + float64(u.CacheWriteTokens)*2.5) / 1e6
+}
+
+// sumUsage adds provider usages field by field.
+func sumUsage(us ...provider.Usage) provider.Usage {
+	var out provider.Usage
+	for _, u := range us {
+		out.InputTokens += u.InputTokens
+		out.OutputTokens += u.OutputTokens
+		out.CacheReadTokens += u.CacheReadTokens
+		out.CacheWriteTokens += u.CacheWriteTokens
+	}
+	return out
+}
+
+// checkUsageFile fails the test unless usage.json under the app's state root
+// holds exactly want, priced as claude-sonnet-5-5, and the TUI session totals
+// /status reads equal the same counts. what labels the failure.
+func (e *compactionEnv) checkUsageFile(what string, want provider.Usage) {
+	e.t.Helper()
+	u, err := session.ReadUsage(e.a.layout.Root)
+	if err != nil {
+		e.t.Fatalf("%s: ReadUsage: %v", what, err)
+	}
+	total := int64(want.InputTokens + want.OutputTokens + want.CacheReadTokens + want.CacheWriteTokens)
+	for _, f := range []struct {
+		name      string
+		got, want int64
+	}{
+		{"prompt_tokens", u.PromptTokens, int64(want.InputTokens)},
+		{"completion_tokens", u.CompletionTokens, int64(want.OutputTokens)},
+		{"cache_read_tokens", u.CacheReadTokens, int64(want.CacheReadTokens)},
+		{"cache_write_tokens", u.CacheWriteTokens, int64(want.CacheWriteTokens)},
+		{"total_tokens", u.TotalTokens, total},
+		{"cost_unknown_tokens", u.CostUnknownTokens, 0},
+	} {
+		if f.got != f.want {
+			e.t.Errorf("%s: usage.json %s = %d, want %d", what, f.name, f.got, f.want)
+		}
+	}
+	if math.Abs(u.CostUSD-usageCost(want)) > 1e-12 {
+		e.t.Errorf("%s: usage.json cost_usd = %v, want %v", what, u.CostUSD, usageCost(want))
+	}
+
+	e.a.storeMu.Lock()
+	in, out, read, write := e.a.sessionTokensIn, e.a.sessionTokensOut, e.a.sessionTokensRead, e.a.sessionTokensWrite
+	e.a.storeMu.Unlock()
+	if in != int64(want.InputTokens) || out != int64(want.OutputTokens) ||
+		read != int64(want.CacheReadTokens) || write != int64(want.CacheWriteTokens) {
+		e.t.Errorf("%s: session totals in/out/read/write = %d/%d/%d/%d, want %d/%d/%d/%d",
+			what, in, out, read, write, want.InputTokens, want.OutputTokens, want.CacheReadTokens, want.CacheWriteTokens)
+	}
+}
+
+// TestSubmitCompactionRecordsSummaryAndTurnUsage drives Submit (which starts
+// RunTurn) over a history above the threshold. The fake provider reports usage
+// on both the summary call and the turn call. usage.json, the session totals
+// and the store log must hold the sum of both. The usage travels through the
+// real providerModel.Stream and providerEventToAgent mapping, because
+// App.GetActiveModel wraps the fake in providerModel; nothing hands an
+// agent.Event to the app directly.
+func TestSubmitCompactionRecordsSummaryAndTurnUsage(t *testing.T) {
+	e := newCompactionEnvOn(t, "anthropic", 8192,
+		provider.Turn{Text: compactionSummary, Usage: summaryUsage},
+		provider.Turn{Text: "done", Usage: turnUsage})
+	e.seed(8, compactionThreshold+2500)
+
+	msgs := e.submit()
+
+	if !findMsgType[tui.TurnCompleteMsg](msgs) {
+		t.Fatalf("turn did not complete: %#v", msgs)
+	}
+	if n := len(e.fake.Requests()); n != 2 {
+		t.Fatalf("provider requests = %d, want 2 (summary, turn)", n)
+	}
+	e.checkUsageFile("summary + turn", sumUsage(summaryUsage, turnUsage))
+	if got := countOf(e.logTypes(), "usage"); got != 2 {
+		t.Errorf("summary + turn: %d usage events in the session log, want 2", got)
+	}
+}
+
+// TestManualCompactRecordsSummaryUsage calls ManualCompact, which runs the
+// summary call and no turn. The summary call's exact counts, and only those,
+// must reach usage.json, the session totals and the store log. As above, the
+// usage arrives through providerModel and providerEventToAgent.
+func TestManualCompactRecordsSummaryUsage(t *testing.T) {
+	e := newCompactionEnvOn(t, "anthropic", 8192, provider.Turn{Text: compactionSummary, Usage: summaryUsage})
+	e.seed(6, 15000)
+
+	msg := e.a.ManualCompact(getenvKey)
+
+	if msg.Outcome != tui.ManualCompactApplied {
+		t.Fatalf("ManualCompact outcome = %#v, want applied", msg)
+	}
+	e.checkUsageFile("manual compaction", summaryUsage)
+	types := e.logTypes()
+	if got := countOf(types, "usage"); got != 1 {
+		t.Errorf("manual compaction: %d usage events in the session log, want 1", got)
+	}
+	if got := countOf(types, "compaction.applied"); got != 1 {
+		t.Errorf("manual compaction: %d compaction.applied events, want 1 (the compaction ran)", got)
+	}
+}
+
+// doneThenFailProvider reports usage on MessageDone and then fails the
+// stream: a transport error after the model has already billed the call.
+// provider.Fake cannot do this, since it never emits MessageDone when its
+// scripted Err is set.
+type doneThenFailProvider struct {
+	usage provider.Usage
+}
+
+// Stream emits a partial delta, MessageDone with usage, then returns an error.
+func (p *doneThenFailProvider) Stream(_ context.Context, _ provider.Request, onEvent func(provider.StreamEvent)) error {
+	onEvent(provider.StreamEvent{Type: provider.EventTextDelta, Text: "partial"})
+	onEvent(provider.StreamEvent{Type: provider.EventMessageDone, Usage: &p.usage, StopReason: provider.StopEndTurn})
+	return errors.New("connection reset after MessageDone")
+}
+
+// TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched drives
+// Submit over a history above the threshold with a summary call that is billed
+// and then fails or is cancelled, one subtest per way. In each, usage.json,
+// the session totals and the store log must record the summary call's usage,
+// and nothing else must change: conv is as seeded, the log gains only that one
+// usage event (no compaction.applied, no turn.started) and no turn runs. The
+// usage event in the log is the positive control for the absence checks, since
+// it is admitted by the same path.
+func TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		setup    func(e *compactionEnv)
+		script   []provider.Turn
+		terminal string // "error" or "cancelled"
+	}{
+		{
+			name: "stream error after MessageDone",
+			setup: func(e *compactionEnv) {
+				e.a.providerBuilder = func(string, config.EndpointConfig, string, string, string, *telemetry.Logger) (provider.Provider, error) {
+					return &doneThenFailProvider{usage: summaryUsage}, nil
+				}
+			},
+			script:   []provider.Turn{turnReply},
+			terminal: "error",
+		},
+		{
+			name:     "whitespace-only summary after MessageDone",
+			script:   []provider.Turn{{Text: " \n ", Usage: summaryUsage}, turnReply},
+			terminal: "error",
+		},
+		{
+			name:     "cancel between the summary call and the swap",
+			setup:    func(e *compactionEnv) { e.a.afterCompactHook = e.a.CancelTurn },
+			script:   []provider.Turn{{Text: compactionSummary, Usage: summaryUsage}, turnReply},
+			terminal: "cancelled",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newCompactionEnvOn(t, "anthropic", 8192, tc.script...)
+			e.seed(8, compactionThreshold+2500)
+			snapshot := cloneMsgs(e.a.conv.Messages)
+			before := e.logTypes()
+			turnsBefore := e.a.turnCount.Load()
+			if tc.setup != nil {
+				tc.setup(e)
+			}
+
+			msgs := e.submit()
+
+			switch tc.terminal {
+			case "error":
+				if !findMsgType[tui.TurnErrorMsg](msgs) {
+					t.Errorf("%s: no TurnErrorMsg in %#v", tc.name, msgs)
+				}
+			case "cancelled":
+				if !findMsgType[tui.TurnCancelledMsg](msgs) {
+					t.Errorf("%s: no TurnCancelledMsg in %#v", tc.name, msgs)
+				}
+			}
+			if findMsgType[tui.TurnCompleteMsg](msgs) || findMsgType[tui.SessionCompactedMsg](msgs) {
+				t.Errorf("%s: the turn ran or the compaction was announced: %#v", tc.name, msgs)
+			}
+			e.checkUsageFile(tc.name, summaryUsage)
+			if !reflect.DeepEqual(e.a.conv.Messages, snapshot) {
+				t.Errorf("%s: conv changed", tc.name)
+			}
+			if got, want := e.logTypes(), append(append([]string(nil), before...), "usage"); !reflect.DeepEqual(got, want) {
+				t.Errorf("%s: session log types = %v, want the seeded log plus one usage event", tc.name, got)
+			}
+			if got := e.a.turnCount.Load(); got != turnsBefore {
+				t.Errorf("%s: turnCount %d -> %d, want unchanged", tc.name, turnsBefore, got)
+			}
+		})
+	}
+}
+
+// TestManualCompactStreamErrorRecordsUsage calls ManualCompact with a summary
+// call that is billed and then fails. The outcome is Failed, usage.json
+// records the call, and conv is untouched.
+func TestManualCompactStreamErrorRecordsUsage(t *testing.T) {
+	e := newCompactionEnvOn(t, "anthropic", 8192)
+	e.a.providerBuilder = func(string, config.EndpointConfig, string, string, string, *telemetry.Logger) (provider.Provider, error) {
+		return &doneThenFailProvider{usage: summaryUsage}, nil
+	}
+	e.seed(6, 15000)
+	snapshot := cloneMsgs(e.a.conv.Messages)
+
+	msg := e.a.ManualCompact(getenvKey)
+
+	if msg.Outcome != tui.ManualCompactFailed {
+		t.Fatalf("ManualCompact outcome = %#v, want failed", msg)
+	}
+	e.checkUsageFile("manual compaction, stream error", summaryUsage)
+	if !reflect.DeepEqual(e.a.conv.Messages, snapshot) {
+		t.Error("manual compaction, stream error: conv changed")
+	}
+	if got := countOf(e.logTypes(), "compaction.applied"); got != 0 {
+		t.Errorf("manual compaction, stream error: %d compaction.applied events, want 0", got)
+	}
+}
+
+// TestRecordUsageReportsCorruptUsageFileThroughLogger calls recordUsage
+// directly over a corrupt usage.json. The recovery must reach the debug log
+// at Warn and must write nothing to stdout or stderr, which the TUI owns. The
+// log line is the positive control for the empty-output check. A second call
+// over the now-valid file is the mirror: it must not log a second recovery.
+func TestRecordUsageReportsCorruptUsageFileThroughLogger(t *testing.T) {
+	stateRoot := t.TempDir()
+	logPath := filepath.Join(t.TempDir(), "debug.log")
+	logger, err := telemetry.New(telemetry.Options{Path: logPath, Enabled: true})
+	if err != nil {
+		t.Fatalf("telemetry.New: %v", err)
+	}
+	defer logger.Close()
+
+	a := testApp(t, "repo-small", newCollector(-1))
+	defer a.Close()
+	a.log = logger
+	a.layout = &session.Layout{Root: stateRoot}
+	if err := os.WriteFile(filepath.Join(stateRoot, "usage.json"), []byte(`{"prompt_tokens": corrupt`), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	stdout, stderr := captureStdStreams(t, func() {
+		a.recordUsage(agent.Usage{InputTokens: 10, OutputTokens: 5}, "claude-sonnet-5-5")
+	})
+
+	if stdout != "" || stderr != "" {
+		t.Errorf("recordUsage wrote to the terminal: stdout %q, stderr %q", stdout, stderr)
+	}
+	logged, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read debug log: %v", err)
+	}
+	if got := strings.Count(string(logged), "recovered from corrupt usage.json"); got != 1 {
+		t.Fatalf("debug log has %d recovery warnings, want 1:\n%s", got, logged)
+	}
+	if !strings.Contains(string(logged), `"level":"WARN"`) || !strings.Contains(string(logged), "usage.json.corrupt-") {
+		t.Errorf("recovery warning is not at WARN or does not name the moved file:\n%s", logged)
+	}
+	if u, _ := session.ReadUsage(stateRoot); u.PromptTokens != 10 {
+		t.Errorf("fresh usage.json PromptTokens = %d, want 10", u.PromptTokens)
+	}
+
+	a.recordUsage(agent.Usage{InputTokens: 1}, "claude-sonnet-5-5")
+	logged, _ = os.ReadFile(logPath)
+	if got := strings.Count(string(logged), "recovered from corrupt usage.json"); got != 1 {
+		t.Errorf("a valid usage.json logged another recovery: %d warnings, want still 1", got)
+	}
+}
+
+// captureStdStreams runs fn with os.Stdout and os.Stderr replaced by pipes
+// and returns what was written to each.
+func captureStdStreams(t *testing.T, fn func()) (stdout, stderr string) {
+	t.Helper()
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe: %v", err)
+	}
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe: %v", err)
+	}
+	oldOut, oldErr := os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = outW, errW
+	func() {
+		defer func() { os.Stdout, os.Stderr = oldOut, oldErr }()
+		fn()
+	}()
+	_ = outW.Close()
+	_ = errW.Close()
+	outB, _ := io.ReadAll(outR)
+	errB, _ := io.ReadAll(errR)
+	return string(outB), string(errB)
 }

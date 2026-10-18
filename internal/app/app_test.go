@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -19,6 +22,7 @@ import (
 	"github.com/djm56/kirsch/internal/patch"
 	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/provider"
+	"github.com/djm56/kirsch/internal/session"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tool"
 	"github.com/djm56/kirsch/internal/tui"
@@ -2265,7 +2269,7 @@ func TestCheckOnboardingEndpointKind(t *testing.T) {
 // the active endpoint, drives a real agent turn, and appends both the user
 // message and the assistant reply to the persistent conversation.
 func TestSubmitStartsTurn(t *testing.T) {
-	c := newCollector(4)
+	c := newCollector(5) // Budget, Delta, Usage, SessionUsage, Complete
 	cfg := config.Config{
 		Provider: config.ProviderConfig{
 			Default: "test",
@@ -2298,7 +2302,7 @@ func TestSubmitStartsTurn(t *testing.T) {
 
 	// Stream events and the final completion message are each delivered through
 	// independent sendAsyncSequence calls, so they may arrive in any order.
-	var gotBudget, gotDelta, gotUsage, gotComplete bool
+	var gotBudget, gotDelta, gotUsage, gotSessionUsage, gotComplete bool
 	for _, msg := range msgs {
 		switch msg.(type) {
 		case tui.BudgetMsg:
@@ -2307,6 +2311,8 @@ func TestSubmitStartsTurn(t *testing.T) {
 			gotDelta = true
 		case tui.UsageMsg:
 			gotUsage = true
+		case tui.SessionUsageMsg:
+			gotSessionUsage = true
 		case tui.TurnCompleteMsg:
 			gotComplete = true
 		default:
@@ -2321,6 +2327,9 @@ func TestSubmitStartsTurn(t *testing.T) {
 	}
 	if !gotUsage {
 		t.Error("missing UsageMsg")
+	}
+	if !gotSessionUsage {
+		t.Error("missing SessionUsageMsg")
 	}
 	if !gotComplete {
 		t.Error("missing TurnCompleteMsg")
@@ -2813,6 +2822,706 @@ func TestStatusInfoDataFlowNoticeOpencodeOnly(t *testing.T) {
 			info := a.StatusInfo(func(string) string { return "" })
 			if info.ShowDataFlowNotice != tc.want {
 				t.Errorf("ShowDataFlowNotice = %v, want %v", info.ShowDataFlowNotice, tc.want)
+			}
+		})
+	}
+}
+
+// TestStatusInfoShowsAccumulatedTokens verifies that StatusInfo reports
+// accumulated session token totals correctly. Direct test of the accumulation
+// path: simulating two usage events that accumulate into totals.
+func TestStatusInfoShowsAccumulatedTokens(t *testing.T) {
+	c := newCollector(-1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+
+	// Verify initial state is 0 (positive control)
+	info := a.StatusInfo(func(string) string { return "" })
+	if info.TokensIn != 0 || info.TokensOut != 0 || info.TokensCache != 0 {
+		t.Errorf("initial state should be 0, 0, 0; got %d, %d, %d",
+			info.TokensIn, info.TokensOut, info.TokensCache)
+	}
+
+	// Direct test of the accumulation path: call adaptTurnEvent twice with distinct per-field values
+	// Event 1: in=100, out=50, read=10, write=5
+	// Event 2: in=200, out=75, read=20, write=8
+	// Expected totals: in=300, out=125, cache=43 (read: 10+20=30, write: 5+8=13, total: 43)
+	ev1 := agent.Event{
+		Type: agent.EventUsage,
+		Usage: &agent.Usage{
+			InputTokens:      100,
+			OutputTokens:     50,
+			CacheReadTokens:  10,
+			CacheWriteTokens: 5,
+		},
+	}
+	var tb, th int64
+	a.adaptTurnEvent(ev1, &tb, &th, map[string]int64{}, "")
+
+	// After first event, check the accumulation
+	info = a.StatusInfo(func(string) string { return "" })
+	if info.TokensIn != 100 {
+		t.Errorf("after event 1, TokensIn = %d, want 100", info.TokensIn)
+	}
+	if info.TokensOut != 50 {
+		t.Errorf("after event 1, TokensOut = %d, want 50", info.TokensOut)
+	}
+	if info.TokensCache != 15 { // read 10 + write 5
+		t.Errorf("after event 1, TokensCache = %d, want 15", info.TokensCache)
+	}
+
+	// Second accumulation event
+	ev2 := agent.Event{
+		Type: agent.EventUsage,
+		Usage: &agent.Usage{
+			InputTokens:      200,
+			OutputTokens:     75,
+			CacheReadTokens:  20,
+			CacheWriteTokens: 8,
+		},
+	}
+	a.adaptTurnEvent(ev2, &tb, &th, map[string]int64{}, "")
+
+	// After second event, verify accumulated totals
+	info = a.StatusInfo(func(string) string { return "" })
+	if info.TokensIn != 300 {
+		t.Errorf("after event 2, TokensIn = %d, want 300", info.TokensIn)
+	}
+	if info.TokensOut != 125 {
+		t.Errorf("after event 2, TokensOut = %d, want 125", info.TokensOut)
+	}
+	if info.TokensCache != 43 { // read (10+20) + write (5+8)
+		t.Errorf("after event 2, TokensCache = %d, want 43", info.TokensCache)
+	}
+}
+
+// statusInfoApp returns a test app plus a func reading its StatusInfo, so each
+// wiring test below drives the real setters or fields and reads the result
+// through StatusInfo, the same call the /status callback makes.
+func statusInfoApp(t *testing.T) (*App, func() tui.StatusInfoMsg) {
+	t.Helper()
+	a := testApp(t, "repo-small", newCollector(-1))
+	t.Cleanup(a.Close)
+	return a, func() tui.StatusInfoMsg { return a.StatusInfo(func(string) string { return "" }) }
+}
+
+// TestStatusInfoSessionID verifies the session field: the "none" fallback
+// before any session is set, and the set id afterwards. Entry point:
+// StatusInfo reading currentSessionID under storeMu.
+func TestStatusInfoSessionID(t *testing.T) {
+	a, info := statusInfoApp(t)
+	if got := info().SessionID; got != "none" {
+		t.Errorf("no session: SessionID = %q, want %q", got, "none")
+	}
+	a.storeMu.Lock()
+	a.currentSessionID = "2026-1017-abc"
+	a.storeMu.Unlock()
+	if got := info().SessionID; got != "2026-1017-abc" {
+		t.Errorf("session set: SessionID = %q, want %q", got, "2026-1017-abc")
+	}
+}
+
+// TestStatusInfoCompactionPercent verifies the percent wiring. The budget is
+// contextWindow - outputReserve, so a 104096 window gives a budget of 100000.
+// 0 estimated tokens is a computed 0%, not the -1 "not computed" sentinel;
+// -1 estimated and a zero window are both "not computed".
+func TestStatusInfoCompactionPercent(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		estimated int
+		window    int
+		want      int
+	}{
+		{"65 percent", 65000, 100000 + outputReserve, 65},
+		{"zero estimate is zero percent", 0, 100000 + outputReserve, 0},
+		{"negative estimate is not computed", -1, 100000 + outputReserve, -1},
+		{"zero window is not computed", 65000, 0, -1},
+		{"window of 4096 leaves no budget", 65000, 4096, -1},
+		{"one token of budget is computed", 0, outputReserve + 1, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, info := statusInfoApp(t)
+			a.storeMu.Lock()
+			a.lastEstimatedTokens = tc.estimated
+			a.lastContextWindow = tc.window
+			a.storeMu.Unlock()
+			if got := info().CompactionPercent; got != tc.want {
+				t.Errorf("CompactionPercent = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestStatusInfoActiveGrants verifies the grants count tracks the real policy:
+// two grants made through policy.Grant report 2, and ClearGrants reports 0.
+func TestStatusInfoActiveGrants(t *testing.T) {
+	a, info := statusInfoApp(t)
+	a.pol = policy.New(true, true, true)
+	if got := info().ActiveGrants; got != 0 {
+		t.Fatalf("before any grant: ActiveGrants = %d, want 0", got)
+	}
+	for _, argv := range [][]string{{"go", "test"}, {"go", "build"}} {
+		if err := a.pol.Grant(policy.OperationCommand, argv); err != nil {
+			t.Fatalf("Grant(%v): %v", argv, err)
+		}
+	}
+	if got := info().ActiveGrants; got != 2 {
+		t.Errorf("after two grants: ActiveGrants = %d, want 2", got)
+	}
+	a.ClearGrants()
+	if got := info().ActiveGrants; got != 0 {
+		t.Errorf("after ClearGrants: ActiveGrants = %d, want 0", got)
+	}
+}
+
+// TestStatusInfoDirtyCount verifies the dirty wiring against a real git repo:
+// two untracked files report 2; a git failure reports -1 (rendered "dirty ?");
+// a non-git workspace reports 0 although the directory holds files.
+func TestStatusInfoDirtyCount(t *testing.T) {
+	repo := t.TempDir()
+	cmd := exec.Command("git", "init")
+	cmd.Dir = repo
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init: %v", err)
+	}
+	for _, name := range []string{"a.txt", "b.txt"} {
+		if err := os.WriteFile(filepath.Join(repo, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		name string
+		ws   *workspace.Workspace
+		want int
+	}{
+		{"two untracked files", &workspace.Workspace{Root: repo, IsGit: true}, 2},
+		{"git failure", &workspace.Workspace{Root: filepath.Join(repo, "missing"), IsGit: true}, -1},
+		{"not a git workspace", &workspace.Workspace{Root: repo, IsGit: false}, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, info := statusInfoApp(t)
+			a.ws = tc.ws
+			if got := info().DirtyCount; got != tc.want {
+				t.Errorf("DirtyCount = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// gitIn runs git in dir and fails the test on error. Identity and signing are
+// passed per call so the test does not depend on the machine's git config.
+func gitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	full := append([]string{
+		"-c", "user.name=t", "-c", "user.email=t@example.com",
+		"-c", "commit.gpgsign=false",
+	}, args...)
+	cmd := exec.Command("git", full...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// newGitRepo makes a repo whose first commit holds the given files.
+func newGitRepo(t *testing.T, files map[string]string) string {
+	t.Helper()
+	repo := t.TempDir()
+	gitIn(t, repo, "init")
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(repo, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gitIn(t, repo, "add", ".")
+	gitIn(t, repo, "commit", "-m", "initial")
+	return repo
+}
+
+func writeRepoFile(t *testing.T, repo, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(repo, name), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func newDiffApp(repo string) *App {
+	return New(&workspace.Workspace{Root: repo, IsGit: true}, config.Config{}, telemetry.Disabled())
+}
+
+// TestGetDiffCountsExactlyAndExcludesUntracked drives GetDiff against a real
+// repo. The tracked file has one modified line (one "-", one "+") and one added
+// line, so the exact answer is +2 -1. An untracked file sits beside it: its
+// absence is asserted next to the tracked file's presence, both read from the
+// same output.
+func TestGetDiffCountsExactlyAndExcludesUntracked(t *testing.T) {
+	repo := newGitRepo(t, map[string]string{"test.txt": "line1\nline2\nline3\n"})
+	writeRepoFile(t, repo, "test.txt", "line1\nline2 changed\nline3\nline4\n")
+	writeRepoFile(t, repo, "new.txt", "new content\n")
+
+	res := newDiffApp(repo).GetDiff()
+
+	if res.Err != "" {
+		t.Fatalf("Err = %q, want none", res.Err)
+	}
+	if res.Added != 2 || res.Removed != 1 {
+		t.Errorf("counts = +%d -%d, want +2 -1", res.Added, res.Removed)
+	}
+	if res.Truncated {
+		t.Error("Truncated = true for a tiny diff")
+	}
+	joined := strings.Join(res.Lines, "\n")
+	if !strings.Contains(joined, "diff --git a/test.txt b/test.txt") {
+		t.Errorf("tracked file test.txt missing from diff lines:\n%s", joined)
+	}
+	if strings.Contains(joined, "new.txt") || strings.Contains(joined, "new content") {
+		t.Errorf("untracked new.txt leaked into the diff:\n%s", joined)
+	}
+}
+
+// TestGetDiffCleanTreeIsEmptyWithNoError checks the clean-tree contract the TUI
+// relies on: no lines and no error. The positive control is the same repo
+// returning lines while dirty, immediately before the commit that cleans it.
+func TestGetDiffCleanTreeIsEmptyWithNoError(t *testing.T) {
+	repo := newGitRepo(t, map[string]string{"test.txt": "line1\n"})
+	a := newDiffApp(repo)
+
+	writeRepoFile(t, repo, "test.txt", "line1\nline2\n")
+	if dirty := a.GetDiff(); dirty.Err != "" || len(dirty.Lines) == 0 {
+		t.Fatalf("dirty control: Err=%q lines=%d, want no error and some lines", dirty.Err, len(dirty.Lines))
+	}
+
+	gitIn(t, repo, "commit", "-am", "second")
+	res := a.GetDiff()
+	if res.Err != "" {
+		t.Errorf("clean tree Err = %q, want none", res.Err)
+	}
+	if len(res.Lines) != 0 {
+		t.Errorf("clean tree Lines = %q, want none", res.Lines)
+	}
+	if res.Added != 0 || res.Removed != 0 || res.Truncated {
+		t.Errorf("clean tree = %+v, want zero counts and no truncation", res)
+	}
+}
+
+// TestGetDiffErrorPaths covers a non-repo workspace and the timeout. The timeout
+// case shares its repo with a successful default-timeout call, so the failure is
+// the 1ns bound and not a broken repo.
+func TestGetDiffErrorPaths(t *testing.T) {
+	t.Run("non-repo", func(t *testing.T) {
+		a := New(&workspace.Workspace{Root: t.TempDir(), IsGit: false}, config.Config{}, telemetry.Disabled())
+		if res := a.GetDiff(); res.Err != "not a Git repository" {
+			t.Errorf("Err = %q, want %q", res.Err, "not a Git repository")
+		}
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		repo := newGitRepo(t, map[string]string{"test.txt": "line1\n"})
+		writeRepoFile(t, repo, "test.txt", "line1\nline2\n")
+		a := newDiffApp(repo)
+		if ok := a.GetDiff(); ok.Err != "" || len(ok.Lines) == 0 {
+			t.Fatalf("control with the default timeout: Err=%q lines=%d", ok.Err, len(ok.Lines))
+		}
+		a.diffTimeout = time.Nanosecond
+		res := a.GetDiff()
+		if !strings.Contains(res.Err, "timed out") {
+			t.Errorf("Err = %q, want it to say \"timed out\"", res.Err)
+		}
+		if len(res.Lines) != 0 {
+			t.Errorf("a timed-out diff returned %d lines", len(res.Lines))
+		}
+	})
+}
+
+// TestGetDiffHeaderExclusionStopsAtFirstHunk uses content lines that look like
+// file headers once the diff prefix is added: a removed "--y" shows as "---y"
+// and an added "++x" as "+++x". Two files make sure the header state resets per
+// section. Exact answer: +1 -1 in each file, +2 -2 overall.
+func TestGetDiffHeaderExclusionStopsAtFirstHunk(t *testing.T) {
+	repo := newGitRepo(t, map[string]string{
+		"a.txt": "keep\n--y\n",
+		"b.txt": "keep\n--y\n",
+	})
+	writeRepoFile(t, repo, "a.txt", "keep\n++x\n")
+	writeRepoFile(t, repo, "b.txt", "keep\n++x\n")
+
+	res := newDiffApp(repo).GetDiff()
+
+	joined := strings.Join(res.Lines, "\n")
+	if !strings.Contains(joined, "\n+++x") || !strings.Contains(joined, "\n---y") {
+		t.Fatalf("fixture did not produce the header-like content lines:\n%s", joined)
+	}
+	if res.Added != 2 || res.Removed != 2 {
+		t.Errorf("counts = +%d -%d, want +2 -2", res.Added, res.Removed)
+	}
+}
+
+// TestGetDiffSanitisesLines puts ESC, a carriage return and a BEL in tracked
+// content. git emits them raw (a NUL would make git call the file binary, so
+// NUL is covered where lines are injected, in the tui tests). None may reach
+// Lines; the positive control is that the text around them does.
+func TestGetDiffSanitisesLines(t *testing.T) {
+	repo := newGitRepo(t, map[string]string{"t.txt": "keep\n"})
+	writeRepoFile(t, repo, "t.txt", "keep\n\x1b[31mred\x1b[0m\nback\rfront\nbell\x07end\n")
+
+	res := newDiffApp(repo).GetDiff()
+
+	joined := strings.Join(res.Lines, "\n")
+	for _, line := range res.Lines {
+		for _, r := range line {
+			if r < 0x20 || r == 0x7f {
+				t.Fatalf("control rune %#x survived in line %q", r, line)
+			}
+		}
+	}
+	for _, keep := range []string{"+red", "front", "end"} {
+		if !strings.Contains(joined, keep) {
+			t.Errorf("sanitised diff lost %q:\n%s", keep, joined)
+		}
+	}
+}
+
+// TestGetDiffAppliesTheByteCap diffs a file well over tool.MaxDiffBytes. The
+// content shown must fit the cap, carry the tool's truncation marker, be flagged
+// Truncated with the cap reported, while the +N count still covers every line
+// git produced. The small-diff tests above are the unflagged control.
+func TestGetDiffAppliesTheByteCap(t *testing.T) {
+	repo := newGitRepo(t, map[string]string{"big.txt": "seed\n"})
+	const lineCount = 4000
+	row := strings.Repeat("x", 79)
+	var b strings.Builder
+	for i := 0; i < lineCount; i++ {
+		b.WriteString(row)
+		b.WriteByte('\n')
+	}
+	writeRepoFile(t, repo, "big.txt", b.String())
+
+	res := newDiffApp(repo).GetDiff()
+
+	if res.Err != "" {
+		t.Fatalf("Err = %q", res.Err)
+	}
+	if !res.Truncated {
+		t.Error("Truncated = false for a diff over the cap")
+	}
+	if res.CapBytes != tool.MaxDiffBytes {
+		t.Errorf("CapBytes = %d, want tool.MaxDiffBytes (%d)", res.CapBytes, tool.MaxDiffBytes)
+	}
+	if got := len(strings.Join(res.Lines, "\n")); got > tool.MaxDiffBytes {
+		t.Errorf("shown diff is %d bytes, over the %d cap", got, tool.MaxDiffBytes)
+	}
+	if !strings.Contains(strings.Join(res.Lines, "\n"), "output truncated") {
+		t.Error("no truncation marker in the shown lines")
+	}
+	if res.Added != lineCount || res.Removed != 1 {
+		t.Errorf("counts = +%d -%d, want +%d -1 (whole output, not the capped part)", res.Added, res.Removed, lineCount)
+	}
+}
+
+// TestCountDiffLinesStatesTheHeaderRule is a table over countDiffLines for the
+// header-versus-content boundary, with git output shapes the real-repo tests do
+// not produce (a binary section, a pure rename).
+func TestCountDiffLinesStatesTheHeaderRule(t *testing.T) {
+	cases := []struct {
+		name         string
+		in           string
+		wantA, wantR int
+	}{
+		{"headers only", "diff --git a/x b/x\nindex 1..2 100644\n--- a/x\n+++ b/x\n", 0, 0},
+		{"content after first hunk", "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n", 1, 1},
+		{"++ content is an add", "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -0,0 +1 @@\n+++x\n", 1, 0},
+		{"-- content is a removal", "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +0,0 @@\n---y\n", 0, 1},
+		{"binary then text", "diff --git a/b b/b\nBinary files a/b and b/b differ\ndiff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n", 1, 1},
+		{"rename then text", "diff --git a/o b/n\nsimilarity index 100%\nrename from o\nrename to n\ndiff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -0,0 +1 @@\n+a\n", 1, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a, r := countDiffLines(tc.in)
+			if a != tc.wantA || r != tc.wantR {
+				t.Errorf("countDiffLines = +%d -%d, want +%d -%d", a, r, tc.wantA, tc.wantR)
+			}
+		})
+	}
+}
+
+// applyPatchCall runs one apply_patch call through the real toolExecutor.Invoke
+// of a, the entry point the agent loop uses, and returns the tool result.
+func applyPatchCall(t *testing.T, a *App, diff string) agent.ToolResult {
+	t.Helper()
+	input, err := json.Marshal(map[string]string{"diff": diff})
+	if err != nil {
+		t.Fatal(err)
+	}
+	te := &toolExecutor{app: a}
+	return te.Invoke(context.Background(), agent.ToolCall{ID: "call", Name: "apply_patch", Input: input})
+}
+
+// TestToolExecutorRecordsTouchedFilesOnlyForSuccessfulPatches asserts on one
+// App across four apply_patch calls made through toolExecutor.Invoke (the
+// entry point, not the helper the name might suggest): a success records its
+// paths in order; a failing patch naming a new path leaves the list unchanged;
+// re-patching a recorded file does not duplicate it; a rename records both the
+// target and the source path.
+func TestToolExecutorRecordsTouchedFilesOnlyForSuccessfulPatches(t *testing.T) {
+	repo := newGitRepo(t, map[string]string{
+		"a.go": "package main\n",
+		"b.go": "package main\n",
+		"c.go": "package main\n",
+	})
+	ws, err := workspace.Detect(repo)
+	if err != nil {
+		t.Fatalf("workspace.Detect: %v", err)
+	}
+	a := New(ws, config.Config{
+		Policy: config.PolicyConfig{RequireApprovalForPatches: true},
+	}, telemetry.Disabled())
+	// apply_patch always asks for approval. The test answers "once" on the way
+	// the TUI would, so a patch that reaches approval is committed.
+	a.sendFn = func(msg any) {
+		if req, ok := msg.(tui.ApprovalRequestedMsg); ok {
+			a.Resolve(req.ID, ApprovalOutcomeOnce)
+		}
+	}
+
+	expect := func(step string, want ...string) {
+		t.Helper()
+		got := a.GetTouchedFiles()
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("%s: touched files = %v, want %v", step, got, want)
+		}
+	}
+	expect("before any call")
+
+	res := applyPatchCall(t, a, "--- a/a.go\n+++ b/a.go\n@@ -1 +1,2 @@\n package main\n+// one\n"+
+		"--- a/b.go\n+++ b/b.go\n@@ -1 +1,2 @@\n package main\n+// two\n")
+	if !res.OK {
+		t.Fatalf("success patch failed: kind=%s content=%q", res.ErrorKind, res.Content)
+	}
+	expect("after a successful two-file patch", "a.go", "b.go")
+
+	res = applyPatchCall(t, a, "--- a/missing.go\n+++ b/missing.go\n@@ -1 +1,2 @@\n package main\n+// x\n")
+	if res.OK {
+		t.Fatal("patch against a missing file unexpectedly succeeded")
+	}
+	expect("after a failing patch naming a new path", "a.go", "b.go")
+
+	res = applyPatchCall(t, a, "--- a/a.go\n+++ b/a.go\n@@ -1,2 +1,3 @@\n package main\n // one\n+// again\n")
+	if !res.OK {
+		t.Fatalf("re-patch failed: %s", res.Content)
+	}
+	expect("after re-patching a.go", "a.go", "b.go")
+
+	res = applyPatchCall(t, a, "diff --git a/c.go b/e.go\nrename from c.go\nrename to e.go\n")
+	if !res.OK {
+		t.Fatalf("rename failed: %s", res.Content)
+	}
+	expect("after renaming c.go to e.go", "a.go", "b.go", "e.go", "c.go")
+}
+
+// TestAddTouchedFileNormalisesAndDeduplicates calls the recording helper
+// directly, which is its own entry point and not apply_patch: equivalent
+// spellings of one path collapse to a single cleaned entry, an empty path is
+// ignored, and first-touched order is kept.
+func TestAddTouchedFileNormalisesAndDeduplicates(t *testing.T) {
+	a := New(&workspace.Workspace{Root: t.TempDir(), IsGit: false}, config.Config{}, telemetry.Disabled())
+
+	a.mu.Lock()
+	for _, p := range []string{"./a.go", "a.go", "sub/../a.go", "b.go", "", "sub/c.go", "sub//c.go"} {
+		a.addTouchedFile(p)
+	}
+	a.mu.Unlock()
+
+	want := "a.go,b.go,sub/c.go"
+	if got := strings.Join(a.GetTouchedFiles(), ","); got != want {
+		t.Errorf("GetTouchedFiles = %q, want %q", got, want)
+	}
+}
+
+// TestAppUsageEventWritesUsageJSON verifies that usage events routed through
+// adaptTurnEvent write cache tokens and cost to usage.json with all fields
+// present and correctly summed.
+func TestAppUsageEventWritesUsageJSON(t *testing.T) {
+	// Create a temp state root so we can check usage.json
+	tempRoot := t.TempDir()
+	layout := &session.Layout{Root: tempRoot}
+
+	// Create app with the temp layout
+	c := newCollector(-1)
+	a := testApp(t, "repo-small", c)
+	defer a.Close()
+	a.storeMu.Lock()
+	a.layout = layout
+	a.storeMu.Unlock()
+
+	// We'll test with sonnet which has known PerToken pricing
+	modelID := "claude-sonnet-5-5"
+
+	// Send a usage event with all token types non-zero and distinct
+	// sonnet: in=2.0, out=10.0, read=0.2, write=2.5 per MTok
+	// cost for (1000, 500, 200, 100) = (1000*2.0 + 500*10.0 + 200*0.2 + 100*2.5) / 1e6
+	//                                = (2000 + 5000 + 40 + 250) / 1e6 = 7290 / 1e6 = 0.00729
+	ev1 := agent.Event{
+		Type: agent.EventUsage,
+		Usage: &agent.Usage{
+			InputTokens:      1000,
+			OutputTokens:     500,
+			CacheReadTokens:  200,
+			CacheWriteTokens: 100,
+		},
+	}
+	var tb, th int64
+	a.adaptTurnEvent(ev1, &tb, &th, map[string]int64{}, modelID)
+
+	// Read and verify usage.json was written
+	u, err := session.ReadUsage(tempRoot)
+	if err != nil {
+		t.Fatalf("ReadUsage: %v", err)
+	}
+	if u.PromptTokens != 1000 {
+		t.Errorf("PromptTokens = %d, want 1000", u.PromptTokens)
+	}
+	if u.CompletionTokens != 500 {
+		t.Errorf("CompletionTokens = %d, want 500", u.CompletionTokens)
+	}
+	if u.CacheReadTokens != 200 {
+		t.Errorf("CacheReadTokens = %d, want 200", u.CacheReadTokens)
+	}
+	if u.CacheWriteTokens != 100 {
+		t.Errorf("CacheWriteTokens = %d, want 100", u.CacheWriteTokens)
+	}
+	if u.TotalTokens != 1800 {
+		t.Errorf("TotalTokens = %d, want 1800", u.TotalTokens)
+	}
+	if math.Abs(u.CostUSD-0.00729) > 1e-10 {
+		t.Errorf("CostUSD = %v, want ≈ 0.00729", u.CostUSD)
+	}
+
+	// Send a second event and verify accumulation
+	ev2 := agent.Event{
+		Type: agent.EventUsage,
+		Usage: &agent.Usage{
+			InputTokens:      500,
+			OutputTokens:     200,
+			CacheReadTokens:  50,
+			CacheWriteTokens: 25,
+		},
+	}
+	a.adaptTurnEvent(ev2, &tb, &th, map[string]int64{}, modelID)
+
+	// Verify accumulation: cost for (500, 200, 50, 25) = (500*2.0 + 200*10.0 + 50*0.2 + 25*2.5) / 1e6
+	// = (1000 + 2000 + 10 + 62.5) / 1e6 = 3072.5 / 1e6 = 0.0030725
+	u2, err := session.ReadUsage(tempRoot)
+	if err != nil {
+		t.Fatalf("ReadUsage after second event: %v", err)
+	}
+	if u2.PromptTokens != 1500 {
+		t.Errorf("after event 2, PromptTokens = %d, want 1500", u2.PromptTokens)
+	}
+	if u2.CompletionTokens != 700 {
+		t.Errorf("after event 2, CompletionTokens = %d, want 700", u2.CompletionTokens)
+	}
+	if u2.CacheReadTokens != 250 {
+		t.Errorf("after event 2, CacheReadTokens = %d, want 250", u2.CacheReadTokens)
+	}
+	if u2.CacheWriteTokens != 125 {
+		t.Errorf("after event 2, CacheWriteTokens = %d, want 125", u2.CacheWriteTokens)
+	}
+	if u2.TotalTokens != 2575 {
+		t.Errorf("after event 2, TotalTokens = %d, want 2575", u2.TotalTokens)
+	}
+	wantCost := 0.00729 + 0.0030725 // sum of both events
+	if math.Abs(u2.CostUSD-wantCost) > 1e-10 {
+		t.Errorf("after event 2, CostUSD = %v, want %v", u2.CostUSD, wantCost)
+	}
+}
+
+// TestAppUsageEventNonPerTokenModels verifies adaptTurnEvent correctly handles
+// usage events for non-per-token models (Flat, unknown ID, empty string).
+// For these models, Cost returns ok=false and CostUSD=0, so all token counts
+// accumulate in CostUnknownTokens instead.
+func TestAppUsageEventNonPerTokenModels(t *testing.T) {
+	tests := []struct {
+		modelID string
+		in      int64
+		out     int64
+		read    int64
+		write   int64
+		// For non-per-token models: costUSD should be 0, costUnknownTokens = sum of all tokens
+		wantCostUSD     float64
+		wantCostUnknown int64
+	}{
+		// minimax-m2.7: PricingFlat model
+		{
+			modelID:         "minimax-m2.7",
+			in:              100,
+			out:             50,
+			read:            20,
+			write:           10,
+			wantCostUSD:     0,
+			wantCostUnknown: 180, // 100 + 50 + 20 + 10
+		},
+		// Unknown model ID: PricingUnknown
+		{
+			modelID:         "unknown-future-model",
+			in:              1000,
+			out:             500,
+			read:            200,
+			write:           100,
+			wantCostUSD:     0,
+			wantCostUnknown: 1800, // 1000 + 500 + 200 + 100
+		},
+		// Empty model ID: PricingUnknown
+		{
+			modelID:         "",
+			in:              50,
+			out:             25,
+			read:            10,
+			write:           5,
+			wantCostUSD:     0,
+			wantCostUnknown: 90, // 50 + 25 + 10 + 5
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.modelID, func(t *testing.T) {
+			tempRoot := t.TempDir()
+			layout := &session.Layout{Root: tempRoot}
+
+			c := newCollector(-1)
+			a := testApp(t, "repo-small", c)
+			defer a.Close()
+			a.storeMu.Lock()
+			a.layout = layout
+			a.storeMu.Unlock()
+
+			ev := agent.Event{
+				Type: agent.EventUsage,
+				Usage: &agent.Usage{
+					InputTokens:      int(tt.in),
+					OutputTokens:     int(tt.out),
+					CacheReadTokens:  int(tt.read),
+					CacheWriteTokens: int(tt.write),
+				},
+			}
+			var tb, th int64
+			a.adaptTurnEvent(ev, &tb, &th, map[string]int64{}, tt.modelID)
+
+			// Read and verify usage.json
+			u, err := session.ReadUsage(tempRoot)
+			if err != nil {
+				t.Fatalf("ReadUsage: %v", err)
+			}
+
+			if math.Abs(u.CostUSD-tt.wantCostUSD) > 1e-10 {
+				t.Errorf("CostUSD = %v, want %v", u.CostUSD, tt.wantCostUSD)
+			}
+			if u.CostUnknownTokens != tt.wantCostUnknown {
+				t.Errorf("CostUnknownTokens = %d, want %d", u.CostUnknownTokens, tt.wantCostUnknown)
+			}
+			// All tokens should be counted in TotalTokens regardless of pricing model
+			expectedTotal := tt.in + tt.out + tt.read + tt.write
+			if u.TotalTokens != expectedTotal {
+				t.Errorf("TotalTokens = %d, want %d", u.TotalTokens, expectedTotal)
 			}
 		})
 	}

@@ -161,7 +161,7 @@ func TestRunTurnErrorMsgPresenceControl(t *testing.T) {
 // TestRunTurnMapsUsageToUsageMsg checks that a usage payload on
 // EventMessageDone is forwarded as a plain-field UsageMsg.
 func TestRunTurnMapsUsageToUsageMsg(t *testing.T) {
-	c := newCollector(3)
+	c := newCollector(4) // TextDelta, UsageMsg, SessionUsageMsg, TurnCompleteMsg
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 
@@ -406,7 +406,7 @@ func TestRunTurnApprovalToolUsesApprovalPath(t *testing.T) {
 // a UsageMsg for the TUI but is never persisted inside the conversation's
 // message transcript. Usage lives in the turn metadata, not in conv.Messages.
 func TestRunTurnUsageNotStoredInConversation(t *testing.T) {
-	c := newCollector(3)
+	c := newCollector(4) // TextDelta, UsageMsg, SessionUsageMsg, TurnCompleteMsg
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 

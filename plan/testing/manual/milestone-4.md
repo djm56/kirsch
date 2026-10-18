@@ -28,8 +28,8 @@ deliverables land.
 | 5 | m4-d5 Resume State + CLI | **Runnable now** |
 | 6 | m4-d6 Single-Instance Guard | **Runnable now** |
 | 7 | m4-d7 Compaction | **Runnable now** |
-| 8 | m4-d8 Slash Commands for Real | Not yet testable |
-| 9 | m4-d9 Token and Cost Tracking | Not yet testable |
+| 8 | m4-d8 Slash Commands for Real | **Runnable now** |
+| 9 | m4-d9 Token and Cost Tracking | **Runnable now** |
 | 10 | m4-d10 Final-Task Report | Not yet testable |
 | 11 | m4-d11 Smoke Test | Not yet testable |
 | 12 | m4-d12 Final Acceptance | Not yet testable |
@@ -474,7 +474,7 @@ This section is the operator's independent verification of the m4-d5 acceptance 
 **Lock acquisition and second-instance detection — `Acquire` on `<workspace-hash>/.lock`, `ConcurrentInstance()` on lock failure:**
 
 ```bash
-go test -run 'TestAcquireSucceeds|TestSecondAcquireContends' -v ./internal/session/ && go test -run 'TestAcquireLockNonHeldError' -v ./internal/app/lock_integration_test.go
+go test -run 'TestAcquireSucceeds|TestSecondAcquireContends' -v ./internal/session/ && go test -run 'TestAcquireLockNonHeldError' -v ./internal/app/
 ```
 
 - [ ] `--- PASS: TestAcquireSucceeds`
@@ -666,28 +666,261 @@ This section is the operator's independent verification of the m4-d7 acceptance 
 
 ## 8 · Slash Commands for Real (m4-d8)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d8 lands.
+`internal/tui` and `internal/app` gained the real slash commands in mission-20261017-03. The commands operate on real session state: `/status` shows model, endpoint, base_url, key source, proxy, context file + size, branch, `dirty N`, `session <id|none>`, `tokens in N out N cache N` and `compaction N%`, plus `grants N|none`; `/diff` shows the working tree diff (background run, no UI block, 10s timeout, 200 KiB cap); `/files` lists workspace paths touched by successful `apply_patch` calls this session; `/approvals` lists active grants and confirms clearing; `/new` starts a new session (confirms if a turn is in flight); `/compact` triggers manual compaction on demand; `/quit` and `/exit` quit; and an unknown `/command` shows a dim inline hint, never an error card. This section runs the unit, app, and integration tests that back the m4-d8 acceptance, grouped to match the commands below.
 
-What will be checked (from milestone-4.md m4-d8 acceptance): `/status` shows model,
-branch, dirty count, session id, tokens (in/out/cache), compaction %,
-project-context file, and active grants; `/diff` shows the working tree diff;
-`/files` lists files touched this session; `/approvals` lists active grants and
-offers to clear; `/new` starts a new session (confirming if a turn is in flight);
-`/compact` triggers manual compaction; `/quit` and `/exit` quit (alias); and an
-unknown `/command` shows a dim inline hint, never an error card, and is never sent
-to the model.
+**`/status` fields — model, branch, dirty count, session id, tokens (in/out/cache), compaction %, context file, grants:**
+
+```bash
+go test -run 'TestStatusInfoShowsAccumulatedTokens|TestStatusInfoSessionID|TestStatusInfoCompactionPercent|TestStatusInfoActiveGrants|TestStatusInfoDirtyCount' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestStatusInfoShowsAccumulatedTokens`
+- [ ] `--- PASS: TestStatusInfoSessionID`
+- [ ] `--- PASS: TestStatusInfoCompactionPercent`
+- [ ] `--- PASS: TestStatusInfoActiveGrants`
+- [ ] `--- PASS: TestStatusInfoDirtyCount`
+
+**`/diff` shows working tree diff (background, 10s timeout, 200 KiB cap, unstaged only):**
+
+```bash
+go test -run 'TestDiffCommandDoesNotBlockUpdate|TestDiffCommandOpensModalWithCallbackLines|TestDiffCommandCleanTreeShowsNotice|TestDiffCommandErrorShowsNotice|TestDiffCommandWithoutCallbackShowsNotice|TestDiffResultTruncationMarkerDerivesFromCap|TestDiffResultDoesNotReplaceAnOpenModal|TestDiffModalLinesAreSanitised|TestDiffResultIgnoresStaleSequence|TestDiffResultDroppedAfterNewSession|TestDiffResultBlockedByConfirmPrompt|TestGetDiffCountsExactlyAndExcludesUntracked|TestGetDiffCleanTreeIsEmptyWithNoError|TestGetDiffErrorPaths|TestGetDiffHeaderExclusionStopsAtFirstHunk|TestGetDiffSanitisesLines|TestGetDiffAppliesTheByteCap|TestCountDiffLinesStatesTheHeaderRule|TestDiffCommandThroughRealWiring' -v ./internal/tui/ ./internal/app/ ./cmd/kirsch/
+```
+
+- [ ] `--- PASS: TestDiffCommandDoesNotBlockUpdate`
+- [ ] `--- PASS: TestDiffCommandOpensModalWithCallbackLines`
+- [ ] `--- PASS: TestDiffCommandCleanTreeShowsNotice`
+- [ ] `--- PASS: TestDiffCommandErrorShowsNotice`
+- [ ] `--- PASS: TestDiffCommandWithoutCallbackShowsNotice`
+- [ ] `--- PASS: TestDiffResultTruncationMarkerDerivesFromCap`
+- [ ] `--- PASS: TestDiffResultDoesNotReplaceAnOpenModal`
+- [ ] `--- PASS: TestDiffModalLinesAreSanitised`
+- [ ] `--- PASS: TestDiffResultIgnoresStaleSequence`
+- [ ] `--- PASS: TestDiffResultDroppedAfterNewSession`
+- [ ] `--- PASS: TestDiffResultBlockedByConfirmPrompt`
+- [ ] `--- PASS: TestGetDiffCountsExactlyAndExcludesUntracked`
+- [ ] `--- PASS: TestGetDiffCleanTreeIsEmptyWithNoError`
+- [ ] `--- PASS: TestGetDiffErrorPaths`
+- [ ] `--- PASS: TestGetDiffHeaderExclusionStopsAtFirstHunk`
+- [ ] `--- PASS: TestGetDiffSanitisesLines`
+- [ ] `--- PASS: TestGetDiffAppliesTheByteCap`
+- [ ] `--- PASS: TestCountDiffLinesStatesTheHeaderRule`
+- [ ] `--- PASS: TestDiffCommandThroughRealWiring`
+
+**`/files` lists files touched by `apply_patch` this session (cleaned, de-duplicated, reset on resume):**
+
+```bash
+go test -run 'TestFilesCommandListsPaths|TestFilesCommandEmptyNotice|TestFilesCommandWithoutCallbackShowsNotice|TestFilesCommandSanitisesPaths|TestToolExecutorRecordsTouchedFilesOnlyForSuccessfulPatches|TestAddTouchedFileNormalisesAndDeduplicates' -v ./internal/tui/ ./internal/app/
+```
+
+- [ ] `--- PASS: TestFilesCommandListsPaths`
+- [ ] `--- PASS: TestFilesCommandEmptyNotice`
+- [ ] `--- PASS: TestFilesCommandWithoutCallbackShowsNotice`
+- [ ] `--- PASS: TestFilesCommandSanitisesPaths`
+- [ ] `--- PASS: TestToolExecutorRecordsTouchedFilesOnlyForSuccessfulPatches`
+- [ ] `--- PASS: TestAddTouchedFileNormalisesAndDeduplicates`
+
+**`/approvals` lists active grants and confirms clearing (y/n/Esc):**
+
+```bash
+go test -run 'TestApprovalsNoticeSanitisesGrants' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestApprovalsNoticeSanitisesGrants`
+
+**`/new` starts new session with confirm if turn in flight (resets conversation, tokens, compaction, touched, grants):**
+
+```bash
+go test -run 'TestSlashNewRunsCallbackInCmdAndResetsOnDone|TestSlashNewDoesNotBlockUpdate|TestSlashNewFailureKeepsTranscript|TestNewSessionIsolatesTheOldTurnFromTheNewSession|TestNewSessionFailureLeavesTheSessionIntact|TestSubmitRefusesWhileNewSessionWaitsForATurn|TestSlashNewThroughRealWiringStartsANewSession' -v ./internal/tui/ ./internal/app/ ./cmd/kirsch/
+```
+
+- [ ] `--- PASS: TestSlashNewRunsCallbackInCmdAndResetsOnDone`
+- [ ] `--- PASS: TestSlashNewDoesNotBlockUpdate`
+- [ ] `--- PASS: TestSlashNewFailureKeepsTranscript`
+- [ ] `--- PASS: TestNewSessionIsolatesTheOldTurnFromTheNewSession`
+- [ ] `--- PASS: TestNewSessionFailureLeavesTheSessionIntact`
+- [ ] `--- PASS: TestSubmitRefusesWhileNewSessionWaitsForATurn`
+- [ ] `--- PASS: TestSlashNewThroughRealWiringStartsANewSession`
+
+**`/compact` triggers manual compaction on demand (status bar shows `compacting`, no turn start):**
+
+```bash
+go test -run 'TestCompactCommandHoldsBusyUntilRealOutcome|TestCompactCommandRefusesSubmitAndKeepsBusyOnEsc|TestManualCompactMsgOutcomesShowDistinctNotices|TestCompactCommandWithoutCallback|TestManualCompactAppliesWithoutStartingATurn|TestManualCompactWithTooFewTurnsReportsNothing|TestManualCompactProviderErrorIsAFailureNotAnOverflow|TestManualCompactCancelDuringModelCallReportsCancelled|TestManualCompactCancelAfterSummaryBeforeSwapNeverHalfApplies|TestManualCompactRefusesWhileATurnIsLive|TestSubmitRefusesWhileManualCompactIsRunning' -v ./internal/tui/ ./internal/app/
+```
+
+- [ ] `--- PASS: TestCompactCommandHoldsBusyUntilRealOutcome`
+- [ ] `--- PASS: TestCompactCommandRefusesSubmitAndKeepsBusyOnEsc`
+- [ ] `--- PASS: TestManualCompactMsgOutcomesShowDistinctNotices`
+- [ ] `--- PASS: TestCompactCommandWithoutCallback`
+- [ ] `--- PASS: TestManualCompactAppliesWithoutStartingATurn`
+- [ ] `--- PASS: TestManualCompactWithTooFewTurnsReportsNothing`
+- [ ] `--- PASS: TestManualCompactProviderErrorIsAFailureNotAnOverflow`
+- [ ] `--- PASS: TestManualCompactCancelDuringModelCallReportsCancelled`
+- [ ] `--- PASS: TestManualCompactCancelAfterSummaryBeforeSwapNeverHalfApplies`
+- [ ] `--- PASS: TestManualCompactRefusesWhileATurnIsLive`
+- [ ] `--- PASS: TestSubmitRefusesWhileManualCompactIsRunning`
+
+**Dirty count on real workspace state:**
+
+```bash
+go test -run 'TestDirtyCount|TestDirtyCountNonGitAndErrorBranches' -v ./internal/workspace/
+```
+
+- [ ] `--- PASS: TestDirtyCount`
+- [ ] `--- PASS: TestDirtyCountNonGitAndErrorBranches`
+
+**Diff driver blocking — `--no-ext-diff --no-textconv`:**
+
+```bash
+go test -run 'TestDiffArgsShape|TestGitDiffDoesNotRunConfiguredDiffDrivers' -v ./internal/tool/
+```
+
+- [ ] `--- PASS: TestDiffArgsShape`
+- [ ] `--- PASS: TestGitDiffDoesNotRunConfiguredDiffDrivers`
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+
+This section is the operator's independent verification of the m4-d8 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261017-03). It is the record for the nine m4-d8 acceptance boxes: `/status` fields; `/diff` on dirty/clean tree, background run, block UI block, 200 KiB cap, unstaged only, late result dropped, over modal/confirm; `/files` on touched paths, cleaned, de-duplicated, reset on resume; `/approvals` with/without grants confirming clear (y/n/Esc); `/new` with confirm if turn running, isolation, failure handling; `/compact` on demand without turn start, status glyph, notices, message refusal, failure handling; dirty count; and diff driver blocking.
 
 ---
 
 ## 9 · Token and Cost Tracking (m4-d9)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d9 lands.
+`internal/provider`, `internal/session`, `internal/app`, `internal/agent`, and `internal/tui` gained token and cost tracking in mission-20261017-05. `usage` events are recorded to `usage.json` as cumulative totals (prompt, completion, cache-read, cache-write, total, cost_usd). The status bar shows session totals `in N out N cache R/W · $cost` (4 decimals for costs < $0.01, 2 otherwise), with fallback `N tok` on narrow terminals. Cost is calculated per call at that call's model price; cache-write price is 1.25× input and unverified. An unknown model degrades gracefully with a once-per-session notice and uses the smallest context window in the model table (currently 128000) as the conservative budget. Protected by an advisory flock on `usage.json.lock` (~1s retry, then drops the increment and logs a warning). A JSON-corrupt file is moved aside to `usage.json.corrupt-<UTC nanosecond stamp>` and counting restarts. This section runs the unit, integration, and TUI tests that back the m4-d9 acceptance.
 
-What will be checked (from milestone-4.md m4-d9 acceptance): `usage` events are
-recorded to `usage.json` as cumulative token/cost totals; the status bar shows real
-token counts (input, output, cache read, cache write); and an unknown model
-degrades with a warning and a conservative budget (not a failure), suggesting the
-smallest context window in the §5 model table as the fallback budget.
+**Provider — cost calculation and unknown-model handling:**
+
+```bash
+go test -run 'TestUnknownModelFallback|TestCostPerTokenModel|TestCostFlatModel|TestCostUnknownModel|TestCostAllPerTokenModels|TestCostZeroTokens|TestConservativeBudgetEqualsTableMinimum|TestConservativeBudgetFollowsTheTable|TestCostStateStrings' -v ./internal/provider/
+```
+
+- [ ] `--- PASS: TestUnknownModelFallback`
+- [ ] `--- PASS: TestCostPerTokenModel`
+- [ ] `--- PASS: TestCostFlatModel`
+- [ ] `--- PASS: TestCostUnknownModel`
+- [ ] `--- PASS: TestCostAllPerTokenModels`
+- [ ] `--- PASS: TestCostZeroTokens`
+- [ ] `--- PASS: TestConservativeBudgetEqualsTableMinimum`
+- [ ] `--- PASS: TestConservativeBudgetFollowsTheTable`
+- [ ] `--- PASS: TestCostStateStrings`
+
+**Session usage — file I/O, corruption recovery, concurrency, locking:**
+
+```bash
+go test -run 'TestUsageAddUpdatesTotals|TestAddUsageRootUpdatesFile|TestUsageAccumulationWithUnknownCost|TestUsageBackwardCompatibility|TestAddUsageConcurrentGoroutines|TestAddUsageCorruptFileRecovery|TestAddUsageRecoveriesInOneSecondKeepBothFiles|TestAddUsageUnreadableFileLeftUntouched|TestWriteJSONFileRemovesTempWhenRenameFails|TestWriteJSONFileLeavesNoTempOnSuccess|TestWriteJSONFileConcurrentWritersNeverCollide' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestUsageAddUpdatesTotals`
+- [ ] `--- PASS: TestAddUsageRootUpdatesFile`
+- [ ] `--- PASS: TestUsageAccumulationWithUnknownCost`
+- [ ] `--- PASS: TestUsageBackwardCompatibility`
+- [ ] `--- PASS: TestAddUsageConcurrentGoroutines`
+- [ ] `--- PASS: TestAddUsageCorruptFileRecovery`
+- [ ] `--- PASS: TestAddUsageRecoveriesInOneSecondKeepBothFiles`
+- [ ] `--- PASS: TestAddUsageUnreadableFileLeftUntouched`
+- [ ] `--- PASS: TestWriteJSONFileRemovesTempWhenRenameFails`
+- [ ] `--- PASS: TestWriteJSONFileLeavesNoTempOnSuccess`
+- [ ] `--- PASS: TestWriteJSONFileConcurrentWritersNeverCollide`
+
+**Lock — advisory flock on usage.json.lock:**
+
+```bash
+go test -run 'TestAddUsageWaitsForHeldLock|TestAddUsageReturnsErrLockHeldWhenLockStaysHeld|TestTryLockInterruptHandling' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestAddUsageWaitsForHeldLock`
+- [ ] `--- PASS: TestAddUsageReturnsErrLockHeldWhenLockStaysHeld`
+- [ ] `--- PASS: TestTryLockInterruptHandling`
+
+**Compaction — usage recorded before, during and after compaction:**
+
+```bash
+go test -run 'TestCompactionUsageCapture|TestCompactionUsageReturnedOnError|TestCompactionUsageReturnedOnEveryErrorPath' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestCompactionUsageCapture`
+- [ ] `--- PASS: TestCompactionUsageReturnedOnError`
+- [ ] `--- PASS: TestCompactionUsageReturnedOnEveryErrorPath`
+
+**App — session totals accumulation and per-call pricing:**
+
+```bash
+go test -run 'TestSubmitSendsExactSessionTotalsPerTurn|TestSessionCostPricesEachCallAtItsOwnModel|TestSubmitCompactionSendsSessionTotals|TestManualCompactSendsSessionTotals|TestSessionTotalsRestartAfterNewSession|TestUnknownModelNoticeOnceAcrossTwoTurns|TestKnownModelShowsNoUnknownNotice|TestUnknownModelNoticeAgainAfterNewSession' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestSubmitSendsExactSessionTotalsPerTurn`
+- [ ] `--- PASS: TestSessionCostPricesEachCallAtItsOwnModel`
+- [ ] `--- PASS: TestSubmitCompactionSendsSessionTotals`
+- [ ] `--- PASS: TestManualCompactSendsSessionTotals`
+- [ ] `--- PASS: TestSessionTotalsRestartAfterNewSession`
+- [ ] `--- PASS: TestUnknownModelNoticeOnceAcrossTwoTurns`
+- [ ] `--- PASS: TestKnownModelShowsNoUnknownNotice`
+- [ ] `--- PASS: TestUnknownModelNoticeAgainAfterNewSession`
+
+**Compaction error paths — usage recorded on all failure paths:**
+
+```bash
+go test -run 'TestSubmitCompactionRecordsSummaryAndTurnUsage|TestManualCompactRecordsSummaryUsage|TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched|TestManualCompactStreamErrorRecordsUsage|TestRecordUsageReportsCorruptUsageFileThroughLogger' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestSubmitCompactionRecordsSummaryAndTurnUsage`
+- [ ] `--- PASS: TestManualCompactRecordsSummaryUsage`
+- [ ] `--- PASS: TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched`
+- [ ] `--- PASS: TestManualCompactStreamErrorRecordsUsage`
+- [ ] `--- PASS: TestRecordUsageReportsCorruptUsageFileThroughLogger`
+
+**Wiring — usage event reaches the status bar through the real pipeline:**
+
+```bash
+go test -run 'TestProviderEventToAgentMapsUsage|TestUsageNonzero|TestUsageEventThroughRealWiringReachesTheStatusBar' -v ./internal/app/ ./internal/agent/ ./cmd/kirsch/
+```
+
+- [ ] `--- PASS: TestProviderEventToAgentMapsUsage`
+- [ ] `--- PASS: TestUsageNonzero`
+- [ ] `--- PASS: TestUsageEventThroughRealWiringReachesTheStatusBar`
+
+**TUI rendering — status bar layout, cost format, unknown-model notice:**
+
+```bash
+go test -run 'TestSessionUsageWideRender|TestSessionUsageFlatNoCost|TestSessionUsageSmallCostFormat|TestSessionUsageUnknownPricingShowsQuestionMark|TestSessionUsageCostBoundary|TestSessionUsageASCIIGlyphs|TestSessionUsageNarrowLayoutFallsBackToSessionTotal|TestStatusLadderDropsTokensBeforeGrants|TestUnknownModelNotice' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestSessionUsageWideRender`
+- [ ] `--- PASS: TestSessionUsageFlatNoCost`
+- [ ] `--- PASS: TestSessionUsageSmallCostFormat`
+- [ ] `--- PASS: TestSessionUsageUnknownPricingShowsQuestionMark`
+- [ ] `--- PASS: TestSessionUsageCostBoundary`
+- [ ] `--- PASS: TestSessionUsageASCIIGlyphs`
+- [ ] `--- PASS: TestSessionUsageNarrowLayoutFallsBackToSessionTotal`
+- [ ] `--- PASS: TestStatusLadderDropsTokensBeforeGrants`
+- [ ] `--- PASS: TestUnknownModelNotice`
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`). A full green run can require a retry.
+
+This section is the operator's independent verification of the m4-d9 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261017-05). It is the record for the five m4-d9 acceptance boxes: `usage` events recorded to `usage.json`; status bar shows real token counts; unknown models degrade with warning and conservative budget; cost calculated from model pricing; and 38 unit tests covering usage accumulation, unknown-model degradation, file I/O, corruption recovery, concurrency, locking, compaction, session totals, per-call pricing, error paths, wiring and TUI rendering.
 
 ---
 

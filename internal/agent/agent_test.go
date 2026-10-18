@@ -1677,3 +1677,26 @@ func TestAgentCarriesSystemOnEveryRequest(t *testing.T) {
 		}
 	}
 }
+
+// TestUsageNonzero checks Usage.Nonzero with each of the four counts set
+// alone, so a method that ignores any one field fails under that field's name,
+// and with the zero value as the mirror.
+func TestUsageNonzero(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		u    Usage
+		want bool
+	}{
+		{"zero value", Usage{}, false},
+		{"InputTokens only", Usage{InputTokens: 1}, true},
+		{"OutputTokens only", Usage{OutputTokens: 1}, true},
+		{"CacheReadTokens only", Usage{CacheReadTokens: 1}, true},
+		{"CacheWriteTokens only", Usage{CacheWriteTokens: 1}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.u.Nonzero(); got != tc.want {
+				t.Errorf("%s: Nonzero() = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}

@@ -24,52 +24,66 @@ func readJSONFile(path string, v any) error {
 
 // writeJSONFile marshals v as indented JSON and atomically replaces path.
 //
-// It writes a temporary file in the same directory, fsyncs the temporary file,
-// renames it into place, and fsyncs the directory so both the data and the
-// rename are durable. If the rename fails, the temporary file is removed on a
-// best-effort basis.
+// It writes a temporary file in the same directory (with a unique name via
+// os.CreateTemp), fsyncs the temporary file, renames it into place, and fsyncs
+// the directory so both the data and the rename are durable. The temporary file
+// is removed on every error path up to and including a failed rename. Once the
+// rename has succeeded there is nothing to remove, so a later failure (opening
+// or syncing the directory) leaves the new file in place and returns an error.
 func writeJSONFile(path string, v any) error {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
 
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	// Create a unique temporary file in the same directory as path.
+	// Use an empty pattern to get the default temp file naming.
+	dirPath := filepath.Dir(path)
+	tmpFile, err := os.CreateTemp(dirPath, ".tmp")
+	if err != nil {
+		return fmt.Errorf("create temporary file: %w", err)
+	}
+	tmp := tmpFile.Name()
+
+	// Write and sync through the single CreateTemp handle to ensure data durability
+	// without re-opening. Defer cleanup of the temp file on any error.
+	defer func() {
+		if tmp != "" {
+			_ = os.Remove(tmp)
+		}
+	}()
+
+	if _, err := tmpFile.WriteString(string(data)); err != nil {
+		_ = tmpFile.Close()
 		return fmt.Errorf("write temporary file: %w", err)
 	}
 
-	// Fsync the temporary file so the data is on disk before the rename.
-	// #nosec G304 -- tmp is generated in the same function from the target path,
-	// inside the caller-supplied state root; it is not user-controlled input.
-	tmpFile, err := os.Open(tmp)
-	if err != nil {
-		return fmt.Errorf("open temporary file for fsync: %w", err)
-	}
 	if err := tmpFile.Sync(); err != nil {
 		_ = tmpFile.Close()
 		return fmt.Errorf("fsync temporary file: %w", err)
 	}
+
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("close temporary file: %w", err)
 	}
 
 	if err := os.Rename(tmp, path); err != nil {
-		// Best-effort cleanup of the temporary file on rename failure.
-		_ = os.Remove(tmp)
 		return fmt.Errorf("rename temporary file: %w", err)
 	}
+	// The rename succeeded, so the temporary name no longer exists; disarm the
+	// deferred removal. It stays armed on a rename failure.
+	tmp = ""
 
 	// Fsync the directory so the rename is durable.
-	dir, err := os.Open(filepath.Dir(path))
+	dirFile, err := os.Open(dirPath)
 	if err != nil {
 		return fmt.Errorf("open directory for fsync: %w", err)
 	}
-	if err := dir.Sync(); err != nil {
-		_ = dir.Close()
+	if err := dirFile.Sync(); err != nil {
+		_ = dirFile.Close()
 		return fmt.Errorf("fsync directory: %w", err)
 	}
-	if err := dir.Close(); err != nil {
+	if err := dirFile.Close(); err != nil {
 		return fmt.Errorf("close directory: %w", err)
 	}
 

@@ -284,6 +284,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.relayout(m.layout())
 		return m, nil
 
+	case ManualCompactMsg:
+		// The only place busy is cleared for /compact. The app sends this
+		// message once, when compaction has finished, so it carries the real
+		// outcome. Every outcome is a notice, never an error card.
+		m.compacting = false
+		m.busy = Busy{}
+		switch msg.Outcome {
+		case ManualCompactApplied:
+			m.sess.Compacted = true
+			m.notice("compaction complete")
+		case ManualCompactNothing:
+			m.notice("nothing to compact yet")
+		case ManualCompactCancelled:
+			m.notice("compaction cancelled")
+		case ManualCompactBusy:
+			m.notice("cannot compact while a turn is running")
+		case ManualCompactFailed:
+			m.notice("compaction failed: " + SanitizeSingleLine(msg.Detail))
+		default:
+			m.notice("compaction failed: unrecognised outcome")
+		}
+		m.relayout(m.layout())
+		return m, nil
+
+	case NewSessionDoneMsg:
+		m.newSessionPending = false
+		m.busy = Busy{}
+		if msg.Err != nil {
+			// No new session exists, so the transcript and counters still
+			// describe the live one and are left alone.
+			m.notice("new session failed: " + SanitizeSingleLine(msg.Err.Error()))
+		} else {
+			m.resetForNewSession()
+		}
+		m.relayout(m.layout())
+		return m, nil
+
 	case ErrorMsg:
 		m.appendBlock(Item{Kind: KindError, Err: &ErrorCard{
 			Kind: msg.Kind, Message: msg.Message,
@@ -297,6 +334,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NoticeMsg:
 		m.notice(msg.Text)
 		m.relayout(m.layout())
+		return m, nil
+
+	case DiffResultMsg:
+		// Ignore stale diff results from earlier /diff invocations (W-B).
+		if msg.Seq == m.pendingDiffSeq {
+			m.applyDiffResult(msg.Result)
+			m.scroll.repin()
+			m.relayout(m.layout())
+		}
 		return m, nil
 
 	case TranscriptLoadedMsg:
@@ -363,6 +409,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case UsageMsg:
 		m.status.Tokens = msg.InputTokens + msg.OutputTokens + msg.CacheReadTokens + msg.CacheWriteTokens
+		m.relayout(m.layout())
+		return m, nil
+
+	case SessionUsageMsg:
+		m.status.SessionTokensIn = msg.TokensIn
+		m.status.SessionTokensOut = msg.TokensOut
+		m.status.SessionTokensCacheR = msg.CacheRead
+		m.status.SessionTokensCacheW = msg.CacheWrite
+		m.status.SessionCostUSD = msg.CostUSD
+		m.status.SessionCostState = msg.CostState
+		// ui-spec §7.5: a dim transcript notice, once per session. The flag is
+		// reset by resetForNewSession, so a new session shows it again.
+		if !msg.ModelKnown && !m.unknownModelNoticeShown {
+			m.notice(unknownModelNotice)
+			m.unknownModelNoticeShown = true
+		}
 		m.relayout(m.layout())
 		return m, nil
 
@@ -986,7 +1048,8 @@ func (m Model) keyConfirm(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	case "y":
 		c := m.confirm
 		m.confirm = nil
-		return m.applyConfirm(c, lay), nil
+		m, cmd := m.applyConfirm(c, lay)
+		return m, cmd
 	case "n":
 		m.confirm = nil
 		return m, nil
@@ -1038,12 +1101,6 @@ func (m Model) keyModal(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 		m.modal.Off = 0
 	case "G":
 		m.modal.Off = maxInt(0, len(m.modal.Lines)-1)
-	case "c":
-		// On grants modal, 'c' closes the modal and shows the clear confirmation
-		if m.modal.Kind == ModalContent && m.modal.Title == GrantsModalTitle {
-			m.closeModal()
-			m.askConfirm(ConfirmState{Prompt: "Clear all session grants?", Action: ConfirmClearGrants})
-		}
 	case "?":
 		if m.modal.Kind == ModalHelp {
 			m.closeModal() // ? also closes help, §4.2
@@ -1075,35 +1132,65 @@ func (m Model) handlePaste(s string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) applyConfirm(c *ConfirmState, lay Layout) Model {
+// applyConfirm carries out an accepted confirm action. ConfirmNewSession
+// returns the Cmd that runs the app's NewSession off the Update goroutine; the
+// transcript is reset only when its NewSessionDoneMsg reports success.
+func (m Model) applyConfirm(c *ConfirmState, lay Layout) (Model, tea.Cmd) {
 	switch c.Action {
 	case ConfirmLargePaste:
 		m.comp.InsertString(c.Payload)
 	case ConfirmNewSession:
-		m.tr = Transcript{}
-		m.sel, m.pendingApproval = 0, 0
-		m.clearApprovalRelease()
-		m.expanded = map[ItemID]bool{}
-		m.collapsed = map[ItemID]bool{}
-		m.busy = Busy{}
-		m.scroll.repin() // re-pin: a new session starts at the bottom
-		// No relayout here: every path that reaches this arm already rebuilds
-		// behind the call. Today that is runSlash's idle branch, which resets in
-		// place and falls through to its own relayout with the same lay, so a
-		// rebuild here would do the same work twice for every reset.
-		//
-		// The other route in — askConfirm's "/new while a turn is in flight"
-		// prompt, whose accept would rebuild via dispatchKey's repaint — cannot
-		// currently execute: keyComposing swallows Enter while m.busy.Active, so
-		// submit never reaches runSlash during a live turn and that prompt is
-		// never raised. It is named here because the branch is still in the code
-		// above; do not read it as a live caller.
+		if m.NewSession == nil {
+			// No app behind the model (fixtures): there is nothing to wait for.
+			m.resetForNewSession()
+			return m, nil
+		}
+		// NewSession cancels the running turn and waits for it to stop, which
+		// can take as long as a tool call, so it runs in a Cmd. Until the done
+		// message arrives busy stays active: Enter is swallowed and Esc is a
+		// no-op, so no Submit can race the swap.
+		m.busy = Busy{Active: true, Verb: "new session"}
+		m.newSessionPending = true
+		newSession := m.NewSession
+		run := func() tea.Msg {
+			// Wrap os.LookupEnv to convert (string, bool) to just string
+			getenv := func(key string) string {
+				v, _ := os.LookupEnv(key)
+				return v
+			}
+			return NewSessionDoneMsg{Err: newSession(getenv)}
+		}
+		return m, tea.Batch(run, m.tickSpinnerOnce())
 	case ConfirmClearGrants:
 		if m.ClearGrants != nil {
 			m.ClearGrants()
 		}
 	}
-	return m
+	return m, nil
+}
+
+// resetForNewSession discards the transcript and per-session display state.
+// pendingDiffSeq is advanced, never reset, so a /diff issued before /new can
+// never match a sequence number issued after it.
+func (m *Model) resetForNewSession() {
+	m.tr = Transcript{}
+	m.sel, m.pendingApproval = 0, 0
+	m.clearApprovalRelease()
+	m.expanded = map[ItemID]bool{}
+	m.collapsed = map[ItemID]bool{}
+	m.busy = Busy{}
+	m.compacting = false
+	m.scroll.repin() // re-pin: a new session starts at the bottom
+	m.pendingDiffSeq++
+	m.sess.Compacted = false
+	m.status.Tokens = 0
+	m.status.SessionTokensIn = 0
+	m.status.SessionTokensOut = 0
+	m.status.SessionTokensCacheR = 0
+	m.status.SessionTokensCacheW = 0
+	m.status.SessionCostUSD = 0
+	m.status.SessionCostState = ""
+	m.unknownModelNoticeShown = false
 }
 
 // openDetail opens the content or diff modal for the selected card.
@@ -1266,8 +1353,19 @@ func (m Model) updateApprovalOutcome(msg ApprovalResolvedMsg) Model {
 }
 
 func (m Model) cancelTurn() Model {
+	// A new session is already cancelling the turn itself, and its done
+	// message clears busy.
+	if m.newSessionPending {
+		return m
+	}
 	if m.Cancel != nil {
 		m.Cancel()
+	}
+	// A cancelled manual compaction still ends with its ManualCompactMsg
+	// ("compaction cancelled"); clearing busy here would let a Submit start
+	// while the compaction goroutine is still unwinding.
+	if m.compacting {
+		return m
 	}
 
 	// When a turn is cancelled via Esc from the composer while the composer is
@@ -1349,11 +1447,13 @@ func (m Model) submit(lay Layout) (tea.Model, tea.Cmd) {
 // whenever the layout a handler leaves behind differs from the one it was given.
 //
 // /help and /diff need nothing extra: they open a modal over a transcript that
-// is now pinned underneath, so closing it lands at the bottom. /new needs
-// nothing extra either — applyConfirm re-pins for its own reason (a new session
-// starts at the bottom) and this re-pin also covers the branch where /new raises
-// a confirm instead of resetting.
+// is now pinned underneath, so closing it lands at the bottom. /diff opens its
+// modal when its DiffResultMsg arrives, and that case re-pins as well. /new needs
+// nothing extra either — resetForNewSession re-pins for its own reason (a new
+// session starts at the bottom), and this re-pin also covers the paths where /new
+// has not reset yet: the confirm prompt, and the NewSession Cmd still running.
 func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
+	var later tea.Cmd // set by an arm whose answer arrives later as a message
 	switch cmd {
 	case "help":
 		m.openModal(ModalState{Kind: ModalHelp, Title: "help", Lines: helpLines()})
@@ -1366,7 +1466,7 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 				Action: ConfirmNewSession,
 			})
 		} else {
-			m = m.applyConfirm(&ConfirmState{Action: ConfirmNewSession}, lay)
+			m, later = m.applyConfirm(&ConfirmState{Action: ConfirmNewSession}, lay)
 		}
 	case "approvals":
 		// Get the real grants from the policy
@@ -1378,15 +1478,17 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 		if len(grants) == 0 {
 			m.notice("no active session grants")
 		} else {
-			// Show the grants in a modal, sanitised for single-line display
+			// Show the grants in a notice, sanitised for single-line display
 			sanitisedGrants := make([]string, len(grants))
 			for i, g := range grants {
 				sanitisedGrants[i] = SanitizeSingleLine(g)
 			}
-			m.openModal(ModalState{
-				Kind:  ModalContent,
-				Title: GrantsModalTitle,
-				Lines: sanitisedGrants,
+			grantsText := strings.Join(sanitisedGrants, ", ")
+			m.notice("Active session grants: " + grantsText)
+			// Offer to clear the grants
+			m.askConfirm(ConfirmState{
+				Prompt: "Clear " + itoa(len(grants)) + " session grants?",
+				Action: ConfirmClearGrants,
 			})
 		}
 	case "status":
@@ -1409,18 +1511,80 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 		} else {
 			parts = append(parts, "context none")
 		}
-		parts = append(parts, "branch "+m.sess.Branch, formatTokens(m.status.Tokens))
+		parts = append(parts, "branch "+m.sess.Branch)
+
+		// Dirty count: shown at 0; "?" when DirtyCount is negative (git failed).
+		dirtyText := itoa(info.DirtyCount)
+		if info.DirtyCount < 0 {
+			dirtyText = "?"
+		}
+		parts = append(parts, "dirty "+dirtyText)
+
+		// Session ID
+		parts = append(parts, "session "+info.SessionID)
+
+		// Token totals: in out cache
+		parts = append(parts, "tokens in "+itoa(info.TokensIn)+" out "+itoa(info.TokensOut)+" cache "+itoa(info.TokensCache))
+
+		// Compaction percent
+		if info.CompactionPercent >= 0 {
+			parts = append(parts, "compaction "+itoa(info.CompactionPercent)+"%")
+		} else {
+			parts = append(parts, "compaction —")
+		}
+
+		// Active grants
+		if info.ActiveGrants > 0 {
+			parts = append(parts, "grants "+itoa(info.ActiveGrants))
+		} else {
+			parts = append(parts, "grants none")
+		}
+
 		text := strings.Join(parts, " "+m.gly.Bullet+" ")
 		if info.ShowDataFlowNotice {
 			text += " " + m.gly.Bullet + " " + DataFlowNotice
 		}
 		m.notice(text)
 	case "diff":
-		m.openModal(ModalState{Kind: ModalDiff, Title: "working tree", Lines: fakeDiff(), Added: 12, Removed: 4})
+		if m.GetDiff == nil {
+			m.notice("working tree diff not available")
+		} else {
+			// git runs in a Cmd, never on the Update goroutine; the answer
+			// comes back as a DiffResultMsg. Increment the sequence number so
+			// late results from earlier /diff invocations are ignored (W-B).
+			m.pendingDiffSeq++
+			currSeq := m.pendingDiffSeq
+			getDiff := m.GetDiff
+			later = func() tea.Msg { return DiffResultMsg{Result: getDiff(), Seq: currSeq} }
+		}
 	case "files":
-		m.notice("files touched this session: calc/divide.go, calc/divide_test.go")
+		var text string
+		if m.GetTouchedFiles == nil {
+			text = "file tracking not available"
+		} else {
+			files := m.GetTouchedFiles()
+			if len(files) == 0 {
+				text = "no files touched this session"
+			} else {
+				text = "files touched this session: " + strings.Join(files, ", ")
+			}
+		}
+		m.notice(SanitizeSingleLine(text))
 	case "compact":
-		m.notice("nothing to compact yet")
+		// Check if a turn is in flight; refuse to compact while busy
+		if m.busy.Active {
+			m.notice("cannot compact while a turn is running")
+		} else if m.ManualCompact == nil {
+			m.notice("nothing to compact yet")
+		} else {
+			// The callback blocks until compaction has finished and returns the
+			// real outcome, so it runs in a Cmd and its return value is the
+			// message. busy stays active until that message arrives.
+			m.busy = Busy{Active: true, Verb: "compacting"}
+			m.compacting = true
+			compactFn := m.ManualCompact
+			later = tea.Batch(func() tea.Msg { return compactFn() }, m.tickSpinnerOnce())
+		}
 
 	default:
 		// Unknown commands get a dim inline hint, never an error card, and are
@@ -1430,8 +1594,48 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 	}
 	m.scroll.repin() // re-pin: a slash command is a request, so its answer is shown
 	m.relayout(lay)
-	return m, nil
+	return m, later
 }
+
+// applyDiffResult shows a finished /diff: an error or clean-tree notice, or the
+// diff in a modal. If another overlay (modal or confirm prompt) is open by the time
+// the result arrives, the diff is not allowed to replace it and a notice asks for
+// /diff again instead.
+func (m *Model) applyDiffResult(r DiffResult) {
+	switch {
+	case r.Err != "":
+		m.notice(SanitizeSingleLine(r.Err))
+	case len(r.Lines) == 0:
+		m.notice("working tree clean")
+	case m.overlayOpen():
+		m.notice("working tree diff finished while another view was open; run /diff again")
+	default:
+		// The callback is an input boundary, so every line is sanitised here
+		// too (ui-spec §7.1); a line with an embedded newline becomes one row.
+		lines := make([]string, 0, len(r.Lines)+1)
+		for _, l := range r.Lines {
+			lines = append(lines, SanitizeSingleLine(l))
+		}
+		if r.Truncated {
+			marker := m.gly.Trunc + " truncated"
+			if r.CapBytes > 0 {
+				marker += " — " + itoa(r.CapBytes>>10) + " KiB cap"
+			}
+			lines = append(lines, marker)
+		}
+		m.openModal(ModalState{
+			Kind:    ModalDiff,
+			Title:   "working tree",
+			Lines:   lines,
+			Added:   r.Added,
+			Removed: r.Removed,
+		})
+	}
+}
+
+// unknownModelNotice is the transcript notice for a model missing from the
+// model table (ui-spec §7.5).
+const unknownModelNotice = "cost display unavailable, conservative budget in use"
 
 func (m *Model) notice(text string) {
 	m.appendBlock(Item{Kind: KindNotice, Notice: &NoticeCard{Text: text}})

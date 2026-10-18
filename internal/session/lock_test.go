@@ -6,7 +6,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // TestAcquireSucceeds verifies that a lock can be acquired when no lock is held.
@@ -199,4 +201,172 @@ func TestRealErrorDistinct(t *testing.T) {
 	if errors.Is(err, ErrLockHeld) {
 		t.Fatalf("permission error returned as ErrLockHeld: %v", err)
 	}
+}
+
+// TestAddUsageWaitsForHeldLock holds usage.json.lock, starts AddUsage and
+// shows it neither returns nor writes while the lock is held, then finishes
+// and records its increment once the lock is released. With no flock in
+// AddUsage it returns within milliseconds, while the lock is still held.
+func TestAddUsageWaitsForHeldLock(t *testing.T) {
+	root := t.TempDir()
+	held, err := acquireUsageLock(root)
+	if err != nil {
+		t.Fatalf("acquireUsageLock: %v", err)
+	}
+	released := false
+	t.Cleanup(func() {
+		if !released {
+			_ = held.Release()
+		}
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := AddUsage(root, 100, 50, 0, 0, 0, true, time.Now())
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("AddUsage returned (%v) while another holder had the lock", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	if _, err := os.Stat(UsagePath(root)); err == nil {
+		t.Fatal("usage.json was written while the lock was held")
+	}
+
+	if err := held.Release(); err != nil {
+		t.Fatalf("Release: %v", err)
+	}
+	released = true
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("AddUsage after release: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("AddUsage did not complete after the lock was released")
+	}
+	got, err := ReadUsage(root)
+	if err != nil {
+		t.Fatalf("ReadUsage: %v", err)
+	}
+	if got.PromptTokens != 100 || got.CompletionTokens != 50 {
+		t.Errorf("usage after release = %+v, want (100, 50)", got)
+	}
+}
+
+// TestAddUsageReturnsErrLockHeldWhenLockStaysHeld keeps the lock for the whole
+// retry window (about 1s). AddUsage must give up with ErrLockHeld and write
+// nothing.
+func TestAddUsageReturnsErrLockHeldWhenLockStaysHeld(t *testing.T) {
+	root := t.TempDir()
+	held, err := acquireUsageLock(root)
+	if err != nil {
+		t.Fatalf("acquireUsageLock: %v", err)
+	}
+	defer func() { _ = held.Release() }()
+
+	recovered, err := AddUsage(root, 1, 1, 0, 0, 0, true, time.Now())
+	if !errors.Is(err, ErrLockHeld) {
+		t.Fatalf("AddUsage error = %v, want ErrLockHeld", err)
+	}
+	if recovered != "" {
+		t.Errorf("recovered = %q, want empty", recovered)
+	}
+	if _, statErr := os.Stat(UsagePath(root)); statErr == nil {
+		t.Error("usage.json was written although the lock was never acquired")
+	}
+}
+
+// TestTryLockInterruptHandling calls tryLock directly, with the flockFn seam
+// scripted to return the listed errors in order, because a real EINTR cannot
+// be provoked on demand. It does not exercise a real flock or a real signal.
+func TestTryLockInterruptHandling(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "lock")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	defer f.Close()
+
+	orig := flockFn
+	t.Cleanup(func() { flockFn = orig })
+
+	for _, tc := range []struct {
+		name      string
+		script    []error
+		wantCalls int
+		check     func(error) string // returns a complaint, or ""
+	}{
+		{
+			name:      "one EINTR is retried and then succeeds",
+			script:    []error{syscall.EINTR, nil},
+			wantCalls: 2,
+			check: func(err error) string {
+				if err != nil {
+					return "want nil after the retry, got " + err.Error()
+				}
+				return ""
+			},
+		},
+		{
+			name:      "a second EINTR is returned, not retried again",
+			script:    []error{syscall.EINTR, syscall.EINTR, nil},
+			wantCalls: 2,
+			check: func(err error) string {
+				if !errors.Is(err, syscall.EINTR) || errors.Is(err, ErrLockHeld) {
+					return "want an error wrapping EINTR, got " + errString(err)
+				}
+				return ""
+			},
+		},
+		{
+			name:      "EWOULDBLOCK is ErrLockHeld with no retry",
+			script:    []error{syscall.EWOULDBLOCK, nil},
+			wantCalls: 1,
+			check: func(err error) string {
+				if !errors.Is(err, ErrLockHeld) {
+					return "want ErrLockHeld, got " + errString(err)
+				}
+				return ""
+			},
+		},
+		{
+			name:      "any other error is returned with no retry",
+			script:    []error{syscall.EACCES, nil},
+			wantCalls: 1,
+			check: func(err error) string {
+				if !errors.Is(err, syscall.EACCES) || errors.Is(err, ErrLockHeld) {
+					return "want an error wrapping EACCES, got " + errString(err)
+				}
+				return ""
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			flockFn = func(int, int) error {
+				calls++
+				if calls > len(tc.script) {
+					t.Fatalf("%s: flock called %d times, script has %d entries (retry is unbounded)", tc.name, calls, len(tc.script))
+				}
+				return tc.script[calls-1]
+			}
+			err := tryLock(f)
+			if msg := tc.check(err); msg != "" {
+				t.Errorf("%s: %s", tc.name, msg)
+			}
+			if calls != tc.wantCalls {
+				t.Errorf("%s: flock called %d times, want %d", tc.name, calls, tc.wantCalls)
+			}
+		})
+	}
+}
+
+// errString formats err for a test message, naming a nil error.
+func errString(err error) string {
+	if err == nil {
+		return "nil"
+	}
+	return err.Error()
 }

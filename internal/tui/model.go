@@ -77,6 +77,18 @@ type OnboardingState struct {
 	Endpoint     string    // active endpoint kind, e.g. "opencode" or "anthropic"
 }
 
+// DiffResult is what the GetDiff callback returns for /diff. A clean tree is
+// empty Lines with empty Err. Truncated reports that Lines was cut to CapBytes;
+// CapBytes is the cap that applied (zero when unknown).
+type DiffResult struct {
+	Lines     []string
+	Added     int
+	Removed   int
+	Truncated bool
+	CapBytes  int
+	Err       string
+}
+
 // Options configures a Model. Everything environment-dependent arrives here so
 // that no fallback state requires touching process globals to reach.
 type Options struct {
@@ -135,6 +147,12 @@ type Model struct {
 	GetGrantCount   func() int
 	ClearGrants     func()
 	StatusInfo      func() StatusInfoMsg
+	GetDiff         func() DiffResult
+	GetTouchedFiles func() []string
+	NewSession      func(getenv func(string) string) error
+	// ManualCompact runs a manual compaction to completion and returns its real
+	// outcome. It blocks, so the TUI calls it only from a tea.Cmd.
+	ManualCompact func() ManualCompactMsg
 
 	projectTypes []string
 	toolCards    map[int64]ItemID // app-side tool id → transcript card
@@ -171,6 +189,19 @@ type Model struct {
 	spinnerAlive bool // a tick chain is in flight; see tickSpinnerOnce
 	now          func() time.Time
 	lastCtrlC    time.Time
+
+	pendingDiffSeq int // sequence number for /diff requests; ignored if stale. Only ever increases.
+
+	// compacting is set from /compact until its ManualCompactMsg arrives, and
+	// newSessionPending from /new until its NewSessionDoneMsg arrives. While
+	// either is set busy is active and Esc cannot clear it.
+	compacting        bool
+	newSessionPending bool
+
+	// unknownModelNoticeShown is set when the unknown-model transcript notice
+	// has been appended in this session (ui-spec §7.5). resetForNewSession
+	// clears it along with the transcript that held the notice.
+	unknownModelNoticeShown bool
 }
 
 // itemRow records where an item landed in the flattened transcript, which is

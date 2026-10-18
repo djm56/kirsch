@@ -28,14 +28,11 @@ deliverables land.
 | 5 | m4-d5 Resume State + CLI | **Runnable now** |
 | 6 | m4-d6 Single-Instance Guard | **Runnable now** |
 | 7 | m4-d7 Compaction | **Runnable now** |
-| 8 | m4-d8 Slash Commands for Real | Not yet testable |
-| 9 | m4-d9 Token and Cost Tracking | Not yet testable |
+| 8 | m4-d8 Slash Commands for Real | **Runnable now** |
+| 9 | m4-d9 Token and Cost Tracking | **Runnable now** |
 | 10 | m4-d10 Final-Task Report | Not yet testable |
 | 11 | m4-d11 Smoke Test | Not yet testable |
 | 12 | m4-d12 Final Acceptance | Not yet testable |
-
-Sections marked not yet testable are kept as placeholders and are filled in with
-runnable steps as each deliverable lands.
 
 ---
 
@@ -491,16 +488,17 @@ This section is the operator's independent verification of the m4-d5 acceptance 
 **Lock acquisition and second-instance detection — `Acquire` on `<workspace-hash>/.lock`, `ConcurrentInstance()` on lock failure:**
 
 ```bash
-go test -run 'TestAcquireSucceeds|TestSecondAcquireContends' -v ./internal/session/ && go test -run 'TestAcquireLockNonHeldError' -v ./internal/app/lock_integration_test.go
+go test -run 'TestAcquireSucceeds|TestSecondAcquireContends' -v ./internal/session/ && go test -run 'TestAcquireLockNonHeldError' -v ./internal/app/
 ```
 
 - [ ] `--- PASS: TestAcquireSucceeds`
+- [ ] `--- PASS: TestSecondAcquireContends`
 - [ ] `--- PASS: TestAcquireLockNonHeldError`
 
 **Second-instance degradation — sessionGrantsDisabled flag, auto-resume skipped:**
 
 ```bash
-go test -run 'TestLockSecondInstanceDegrades' -v ./internal/app/lock_integration_test.go
+go test -run 'TestLockSecondInstanceDegrades' -v ./internal/session/
 ```
 
 - [ ] `--- PASS: TestLockSecondInstanceDegrades`
@@ -508,10 +506,27 @@ go test -run 'TestLockSecondInstanceDegrades' -v ./internal/app/lock_integration
 **Integration — two instances in same workspace, second degrades:**
 
 ```bash
-go test -run 'TestLockSecondInstanceDegrades' -v ./internal/app/lock_integration_test.go
+go test -run 'TestLockSecondInstanceDegrades' -v ./internal/app/
 ```
 
 - [ ] `--- PASS: TestLockSecondInstanceDegrades`
+
+**CLI routing — explicit `kirsch resume` refused, auto-resume skipped when concurrent instance:**
+
+```bash
+go test -run 'TestChooseSessionInitExplicitResumeConcurrentInstance|TestChooseSessionInitAutoResumeConcurrentInstance' -v ./cmd/kirsch/
+```
+
+- [ ] `--- PASS: TestChooseSessionInitExplicitResumeConcurrentInstance`
+- [ ] `--- PASS: TestChooseSessionInitAutoResumeConcurrentInstance`
+
+**Status bar — the `⚠ another Kirsch is running here` glyph:**
+
+```bash
+go test -run 'TestStatusWarningRendersWithGlyph' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestStatusWarningRendersWithGlyph`
 
 **CLI routing — explicit `kirsch resume` refused, auto-resume skipped when concurrent instance:**
 
@@ -542,7 +557,7 @@ npm run check
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md. This m4-d6 close-out run was green.
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
 
 ```bash
 $(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/... ./internal/tui/...
@@ -580,7 +595,7 @@ This section is the operator's independent verification of the m4-d6 acceptance 
 
 ## 7 · Compaction (m4-d7)
 
-`internal/session` gained `type Compaction` in mission-20261017-02. The `PlanCompaction` and `Compact` functions estimate the request budget (if estimated > 75% of context window − 4096 output reserve), build a model request keeping the original task and last 4 turns verbatim with a structured summary of turns in between (Objective, Files inspected, Key findings, Files changed, Commands run, Open questions). Cancellation before or after the summary returns leaves the session unchanged and never half-applies. Failure (provider error, empty summary, timeout) surfaces `context_overflow` and directs the user to `/new`. ALL thinking blocks are dropped, never summarised (every assembled block carries the `DropOnSummary` flag anyway). The `compaction.applied` event records the replaced range and summary. Tick each box as you run it.
+`internal/session` gained `type Compaction` in mission-20261017-02. The `PlanCompaction` and `Compact` functions estimate the request budget (if estimated > 75% of context window − 4096 output reserve), build a model request keeping the original task and last 4 turns verbatim with a structured summary of turns in between (Objective, Files inspected, Key findings, Files changed, Commands run, Open questions). Cancellation before or after the summary returns leaves the session unchanged and never half-applies. Failure (provider error, empty summary, timeout) surfaces `context_overflow` and directs the user to `/new`. ALL thinking blocks are dropped, never summarised (every assembled block carries the `DropOnSummary` flag anyway). The `compaction.applied` event records the replaced range and summary.
 
 **Session compaction — planning, structure, thinking handling:**
 
@@ -662,34 +677,343 @@ $(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/...
 
 - [ ] `govulncheck ./internal/session/... ./internal/app/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
 
-This section is the operator's independent verification of the m4-d7 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261017-02).
+This section is the operator's independent verification of the m4-d7 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261017-02). It is the record for the seven m4-d7 acceptance boxes: compaction is a model call using the session's provider and model; it keeps the original task and last 4 turns verbatim with a structured summary of the middle; it is cancellable (cancelled compaction leaves session uncompacted and turn unstarted); on failure it surfaces `context_overflow` telling the user to `/new`; thinking blocks are dropped (never summarised, all assembled blocks carry the DropOnSummary flag); `compaction.applied` event recorded with range and summary; and unit tests covering planning, thinking preservation, cancellation, and failure handling.
 
 ---
 
 ## 8 · Slash Commands for Real (m4-d8)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d8 lands.
+`internal/tui` and `internal/app` gained the real slash commands in mission-20261017-03. The commands operate on real session state: `/status` shows model, endpoint, base_url, key source, proxy, context file + size, branch, `dirty N`, `session <id|none>`, `tokens in N out N cache N` and `compaction N%`, plus `grants N|none`; `/diff` shows the working tree diff (background run, no UI block, 10s timeout, 200 KiB cap); `/files` lists workspace paths touched by successful `apply_patch` calls this session; `/approvals` lists active grants and confirms clearing; `/new` starts a new session (confirms if a turn is in flight); `/compact` triggers manual compaction on demand; `/quit` and `/exit` quit; and an unknown `/command` shows a dim inline hint, never an error card.
 
-What will be checked (from milestone-4.md m4-d8 acceptance): `/status` shows model,
-branch, dirty count, session id, tokens (in/out/cache), compaction %,
-project-context file, and active grants; `/diff` shows the working tree diff;
-`/files` lists files touched this session; `/approvals` lists active grants and
-offers to clear; `/new` starts a new session (confirming if a turn is in flight);
-`/compact` triggers manual compaction; `/quit` and `/exit` quit (alias); and an
-unknown `/command` shows a dim inline hint, never an error card, and is never sent
-to the model.
+### (a) Automated test commands
+
+**`/status` fields — model, branch, dirty count, session id, tokens (in/out/cache), compaction %, context file, grants:**
+
+```bash
+go test -run 'TestStatusInfoShowsAccumulatedTokens|TestStatusInfoSessionID|TestStatusInfoCompactionPercent|TestStatusInfoActiveGrants|TestStatusInfoDirtyCount' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestStatusInfoShowsAccumulatedTokens`
+- [ ] `--- PASS: TestStatusInfoSessionID`
+- [ ] `--- PASS: TestStatusInfoCompactionPercent`
+- [ ] `--- PASS: TestStatusInfoActiveGrants`
+- [ ] `--- PASS: TestStatusInfoDirtyCount`
+
+**`/diff` shows working tree diff (background, 10s timeout, 200 KiB cap, unstaged only):**
+
+```bash
+go test -run 'TestDiffCommandDoesNotBlockUpdate|TestDiffCommandOpensModalWithCallbackLines|TestDiffCommandCleanTreeShowsNotice|TestDiffCommandErrorShowsNotice|TestDiffCommandWithoutCallbackShowsNotice|TestDiffResultTruncationMarkerDerivesFromCap|TestDiffResultDoesNotReplaceAnOpenModal|TestDiffModalLinesAreSanitised|TestDiffResultIgnoresStaleSequence|TestDiffResultDroppedAfterNewSession|TestDiffResultBlockedByConfirmPrompt|TestGetDiffCountsExactlyAndExcludesUntracked|TestGetDiffCleanTreeIsEmptyWithNoError|TestGetDiffErrorPaths|TestGetDiffHeaderExclusionStopsAtFirstHunk|TestGetDiffSanitisesLines|TestGetDiffAppliesTheByteCap|TestCountDiffLinesStatesTheHeaderRule|TestDiffCommandThroughRealWiring' -v ./internal/tui/ ./internal/app/ ./cmd/kirsch/
+```
+
+- [ ] `--- PASS: TestDiffCommandDoesNotBlockUpdate`
+- [ ] `--- PASS: TestDiffCommandOpensModalWithCallbackLines`
+- [ ] `--- PASS: TestDiffCommandCleanTreeShowsNotice`
+- [ ] `--- PASS: TestDiffCommandErrorShowsNotice`
+- [ ] `--- PASS: TestDiffCommandWithoutCallbackShowsNotice`
+- [ ] `--- PASS: TestDiffResultTruncationMarkerDerivesFromCap`
+- [ ] `--- PASS: TestDiffResultDoesNotReplaceAnOpenModal`
+- [ ] `--- PASS: TestDiffModalLinesAreSanitised`
+- [ ] `--- PASS: TestDiffResultIgnoresStaleSequence`
+- [ ] `--- PASS: TestDiffResultDroppedAfterNewSession`
+- [ ] `--- PASS: TestDiffResultBlockedByConfirmPrompt`
+- [ ] `--- PASS: TestGetDiffCountsExactlyAndExcludesUntracked`
+- [ ] `--- PASS: TestGetDiffCleanTreeIsEmptyWithNoError`
+- [ ] `--- PASS: TestGetDiffErrorPaths`
+- [ ] `--- PASS: TestGetDiffHeaderExclusionStopsAtFirstHunk`
+- [ ] `--- PASS: TestGetDiffSanitisesLines`
+- [ ] `--- PASS: TestGetDiffAppliesTheByteCap`
+- [ ] `--- PASS: TestCountDiffLinesStatesTheHeaderRule`
+- [ ] `--- PASS: TestDiffCommandThroughRealWiring`
+
+**`/files` lists files touched by `apply_patch` this session (cleaned, de-duplicated, reset on resume):**
+
+```bash
+go test -run 'TestFilesCommandListsPaths|TestFilesCommandEmptyNotice|TestFilesCommandWithoutCallbackShowsNotice|TestFilesCommandSanitisesPaths|TestToolExecutorRecordsTouchedFilesOnlyForSuccessfulPatches|TestAddTouchedFileNormalisesAndDeduplicates' -v ./internal/tui/ ./internal/app/
+```
+
+- [ ] `--- PASS: TestFilesCommandListsPaths`
+- [ ] `--- PASS: TestFilesCommandEmptyNotice`
+- [ ] `--- PASS: TestFilesCommandWithoutCallbackShowsNotice`
+- [ ] `--- PASS: TestFilesCommandSanitisesPaths`
+- [ ] `--- PASS: TestToolExecutorRecordsTouchedFilesOnlyForSuccessfulPatches`
+- [ ] `--- PASS: TestAddTouchedFileNormalisesAndDeduplicates`
+
+**`/approvals` lists active grants and confirms clearing (y/n/Esc):**
+
+```bash
+go test -run 'TestApprovalsNoticeSanitisesGrants' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestApprovalsNoticeSanitisesGrants`
+
+**`/new` starts new session with confirm if turn in flight (resets conversation, tokens, compaction, touched, grants):**
+
+```bash
+go test -run 'TestSlashNewRunsCallbackInCmdAndResetsOnDone|TestSlashNewDoesNotBlockUpdate|TestSlashNewFailureKeepsTranscript|TestNewSessionIsolatesTheOldTurnFromTheNewSession|TestNewSessionFailureLeavesTheSessionIntact|TestSubmitRefusesWhileNewSessionWaitsForATurn|TestSlashNewThroughRealWiringStartsANewSession' -v ./internal/tui/ ./internal/app/ ./cmd/kirsch/
+```
+
+- [ ] `--- PASS: TestSlashNewRunsCallbackInCmdAndResetsOnDone`
+- [ ] `--- PASS: TestSlashNewDoesNotBlockUpdate`
+- [ ] `--- PASS: TestSlashNewFailureKeepsTranscript`
+- [ ] `--- PASS: TestNewSessionIsolatesTheOldTurnFromTheNewSession`
+- [ ] `--- PASS: TestNewSessionFailureLeavesTheSessionIntact`
+- [ ] `--- PASS: TestSubmitRefusesWhileNewSessionWaitsForATurn`
+- [ ] `--- PASS: TestSlashNewThroughRealWiringStartsANewSession`
+
+**`/compact` triggers manual compaction on demand (status bar shows `compacting`, no turn start):**
+
+```bash
+go test -run 'TestCompactCommandHoldsBusyUntilRealOutcome|TestCompactCommandRefusesSubmitAndKeepsBusyOnEsc|TestManualCompactMsgOutcomesShowDistinctNotices|TestCompactCommandWithoutCallback|TestManualCompactAppliesWithoutStartingATurn|TestManualCompactWithTooFewTurnsReportsNothing|TestManualCompactProviderErrorIsAFailureNotAnOverflow|TestManualCompactCancelDuringModelCallReportsCancelled|TestManualCompactCancelAfterSummaryBeforeSwapNeverHalfApplies|TestManualCompactRefusesWhileATurnIsLive|TestSubmitRefusesWhileManualCompactIsRunning' -v ./internal/tui/ ./internal/app/
+```
+
+- [ ] `--- PASS: TestCompactCommandHoldsBusyUntilRealOutcome`
+- [ ] `--- PASS: TestCompactCommandRefusesSubmitAndKeepsBusyOnEsc`
+- [ ] `--- PASS: TestManualCompactMsgOutcomesShowDistinctNotices`
+- [ ] `--- PASS: TestCompactCommandWithoutCallback`
+- [ ] `--- PASS: TestManualCompactAppliesWithoutStartingATurn`
+- [ ] `--- PASS: TestManualCompactWithTooFewTurnsReportsNothing`
+- [ ] `--- PASS: TestManualCompactProviderErrorIsAFailureNotAnOverflow`
+- [ ] `--- PASS: TestManualCompactCancelDuringModelCallReportsCancelled`
+- [ ] `--- PASS: TestManualCompactCancelAfterSummaryBeforeSwapNeverHalfApplies`
+- [ ] `--- PASS: TestManualCompactRefusesWhileATurnIsLive`
+- [ ] `--- PASS: TestSubmitRefusesWhileManualCompactIsRunning`
+
+**Dirty count on real workspace state:**
+
+```bash
+go test -run 'TestDirtyCount|TestDirtyCountNonGitAndErrorBranches' -v ./internal/workspace/
+```
+
+- [ ] `--- PASS: TestDirtyCount`
+- [ ] `--- PASS: TestDirtyCountNonGitAndErrorBranches`
+
+**Diff driver blocking — `--no-ext-diff --no-textconv`:**
+
+```bash
+go test -run 'TestDiffArgsShape|TestGitDiffDoesNotRunConfiguredDiffDrivers' -v ./internal/tool/
+```
+
+- [ ] `--- PASS: TestDiffArgsShape`
+- [ ] `--- PASS: TestGitDiffDoesNotRunConfiguredDiffDrivers`
+
+### (b) Hands-on walkthrough
+
+Launch Kirsch in the scratch terminal setup from §Setup and check each feature:
+
+```bash
+cd /Volumes/DATA/Github/kirsch
+export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+```
+
+**In Kirsch, run each check:**
+
+- [ ] `/status` shows: model, endpoint, base_url (first line, host only), key source variable, proxy, context file + size, branch, `dirty N`, `session <id>` (the ULID-based session id), tokens (`in N out N cache N`), `compaction N%`, and grants.
+- [ ] `/diff` on a dirty tree shows the `git diff` output (patch format); on clean tree shows `working tree clean`; changes are modal and scrollable; a very large diff caps at 200 KiB with a truncation marker.
+- [ ] `/files` with no patches shows `no files touched this session`; after a successful patch apply, shows the touched file paths, de-duplicated.
+- [ ] `/approvals` with no grants shows `no active session grants`; with grants (after `/patch` approval), lists them and offers to clear (y to clear, n or Esc to keep).
+- [ ] `/new` (with no turn running) creates a new session; verify by `/status` showing a different session id.
+- [ ] `/new` (with a turn running) shows a "confirm?" prompt; pressing Esc keeps the old session, y creates new.
+- [ ] `/compact` on a short session shows `nothing to compact yet` (needs ≥6 turns); note that compaction requires a model so this is optional.
+- [ ] `/quit` exits Kirsch.
+- [ ] `/exit` also exits (alias for `/quit`).
+- [ ] An unknown command like `/hello` shows a dim inline hint, never an error card to the transcript.
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
 
 ---
 
 ## 9 · Token and Cost Tracking (m4-d9)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d9 lands.
+`usage` events record to `usage.json` as cumulative totals (prompt, completion, cache-read, cache-write, total, cost in USD, cost_unknown_tokens). The status bar shows session totals `in N out N cache R/W · $cost` (4 decimals for costs under $0.01, 2 otherwise), with fallback `N tok` on narrow terminals. Cost is per-call at model price; cache-write is 1.25× input (unverified). Unknown model shows a once-per-session notice and uses the smallest model-table context window as budget. All protected by an advisory flock on `usage.json.lock`; JSON corruption moves to `usage.json.corrupt-<stamp>` and restarts the count. Tight integration with session, compaction, and app layers ensures usage records on all paths (success, cancellation, error). This section runs automated tests, gates, and a hands-on walkthrough.
 
-What will be checked (from milestone-4.md m4-d9 acceptance): `usage` events are
-recorded to `usage.json` as cumulative token/cost totals; the status bar shows real
-token counts (input, output, cache read, cache write); and an unknown model
-degrades with a warning and a conservative budget (not a failure), suggesting the
-smallest context window in the §5 model table as the fallback budget.
+### (a) Automated test commands
+
+**Provider — cost calculation and unknown-model fallback:**
+
+```bash
+go test -run 'TestUnknownModelFallback|TestCostPerTokenModel|TestCostFlatModel|TestCostUnknownModel|TestCostAllPerTokenModels|TestCostZeroTokens|TestConservativeBudgetEqualsTableMinimum|TestConservativeBudgetFollowsTheTable|TestCostStateStrings' -v ./internal/provider/
+```
+
+- [ ] `--- PASS: TestUnknownModelFallback`
+- [ ] `--- PASS: TestCostPerTokenModel`
+- [ ] `--- PASS: TestCostFlatModel`
+- [ ] `--- PASS: TestCostUnknownModel`
+- [ ] `--- PASS: TestCostAllPerTokenModels`
+- [ ] `--- PASS: TestCostZeroTokens`
+- [ ] `--- PASS: TestConservativeBudgetEqualsTableMinimum`
+- [ ] `--- PASS: TestConservativeBudgetFollowsTheTable`
+- [ ] `--- PASS: TestCostStateStrings`
+
+**Session usage — file I/O, corruption, concurrency, locking:**
+
+```bash
+go test -run 'TestUsageAddUpdatesTotals|TestAddUsageRootUpdatesFile|TestUsageAccumulationWithUnknownCost|TestUsageBackwardCompatibility|TestAddUsageConcurrentGoroutines|TestAddUsageCorruptFileRecovery|TestAddUsageRecoveriesInOneSecondKeepBothFiles|TestAddUsageUnreadableFileLeftUntouched|TestWriteJSONFileRemovesTempWhenRenameFails|TestWriteJSONFileLeavesNoTempOnSuccess|TestWriteJSONFileConcurrentWritersNeverCollide|TestAddUsageWaitsForHeldLock|TestAddUsageReturnsErrLockHeldWhenLockStaysHeld|TestTryLockInterruptHandling' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestUsageAddUpdatesTotals`
+- [ ] `--- PASS: TestAddUsageRootUpdatesFile`
+- [ ] `--- PASS: TestUsageAccumulationWithUnknownCost`
+- [ ] `--- PASS: TestUsageBackwardCompatibility`
+- [ ] `--- PASS: TestAddUsageConcurrentGoroutines`
+- [ ] `--- PASS: TestAddUsageCorruptFileRecovery`
+- [ ] `--- PASS: TestAddUsageRecoveriesInOneSecondKeepBothFiles`
+- [ ] `--- PASS: TestAddUsageUnreadableFileLeftUntouched`
+- [ ] `--- PASS: TestWriteJSONFileRemovesTempWhenRenameFails`
+- [ ] `--- PASS: TestWriteJSONFileLeavesNoTempOnSuccess`
+- [ ] `--- PASS: TestWriteJSONFileConcurrentWritersNeverCollide`
+- [ ] `--- PASS: TestAddUsageWaitsForHeldLock`
+- [ ] `--- PASS: TestAddUsageReturnsErrLockHeldWhenLockStaysHeld`
+- [ ] `--- PASS: TestTryLockInterruptHandling`
+
+**Compaction — usage recorded at all steps:**
+
+```bash
+go test -run 'TestCompactionUsageCapture|TestCompactionUsageReturnedOnError|TestCompactionUsageReturnedOnEveryErrorPath' -v ./internal/session/
+```
+
+- [ ] `--- PASS: TestCompactionUsageCapture`
+- [ ] `--- PASS: TestCompactionUsageReturnedOnError`
+- [ ] `--- PASS: TestCompactionUsageReturnedOnEveryErrorPath`
+
+**App — session totals and per-call pricing:**
+
+```bash
+go test -run 'TestSubmitSendsExactSessionTotalsPerTurn|TestSessionCostPricesEachCallAtItsOwnModel|TestSubmitCompactionSendsSessionTotals|TestManualCompactSendsSessionTotals|TestSessionTotalsRestartAfterNewSession|TestUnknownModelNoticeOnceAcrossTwoTurns|TestKnownModelShowsNoUnknownNotice|TestUnknownModelNoticeAgainAfterNewSession|TestSubmitCompactionRecordsSummaryAndTurnUsage|TestManualCompactRecordsSummaryUsage|TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched|TestManualCompactStreamErrorRecordsUsage|TestRecordUsageReportsCorruptUsageFileThroughLogger' -v ./internal/app/
+```
+
+- [ ] `--- PASS: TestSubmitSendsExactSessionTotalsPerTurn`
+- [ ] `--- PASS: TestSessionCostPricesEachCallAtItsOwnModel`
+- [ ] `--- PASS: TestSubmitCompactionSendsSessionTotals`
+- [ ] `--- PASS: TestManualCompactSendsSessionTotals`
+- [ ] `--- PASS: TestSessionTotalsRestartAfterNewSession`
+- [ ] `--- PASS: TestUnknownModelNoticeOnceAcrossTwoTurns`
+- [ ] `--- PASS: TestKnownModelShowsNoUnknownNotice`
+- [ ] `--- PASS: TestUnknownModelNoticeAgainAfterNewSession`
+- [ ] `--- PASS: TestSubmitCompactionRecordsSummaryAndTurnUsage`
+- [ ] `--- PASS: TestManualCompactRecordsSummaryUsage`
+- [ ] `--- PASS: TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched`
+- [ ] `--- PASS: TestManualCompactStreamErrorRecordsUsage`
+- [ ] `--- PASS: TestRecordUsageReportsCorruptUsageFileThroughLogger`
+
+**Wiring — end-to-end usage event pipeline:**
+
+```bash
+go test -run 'TestProviderEventToAgentMapsUsage|TestUsageNonzero|TestUsageEventThroughRealWiringReachesTheStatusBar' -v ./internal/app/ ./internal/agent/ ./cmd/kirsch/
+```
+
+- [ ] `--- PASS: TestProviderEventToAgentMapsUsage`
+- [ ] `--- PASS: TestUsageNonzero`
+- [ ] `--- PASS: TestUsageEventThroughRealWiringReachesTheStatusBar`
+
+**TUI — status bar layout and unknown-model notice:**
+
+```bash
+go test -run 'TestSessionUsageWideRender|TestSessionUsageFlatNoCost|TestSessionUsageSmallCostFormat|TestSessionUsageUnknownPricingShowsQuestionMark|TestSessionUsageCostBoundary|TestSessionUsageASCIIGlyphs|TestSessionUsageNarrowLayoutFallsBackToSessionTotal|TestStatusLadderDropsTokensBeforeGrants|TestUnknownModelNotice' -v ./internal/tui/
+```
+
+- [ ] `--- PASS: TestSessionUsageWideRender`
+- [ ] `--- PASS: TestSessionUsageFlatNoCost`
+- [ ] `--- PASS: TestSessionUsageSmallCostFormat`
+- [ ] `--- PASS: TestSessionUsageUnknownPricingShowsQuestionMark`
+- [ ] `--- PASS: TestSessionUsageCostBoundary`
+- [ ] `--- PASS: TestSessionUsageASCIIGlyphs`
+- [ ] `--- PASS: TestSessionUsageNarrowLayoutFallsBackToSessionTotal`
+- [ ] `--- PASS: TestStatusLadderDropsTokensBeforeGrants`
+- [ ] `--- PASS: TestUnknownModelNotice`
+
+### (b) Hands-on walkthrough
+
+Launch Kirsch in the scratch terminal setup from §Setup:
+
+```bash
+cd /Volumes/DATA/Github/kirsch
+export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+```
+
+**Inspect `usage.json` (location rule):**
+
+The usage file lives at the Kirsch state root, which defaults to `~/.local/share/kirsch/` (XDG-adjacent, plan §7:36–39). In this walkthrough, it is at `$XDG_STATE_HOME/kirsch/usage.json` because `$XDG_STATE_HOME` is set. Grep the code for the rule:
+
+```bash
+grep -r "DefaultStateRoot\|share/kirsch" /Volumes/DATA/Github/kirsch/internal/session/layout.go
+```
+
+- [ ] Output shows `~/.local/share/kirsch/` (or `os.ExpandUser("~/.local/share/kirsch")`); this is where usage.json lives in production.
+
+**Run a turn with a live model (requires API key — optional):**
+
+This step requires a live model. Skip it if no key is available. Set the key and run a turn:
+
+```bash
+read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
+# In Kirsch, type a short message and press Enter to submit a turn
+```
+
+- [ ] Status bar after the turn shows `in N out N cache R/W · $cost` where N ≥ 0 and cost is `$0.xxxx` or `$x.xx` depending on magnitude.
+- [ ] Cost is non-zero (minimax-m2.7 charges for input and output).
+- [ ] `/status` command shows the same token counts: `tokens in N out N cache N`.
+- [ ] `usage.json` file (at `$XDG_STATE_HOME/kirsch/usage.json` in this walkthrough) contains cumulative totals with all five token fields and cost.
+- [ ] Run a second turn: status bar shows accumulated totals (`in 2N out 2M ...`).
+- [ ] Unset the key when done: `unset OPENCODE_API_KEY`
+
+**Narrow terminal (status bar fallback):**
+
+Resize your terminal to fewer than ~40 columns and observe the status bar:
+
+- [ ] Below the fallback width, the status bar shows only `N tok` (the total token count), dropping tokens first, then grants, then model name.
+
+**Unknown model (no key needed — uses fake provider):**
+
+Set a non-existent model in Kirsch config:
+
+```bash
+cat > "$T_CFG/kirsch/config.toml" << 'EOF'
+[provider.opencode]
+model = "unknown-model-xyz"
+EOF
+```
+
+Then in Kirsch, submit any turn (fake provider; no real model call):
+
+- [ ] Status bar shows the unknown-model notice: `cost display unavailable, conservative budget in use` (dim text, once per session).
+- [ ] `/status` shows `$?` instead of a cost.
+- [ ] After `/new`, the notice appears again (once per new session).
+
+**Compaction usage:**
+
+Run ≥6 turns (fake provider is fast) and `/compact`:
+
+- [ ] Status bar shows `compacting` while compaction runs.
+- [ ] After compaction completes, `/status` shows total tokens accumulated across the original turns and the summary.
+- [ ] `usage.json` includes usage for the compaction call itself (the summary model call).
+
+**`npm run check` and `npm run test:race`:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+
+```bash
+npm run test:race
+```
+
+- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`). A full green run can require a retry.
 
 ---
 

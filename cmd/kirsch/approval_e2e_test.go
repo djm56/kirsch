@@ -211,7 +211,7 @@ func TestCancelCallbackWired(t *testing.T) {
 // bytes when displayed via /approvals, while its ordinary text survives.
 //
 // The assertion reads m.View(), the fully rendered screen, rather than the
-// tui package's internal modal.Lines: that field is unexported, and this test
+// tui package's internal transcript items: those are unexported, and this test
 // lives in package main (cmd/kirsch), which cannot reach into internal/tui
 // state without an internal import — reading the same bytes a real terminal
 // would receive is the only externally-visible way to prove sanitisation ran.
@@ -336,11 +336,18 @@ func TestGrantsSanitisedE2E(t *testing.T) {
 	m = model.(tui.Model)
 
 	// Read the rendered screen — the one thing package main can observe that
-	// proves the sanitising call ran, since modal.Lines is unexported.
+	// proves the sanitising call ran, since the transcript items are unexported.
 	rendered := m.View()
 
-	if !strings.Contains(rendered, "session grants") {
-		t.Fatalf("rendered view does not show the grants modal: %s", rendered)
+	// /approvals appends a notice "Active session grants: ..." and raises the
+	// clear-grants confirm. Both must be on screen: the notice proves the grant
+	// was listed, the prompt proves the confirm was raised, so the ESC and
+	// "pwned" checks below are made against a frame that really carries the grant.
+	if !strings.Contains(rendered, "Active session grants") {
+		t.Fatalf("rendered view does not show the grants notice: %s", rendered)
+	}
+	if !strings.Contains(rendered, "Clear 1 session grants?") {
+		t.Fatalf("rendered view does not show the clear-grants confirm prompt: %s", rendered)
 	}
 	if strings.ContainsRune(rendered, '\x1b') {
 		t.Errorf("rendered view still contains a raw ESC byte; grant was not sanitised: %q", rendered)
@@ -592,8 +599,8 @@ func TestStartSessionInvokedAtStartup(t *testing.T) {
 
 // TestClearGrantsEmptiesPolicyE2E verifies end-to-end that clearing grants
 // through the TUI actually empties the real policy. A real grant is created
-// via approval, then /approvals is run, then 'c' clears it, and the policy
-// is verified empty afterward.
+// via approval, then /approvals is run (which raises the clear-grants confirm
+// directly), then 'y' accepts it, and the policy is verified empty afterward.
 func TestClearGrantsEmptiesPolicyE2E(t *testing.T) {
 	ws, err := workspace.Detect("")
 	if err != nil {
@@ -625,6 +632,11 @@ func TestClearGrantsEmptiesPolicyE2E(t *testing.T) {
 
 	// Wire the callbacks
 	wireCallbacks(&m, a, log)
+
+	// View() renders nothing at a zero size, so a real size must arrive before
+	// the on-screen confirm check below can see anything.
+	sized, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = sized.(tui.Model)
 
 	// Create a real grant by running an approval request for a session grant.
 	done := make(chan app.ApprovalOutcome, 1)
@@ -682,7 +694,7 @@ func TestClearGrantsEmptiesPolicyE2E(t *testing.T) {
 		t.Fatal("grant was not created through the approval flow; nothing to clear")
 	}
 
-	// Run /approvals to open the grants modal
+	// Run /approvals: it appends the grants notice and raises the confirm.
 	for _, r := range "/approvals" {
 		model, _ = m.Update(tea.KeyMsg{Runes: []rune{r}})
 		m = model.(tui.Model)
@@ -690,10 +702,14 @@ func TestClearGrantsEmptiesPolicyE2E(t *testing.T) {
 	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = model.(tui.Model)
 
-	// Press 'c' to trigger clear confirmation
-	keyMsg = tea.KeyMsg{Runes: []rune("c")}
-	model, _ = m.Update(keyMsg)
-	m = model.(tui.Model)
+	// Positive control: the confirm prompt is up and the policy still holds
+	// the grant, so the emptiness checked after 'y' was caused by 'y'.
+	if !strings.Contains(m.View(), "Clear 1 session grants?") {
+		t.Fatalf("clear-grants confirm prompt not on screen after /approvals: %s", m.View())
+	}
+	if len(m.GetGrants()) == 0 {
+		t.Fatal("grants emptied before the confirm was accepted")
+	}
 
 	// Confirm the clear action
 	keyMsg = tea.KeyMsg{Runes: []rune("y")}

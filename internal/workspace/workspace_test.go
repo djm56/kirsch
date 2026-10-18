@@ -375,3 +375,144 @@ func TestDenylistIsCaseInsensitive(t *testing.T) {
 		})
 	}
 }
+
+// TestDirtyCount verifies that DirtyCount returns the correct number of
+// uncommitted changes. It tests both clean and dirty states.
+func TestDirtyCount(t *testing.T) {
+	// Create a temporary git repository
+	tmpdir := t.TempDir()
+
+	// Initialize git repo
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tmpdir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+
+	// Configure git user (required for commits)
+	for _, cfg := range [][]string{
+		{"config", "user.email", "test@example.com"},
+		{"config", "user.name", "Test User"},
+	} {
+		cmd := exec.Command("git", cfg...)
+		cmd.Dir = tmpdir
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("git config failed: %v", err)
+		}
+	}
+
+	// Create and commit an initial file
+	testFile := filepath.Join(tmpdir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial content"), 0o644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
+
+	cmd = exec.Command("git", "add", "test.txt")
+	cmd.Dir = tmpdir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git add failed: %v", err)
+	}
+
+	cmd = exec.Command("git", "commit", "-m", "initial")
+	cmd.Dir = tmpdir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git commit failed: %v", err)
+	}
+
+	// Create a workspace
+	ws, err := newWorkspace(tmpdir, true)
+	if err != nil {
+		t.Fatalf("newWorkspace: %v", err)
+	}
+
+	// Test clean state: should have 0 changes
+	count, err := ws.DirtyCount()
+	if err != nil {
+		t.Fatalf("DirtyCount error: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("clean repo: got %d dirty files, want 0", count)
+	}
+
+	// Make 2 changes: modify one file and create another
+	if err := os.WriteFile(testFile, []byte("modified content"), 0o644); err != nil {
+		t.Fatalf("modify test file: %v", err)
+	}
+
+	secondFile := filepath.Join(tmpdir, "new.txt")
+	if err := os.WriteFile(secondFile, []byte("new file"), 0o644); err != nil {
+		t.Fatalf("write new file: %v", err)
+	}
+
+	// Test dirty state: should have 2 changes
+	count, err = ws.DirtyCount()
+	if err != nil {
+		t.Fatalf("DirtyCount error: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("dirty repo with 2 changes: got %d dirty files, want 2", count)
+	}
+}
+
+// untrackedRepo creates a git repository in a temp dir holding n untracked
+// files, so `git status --porcelain` reports exactly n entries.
+func untrackedRepo(t *testing.T, n int) string {
+	t.Helper()
+	dir := t.TempDir()
+	cmd := exec.Command("git", "init")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+	for i := 0; i < n; i++ {
+		name := filepath.Join(dir, "f"+string(rune('a'+i))+".txt")
+		if err := os.WriteFile(name, []byte("x"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	return dir
+}
+
+// TestDirtyCountNonGitAndErrorBranches covers the two branches TestDirtyCount
+// does not reach. Entry point: Workspace.DirtyCount called directly.
+//   - !IsGit returns (0, nil) without running git. The control is the same
+//     directory with IsGit true, which must report the real count, so the
+//     zero is shown to come from the IsGit guard and not from an empty repo.
+//   - a git failure returns (-1, err). A missing root makes `git -C` exit
+//     non-zero; the control is a real repo reporting a non-negative count.
+func TestDirtyCountNonGitAndErrorBranches(t *testing.T) {
+	t.Run("not git returns zero and no error", func(t *testing.T) {
+		dir := untrackedRepo(t, 2)
+
+		control, err := newWorkspace(dir, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, err := control.DirtyCount(); err != nil || n != 2 {
+			t.Fatalf("control (IsGit true): got (%d, %v), want (2, nil)", n, err)
+		}
+
+		ws, err := newWorkspace(dir, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := ws.DirtyCount()
+		if err != nil {
+			t.Errorf("!IsGit: err = %v, want nil", err)
+		}
+		if n != 0 {
+			t.Errorf("!IsGit: count = %d, want 0 although the directory has 2 untracked files", n)
+		}
+	})
+
+	t.Run("git failure returns minus one and the error", func(t *testing.T) {
+		ws := &Workspace{IsGit: true, Root: filepath.Join(t.TempDir(), "does-not-exist")}
+		n, err := ws.DirtyCount()
+		if err == nil {
+			t.Error("nonexistent root: err = nil, want the git error")
+		}
+		if n != -1 {
+			t.Errorf("nonexistent root: count = %d, want -1", n)
+		}
+	})
+}

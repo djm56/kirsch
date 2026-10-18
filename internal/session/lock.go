@@ -79,3 +79,32 @@ func (l *Lock) Release() error {
 func (l *Lock) Close() error {
 	return l.Release()
 }
+
+// flockFn is the flock system call. It is a variable only so a test can make
+// it return EINTR, which a real signal delivers at an unpredictable moment.
+// Production code never reassigns it.
+var flockFn = syscall.Flock
+
+// tryLock attempts to acquire an exclusive non-blocking flock on the file.
+//
+// flock is called once. If it fails with EINTR (a signal arrived first) it is
+// called one more time; a second EINTR is returned as an error wrapping EINTR.
+// EWOULDBLOCK means another holder has the lock and returns ErrLockHeld at once,
+// without a retry. Any other error is returned wrapped. tryLock never waits;
+// the caller owns any retry-on-contention policy. On non-Unix platforms it
+// always succeeds (see lock_other.go).
+func tryLock(file *os.File) error {
+	for attempt := 0; ; attempt++ {
+		err := flockFn(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return ErrLockHeld
+		}
+		if errors.Is(err, syscall.EINTR) && attempt == 0 {
+			continue
+		}
+		return fmt.Errorf("acquire lock: %w", err)
+	}
+}
