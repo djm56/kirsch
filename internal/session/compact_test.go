@@ -362,13 +362,14 @@ func TestCompactionRequestShape(t *testing.T) {
 		t.Errorf("Expected MaxTokens=%d, got %d", maxTokens, capturedReq.MaxTokens)
 	}
 
-	// Verify System contains all six section names from compactionSystemPrompt.
+	// Verify System contains all section names from compactionSystemPrompt.
 	sectionNames := []string{
 		"Objective",
 		"Files inspected",
 		"Key findings",
 		"Files changed",
 		"Commands run",
+		"Limitations",
 		"Open questions",
 	}
 	for _, section := range sectionNames {
@@ -1119,4 +1120,36 @@ func resultEqual(a, b *agent.ResultBlock) bool {
 		return false
 	}
 	return a.CallID == b.CallID && a.Content == b.Content && a.IsError == b.IsError && a.Truncated == b.Truncated && a.ErrorKind == b.ErrorKind
+}
+
+// TestCompactionSystemPromptCommandOutcomes verifies that compactionSystemPrompt
+// contains the required phrases for command outcome tracking and limitations.
+func TestCompactionSystemPromptCommandOutcomes(t *testing.T) {
+	requiredPhrases := []string{
+		"PASS or FAIL",
+		"Limitations",
+	}
+	for _, phrase := range requiredPhrases {
+		if !strings.Contains(compactionSystemPrompt, phrase) {
+			t.Errorf("compactionSystemPrompt missing required phrase: %q", phrase)
+		}
+	}
+}
+
+// TestCompactionSystemPromptPreservesFinalReport verifies that compactionSystemPrompt
+// contains the instruction to preserve final reports verbatim.
+// Each pinned phrase covers a distinct fragment of the instruction (the
+// trigger condition, the "most recent" selector with "verbatim", and the
+// prohibition), so deleting one fragment fails only its own pin.
+func TestCompactionSystemPromptPreservesFinalReport(t *testing.T) {
+	requiredPhrases := []string{
+		"If a final report already appears in the summarized messages",
+		"the most recent final report verbatim",
+		"Never omit or paraphrase an existing final report",
+	}
+	for _, phrase := range requiredPhrases {
+		if !strings.Contains(compactionSystemPrompt, phrase) {
+			t.Errorf("compactionSystemPrompt missing required phrase: %q", phrase)
+		}
+	}
 }

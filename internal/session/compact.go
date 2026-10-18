@@ -27,11 +27,15 @@ const compactionSystemPrompt = `You are summarizing a conversation for context c
 
 **Files changed**: Any files that were modified or created.
 
-**Commands run**: Commands executed with their purposes and outcomes.
+**Commands run**: Commands executed with their purposes and outcomes, including PASS or FAIL result for each.
+
+**Limitations**: Any constraints, deferred work, or unresolved issues.
 
 **Open questions**: Any unresolved issues or next steps needed.
 
-Be concise but complete. Format each section as a heading followed by bullet points or short paragraphs.`
+Be concise but complete. Format each section as a heading followed by bullet points or short paragraphs.
+
+If a final report already appears in the summarized messages, preserve the most recent final report verbatim. Never omit or paraphrase an existing final report.`
 
 // Compaction represents the result of a compaction operation.
 type Compaction struct {

@@ -978,3 +978,97 @@ func captureStdStreams(t *testing.T, fn func()) (stdout, stderr string) {
 	errB, _ := io.ReadAll(errR)
 	return string(outB), string(errB)
 }
+
+// TestSystemPromptSurvivesCompaction verifies that the system prompt in the
+// turn request after compaction still contains "## 6. Final-report format" and
+// the enforcement wording. It also verifies that the compaction is performed,
+// that the summary request uses a different system prompt without final-report
+// format enforcement, and that the turn request's system prompt equals a
+// baseline taken before compaction.
+//
+// DIR-025: Entry point is Submit via compactionEnv.submit (the production
+// entry point App.Submit). This test does not cover whether the summarizer
+// model actually preserves the report in its output — that is an
+// instruction-level verification outside scope of this test.
+func TestSystemPromptSurvivesCompaction(t *testing.T) {
+	e := newCompactionEnv(t, 8192, provider.Turn{Text: compactionSummary}, turnReply)
+	e.seed(8, compactionThreshold+2500)
+
+	// Capture the system prompt held by the App before the submit runs.
+	baseline := e.a.promptState()
+
+	msgs := e.submit()
+
+	if !findMsgType[tui.TurnCompleteMsg](msgs) {
+		t.Fatalf("system prompt survival: turn did not complete: %#v", msgs)
+	}
+
+	// Compaction must have been applied; checked before the request count so a
+	// missing compaction fails with a clear message rather than a count error.
+	if !findMsgType[tui.SessionCompactedMsg](msgs) {
+		t.Fatalf("system prompt survival: no SessionCompactedMsg, compaction was not applied: %#v", msgs)
+	}
+
+	reqs := e.fake.Requests()
+	if len(reqs) != 2 {
+		t.Fatalf("system prompt survival: expected exactly 2 requests (summary + turn), got %d", len(reqs))
+	}
+
+	// Request 0 is the summary request.
+	summaryReq := reqs[0]
+	summarySystemText := ""
+	for _, sb := range summaryReq.System {
+		summarySystemText += sb.Text
+	}
+
+	// Positive control for the absence check below: the summary request's
+	// System carries compactionSystemPrompt text, so a missing section 6 there
+	// means "filtered", not "empty".
+	if !strings.Contains(summarySystemText, "Objective") {
+		t.Error("system prompt survival: summary request system prompt missing 'Objective' (positive control)")
+	}
+	if !strings.Contains(summarySystemText, "summarizing a conversation") {
+		t.Error("system prompt survival: summary request system prompt missing 'summarizing a conversation' (positive control)")
+	}
+
+	// Summary request should lack "Final-report format" (it summarizes, not enforces).
+	if strings.Contains(summarySystemText, "## 6. Final-report format") {
+		t.Error("system prompt survival: summary request should not contain final-report format section")
+	}
+	// Summary request should have no tools.
+	if len(summaryReq.Tools) > 0 {
+		t.Errorf("system prompt survival: summary request has %d tools, want 0", len(summaryReq.Tools))
+	}
+
+	// Request 1 is the turn request.
+	turnReq := reqs[1]
+	turnSystemText := ""
+	for _, sb := range turnReq.System {
+		turnSystemText += sb.Text
+	}
+
+	// Turn request must have final-report format section and enforcement wording.
+	requiredPhrases := []string{
+		"## 6. Final-report format",
+		"MUST end with a final report",
+	}
+	for _, phrase := range requiredPhrases {
+		if !strings.Contains(turnSystemText, phrase) {
+			t.Errorf("system prompt survival: turn request system prompt missing %q", phrase)
+		}
+	}
+
+	// The System the turn request carried equals the pre-submit baseline. This
+	// guards the copy handed to the agent (ag.System, set once at the start of
+	// the turn).
+	if turnSystemText != baseline {
+		t.Errorf("system prompt survival: turn request system prompt differs from pre-compaction baseline")
+	}
+	// The App's own prompt state is unchanged after compaction. ag.System is
+	// copied once before compaction runs, so a post-compaction overwrite of
+	// a.systemPrompt cannot show up in the request above; this assertion covers
+	// that field directly.
+	if got := e.a.promptState(); got != baseline {
+		t.Errorf("system prompt survival: App prompt state changed across compaction")
+	}
+}

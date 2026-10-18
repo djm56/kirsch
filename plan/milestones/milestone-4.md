@@ -510,10 +510,10 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance:**
 
-- [ ] System prompt enforces final-task report (plan §6.1 item 6)
-- [ ] Report includes: summary, files changed, commands run with pass/fail, limitations
-- [ ] Report survives compaction (included in summary)
-- [ ] Unit tests: system prompt includes report instruction
+- [x] System prompt enforces final-task report (plan §6.1 item 6)
+- [x] Report includes: summary, files changed, commands run with pass/fail, limitations
+- [x] Report survives compaction (included in summary) — (instruction-level: compaction prompt preserves the most recent report; system prompt unchanged across compaction — TestSystemPromptSurvivesCompaction; live check in testing walkthrough §10)
+- [x] Unit tests: system prompt includes report instruction
 
 **Must-know-before:** m4-d7 must handle compaction correctly.
 

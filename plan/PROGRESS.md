@@ -1,8 +1,8 @@
 # Progress — Kirsch
 
-**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is complete and operator-accepted on 2026-10-13: m3-d1 through m3-d6 are done (m3-d6 = wiring and integration, mission-20261007-02), the operator's manual walkthrough is all-green across §1–§8 (plan/testing/manual/user-testing/milestone-3-donovan.md), and Task 8 box 321 is ticked on the walkthrough's §8 evidence (mission-20261013-05). m4-d1 (session store core) is done (mission-20261014-01, committed in 0d50b5e); m4-d2 (storage layout + repair) is done (mission-20261014-05, committed in 0d50b5e); m4-d3 (event recording wiring) is done (mission-20261014-09, committed in 2e30615); m4-d4 (resume reconstruction) is done (mission-20261015-01, committed in f14a6a7); m4-d5 (resume state + CLI) is done (mission-20261015-04, committed in 7c3913c); m4-d6 (single-instance guard) is done (mission-20261016-02, committed on top of 7c3913c); m4-d7 (compaction) is done (mission-20261017-02, uncommitted); m4-d8 (slash commands for real) is done (mission-20261017-03, uncommitted); m4-d9 (token and cost tracking) is done (mission-20261017-05, uncommitted).
+**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is complete and operator-accepted on 2026-10-13: m3-d1 through m3-d6 are done (m3-d6 = wiring and integration, mission-20261007-02), the operator's manual walkthrough is all-green across §1–§8 (plan/testing/manual/user-testing/milestone-3-donovan.md), and Task 8 box 321 is ticked on the walkthrough's §8 evidence (mission-20261013-05). m4-d1 (session store core) is done (mission-20261014-01, committed in 0d50b5e); m4-d2 (storage layout + repair) is done (mission-20261014-05, committed in 0d50b5e); m4-d3 (event recording wiring) is done (mission-20261014-09, committed in 2e30615); m4-d4 (resume reconstruction) is done (mission-20261015-01, committed in f14a6a7); m4-d5 (resume state + CLI) is done (mission-20261015-04, committed in 7c3913c); m4-d6 (single-instance guard) is done (mission-20261016-02, committed in 6ad3160); m4-d7 (compaction) is done (mission-20261017-02, committed in 6ad3160); m4-d8 (slash commands for real) is done (mission-20261017-03, committed in d2ee294); m4-d9 (token and cost tracking) is done (mission-20261017-05, committed in d2ee294); m4-d10 (final-task report) is done (mission-20261018-02, uncommitted).
 
-**What's next:** The m4-d1…m4-d9 delta is uncommitted. The next coding chunk is m4-d10 (final-task report), which depends on m4-d7. Carried items are listed under *Carried from Milestone 2* ... *Carried from m4-d9*.
+**What's next:** The m4-d10 delta is uncommitted. The next coding chunk is m4-d11 (smoke test), which depends on m4-d1…m4-d10. Carried items are listed under *Carried from Milestone 2* ... *Carried from m4-d10*.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -56,7 +56,7 @@ Definitions are in `plan/milestones/milestone-4.md`. The detailed breakdown (mis
 | m4-d7 | Compaction | done | — | m4-d3 |
 | m4-d8 | Slash Commands for Real | done | — | m4-d3, m4-d5, m4-d7 |
 | m4-d9 | Token and Cost Tracking | done | — | m4-d3 |
-| m4-d10 | Final-Task Report | not started | — | m4-d7 |
+| m4-d10 | Final-Task Report | done | — | m4-d7 |
 | m4-d11 | Smoke Test | not started | — | m4-d1…m4-d10 |
 | m4-d12 | Final Acceptance | not started | — | m4-d11 |
 
@@ -89,6 +89,15 @@ The system prompt, project-context loader and thinking round-trip landed on 2026
 The token and cost tracking deliverable landed on 2026-10-17 (mission-20261017-05). One open item remains:
 
 - **Eight carried warnings (not blocking):** out-of-order SessionUsageMsg delivery can leave stale totals until next usage (step5b W1), mid-session pricing change can understate cost or hide it (W2), resumed session shows no totals until first new usage (W3), applyCompaction error arm in Compact untested (step3f W1), rename-aside-then-write-failure consequence undocumented (step3f W3), usage-lock timeout drops an increment (W6), cache-write prices unverified (W7), race mutant for resume test killed in 1 of 20 runs (W8).
+
+## Carried from m4-d10
+
+The final-task report deliverable landed on 2026-10-18 (mission-20261018-02). Four open limitations remain:
+
+- **Survival is instruction-level only:** the compaction prompt (`compact.go` compactionSystemPrompt) is documented to preserve the most recent final report verbatim, and the system prompt is unchanged across compaction (TestSystemPromptSurvivesCompaction proves prompt text is stable); whether the model writes the report and whether the summariser preserves it is not unit-testable — checked live in the walkthrough (testing walkthrough §10).
+- **"Limitations" pinned as a bare word:** `TestCompactionSystemPromptCommandOutcomes` and `TestCompactionRequestShape` check that the string "Limitations" appears in compactionSystemPrompt, not the heading form `**Limitations**:`; a stray mention elsewhere would satisfy the pin while the section was gone.
+- **system.md mutants not independently rerun by Bishop:** `system.md` is compiled in via `//go:embed system.md` (internal/agent/prompt/prompt.go:11), so Bishop's `go test -overlay` reruns could not reach it. The developer (@vasquez, step 3g) planted and killed one mutant per pinned §6 phrase plus §6 anchoring mutants with pasted raw FAIL output; Bishop independently reran the compact.go and app.go wiring mutants (all killed at the reported lines).
+- **Stray untracked files predate this mission:** `./opencode.json.bak` and `.claude/memory/state/FLIGHT-RECORDER.md.bak` are untracked and existed before mission-20261018-02 started; left for the operator to clean.
 
 ---
 

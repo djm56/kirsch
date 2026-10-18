@@ -30,7 +30,7 @@ deliverables land.
 | 7 | m4-d7 Compaction | **Runnable now** |
 | 8 | m4-d8 Slash Commands for Real | **Runnable now** |
 | 9 | m4-d9 Token and Cost Tracking | **Runnable now** |
-| 10 | m4-d10 Final-Task Report | Not yet testable |
+| 10 | m4-d10 Final-Task Report | **Testable** |
 | 11 | m4-d11 Smoke Test | Not yet testable |
 | 12 | m4-d12 Final Acceptance | Not yet testable |
 
@@ -1019,12 +1019,57 @@ npm run test:race
 
 ## 10 · Final-Task Report (m4-d10)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d10 lands.
+**Testable.** The system prompt (internal/agent/prompt/system.md §6) enforces the final-task report format: every task that took actions must end with a structured report (Summary, Files changed, Commands run with PASS/FAIL, Limitations). A pure question may be answered without a report. The report structure is preserved across compaction: the compaction prompt preserves the most recent report verbatim. This section runs the unit tests that back the m4-d10 acceptance.
 
-What will be checked (from milestone-4.md m4-d10 acceptance): the system prompt
-enforces the final-task report — summary, files changed, commands run with
-pass/fail, and limitations — and the report survives compaction (it is included in
-the summary).
+**Automated — unit tests verifying system prompt and compaction:**
+
+(a) System prompt enforcement:
+
+```bash
+go test -count=1 -run 'TestAssembleFinalReportEnforcement' ./internal/agent/prompt/
+```
+
+- [ ] `--- PASS: TestAssembleFinalReportEnforcement`
+
+(b) Compaction prompt preservation and structure:
+
+```bash
+go test -count=1 -run 'TestCompactionSystemPromptCommandOutcomes|TestCompactionSystemPromptPreservesFinalReport|TestCompactionRequestShape' ./internal/session/
+```
+
+- [ ] `--- PASS: TestCompactionSystemPromptCommandOutcomes`
+- [ ] `--- PASS: TestCompactionSystemPromptPreservesFinalReport`
+- [ ] `--- PASS: TestCompactionRequestShape`
+
+(c) System prompt survives compaction:
+
+```bash
+go test -count=1 -run 'TestSystemPromptSurvivesCompaction' ./internal/app/
+```
+
+- [ ] `--- PASS: TestSystemPromptSurvivesCompaction`
+
+**Live — report production and compaction survival:**
+
+(d) Give Kirsch a small task that edits a file and runs `go test ./...`, then check that the reply ends with the four labelled report sections (Summary, Files changed, Commands run, Limitations) and that PASS/FAIL appears for each command:
+
+- [ ] Final report is present, properly formatted, and shows PASS/FAIL per command
+
+(e) Ask a pure question (e.g., "What is the Fibonacci sequence?") and check that no report is required:
+
+- [ ] Pure question does not require a final report
+
+(f) Run a long session, or execute `/compact` to trigger compaction, then finish a task and check that the report is still produced (this is the only real check of survival):
+
+- [ ] Final report still appears after compaction
+
+**Gates:**
+
+```bash
+npm run check
+```
+
+- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
 
 ---
 
