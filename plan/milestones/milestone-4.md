@@ -542,12 +542,12 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance:**
 
-- [ ] `scripts/smoke-test.sh` exists and is executable
-- [ ] Runs against `testdata/repo-go-module` with real model
-- [ ] Prompt: "Add input validation to the Divide function and cover it with a test"
-- [ ] Produces shown patch, applies after approval, runs `go test ./...`, ends with report
-- [ ] Report names exactly the expected files
-- [ ] Integration test: full end-to-end run passes
+- [x] `scripts/smoke-test.sh` exists and is executable
+- [ ] Runs against `testdata/repo-go-module` with real model — pending operator live run: scripts/smoke-test.sh
+- [x] Prompt: "Add input validation to the Divide function and cover it with a test"
+- [x] Produces shown patch, applies after approval, runs `go test ./...`, ends with report (verified offline via TestSmokeOffline; live run pending operator)
+- [x] Report names exactly the expected files (verified offline via TestSmokeOffline; live run pending operator)
+- [ ] Integration test: full end-to-end run passes — pending operator live run: scripts/smoke-test.sh
 
 **Must-know-before:** All prior chunks must be complete.
 
@@ -582,7 +582,7 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 - [ ] Compaction is cancellable and never half-applies; failure surfaces `context_overflow` rather than an oversized request
 - [ ] All slash commands operate on real state
 - [ ] Token and cost tracking in the status bar and `usage.json`
-- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`, CI all clean
+- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`, CI all clean — local gates clean 2026-10-18 (race, fmt, vet, lint); CI pending operator push
 
 **Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md` set to `☑ Complete`, and a commit tagged so Milestone 5 starts from a known point.
 

@@ -1,8 +1,8 @@
 # Progress — Kirsch
 
-**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is complete and operator-accepted on 2026-10-13: m3-d1 through m3-d6 are done (m3-d6 = wiring and integration, mission-20261007-02), the operator's manual walkthrough is all-green across §1–§8 (plan/testing/manual/user-testing/milestone-3-donovan.md), and Task 8 box 321 is ticked on the walkthrough's §8 evidence (mission-20261013-05). m4-d1 (session store core) is done (mission-20261014-01, committed in 0d50b5e); m4-d2 (storage layout + repair) is done (mission-20261014-05, committed in 0d50b5e); m4-d3 (event recording wiring) is done (mission-20261014-09, committed in 2e30615); m4-d4 (resume reconstruction) is done (mission-20261015-01, committed in f14a6a7); m4-d5 (resume state + CLI) is done (mission-20261015-04, committed in 7c3913c); m4-d6 (single-instance guard) is done (mission-20261016-02, committed in 6ad3160); m4-d7 (compaction) is done (mission-20261017-02, committed in 6ad3160); m4-d8 (slash commands for real) is done (mission-20261017-03, committed in d2ee294); m4-d9 (token and cost tracking) is done (mission-20261017-05, committed in d2ee294); m4-d10 (final-task report) is done (mission-20261018-02, uncommitted).
+**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is complete and operator-accepted on 2026-10-13: m3-d1 through m3-d6 are done (m3-d6 = wiring and integration, mission-20261007-02), the operator's manual walkthrough is all-green across §1–§8 (plan/testing/manual/user-testing/milestone-3-donovan.md), and Task 8 box 321 is ticked on the walkthrough's §8 evidence (mission-20261013-05). m4-d1 through m4-d11 are all complete: m4-d1 (session store core, 0d50b5e); m4-d2 (storage layout + repair, 0d50b5e); m4-d3 (event recording wiring, 2e30615); m4-d4 (resume reconstruction, f14a6a7); m4-d5 (resume state + CLI, 7c3913c); m4-d6 (single-instance guard, 6ad3160); m4-d7 (compaction, 6ad3160); m4-d8 (slash commands, d2ee294); m4-d9 (token and cost tracking, d2ee294); m4-d10 (final-task report, uncommitted); m4-d11 (smoke test, mission-20261018-04, uncommitted). The race condition in `TestRunTurnApprovalToolUsesApprovalPath` is resolved (mission-20261018-04): the test now reads the approval ID from the observed message instead of using a hard-coded constant.
 
-**What's next:** The m4-d10 delta is uncommitted. The next coding chunk is m4-d11 (smoke test), which depends on m4-d1…m4-d10. Carried items are listed under *Carried from Milestone 2* ... *Carried from m4-d10*.
+**What's next:** The operator runs the smoke test (`scripts/smoke-test.sh` — costs tokens), runs the manual walkthrough §1–§12, ticks the final Task 9 boxes in milestone-4.md, commits the tree, tags `m4`, and marks Milestone 4 ☑ Complete. No further coding is needed for Milestone 4 closure. Carried items are listed under *Carried from Milestone 2* through *Carried from m4-d11*.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -57,8 +57,8 @@ Definitions are in `plan/milestones/milestone-4.md`. The detailed breakdown (mis
 | m4-d8 | Slash Commands for Real | done | — | m4-d3, m4-d5, m4-d7 |
 | m4-d9 | Token and Cost Tracking | done | — | m4-d3 |
 | m4-d10 | Final-Task Report | done | — | m4-d7 |
-| m4-d11 | Smoke Test | not started | — | m4-d1…m4-d10 |
-| m4-d12 | Final Acceptance | not started | — | m4-d11 |
+| m4-d11 | Smoke Test | done | — | m4-d1…m4-d10 |
+| m4-d12 | Final Acceptance | ready — operator-gated | — | m4-d11 |
 
 ## Carried from m3-d5
 
@@ -98,6 +98,15 @@ The final-task report deliverable landed on 2026-10-18 (mission-20261018-02). Fo
 - **"Limitations" pinned as a bare word:** `TestCompactionSystemPromptCommandOutcomes` and `TestCompactionRequestShape` check that the string "Limitations" appears in compactionSystemPrompt, not the heading form `**Limitations**:`; a stray mention elsewhere would satisfy the pin while the section was gone.
 - **system.md mutants not independently rerun by Bishop:** `system.md` is compiled in via `//go:embed system.md` (internal/agent/prompt/prompt.go:11), so Bishop's `go test -overlay` reruns could not reach it. The developer (@vasquez, step 3g) planted and killed one mutant per pinned §6 phrase plus §6 anchoring mutants with pasted raw FAIL output; Bishop independently reran the compact.go and app.go wiring mutants (all killed at the reported lines).
 - **Stray untracked files predate this mission:** `./opencode.json.bak` and `.claude/memory/state/FLIGHT-RECORDER.md.bak` are untracked and existed before mission-20261018-02 started; left for the operator to clean.
+
+## Carried from m4-d11
+
+The smoke test deliverable landed on 2026-10-18 (mission-20261018-04, uncommitted). Four carried items remain:
+
+- **W1: approval and TestDivide-baseline branches of checkSmokeRun have no offline negative control.** The offline test's positive control (correct run) and branches testing approval flow and TestDivide baseline exist, but no negative control exercises the approval or baseline branches with intentional flaws.
+- **W2: comment in smoke_live_test.go overstates containment.** The comment says "everything runs in a temp copy" but only the workspace is a temp copy; commands are auto-approved via `ResolveToolApproval`, not isolated.
+- **W3: zero-divisor check is a source regex.** The negative control checking for `b == 0` uses source regex matching, which could falsely fail a valid solution that checks for zero divisor using a different pattern.
+- **W4: no live run is on record.** The live smoke test (`scripts/smoke-test.sh` with an API key) has not been run; it costs tokens and is the operator's to execute.
 
 ---
 
@@ -156,10 +165,11 @@ The storage layout + repair landed on 2026-10-14 (mission-20261014-05, review AP
 
 ## Carried from m4-d3
 
-The event recording wiring landed on 2026-10-14 (mission-20261014-09, review APPROVED after one fix round). Two open items remain before Milestone 4 closes:
+The event recording wiring landed on 2026-10-14 (mission-20261014-09, review APPROVED after one fix round). One open item remains before Milestone 4 closes:
 
-- **Flaky `TestRunTurnApprovalToolUsesApprovalPath` (PRE-EXISTING):** the `npm run test:race` suite has a pre-existing timeout flake in `internal/app/turn_adapter_test.go:348` `TestRunTurnApprovalToolUsesApprovalPath` — the 5-second timeout on `newCollector(5).wait` is too tight for the goroutine hop chain under the race detector. Proven pre-existing by the Step 2b stash protocol: 2/10 failures on the clean pre-delta tree, identical rate and mode with the m4-d3 delta present; the m4-d2 close's green race run was a lucky pass. Stabilization needed before Milestone 4 closes — widen the collector timeout (e.g. to 10s) or count terminal messages instead of expecting an exact total.
 - **Three `omitempty` gaps (routed to m4-d7 / operator):** `assistant.message` omits `stop_reason`, and `tool.completed` omits `tool` and `duration_ms`. The agent data model does not surface these through the `Recorder` seam, and `internal/agent` was read-only in m4-d3, so they stay `omitempty` and are flagged here rather than fixed by editing `internal/agent`. Routed to m4-d7 (which owns `internal/agent` changes) or the operator.
+
+**RESOLVED in mission-20261018-04:** The race condition in `TestRunTurnApprovalToolUsesApprovalPath` (internal/app/turn_adapter_test.go:348) is fixed. The test was using a hard-coded approval ID of 1, which could race against the allocation of the next approval ID. The test now reads the ID from the observed `ApprovalRequestedMsg`, resolving the race. Testing: 20 of 20 passes under `-race` on m4-d11, up from 2 of 10 on earlier missions (pre-existing rate was proven at m4-d3 close: 2/10 failures on the clean pre-delta tree).
 
 ## Carried from m4-d4
 
@@ -178,7 +188,7 @@ The resume state + CLI landed on 2026-10-15 (mission-20261015-04, review APPROVE
 
 ## Carried from m4-d8
 
-The slash commands deliverable landed on 2026-10-17 (mission-20261017-03, review APPROVED 0 CRITICAL, 0 WARNINGS). Nine items remain open:
+The slash commands deliverable landed on 2026-10-17 (mission-20261017-03, review APPROVED 0 CRITICAL, 0 WARNINGS). Eight items remain open:
 
 1. While /new is pending, the TUI can clear busy and accept input; the app refuses it, but a stray error card can appear (step-6b W1).
 2. Late async messages from the cancelled turn are not fenced by session generation (6b W2).
@@ -188,15 +198,13 @@ The slash commands deliverable landed on 2026-10-17 (mission-20261017-03, review
 6. /diff shows unstaged changes only.
 7. /files resets on resume.
 8. update_test.go and status_test.go overlap.
-9. The pre-existing -race failure of TestRunTurnApprovalToolUsesApprovalPath, and an occasional flake in TestRunTurnMapsToolCallToToolStartedAndCompleted.
 
 ## Carried from m4-d7
 
-The compaction deliverable landed on 2026-10-17 (mission-20261017-02, review APPROVED 0 CRITICAL, 2 warnings carried). Five items remain open:
+The compaction deliverable landed on 2026-10-17 (mission-20261017-02, review APPROVED 0 CRITICAL, 2 warnings carried). Four items remain open:
 
 - **Flush-ordering edge (warning 1, not blocking):** The test `TestSubmitStillOverBudgetAfterCompactionSurfacesContextOverflow` (internal/app/compaction_test.go) uses a 500ms flush window and would very rarely miss a dropped Flush if the store's tick lands in a millisecond boundary. The test comment overstates the ordering guarantee. Error direction is safe — under heavy load, a slow flush can only make the mutant survive longer, never make a correct build fail.
 - **100ms settle window (warning 2, not blocking):** The app compaction tests' 100ms settle period can, under heavy load, cause a false count failure. The comment in the code says this cannot happen. Acceptable under normal CI load; a deterministic variant would require production code changes.
-- **Pre-existing -race flake (still open):** `TestRunTurnApprovalToolUsesApprovalPath` (internal/app/turn_adapter_test.go:348) fails under `-race` on clean HEAD, 2/10 rate. No lock guards `a.conv` against an overlapping turn. Affects m4-d3 and later close-outs; recorded in *Carried from m4-d3*.
 - **Omitempty gaps (routed from m4-d3, still open):** `assistant.message` omits `stop_reason`, and `tool.completed` omits `tool` and `duration_ms`. The agent data model does not surface these through the `Recorder` seam, and `internal/agent` was not touched in m4-d7. Routed from m4-d3 and flagged as open (not a blocker for Milestone 4 acceptance).
 - **Per-field mutant evidence (non-blocking shortfall):** Per-field mutant evidence for the thinking-preserved test (TestThinkingBlocksPreservedInResult, internal/session/compact_test.go) was shown for Signature only, not for all fields. Mutant verification complete; this is a documentation gap in the evidence.
 

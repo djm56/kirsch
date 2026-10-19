@@ -31,8 +31,8 @@ deliverables land.
 | 8 | m4-d8 Slash Commands for Real | **Runnable now** |
 | 9 | m4-d9 Token and Cost Tracking | **Runnable now** |
 | 10 | m4-d10 Final-Task Report | **Testable** |
-| 11 | m4-d11 Smoke Test | Not yet testable |
-| 12 | m4-d12 Final Acceptance | Not yet testable |
+| 11 | m4-d11 Smoke Test | **Testable** |
+| 12 | m4-d12 Final Acceptance | **Testable (operator-gated)** |
 
 ---
 
@@ -982,30 +982,123 @@ npm run check
 
 ## 11 · Smoke Test (m4-d11)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d11 lands.
+**Testable.** The smoke test (`scripts/smoke-test.sh`) runs Kirsch against a git-initialised temp copy of `testdata/repo-go-module` with the prompt "Add input validation to the Divide function and cover it with a test". All approval requests are auto-approved through the real approval path. The test checks that the patch applies, `go test ./...` runs and passes, and the report names exactly {calc/divide.go, calc/divide_test.go}. An offline test suite verifies the behaviour with a scripted fake provider. A live run against a real model is operator-run and costs tokens.
 
-What will be checked (from milestone-4.md m4-d11 acceptance): `scripts/smoke-test.sh`
-exists and is executable; it runs against `testdata/repo-go-module` with a real
-model; the prompt is "Add input validation to the Divide function and cover it with
-a test"; the run produces a shown patch, applies it after approval, runs
-`go test ./...`, and ends with a report that names exactly the expected files; and
-the full end-to-end integration test passes.
+**Automated — offline unit tests:**
+
+(a) Offline smoke test with positive and negative controls:
+
+```bash
+go test -count=1 -run 'TestSmokeOffline' ./internal/app/
+```
+
+- [ ] `--- PASS: TestSmokeOffline` (positive control + 7 negative controls)
+
+(b) Report parsing:
+
+```bash
+go test -count=1 -run 'TestParseReportSummary|TestParseListLines' ./internal/app/
+```
+
+- [ ] `--- PASS: TestParseReportSummary`
+- [ ] `--- PASS: TestParseListLines`
+
+**Live — operator-run integration test against real model:**
+
+(c) Key check: no API key set exits rc=2:
+
+```bash
+env -u ANTHROPIC_API_KEY -u KIRSCH_ANTHROPIC_API_KEY -u OPENCODE_API_KEY -u KIRSCH_OPENCODE_API_KEY scripts/smoke-test.sh; echo rc=$?
+```
+
+- [ ] rc=2
+
+(d) Live run (operator runs and it costs tokens, auto-approves commands in temp copy):
+
+```bash
+scripts/smoke-test.sh
+```
+
+- [ ] Patch applies after auto-approval
+- [ ] `go test ./...` runs and passes
+- [ ] Report names exactly {calc/divide.go, calc/divide_test.go}
+
+**Optional manual check:**
+
+(e) Run Kirsch manually in a copy of `testdata/repo-go-module`, give the prompt, approve the patch, check the report:
+
+- [ ] Manual run produces a valid patch and report
 
 ---
 
 ## 12 · Final Acceptance (m4-d12)
 
-**Not yet testable.** This section is filled in with runnable steps when m4-d12 lands.
+**Testable (operator-gated).** This is the final walkthrough and sign-off. Sections §1–§11 cover every Milestone 4 acceptance criterion. This section runs the final gate checks and records completion.
 
-What will be checked (from milestone-4.md m4-d12 acceptance — the old Task 9 boxes):
-the smoke test passes on a real model end to end; quit mid-task, resume, and
-complete the turn — identical transcript, pending state and grants, valid message
-array; a session truncated by `kill -9` loads as `recovered` and is resumable; a
-second instance warns and degrades per §7; compaction is cancellable and never
-half-applies, and failure surfaces `context_overflow`; all slash commands operate
-on real state; token and cost tracking appears in the status bar and `usage.json`;
-and `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`,
-and CI are all clean.
+**Gate checks (run locally — you can do these):**
+
+(a) Unit tests under race detector:
+
+```bash
+go test -race -count=1 ./...
+```
+
+- [ ] `ok` (race-enabled test run clean)
+
+(b) Code format:
+
+```bash
+golangci-lint fmt --diff
+```
+
+- [ ] No changes needed (no formatting drift)
+
+(c) Code analysis:
+
+```bash
+go vet ./...
+```
+
+- [ ] All packages clean
+
+(d) Linting:
+
+```bash
+golangci-lint run
+```
+
+- [ ] 0 issues
+
+(e) Screens:
+
+```bash
+npm run check
+```
+
+- [ ] `kirsch-ui-screens.md: grids OK, content OK`
+
+**Operator sign-off (operator does these):**
+
+(f) Live smoke test (from §11d):
+
+- [ ] `scripts/smoke-test.sh` passes
+
+(g) Manual walkthrough §1–§11 complete:
+
+- [ ] All sections tested and ticked
+
+(h) Milestone 4 Task 9 acceptance boxes:
+
+- [ ] All boxes ticked in `plan/milestones/milestone-4.md`
+
+(i) CI green:
+
+- [ ] GitHub Actions passes
+
+(j) Milestone 4 completion:
+
+- [ ] `git tag m4` (creates v0.1-M4 checkpoint)
+- [ ] `plan/PROGRESS.md` line 17 set to `☑ Complete`
 
 ---
 

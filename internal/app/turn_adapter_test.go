@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -47,17 +46,12 @@ func (fakeTool) Invoke(ctx context.Context, _ json.RawMessage) tool.Result {
 // actually travel through the approval path instead of being executed directly.
 type fakeApprovalTool struct {
 	approver tool.Approver
-	once     sync.Once
-	called   chan struct{} // closed the first time Invoke reaches the approver
 }
 
 func (*fakeApprovalTool) Name() string            { return "fake_approval_tool" }
 func (*fakeApprovalTool) Description() string     { return "a fake approval tool" }
 func (*fakeApprovalTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
 func (t *fakeApprovalTool) Invoke(ctx context.Context, _ json.RawMessage) tool.Result {
-	if t.called != nil {
-		t.once.Do(func() { close(t.called) })
-	}
 	dec := t.approver.Request(ctx, tool.ApprovalRequest{
 		Operation:   policy.OperationCommand,
 		Description: "fake approval request",
@@ -345,15 +339,15 @@ func TestRunTurnCancellationMapsToTurnCancelledMsg(t *testing.T) {
 // -> the tool's Invoke -> approvalAdapter.Request -> App.RequestToolApproval.
 // If the adapter routed execution around the approval path, the tool would run
 // without producing ApprovalRequestedMsg and this test would fail.
+// The test polls the collector for ApprovalRequestedMsg and resolves using the
+// actual allocated ID, avoiding a race where a hard-coded ID might not match.
 func TestRunTurnApprovalToolUsesApprovalPath(t *testing.T) {
 	c := newCollector(5)
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 
-	called := make(chan struct{})
 	a.reg.Register(&fakeApprovalTool{
 		approver: &approvalAdapter{app: a},
-		called:   called,
 	})
 
 	round := 0
@@ -374,18 +368,33 @@ func TestRunTurnApprovalToolUsesApprovalPath(t *testing.T) {
 		},
 	}
 
+	// Start a goroutine that polls the collector for ApprovalRequestedMsg and
+	// resolves it with the actual allocated ID. This avoids a race condition
+	// where a hard-coded ID might not match the ID actually allocated by App.Request.
+	done := make(chan struct{})
 	go func() {
-		select {
-		case <-called:
-			// The first approval ID allocated by App.Request is 1 for a fresh app.
-			a.ResolveToolApproval(1, policy.DecisionAllow)
-		case <-time.After(2 * time.Second):
-			t.Error("timed out waiting for approval tool to request approval")
+		defer close(done)
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			if time.Now().After(deadline) {
+				t.Error("timed out waiting for ApprovalRequestedMsg")
+				return
+			}
+			<-ticker.C
+			for _, m := range c.snapshot() {
+				if req, ok := m.(tui.ApprovalRequestedMsg); ok {
+					a.ResolveToolApproval(req.ID, policy.DecisionAllow)
+					return
+				}
+			}
 		}
 	}()
 
 	a.RunTurn(ag, &agent.Conversation{}, "hi", compactionParams{})
 	msgs := c.wait(t, 5*time.Second)
+	<-done
 
 	if !findMsgType[tui.ApprovalRequestedMsg](msgs) {
 		t.Fatalf("approval path was not reached: want ApprovalRequestedMsg, got %#v", msgs)
