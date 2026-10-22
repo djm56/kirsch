@@ -82,11 +82,18 @@ func TestLiveOpencodeSmoke(t *testing.T) {
 }
 
 // TestLiveThinkingRoundTrip sends a two-turn conversation to the live opencode
-// endpoint and checks that (1) a signed thinking block returned in the first
-// response can be echoed back in the second request without an API-shape error,
-// at every ThinkingLevel including off, and (2) a replayed assistant message
-// made only of thinking (no text content) is also accepted. This test targets
-// the default model minimax-m2.7, which accepts thinking blocks at every level.
+// endpoint and checks that (1) a thinking block returned in the first response
+// can be echoed back, exactly as received, in the second request without an
+// API-shape error, at every ThinkingLevel including off, and (2) a replayed
+// assistant message made only of thinking (no text content) is also accepted.
+// The first thinking block is taken whatever its signature, since some models
+// return signature "" (qwen). A model that returns no thinking block at a level
+// (minimax-m3 at off, ADR 0008) is logged, runs the second turn without one,
+// and skips check (2), which needs a thinking block to replay. The first
+// response must still contain a tool call. If no level returns a thinking
+// block, no echo was exercised and the test skips rather than passes. The
+// final log line states how many levels returned a thinking block and how many
+// had their echo accepted. The default model is minimax-m2.7.
 func TestLiveThinkingRoundTrip(t *testing.T) {
 	ep := config.Defaults().Provider.Endpoints["opencode"]
 	key, source := ep.ResolveKey(os.Getenv)
@@ -110,6 +117,10 @@ func TestLiveThinkingRoundTrip(t *testing.T) {
 	}
 
 	levels := []provider.ThinkingLevel{provider.ThinkingOff, provider.ThinkingLow, provider.ThinkingMedium, provider.ThinkingHigh}
+	// thinkingLevels counts levels whose first response held a thinking block;
+	// echoedLevels counts those whose echo (both replays) was then accepted.
+	// Subtests run sequentially, so the closure may update them directly.
+	thinkingLevels, echoedLevels := 0, 0
 	for _, lvl := range levels {
 		t.Run(lvl.String(), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -128,7 +139,7 @@ func TestLiveThinkingRoundTrip(t *testing.T) {
 			var thinking *provider.Thinking
 			var call *provider.ToolCall
 			for _, blk := range blocks {
-				if blk.Kind == provider.BlockThinking && blk.Thinking != nil && blk.Thinking.Signature != "" {
+				if blk.Kind == provider.BlockThinking && blk.Thinking != nil && thinking == nil {
 					thinking = blk.Thinking
 				}
 				if blk.Kind == provider.BlockToolCall && blk.ToolCall != nil {
@@ -136,21 +147,24 @@ func TestLiveThinkingRoundTrip(t *testing.T) {
 				}
 			}
 			if thinking == nil {
-				t.Fatalf("no signed thinking block in first response: %s", dumpBlocks(blocks))
+				t.Logf("model %s returned no thinking block at level %s; second turn runs without one: %s", model, lvl, dumpBlocks(blocks))
+			} else {
+				thinkingLevels++
 			}
 			if call == nil {
 				t.Fatalf("no tool call in first response: %s", dumpBlocks(blocks))
 			}
 
+			assistant := []provider.Block{{Kind: provider.BlockToolCall, ToolCall: call}}
+			if thinking != nil {
+				assistant = []provider.Block{{Kind: provider.BlockThinking, Thinking: thinking}, assistant[0]}
+			}
 			second := provider.Request{
 				Model: model, MaxTokens: 512, Thinking: lvl,
 				Tools: []provider.ToolDef{readFileTool()},
 				Messages: []provider.Message{
 					userText(readPrompt),
-					{Role: provider.RoleAssistant, Content: []provider.Block{
-						{Kind: provider.BlockThinking, Thinking: thinking},
-						{Kind: provider.BlockToolCall, ToolCall: call},
-					}},
+					{Role: provider.RoleAssistant, Content: assistant},
 					{Role: provider.RoleUser, Content: []provider.Block{{
 						Kind:       provider.BlockToolResult,
 						ToolResult: &provider.ToolResult{CallID: call.ID, Content: "# Kirsch\nA terminal coding agent."},
@@ -161,6 +175,9 @@ func TestLiveThinkingRoundTrip(t *testing.T) {
 				t.Fatalf("second request (echoed thinking + tool call) failed: %v", err)
 			}
 
+			if thinking == nil {
+				return // nothing to replay on its own
+			}
 			onlyThinking := provider.Request{
 				Model: model, MaxTokens: 512, Thinking: lvl,
 				Tools: []provider.ToolDef{readFileTool()},
@@ -175,11 +192,15 @@ func TestLiveThinkingRoundTrip(t *testing.T) {
 			if _, err := liveAssistantBlocks(ctx, c, onlyThinking); err != nil {
 				t.Fatalf("only-thinking replay failed: %v", err)
 			}
+			echoedLevels++
 		})
 	}
 
-	t.Logf("endpoint=opencode model=%s model_source=%s key_source=%s thinking round-trip passed for all levels",
-		model, modelSource, source)
+	if !t.Failed() && thinkingLevels == 0 {
+		t.Skipf("model %s returned no thinking block at any of %d levels: the thinking echo was not exercised", model, len(levels))
+	}
+	t.Logf("endpoint=opencode model=%s model_source=%s key_source=%s levels=%d levels_with_thinking_block=%d levels_echo_exercised_and_accepted=%d",
+		model, modelSource, source, len(levels), thinkingLevels, echoedLevels)
 }
 
 // liveAssistantBlocks streams req and returns the assistant message blocks.
@@ -197,6 +218,8 @@ func liveAssistantBlocks(ctx context.Context, c *Client, req provider.Request) (
 			} else {
 				blocks = append(blocks, provider.Block{Kind: provider.BlockText, Text: e.Text})
 			}
+		default:
+			// Other event types carry no block this helper collects.
 		}
 	})
 	return blocks, err

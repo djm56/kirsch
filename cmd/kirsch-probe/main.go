@@ -12,8 +12,10 @@
 //   - The key is redacted from stdout and from every returned error, and the
 //     probe refuses to write any file whose contents include it.
 //   - Redirects are never followed. A 3xx response stops the probe immediately.
-//   - base_url defaults to https://opencode.ai/zen/go/v1. A -base-url flag
-//     exists for tests, accepting only https:// URLs or literal loopback hosts.
+//   - base_url defaults to https://opencode.ai/inference/go/v1, not Kirsch's own
+//     .../go/anthropic/v1: scenario S0 calls /models, which answers 404 under
+//     /anthropic/v1 and 200 under /v1 (live, 2026-10-22). A -base-url flag exists
+//     for tests, accepting only https:// URLs or literal loopback hosts.
 //   - The probe stops immediately on any 3xx, 429, 401, or 403 response, and on
 //     a 400 whose error type is MissingSessionID or contains "Session" (a
 //     gateway policy error). Any other 400 does not stop the run.
@@ -117,6 +119,13 @@ func checkOutDirFree(dir string) error {
 	return nil
 }
 
+// defaultBaseURL is the default value of the -base-url flag. It is the /v1 root
+// and differs from Kirsch's own default (.../go/anthropic/v1 in the config
+// package) because S0 calls /models, which answered 404 under /anthropic/v1 and
+// 200 under /v1 on 2026-10-22; /v1/messages also answered live. Kirsch itself
+// calls only /messages.
+const defaultBaseURL = "https://opencode.ai/inference/go/v1"
+
 // defaultModels is the default value of the -models flag.
 const defaultModels = "minimax-m3,minimax-m2.7,qwen3.8-max,qwen3.8-flash,qwen3.7-plus"
 
@@ -135,7 +144,7 @@ func splitModels(list string) []string {
 func parseFlags() options {
 	var (
 		run        = flag.Bool("run", false, "execute requests (default: dry run)")
-		baseURL    = flag.String("base-url", "https://opencode.ai/zen/go/v1", "base URL for the endpoint")
+		baseURL    = flag.String("base-url", defaultBaseURL, "base URL for the endpoint")
 		modelsFlag = flag.String("models", defaultModels, "comma-separated list of models to probe")
 		outDir     = flag.String("out", "", "output directory (default: testdata/probe/opencode/<YYYY-MM-DDTHHMMZ> UTC)")
 		auth       = flag.String("auth", authXAPIKey, "auth header for the key: x-api-key or bearer")

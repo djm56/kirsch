@@ -131,7 +131,8 @@ type ToolResult struct {
 type ThinkingLevel int
 
 const (
-	// ThinkingOff disables thinking blocks.
+	// ThinkingOff asks for no up-front thinking; the adapter decides how, and
+	// some models think regardless.
 	ThinkingOff ThinkingLevel = iota
 	// ThinkingLow enables low-level thinking.
 	ThinkingLow

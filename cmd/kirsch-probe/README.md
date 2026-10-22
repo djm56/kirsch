@@ -72,7 +72,7 @@ Executes all scenarios against the live endpoint. Output is saved to `testdata/p
 
 ### Custom flags
 
-- `-base-url <URL>` — Change the endpoint (default: `https://opencode.ai/zen/go/v1`). For tests only; must be `https://` or a literal loopback host.
+- `-base-url <URL>` — Change the endpoint (default: `https://opencode.ai/inference/go/v1`; Kirsch itself defaults to `.../go/anthropic/v1`, but S0 calls `/models`, which returned 404 there and 200 under `/v1` on 2026-10-22). For tests only; must be `https://` or a literal loopback host.
 - `-models <list>` — Comma-separated model list (default: `minimax-m3,minimax-m2.7,qwen3.8-max,qwen3.8-flash,qwen3.7-plus`). Names must be unique (compared case-insensitively) and `_global` is reserved for the S0 output directory; either is refused before any request is made.
 - `-out <dir>` — Output directory (default: `testdata/probe/opencode/<YYYY-MM-DDTHHMMZ>`, UTC). Must not exist or must be empty for a live run.
 - `-auth <mode>` — How the key is sent: `x-api-key` (default; sends `x-api-key: <key>`) or `bearer` (sends `Authorization: Bearer <key>`). Exactly one auth header is sent, on every request including `/models`. Any other value is refused before any request is made. The mode is shown in the dry-run plan header, and recorded in `summary.json` (`auth`) and the `SUMMARY.md` heading; the key never is.
@@ -118,6 +118,8 @@ Results are saved under `testdata/probe/opencode/<YYYY-MM-DDTHHMMZ>/`:
 - **`summary.json`** — Machine-readable summary of the probe run. A scenario's `error` field carries stream problems (an `error` event, an event that would not decode, a `tool_use` whose streamed input was not valid JSON) and the reason an S3 was skipped.
 - **`SUMMARY.md`** — Human-readable summary table of results. A status shown as `200*` is a 200 whose stream carried an error or an undecodable event; the detail is in `summary.json`.
 
+`testdata/probe/opencode/2026-10-22/qwen3.8-flash/` is a hand-captured stream, not a probe run: that is why its directory is a date with no time, and why it holds only `say-hello.request.json` and `say-hello.sse`, with no `.session`, `.status` or `.headers.json` file.
+
 ## Review and commit
 
 After running the probe:
@@ -143,7 +145,7 @@ The recorded fixtures are used by Milestone 3's adapter tests to replay real str
 
 **Where it goes:**
 
-- To OpenCode Go's gateway at `https://opencode.ai/zen/go/v1`.
+- To OpenCode Go's gateway at `https://opencode.ai/inference/go/v1`.
 - From there to the chosen model's host (e.g., Minimax, Alibaba Qwen).
 
 **What it stores locally:**
@@ -168,7 +170,7 @@ This avoids leaving the key in your shell history.
 
 Your API key is invalid or expired. Regenerate it from your OpenCode Go account.
 
-**401 `Missing API key` → try `-auth bearer`.** The endpoint wants the key in a header it did not receive. The default `x-api-key` is an inference (OpenCode's docs name `@ai-sdk/anthropic` for this endpoint, which sends `x-api-key`) and is unconfirmed until a live run succeeds. The 2026-10-02 run sent `Authorization: Bearer` and got a 401 `Missing API key` on the first Messages request (`GET /models` returned 200). Re-run with the other mode:
+**401 `Missing API key` → try `-auth bearer`.** The endpoint wants the key in a header it did not receive. The default `x-api-key` was an inference (OpenCode's docs name `@ai-sdk/anthropic` for this endpoint, which sends `x-api-key`); live runs on 2026-10-22 succeeded with `x-api-key`. The 2026-10-02 run sent `Authorization: Bearer` and got a 401 `Missing API key` on the first Messages request (`GET /models` returned 200). Re-run with the other mode:
 
 ```bash
 npm run probe -- -run -auth bearer

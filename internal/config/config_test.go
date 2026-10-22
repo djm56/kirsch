@@ -29,7 +29,7 @@ func TestDefaultsEndpoints(t *testing.T) {
 		t.Fatalf("default = %q, want opencode", d.Provider.Default)
 	}
 	oc, ok := d.Provider.Endpoints["opencode"]
-	if !ok || oc.BaseURL != "https://opencode.ai/zen/go/v1" || oc.Auth != "x-api-key" ||
+	if !ok || oc.BaseURL != "https://opencode.ai/inference/go/anthropic/v1" || oc.Auth != "x-api-key" ||
 		oc.APIKeyEnv != "OPENCODE_API_KEY" || oc.Model != "minimax-m2.7" {
 		t.Fatalf("opencode = %+v", oc)
 	}

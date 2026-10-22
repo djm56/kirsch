@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -96,6 +98,10 @@ func newSmokeEnv(t *testing.T, getenv func(string) string, providerSetup func(a 
 		t.Fatalf("readdir: %v", err)
 	}
 	for _, name := range entries {
+		// Skip .git to avoid copying stray .git into test workspace.
+		if name == ".git" {
+			continue
+		}
 		src := filepath.Join(srcRoot, name)
 		dst := filepath.Join(dir, name)
 		if err := copyPath(src, dst); err != nil {
@@ -147,6 +153,15 @@ func newSmokeEnv(t *testing.T, getenv func(string) string, providerSetup func(a 
 	if providerSetup != nil {
 		providerSetup(a)
 	}
+
+	// Set session ID and version before starting the session; mirrors cmd/kirsch startupPostAttach.
+	// The provider client requires both.
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		t.Fatalf("rand.Read: %v", err)
+	}
+	a.SetSessionID(hex.EncodeToString(b))
+	a.SetVersion("smoke-test")
 
 	// Start a session with the configured getenv.
 	a.StartSession(getenv)
@@ -460,6 +475,104 @@ func TestParseReportSummary(t *testing.T) {
 				"Files changed": "calc/divide.go\ncalc/divide_test.go",
 			},
 		},
+		{
+			name: "inline bold labels with text after the colon",
+			input: "**Summary:** Added validation\n" +
+				"**Files changed:**\n" +
+				"- `calc/divide.go` — added `ErrDivideByZero`\n" +
+				"- calc/divide_test.go\n" +
+				"**Commands run:** go test ./...\n" +
+				"**Limitations:** None.",
+			expected: map[string]string{
+				"Summary":       "Added validation",
+				"Files changed": "- `calc/divide.go` — added `ErrDivideByZero`\n- calc/divide_test.go",
+				"Commands run":  "go test ./...",
+				"Limitations":   "None.",
+			},
+		},
+		{
+			name:  "inline label with a body on following lines keeps both",
+			input: "Summary: first\nsecond",
+			expected: map[string]string{
+				"Summary": "first\nsecond",
+			},
+		},
+		{
+			name:     "label word in prose before a colon is not a header",
+			input:    "## Summary\nok\nThe Limitations of this change: none.",
+			expected: map[string]string{"Summary": "ok\nThe Limitations of this change: none."},
+		},
+		{
+			name:     "lower-case inline label is not a header",
+			input:    "## Summary\nok\nlimitations: none.",
+			expected: map[string]string{"Summary": "ok\nlimitations: none."},
+		},
+		{
+			name:     "bold label with an em dash opens an inline header",
+			input:    "**Summary** — Added validation",
+			expected: map[string]string{"Summary": "Added validation"},
+		},
+		{
+			name:     "heading label with an em dash and a short remainder",
+			input:    "## Limitations — none",
+			expected: map[string]string{"Limitations": "none"},
+		},
+		{
+			name:     "en dash opens an inline header",
+			input:    "## Summary – Added validation",
+			expected: map[string]string{"Summary": "Added validation"},
+		},
+		{
+			name:     "spaced hyphen opens an inline header",
+			input:    "Summary - Added validation",
+			expected: map[string]string{"Summary": "Added validation"},
+		},
+		{
+			name:     "numbered label with an em dash",
+			input:    "1. Summary — text",
+			expected: map[string]string{"Summary": "text"},
+		},
+		{
+			name:     "dash-form remainder is the first body line, later lines follow",
+			input:    "**Files changed** — a.go\n- b.go",
+			expected: map[string]string{"Files changed": "a.go\n- b.go"},
+		},
+		{
+			name:     "label after other words with a dash is not a header",
+			input:    "## Summary\nok\nSee Summary — text",
+			expected: map[string]string{"Summary": "ok\nSee Summary — text"},
+		},
+		{
+			name:  "pinned: a bulleted inline label inside another body opens a section",
+			input: "## Summary\nok\n- Files changed: 2 files\nmore",
+			expected: map[string]string{
+				"Summary":       "ok",
+				"Files changed": "2 files\nmore",
+			},
+		},
+		{
+			name:  "pinned: a numbered inline label inside another body opens a section",
+			input: "## Summary\nok\n2. Files changed: 2 files",
+			expected: map[string]string{
+				"Summary":       "ok",
+				"Files changed": "2 files",
+			},
+		},
+		{
+			name:     "inline remainder has backticks stripped",
+			input:    "**Summary:** Added `x`",
+			expected: map[string]string{"Summary": "Added x"},
+		},
+		{
+			name:     "inline remainder has bold stripped",
+			input:    "Summary: Added **really** x",
+			expected: map[string]string{"Summary": "Added really x"},
+		},
+		{
+			name:     "label not at the line start is not a header",
+			input:    "## Summary\nok\nSee Limitations: none.",
+			expected: map[string]string{"Summary": "ok\nSee Limitations: none."},
+		},
 	}
 
 	for _, tt := range tests {
@@ -560,7 +673,15 @@ func runOfflineSmoke(t *testing.T, script []provider.Turn) []string {
 	t.Helper()
 	e := newSmokeEnv(t, nil, func(a *App) {
 		fake := provider.NewFake(script...)
-		a.providerBuilder = func(string, config.EndpointConfig, string, string, string, *telemetry.Logger) (provider.Provider, error) {
+		a.providerBuilder = func(endpoint string, ep config.EndpointConfig, key, version, sessionID string, log *telemetry.Logger) (provider.Provider, error) {
+			if sessionID == "" {
+				t.Errorf("fake provider builder: sessionID is empty")
+				return nil, fmt.Errorf("sessionID is required")
+			}
+			if version == "" {
+				t.Errorf("fake provider builder: version is empty")
+				return nil, fmt.Errorf("version is required")
+			}
 			return fake, nil
 		}
 	})
@@ -595,6 +716,49 @@ func TestSmokeOffline(t *testing.T) {
 		}
 
 		errs := runOfflineSmoke(t, smokeScript(diff, true, smokeReportText(good, true)))
+		for _, errMsg := range errs {
+			t.Errorf("smoke check failed: %s", errMsg)
+		}
+	})
+
+	// Report shapes the checker must accept. The described file entries are
+	// known from the live run's error text, which listed them with a
+	// " — description" tail, as the system prompt asks ("paths plus the nature of
+	// the change"). The inline label form is the leading hypothesis for the live
+	// run's labels; its final text was never logged, so that half is unproven.
+	t.Run("positive control: inline bold labels and described file entries", func(t *testing.T) {
+		report := "**Summary:** Added validation to Divide.\n\n" +
+			"**Files changed:**\n" +
+			"- `calc/divide.go` — added `ErrDivideByZero` and a zero-divisor guard\n" +
+			"- `calc/divide_test.go` — added `TestDivideByZero`\n\n" +
+			"**Commands run:** go test -run ^TestDivide$ ./calc/\n\n" +
+			"**Limitations:** None."
+		errs := runOfflineSmoke(t, smokeScript(buildSmokeTestDiff(), true, report))
+		for _, errMsg := range errs {
+			t.Errorf("smoke check failed: %s", errMsg)
+		}
+	})
+
+	t.Run("positive control: bold paths with descriptions", func(t *testing.T) {
+		report := "**Summary:** Added validation to Divide.\n\n" +
+			"**Files changed:**\n" +
+			"- **calc/divide.go** — added a zero-divisor guard\n" +
+			"- **`calc/divide_test.go`**: added a zero-divisor test\n\n" +
+			"**Commands run:** go test -run ^TestDivide$ ./calc/\n\n" +
+			"**Limitations:** None."
+		errs := runOfflineSmoke(t, smokeScript(buildSmokeTestDiff(), true, report))
+		for _, errMsg := range errs {
+			t.Errorf("smoke check failed: %s", errMsg)
+		}
+	})
+
+	t.Run("positive control: dash-form labels throughout", func(t *testing.T) {
+		report := "**Summary** — Added validation to Divide.\n\n" +
+			"**Files changed** — `calc/divide.go`\n" +
+			"- `calc/divide_test.go`\n\n" +
+			"**Commands run** — go test -run ^TestDivide$ ./calc/\n\n" +
+			"**Limitations** — None."
+		errs := runOfflineSmoke(t, smokeScript(buildSmokeTestDiff(), true, report))
 		for _, errMsg := range errs {
 			t.Errorf("smoke check failed: %s", errMsg)
 		}
@@ -689,11 +853,23 @@ func cleanSectionLines(content []string) string {
 	return strings.Join(cleaned, "\n")
 }
 
+// inlineDashSeparators are the dash forms that may follow a label to open an
+// inline header, each with a space on both sides, as the system prompt writes
+// its labels ("Summary — what was done and why").
+var inlineDashSeparators = []string{" — ", " – ", " - "}
+
 // parseReportSummary extracts all labeled sections from a report.
-// It handles various markdown formats: ## headers, **bold** headers, numbered headers (e.g., "1. Files changed"),
-// and headers followed by colons. Header recognition strips bullets, numbering, bold, backticks and trailing
-// " — note" / " - note" / ": note" markers; a line is a header only if what remains equals a known label exactly,
-// so the label word inside a prose sentence is not a header.
+// It handles ## headings, **bold** labels, numbered labels (e.g., "1. Files changed") and labels followed by a
+// colon. Header recognition strips bullets, numbering, heading marks, bold, backticks and trailing note markers
+// from the line, then looks for a known label. Label matching is case-sensitive and anchored at the start of the
+// line once bullets, numbering, heading marks, bold and backticks are stripped. A line is a header when what
+// remains equals a label, or starts with a label directly followed by ":" or by one of the inlineDashSeparators
+// (the inline forms, such as "**Summary:** Added validation" or "**Summary** — Added validation"). For an inline
+// header the text after the separator, trimmed, becomes the first line of the section body when it is non-empty.
+// That text has had its bold and backticks stripped too, so "**Summary:** Added `x`" gives "Added x".
+// Because bullets are stripped first, a bulleted or numbered label line inside another section's body, such as
+// "- Files changed: 2 files", opens a new section; a bulleted label is a plausible report form, so this is kept.
+// The label word inside a prose sentence ("The Limitations of this change: none.") is not a header.
 func parseReportSummary(text string) map[string]string {
 	result := make(map[string]string)
 
@@ -712,14 +888,24 @@ func parseReportSummary(text string) map[string]string {
 	}
 
 	labelPatterns := []string{"Files changed", "Commands run", "Summary", "Limitations"}
-	isHeaderLine := func(line string) (string, bool) {
+	// isHeaderLine reports the label a line opens and, for the inline form, the
+	// text after the colon or dash separator (trimmed, possibly empty).
+	isHeaderLine := func(line string) (label, inline string, ok bool) {
 		stripped := stripForLabel(line)
-		for _, label := range labelPatterns {
-			if stripped == label {
-				return label, true
+		for _, name := range labelPatterns {
+			if stripped == name {
+				return name, "", true
+			}
+			if rest, found := strings.CutPrefix(stripped, name+":"); found {
+				return name, strings.TrimSpace(rest), true
+			}
+			for _, sep := range inlineDashSeparators {
+				if rest, found := strings.CutPrefix(stripped, name+sep); found {
+					return name, strings.TrimSpace(rest), true
+				}
 			}
 		}
-		return "", false
+		return "", "", false
 	}
 
 	var currentLabel string
@@ -731,10 +917,13 @@ func parseReportSummary(text string) map[string]string {
 	}
 
 	for _, line := range strings.Split(text, "\n") {
-		if label, isHeader := isHeaderLine(line); isHeader {
+		if label, inline, isHeader := isHeaderLine(line); isHeader {
 			flush()
 			currentLabel = label
 			currentContent = nil
+			if inline != "" {
+				currentContent = append(currentContent, inline)
+			}
 		} else if currentLabel != "" {
 			currentContent = append(currentContent, line)
 		}
@@ -763,6 +952,21 @@ func parseListLines(section string) []string {
 	return items
 }
 
+// parseFilePath returns the path of one file-list entry and nothing else. It
+// removes "**" bold markers, takes the first whitespace-delimited field, and
+// trims a trailing ":" or "," from it, so "**calc/divide.go** — added X" and
+// "calc/divide.go: added X" both give "calc/divide.go". An empty entry gives "".
+// A path that contains whitespace is not supported: it would be cut at the first
+// space. It is applied to file entries only: a command in the Commands run list
+// may legitimately contain " - " and is kept whole.
+func parseFilePath(entry string) string {
+	fields := strings.Fields(strings.ReplaceAll(entry, "**", ""))
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.TrimRight(fields[0], ":,")
+}
+
 // TestParseListLines checks bullet, numbering and backtick stripping for list
 // items, including the bullet-plus-backtick form that cleanSectionLines does
 // not unwrap because the line does not start with a backtick.
@@ -782,6 +986,51 @@ func TestParseListLines(t *testing.T) {
 				t.Errorf("parseListLines(%q) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestParseFilePath checks that each described form of a file entry gives the
+// bare path. The backticked row passes through parseListLines first, because
+// that is the form parseReportInto hands to parseFilePath. "calc/my-file.go" is
+// the mirror of the dash rows: a hyphen inside the path must survive.
+func TestParseFilePath(t *testing.T) {
+	tests := []struct{ name, in, want string }{
+		{"plain path", "calc/divide.go", "calc/divide.go"},
+		{"em dash", "calc/divide.go — added X", "calc/divide.go"},
+		{"en dash", "calc/divide.go – added X", "calc/divide.go"},
+		{"spaced hyphen", "calc/divide.go - added X", "calc/divide.go"},
+		{"double hyphen", "calc/divide.go -- added X", "calc/divide.go"},
+		{"colon", "calc/divide.go: added X", "calc/divide.go"},
+		{"comma", "calc/divide.go, added X", "calc/divide.go"},
+		{"parenthesis", "calc/divide.go (added X)", "calc/divide.go"},
+		{"bold path", "**calc/divide.go** — added X", "calc/divide.go"},
+		{"hyphen inside the path", "calc/my-file.go — added X", "calc/my-file.go"},
+		{"backticked as parseListLines delivers it", parseListLines("- `calc/divide.go` — added `ErrDivideByZero`")[0], "calc/divide.go"},
+		{"empty entry", "", ""},
+		{"only whitespace", "  ", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseFilePath(tt.in); got != tt.want {
+				t.Errorf("parseFilePath(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseReportIntoKeepsCommandWithSpacedHyphen drives parseReportInto, the
+// parsing half of collectSmokeResult (not collectSmokeResult itself, which
+// needs a live smokeEnv). A command containing " - " must survive whole in
+// CommandsRun while the Files changed entries in the same report are stripped.
+func TestParseReportIntoKeepsCommandWithSpacedHyphen(t *testing.T) {
+	result := &smokeResult{FinalText: "**Files changed:**\n- calc/divide.go — added a guard\n" +
+		"**Commands run:**\n- go test ./... - v\n- grep -e a - file"}
+	parseReportInto(result)
+	if want := []string{"go test ./... - v", "grep -e a - file"}; !slices.Equal(result.CommandsRun, want) {
+		t.Errorf("CommandsRun = %q, want %q", result.CommandsRun, want)
+	}
+	if want := []string{"calc/divide.go"}; !slices.Equal(result.FilesChanged, want) {
+		t.Errorf("FilesChanged = %q, want %q", result.FilesChanged, want)
 	}
 }
 
@@ -821,15 +1070,24 @@ func collectSmokeResult(t *testing.T, e *smokeEnv) *smokeResult {
 		}
 	}
 
+	parseReportInto(result)
+
+	return result
+}
+
+// parseReportInto fills ReportLabels, FilesChanged and CommandsRun from
+// result.FinalText. File entries are reduced to their path through
+// parseFilePath; command entries are kept whole.
+func parseReportInto(result *smokeResult) {
 	result.ReportLabels = parseReportSummary(result.FinalText)
 	if filesSection, ok := result.ReportLabels["Files changed"]; ok {
-		result.FilesChanged = parseListLines(filesSection)
+		for _, entry := range parseListLines(filesSection) {
+			result.FilesChanged = append(result.FilesChanged, parseFilePath(entry))
+		}
 	}
 	if cmdSection, ok := result.ReportLabels["Commands run"]; ok {
 		result.CommandsRun = parseListLines(cmdSection)
 	}
-
-	return result
 }
 
 // sameSet reports whether a and b hold the same strings, ignoring order and

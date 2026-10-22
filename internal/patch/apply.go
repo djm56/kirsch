@@ -3,6 +3,7 @@ package patch
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,8 +202,30 @@ const (
 // After calling Commit or Discard, the handle cannot be reused.
 type StageHandle struct {
 	pending []pendingRename
+	moves   []HunkMove
 	state   StageHandleState // tracks the handle's lifecycle state
 }
+
+// HunkMove records a hunk that was applied at a position other than the one its
+// header declares. Positions are line numbers in the file before any hunk of the
+// patch was applied, so a hunk after a hunk that added or removed lines is
+// compared in the same frame as its header.
+type HunkMove struct {
+	Change    int  // index into the changes passed to Stage
+	Hunk      int  // 1-based position of the hunk within its change
+	Declared  int  // the hunk's old start, as its header gives it
+	Applied   int  // where the hunk went: its first old line, or for an insertion the line it follows
+	Insertion bool // the hunk has no old lines, so Declared and Applied are the line it follows
+}
+
+// Offset is how far the hunk moved from its declared position: negative when it
+// went earlier in the file, positive when later.
+func (m HunkMove) Offset() int { return m.Applied - m.Declared }
+
+// Moves returns the hunks that were applied away from their declared position,
+// in the order they were applied. It is empty when every hunk went where its
+// header says.
+func (h *StageHandle) Moves() []HunkMove { return h.moves }
 
 // Stage runs Phase 1 of patch application: applies each change to a temp file
 // in its directory, validating as it goes. On success, returns a handle whose
@@ -221,8 +244,9 @@ func Stage(changes []FileChange) (*StageHandle, error) {
 
 	// Phase 1: Apply each change to a temp file in its directory, validating as we go
 	var pending []pendingRename
+	var moves []HunkMove
 
-	for _, change := range changes {
+	for i, change := range changes {
 		if change.IsBinary {
 			// Cleanup on failure
 			rollback(nil, pending)
@@ -233,17 +257,18 @@ func Stage(changes []FileChange) (*StageHandle, error) {
 		}
 
 		var tempPath string
+		var changeMoves []HunkMove
 		var err error
 
 		switch change.Op {
 		case OpCreate:
 			tempPath, err = applyCreate(&change)
 		case OpModify:
-			tempPath, err = applyModify(&change)
+			tempPath, changeMoves, err = applyModify(&change)
 		case OpDelete:
 			tempPath, err = applyDelete(&change)
 		case OpRename:
-			tempPath, err = applyRename(&change)
+			tempPath, changeMoves, err = applyRename(&change)
 		default:
 			rollback(nil, pending)
 			return nil, &ApplyError{
@@ -259,6 +284,11 @@ func Stage(changes []FileChange) (*StageHandle, error) {
 			// drifted from that duplication once.
 			rollback(nil, pending)
 			return nil, err
+		}
+
+		for _, m := range changeMoves {
+			m.Change = i
+			moves = append(moves, m)
 		}
 
 		switch change.Op {
@@ -284,7 +314,7 @@ func Stage(changes []FileChange) (*StageHandle, error) {
 		}
 	}
 
-	return &StageHandle{pending: pending, state: StateStaged}, nil
+	return &StageHandle{pending: pending, moves: moves, state: StateStaged}, nil
 }
 
 // Commit atomically commits all staged changes with backup and rollback.
@@ -621,12 +651,24 @@ func applyCreate(change *FileChange) (string, error) {
 	return tmpFile.Name(), nil
 }
 
-// applyModify applies a modify operation, returning the path to the temp file.
-func applyModify(change *FileChange) (string, error) {
+// maxRelocation is how many lines a hunk may move from its expected position.
+// A hunk whose old lines match nowhere within this distance is a patch_conflict,
+// even when they match farther away: a short block can match exactly at a
+// distant, unrelated place.
+const maxRelocation = 10
+
+// applyModify applies a modify operation, returning the path to the temp file
+// and the hunks that were applied away from their declared position. Each hunk
+// is placed at its declared position when its old lines match there exactly.
+// Otherwise it goes at the nearest exact match within maxRelocation lines of that
+// position that does not overlap the previous hunk (see locateHunk). A pure
+// insertion is placed at its declared point and never moved from it, though a
+// shift found by an earlier hunk carries into where that point is.
+func applyModify(change *FileChange) (string, []HunkMove, error) {
 	// Read the original file
 	content, err := os.ReadFile(change.Path)
 	if err != nil {
-		return "", &ApplyError{
+		return "", nil, &ApplyError{
 			Kind:    "file_not_found",
 			Message: fmt.Sprintf("cannot read file: %v", err),
 		}
@@ -638,119 +680,111 @@ func applyModify(change *FileChange) (string, error) {
 	// Split into lines (preserving the line ending style)
 	lines := splitLines(content)
 
-	// Apply each hunk
-	offset := 0 // cumulative offset from previous hunks
-	for _, hunk := range change.Hunks {
-		// All line numbers in the hunk are 1-indexed
-		startLine := hunk.OldStart - 1 + offset // convert to 0-indexed
+	// Apply each hunk. A hunk's old side is its ' ' and '-' lines. locateHunk
+	// finds where that block stands in the current lines: at the expected
+	// position first, then at the nearest exact match within maxRelocation lines.
+	// offset is the shift from declared positions to current positions, resize is
+	// the net change in line count made by the hunks already applied, and floor is
+	// the end of the previous hunk, the first index this hunk may touch.
+	var moves []HunkMove
+	offset := 0
+	resize := 0
+	floor := 0
+	for i := range change.Hunks {
+		hunk := &change.Hunks[i]
+		hunkNo := i + 1
+		old := oldSide(hunk.Lines)
 
-		// Check context: match hunk's context lines exactly
-		contextEnd := startLine
-		for _, line := range hunk.Lines {
-			if line.Prefix == '-' || line.Prefix == '+' {
-				break
+		// pos is where the old side begins in lines. declaredEnd is where the old
+		// side ends in declared coordinates: OldStart-1 plus its length, or
+		// OldStart for a pure insertion, which goes after line OldStart. The next
+		// hunk's offset is pos plus the new length, less declaredEnd, so any shift
+		// found here carries into the hunks after it. applied is pos in the line
+		// numbers of the file before any hunk ran: the first old line, or for an
+		// insertion the line it follows. It is compared with OldStart to find a
+		// hunk applied away from its declared position.
+		var pos, declaredEnd, applied int
+		if len(old) == 0 {
+			// Pure insertion: "-N,0" inserts after old line N, and N=0 is the
+			// start of the file. An insertion is never relocated, but it follows
+			// any shift an earlier hunk carried.
+			pos = hunk.OldStart + offset
+			declaredEnd = hunk.OldStart
+			applied = pos - resize
+			if pos > len(lines) {
+				return "", nil, &ApplyError{
+					Kind:    ErrPatchConflict,
+					Message: fmt.Sprintf("hunk %d (old line %d): insertion runs past end of file (file has %d lines)", hunkNo, hunk.OldStart, len(lines)),
+					Hunk:    hunk,
+					Content: strings.Join(lines, lineSep(le)),
+				}
 			}
-			contextEnd++
+			if pos < floor {
+				return "", nil, &ApplyError{
+					Kind:    ErrPatchConflict,
+					Message: fmt.Sprintf("hunk %d (old line %d): insertion point is before the start of the file or inside the previous hunk", hunkNo, hunk.OldStart),
+					Hunk:    hunk,
+					Content: strings.Join(lines, lineSep(le)),
+				}
+			}
+		} else {
+			expected := hunk.OldStart - 1 + offset
+			found, alt, status := locateHunk(lines, old, expected, floor, maxRelocation)
+			switch status {
+			case locateAmbiguous:
+				return "", nil, &ApplyError{
+					Kind:    ErrPatchConflict,
+					Message: fmt.Sprintf("hunk %d (old line %d): ambiguous: the old lines match at lines %d and %d", hunkNo, hunk.OldStart, found+1, alt+1),
+					Hunk:    hunk,
+					Content: getContextWindow(lines, found, len(old)),
+				}
+			case locateNone:
+				// Look past the window for the message only: a match found
+				// there is reported and never applied.
+				outside, _, _ := locateHunk(lines, old, expected, floor, noWindow)
+				return "", nil, &ApplyError{
+					Kind:    ErrPatchConflict,
+					Message: missMessage(lines, old, expected, outside, hunkNo, hunk.OldStart),
+					Hunk:    hunk,
+					Content: getContextWindow(lines, clampIndex(expected, len(lines)), len(old)),
+				}
+			case locateFound:
+				// The match is applied below.
+			}
+			pos = found
+			declaredEnd = hunk.OldStart - 1 + len(old)
+			applied = pos - resize + 1
 		}
 
-		// Verify we have enough lines
-		if contextEnd > len(lines) {
-			return "", &ApplyError{
-				Kind:    ErrPatchConflict,
-				Message: fmt.Sprintf("hunk %d requests lines beyond end of file", hunk.NewStart),
-				Hunk:    &hunk,
-				Content: strings.Join(lines, lineSep(le)),
-			}
-		}
-
-		// Count expected old and new lines
-		var contextLines []string
-		oldIdx := startLine
-
-		for _, line := range hunk.Lines {
-			switch line.Prefix {
-			case ' ':
-				// Context line: must match exactly
-				if oldIdx >= len(lines) {
-					return "", &ApplyError{
-						Kind:    ErrPatchConflict,
-						Message: fmt.Sprintf("hunk %d at line %d: not enough lines in file", hunk.OldStart, startLine+1),
-						Hunk:    &hunk,
-						Content: strings.Join(lines[startLine:], lineSep(le)),
-					}
-				}
-				expected := strings.TrimSuffix(line.Content, "\r")
-				actual := lines[oldIdx]
-				if expected != actual {
-					return "", &ApplyError{
-						Kind:    ErrPatchConflict,
-						Message: fmt.Sprintf("hunk %d context mismatch at line %d: expected %q, got %q", hunk.OldStart, oldIdx+1, expected, actual),
-						Hunk:    &hunk,
-						Content: getContextWindow(lines, oldIdx, hunk.OldLines),
-					}
-				}
-				contextLines = append(contextLines, line.Content)
-				oldIdx++
-			case '-':
-				// Removal line
-				if oldIdx >= len(lines) {
-					return "", &ApplyError{
-						Kind:    ErrPatchConflict,
-						Message: fmt.Sprintf("hunk %d at line %d: not enough lines to remove", hunk.OldStart, oldIdx+1),
-						Hunk:    &hunk,
-						Content: strings.Join(lines[startLine:], lineSep(le)),
-					}
-				}
-				expected := strings.TrimSuffix(line.Content, "\r")
-				actual := lines[oldIdx]
-				if expected != actual {
-					return "", &ApplyError{
-						Kind:    ErrPatchConflict,
-						Message: fmt.Sprintf("hunk %d removal line mismatch at line %d: expected %q, got %q", hunk.OldStart, oldIdx+1, expected, actual),
-						Hunk:    &hunk,
-						Content: getContextWindow(lines, oldIdx, hunk.OldLines),
-					}
-				}
-				oldIdx++
-			case '+':
-				// Addition line: don't match against file, just record
-				// (will be inserted below)
-			case '\\':
-				// No newline marker: special handling in trailing newline
-			}
-		}
-
-		// Now we know the context matches. Build the new line array for this hunk.
-		// oldIdx should now point to the line after the last old line.
-
-		// Re-iterate through hunk lines to build new content
-		var newLines []string
-		oldIdx = startLine
+		// Build the new lines for this hunk: context as the file has it, added
+		// lines from the patch, removed lines dropped.
+		newLines := make([]string, 0, len(hunk.Lines))
+		k := pos
 		for _, line := range hunk.Lines {
 			switch line.Prefix {
 			case ' ':
-				newLines = append(newLines, lines[oldIdx])
-				oldIdx++
+				newLines = append(newLines, lines[k])
+				k++
 			case '-':
-				oldIdx++
+				k++
 			case '+':
 				newLines = append(newLines, strings.TrimSuffix(line.Content, "\r"))
-			case '\\':
-				// Marker: don't add as a line, handled separately
 			}
 		}
 
-		// Replace the old lines with the new ones
-		newFileLines := make([]string, 0, len(lines)+len(newLines)-(hunk.OldLines-len(contextLines)))
-		newFileLines = append(newFileLines, lines[:startLine]...)
-		newFileLines = append(newFileLines, newLines...)
-		if oldIdx < len(lines) {
-			newFileLines = append(newFileLines, lines[oldIdx:]...)
-		}
-		lines = newFileLines
+		// Replace the old side with the new lines
+		rebuilt := make([]string, 0, len(lines)-len(old)+len(newLines))
+		rebuilt = append(rebuilt, lines[:pos]...)
+		rebuilt = append(rebuilt, newLines...)
+		rebuilt = append(rebuilt, lines[pos+len(old):]...)
+		lines = rebuilt
 
-		// Update offset for next hunk
-		offset += len(newLines) - hunk.OldLines
+		floor = pos + len(newLines)
+		offset = floor - declaredEnd
+		resize += len(newLines) - len(old)
+		if applied != hunk.OldStart {
+			moves = append(moves, HunkMove{Hunk: hunkNo, Declared: hunk.OldStart, Applied: applied, Insertion: len(old) == 0})
+		}
 	}
 
 	// Conversion check. A patch "carries endings" if any ' ', '-' or '+' line
@@ -790,13 +824,13 @@ func applyModify(change *FileChange) (string, error) {
 					}
 					hasEnding := strings.HasSuffix(line.Content, "\r")
 					if isCRLFFile && !hasEnding {
-						return "", &ApplyError{
+						return "", nil, &ApplyError{
 							Kind:    ErrLineEnding,
 							Message: fmt.Sprintf("patch adds line without CRLF ending to CRLF file: %q", line.Content),
 						}
 					}
 					if !isCRLFFile && hasEnding {
-						return "", &ApplyError{
+						return "", nil, &ApplyError{
 							Kind:    ErrLineEnding,
 							Message: fmt.Sprintf("patch adds line with CRLF ending to LF file: %q", line.Content),
 						}
@@ -833,7 +867,7 @@ func applyModify(change *FileChange) (string, error) {
 		newLE := detectLineEnding(newContent)
 		// Report if the detected line ending has changed
 		if newLE != le {
-			return "", &ApplyError{
+			return "", nil, &ApplyError{
 				Kind:    ErrLineEnding,
 				Message: fmt.Sprintf("patch would change line ending style from %s to %s", leString(le), leString(newLE)),
 			}
@@ -847,7 +881,7 @@ func applyModify(change *FileChange) (string, error) {
 	}
 	tmpFile, err := os.CreateTemp(dir, ".patch-")
 	if err != nil {
-		return "", &ApplyError{
+		return "", nil, &ApplyError{
 			Kind:    "io_error",
 			Message: fmt.Sprintf("failed to create temp file: %v", err),
 		}
@@ -857,7 +891,7 @@ func applyModify(change *FileChange) (string, error) {
 	_ = tmpFile.Close()
 	if err != nil {
 		_ = os.Remove(tmpFile.Name())
-		return "", &ApplyError{
+		return "", nil, &ApplyError{
 			Kind:    "io_error",
 			Message: fmt.Sprintf("failed to write temp file: %v", err),
 		}
@@ -873,7 +907,7 @@ func applyModify(change *FileChange) (string, error) {
 		_ = os.Chmod(tmpFile.Name(), change.NewMode)
 	}
 
-	return tmpFile.Name(), nil
+	return tmpFile.Name(), moves, nil
 }
 
 // applyDelete applies a delete operation.
@@ -890,17 +924,17 @@ func applyDelete(change *FileChange) (string, error) {
 }
 
 // applyRename applies a rename operation.
-func applyRename(change *FileChange) (string, error) {
+func applyRename(change *FileChange) (string, []HunkMove, error) {
 	// For rename, we might have hunks to apply
 	if len(change.Hunks) == 0 {
 		// Pure rename: no hunks to apply
 		if _, err := os.Stat(change.OldPath); err != nil {
-			return "", &ApplyError{
+			return "", nil, &ApplyError{
 				Kind:    "file_not_found",
 				Message: fmt.Sprintf("cannot rename file: %v", err),
 			}
 		}
-		return "", nil
+		return "", nil, nil
 	}
 
 	// Rename with edits: apply hunks to temp file, then rename
@@ -911,7 +945,7 @@ func applyRename(change *FileChange) (string, error) {
 	}
 	tmpFile, err := os.CreateTemp(dir, ".patch-")
 	if err != nil {
-		return "", &ApplyError{
+		return "", nil, &ApplyError{
 			Kind:    "io_error",
 			Message: fmt.Sprintf("failed to create temp file: %v", err),
 		}
@@ -922,7 +956,7 @@ func applyRename(change *FileChange) (string, error) {
 	oldContent, err := os.ReadFile(change.OldPath)
 	if err != nil {
 		_ = os.Remove(tmpFile.Name())
-		return "", &ApplyError{
+		return "", nil, &ApplyError{
 			Kind:    "file_not_found",
 			Message: fmt.Sprintf("cannot read old file for rename: %v", err),
 		}
@@ -931,7 +965,7 @@ func applyRename(change *FileChange) (string, error) {
 	err = os.WriteFile(tmpFile.Name(), oldContent, 0o644) // #nosec G703,G306 -- tmpFile already exists (CreateTemp, 0600) so the perm argument is inert; path is CreateTemp in filepath.Dir(change.Path), workspace-resolved by resolve(t.WS, …) in internal/tool/apply_patch.go before Stage; the copy's mode is set explicitly below
 	if err != nil {
 		_ = os.Remove(tmpFile.Name())
-		return "", &ApplyError{
+		return "", nil, &ApplyError{
 			Kind:    "io_error",
 			Message: fmt.Sprintf("failed to write temp file: %v", err),
 		}
@@ -944,7 +978,7 @@ func applyRename(change *FileChange) (string, error) {
 	info, err := os.Stat(change.OldPath)
 	if err != nil {
 		_ = os.Remove(tmpFile.Name())
-		return "", &ApplyError{
+		return "", nil, &ApplyError{
 			Kind:    "io_error",
 			Message: fmt.Sprintf("failed to stat old file for permissions: %v", err),
 		}
@@ -953,7 +987,7 @@ func applyRename(change *FileChange) (string, error) {
 	err = os.Chmod(tmpFile.Name(), info.Mode().Perm())
 	if err != nil {
 		_ = os.Remove(tmpFile.Name())
-		return "", &ApplyError{
+		return "", nil, &ApplyError{
 			Kind:    "io_error",
 			Message: fmt.Sprintf("failed to set file permissions: %v", err),
 		}
@@ -963,7 +997,7 @@ func applyRename(change *FileChange) (string, error) {
 	// Temporarily change change.Path to temp file path for applyModify logic
 	origPath := change.Path
 	change.Path = tmpFile.Name()
-	editedPath, applyErr := applyModify(change)
+	editedPath, moves, applyErr := applyModify(change)
 	change.Path = origPath
 
 	if applyErr != nil {
@@ -971,12 +1005,12 @@ func applyRename(change *FileChange) (string, error) {
 		if editedPath != "" {
 			_ = os.Remove(editedPath)
 		}
-		return "", applyErr
+		return "", nil, applyErr
 	}
 
 	// Return the edited temp file path, clean up the unedited copy
 	_ = os.Remove(tmpFile.Name())
-	return editedPath, nil
+	return editedPath, moves, nil
 }
 
 // ── Helper Functions ────────────────────────────────────────────────────────
@@ -1052,4 +1086,128 @@ func getContextWindow(lines []string, centerLine int, hunkOldLines int) string {
 		end = len(lines)
 	}
 	return strings.Join(lines[start:end], "\n")
+}
+
+// locateStatus is the outcome of locateHunk.
+type locateStatus int
+
+const (
+	locateNone      locateStatus = iota // no index at or after the floor matches
+	locateFound                         // one matching index is nearest
+	locateAmbiguous                     // two matching indexes are equally near
+)
+
+// oldSide returns the lines a hunk expects in the file, in order: its ' ' and
+// '-' lines, with a trailing '\r' removed. It is empty for a pure insertion.
+func oldSide(hunkLines []HunkLine) []HunkLine {
+	var old []HunkLine
+	for _, line := range hunkLines {
+		if line.Prefix == ' ' || line.Prefix == '-' {
+			old = append(old, HunkLine{Prefix: line.Prefix, Content: strings.TrimSuffix(line.Content, "\r")})
+		}
+	}
+	return old
+}
+
+// matchesAt reports whether every old line matches lines exactly, with the
+// first of them at index pos. A block that would run past either end of lines
+// does not match.
+func matchesAt(lines []string, old []HunkLine, pos int) bool {
+	if pos < 0 || pos+len(old) > len(lines) {
+		return false
+	}
+	for k, line := range old {
+		if lines[pos+k] != line.Content {
+			return false
+		}
+	}
+	return true
+}
+
+// noWindow is the locateHunk window that excludes no distance.
+const noWindow = math.MaxInt
+
+// locateHunk finds where a hunk's old side begins in lines. It considers every
+// index from floor to the last index that leaves room for the whole block and
+// lies within window lines of expected, and keeps the one nearest to expected
+// among those where the block matches exactly. A match at expected is returned
+// at once, since only one index lies at that distance. When two matching indexes
+// are equally near, the result is locateAmbiguous, found is the lower of the two,
+// and alt is the higher. When nothing matches, found is -1. Nothing is fuzzed: a
+// matching index must match every old line byte for byte.
+func locateHunk(lines []string, old []HunkLine, expected, floor, window int) (found, alt int, status locateStatus) {
+	if expected >= floor && matchesAt(lines, old, expected) {
+		return expected, -1, locateFound
+	}
+	found, alt, status = -1, -1, locateNone
+	bestDist := 0
+	for p := floor; p <= len(lines)-len(old); p++ {
+		dist := p - expected
+		if dist < 0 {
+			dist = -dist
+		}
+		if dist > window || !matchesAt(lines, old, p) {
+			continue
+		}
+		switch {
+		case status == locateNone || dist < bestDist:
+			found, alt, bestDist, status = p, -1, dist, locateFound
+		case dist == bestDist:
+			alt, status = p, locateAmbiguous
+		}
+	}
+	return found, alt, status
+}
+
+// firstMismatch describes the first old line that does not match lines when the
+// block begins at index pos. It returns "" when every old line matches there.
+func firstMismatch(lines []string, old []HunkLine, pos int) string {
+	for k, line := range old {
+		p := pos + k
+		kind := "context"
+		if line.Prefix == '-' {
+			kind = "removal"
+		}
+		switch {
+		case p < 0:
+			return kind + " starts before the start of the file"
+		case p >= len(lines):
+			return fmt.Sprintf("%s runs past end of file (file has %d lines)", kind, len(lines))
+		case lines[p] != line.Content:
+			return fmt.Sprintf("%s mismatch: expected %q, got %q", kind, line.Content, lines[p])
+		}
+	}
+	return ""
+}
+
+// missMessage explains why a hunk's old side matched nowhere within maxRelocation
+// lines of expected. It describes the first failing line at expected. outside is
+// the index of a match found beyond that window, or -1 when none exists at or
+// after the end of the previous hunk. When no line fails at expected, the old
+// side matches there but the search excluded that position, so it lies before the
+// end of the previous hunk. The message says so instead.
+func missMessage(lines []string, old []HunkLine, expected, outside, hunkNo, oldStart int) string {
+	head := fmt.Sprintf("hunk %d (old line %d): ", hunkNo, oldStart)
+	detail := firstMismatch(lines, old, expected)
+	if detail == "" {
+		if outside < 0 {
+			return head + "the old lines match only inside the previous hunk"
+		}
+		detail = "the old lines match inside the previous hunk"
+	}
+	if outside < 0 {
+		return head + detail + "; no matching position was found in the file"
+	}
+	return fmt.Sprintf("%s%s; no matching position was found within %d lines of line %d, but the old lines match at line %d", head, detail, maxRelocation, expected+1, outside+1)
+}
+
+// clampIndex limits index to the closed range from 0 to n.
+func clampIndex(index, n int) int {
+	if index < 0 {
+		return 0
+	}
+	if index > n {
+		return n
+	}
+	return index
 }

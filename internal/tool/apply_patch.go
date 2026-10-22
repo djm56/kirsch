@@ -3,6 +3,8 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/djm56/kirsch/internal/patch"
 	"github.com/djm56/kirsch/internal/policy"
@@ -146,7 +148,27 @@ func (t *ApplyPatch) Invoke(ctx context.Context, raw json.RawMessage) Result {
 		return t.mapApplyError(commitErr)
 	}
 
-	return OKResult("patch applied", "applied", false)
+	return OKResult(appliedMessage(changes, handle.Moves()), "applied", false)
+}
+
+// appliedMessage is the success text the model reads. It is "patch applied"
+// alone when every hunk went where its header declares. Otherwise it names each
+// hunk that went elsewhere, by the path the diff gave, with the old line it was
+// applied at, the line its header declared, and the signed difference.
+func appliedMessage(changes []patch.FileChange, moves []patch.HunkMove) string {
+	if len(moves) == 0 {
+		return "patch applied"
+	}
+	parts := make([]string, 0, len(moves))
+	for _, m := range moves {
+		where := "at old line"
+		if m.Insertion {
+			where = "after old line"
+		}
+		parts = append(parts, fmt.Sprintf("%s hunk %d applied %s %d (declared %d, offset %+d)",
+			changes[m.Change].Path, m.Hunk, where, m.Applied, m.Declared, m.Offset()))
+	}
+	return "patch applied; " + strings.Join(parts, "; ")
 }
 
 // mapParseError maps parse errors to tool error kinds.

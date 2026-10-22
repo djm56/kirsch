@@ -142,28 +142,52 @@ func encodeMessages(req provider.Request, opts EncodeOptions) ([]byte, error) {
 		reqMap["tools"] = tools
 	}
 
-	encodeThinkingFields(reqMap, req.Thinking)
+	encodeThinkingFields(reqMap, req.Model, req.Thinking)
 
 	return json.Marshal(reqMap)
 }
 
+// betweenToolsModels holds the model IDs that take thinking.type="between_tools"
+// when thinking is off. See encodeThinkingFields. ADR 0008 verified that
+// claude-sonnet-5-5 rejects "disabled"; the other members are kept so the
+// anthropic endpoint's behaviour does not change, without live confirmation
+// that they reject it.
+var betweenToolsModels = map[string]bool{
+	"claude-sonnet-5-5": true,
+	"claude-opus-5-5":   true,
+	"claude-fable-5-1":  true,
+}
+
 // encodeThinkingFields adds the top-level thinking and output_config fields for
 // the Anthropic Messages API. The mapping was decided against the live docs:
-//   - off  -> thinking.type="between_tools", output_config.effort="high"
+//   - off  -> thinking.type="between_tools", output_config.effort="high" for a
+//     model in betweenToolsModels; neither field for any other model
 //   - low  -> thinking.type="adaptive",      output_config.effort="low"
 //   - medium -> thinking.type="adaptive",    output_config.effort="medium"
 //   - high -> thinking.type="adaptive",      output_config.effort="high"
 //
-// "between_tools" is used for off because Claude Sonnet 5.5 rejects
-// thinking.type="disabled" and thinking.type="enabled"+budget_tokens; see
+// The low, medium and high rows apply to every model.
+//
+// "between_tools" is used for off on the set's models. Claude Sonnet 5.5 is the
+// verified case: it rejects thinking.type="disabled" and
+// thinking.type="enabled"+budget_tokens (plan/adr/0008-provider-endpoints.md,
+// "Thinking"). The other members are kept so the anthropic endpoint's behaviour
+// does not change; that they reject "disabled" is not confirmed live. See
 // https://platform.claude.com/docs/en/build-with-claude/thinking. Effort is set
 // via output_config.effort; see
 // https://platform.claude.com/docs/en/build-with-claude/effort.
-func encodeThinkingFields(reqMap map[string]interface{}, lvl provider.ThinkingLevel) {
+//
+// Any other model gets no thinking field at off, because opencode Go v2 answers
+// a "between_tools" request to claude-haiku-5-5 with a 400:
+// "thinking.type.between_tools" is not supported for this model. A model ID is
+// matched exactly against req.Model; a near-miss ID is not a member.
+func encodeThinkingFields(reqMap map[string]interface{}, model string, lvl provider.ThinkingLevel) {
 	switch lvl {
 	case provider.ThinkingOff:
-		reqMap["thinking"] = map[string]string{"type": "between_tools"}
-		reqMap["output_config"] = map[string]string{"effort": "high"}
+		if betweenToolsModels[model] {
+			reqMap["thinking"] = map[string]string{"type": "between_tools"}
+			reqMap["output_config"] = map[string]string{"effort": "high"}
+		}
 	case provider.ThinkingLow:
 		reqMap["thinking"] = map[string]string{"type": "adaptive"}
 		reqMap["output_config"] = map[string]string{"effort": "low"}

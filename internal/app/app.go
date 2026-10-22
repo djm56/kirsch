@@ -324,10 +324,25 @@ func (te *toolExecutor) Invoke(ctx context.Context, c agent.ToolCall) agent.Tool
 
 	return agent.ToolResult{
 		OK:        res.OK,
-		Content:   res.Content,
+		Content:   modelToolContent(res),
 		Truncated: res.Truncated,
 		ErrorKind: msg.ErrorKind,
 	}
+}
+
+// modelToolContent returns the text the model receives for a tool result. A
+// failed result leads with its "kind: message" error line, followed by any
+// Content the tool produced. The envelope keeps the error apart from Content,
+// so without this line a failed call with no output reaches the model as an
+// empty tool_result and the model cannot see why it failed.
+func modelToolContent(res tool.Result) string {
+	if res.OK || res.Error == nil {
+		return res.Content
+	}
+	if res.Content == "" {
+		return res.Error.Error()
+	}
+	return res.Error.Error() + "\n\n" + res.Content
 }
 
 // approval tracks a pending approval request.

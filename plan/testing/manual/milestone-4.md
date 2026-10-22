@@ -1,60 +1,42 @@
-# Manual test — Milestone 4 (session store, resume, compaction, the real task loop)
+# Manual test — Milestone 4
 
-Checking that Kirsch persists its session, resumes it, compacts it, and runs the
-real task loop end to end. Milestone 4 introduces the session store, resume and
-compaction, and the first real task against a real repository.
+Kirsch Milestone 4 adds session persistence, resumption, compaction, and the real task loop. This document verifies every feature systematically through automated tests and hands-on walkthroughs.
 
-**Time:** about 10–15 minutes for §1 now; the full document grows as the later
-deliverables land.
+## How to read this document
 
-**Prerequisite:** `npm run check` and `npm run test:race` are green. `npm run security` is RED pre-existing: govulncheck reports 10 vulnerabilities in `golang.org/x/net` v0.56.0 (fixed in v0.60.0) and `net/http` at `go1.25.13` (fixed in `go1.26.9`). They appeared between 2026-10-08 and 2026-10-14 with zero repository change; none are in Kirsch code. The scoped `govulncheck ./internal/session/...` is clean. This is a carried item — the operator's dependency decision is pending.
+- **Automated tests** run directly with `go test` or `npm` scripts and produce pass/fail output. Look for `--- PASS:` in test output.
+- **Hands-on tests** require running Kirsch in a terminal and checking behaviour manually. These are marked "operator-observed" or "(hands-on)".
+- **Checkboxes** (`- [ ]`) track each check. Mark `- [✅]` when it passes, `- [❌]` if it fails.
+- **If a check fails**, capture the exact command, terminal size, error message, and relevant logs (see Reporting at the end).
+- **Prerequisites**: `npm run check` and `npm run test:race` must pass before you start. Govulncheck shows pre-existing standard-library vulnerabilities in this codebase that the operator is managing separately — see Known limitations.
 
-**To run this walkthrough:**
+## Order of work
 
-1. From the repository root, copy this file: `cp plan/testing/manual/milestone-4.md plan/testing/manual/user-testing/milestone-4-<yourname>.md`
-2. Mark each check ✅ or ❌ in your copy. A ❌ with a sentence about what you saw is worth more than a long report.
-3. The master stays blank. Commit both files: the blank master and your completed run.
+§11 starts with two automated offline test runs (steps 1–2), then hands-on and live steps (3–5) that cost tokens.
 
----
-
-## Status Table
-
-| Section | Deliverable | Status |
-|---|---|---|
-| 1 | m4-d1 Session Store Core | **Runnable now** |
-| 2 | m4-d2 Storage Layout + Repair | **Runnable now** |
-| 3 | m4-d3 Event Recording Wiring | **Runnable now** |
-| 4 | m4-d4 Resume Reconstruction | **Runnable now** |
-| 5 | m4-d5 Resume State + CLI | **Runnable now** |
-| 6 | m4-d6 Single-Instance Guard | **Runnable now** |
-| 7 | m4-d7 Compaction | **Runnable now** |
-| 8 | m4-d8 Slash Commands for Real | **Runnable now** |
-| 9 | m4-d9 Token and Cost Tracking | **Runnable now** |
-| 10 | m4-d10 Final-Task Report | **Testable** |
-| 11 | m4-d11 Smoke Test | **Testable** |
-| 12 | m4-d12 Final Acceptance | **Testable (operator-gated)** |
-
----
-
-## Model for this run
-
-No live model is needed for this walkthrough yet. The first live model use is the
-m4-d11 smoke test, where the default model `minimax-m2.7` applies (plan amendment
-83). `KIRSCH_LIVE_MODEL` overrides only the live test, not the TUI — the M3
-precedent.
-
----
+| Section | Deliverable | Type |
+|---------|-------------|------|
+| 1 | m4-d1 Session Store Core | Automated |
+| 2 | m4-d2 Storage Layout + Repair | Automated |
+| 3 | m4-d3 Event Recording Wiring | Automated |
+| 4 | m4-d4 Resume Reconstruction | Automated |
+| 5 | m4-d5 Resume State + CLI | Automated + hands-on |
+| 6 | m4-d6 Single-Instance Guard | Automated + hands-on |
+| 7 | m4-d7 Compaction | Automated |
+| 8 | m4-d8 Slash Commands for Real | Automated + hands-on |
+| 9 | m4-d9 Token and Cost Tracking | Automated + hands-on |
+| 10 | m4-d10 Final-Task Report | Hands-on |
+| 11 | m4-d11 Smoke Test | Hands-on + live |
+| 12 | m4-d12 Final Acceptance | Sign-off |
 
 ## Setup
 
-§1 runs from the checkout alone and needs none of this scratch environment. The
-scratch environment below is needed from m4-d2 onward (storage layout writes
-under `XDG_STATE_HOME`, and the TUI runs from m4-d5/d6/d8).
+For §1: no special setup needed. Run tests from the checkout root.
 
-Set up a scratch environment before starting any section:
+For §2–§12: set up a scratch environment with temporary config, state, and workspace directories:
 
 ```bash
-cd /Volumes/DATA/Github/kirsch   # your Kirsch checkout
+cd /Volumes/DATA/Github/kirsch
 unset KIRSCH_OPENCODE_API_KEY KIRSCH_LIVE_MODEL
 export T_CFG=$(mktemp -d)
 export T_STATE=$(mktemp -d)
@@ -66,26 +48,25 @@ mkdir -p "$WORKSPACE/.kirsch"
 mkdir -p "$T_CFG/kirsch"
 ```
 
-- Run every section in this one terminal tab. The variables exist only in the shell that set them.
-- `git -C "$WORKSPACE" init` creates a separate, empty repository in the temporary workspace. Your Kirsch checkout is not touched: Kirsch runs from the checkout and is pointed at the workspace with `--workspace "$WORKSPACE"`.
-- `KIRSCH_OPENCODE_API_KEY` is cleared because it takes precedence over `OPENCODE_API_KEY`. A value left in your shell profile would be used instead of the key you enter.
+- Run every section in the same terminal tab. The variables exist only in that shell.
+- `WORKSPACE` is a separate git repository — your Kirsch checkout is never touched.
+- `KIRSCH_OPENCODE_API_KEY` is cleared to avoid interfering with testing.
 
-At the end of testing, clean up:
+Cleanup when done:
 
 ```bash
 unset OPENCODE_API_KEY KIRSCH_LIVE_MODEL
-unset XDG_CONFIG_HOME
-unset XDG_STATE_HOME
+unset XDG_CONFIG_HOME XDG_STATE_HOME
 rm -rf -- "$T_CFG" "$T_STATE" "$WORKSPACE"
 ```
 
-**API Key:** Never write the key to a file, output, or chat. When a section needs it, enter it with:
+**API Key:** When a test needs one, enter it securely (never paste into a file or chat):
 
 ```bash
 read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
 ```
 
-Then unset it when done:
+Unset it when done:
 
 ```bash
 unset OPENCODE_API_KEY
@@ -95,1029 +76,1269 @@ unset OPENCODE_API_KEY
 
 ## 1 · Session store core (m4-d1)
 
-`internal/session` landed in mission-20261014-01. The `Store` type implements
-`agent.Recorder` (no-error `Record(kind RecordKind, m Message)` signature, per
-the operator-confirmed Recorder-seam decision); every line is JSONL with `"v":1`
-(ADR 0002); a single writer goroutine owns all writes (architecture.md §3 rule
-3); writes are buffered and `fsync`'d every ~500ms and on an explicit `Flush()`
-call; and a `WithOnError` hook receives mid-turn write/`fsync` failures so they
-are never silently lost. This section runs the unit and race tests that back the
-m4-d1 acceptance, grouped to match the commands below.
+**What this tests:** Kirsch stores every conversation event to disk in JSONL format with durability guarantees, fast cadence (flushed every ~500ms and on demand), and error handling that never silently loses data.
 
-**Event mapping — every RecordKind maps to the expected plan §7 event type, every line carries `"v":1`:**
+**Before you start:** Working directory is the Kirsch checkout. No scratch environment needed for this section.
+
+**Steps:**
+
+1. Event mapping — every event type maps to the correct JSONL field and carries schema version `"v":1`:
 
 ```bash
 go test -run 'TestAppendMapping|TestAppendToolEvents' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestAppendMapping`
-- [ ] `--- PASS: TestAppendToolEvents`
+**Expect:** Both tests pass:
+```
+--- PASS: TestAppendMapping
+--- PASS: TestAppendToolEvents
+```
 
-**Durability, cadence, close, and the error hook:**
+- [ ] TestAppendMapping
+- [ ] TestAppendToolEvents
+
+2. Durability and cadence — writes are buffered, flushed on schedule and on demand, and close semantics are safe:
 
 ```bash
 go test -run 'TestFlushDurability|TestCadenceFlush|TestCloseSemantics|TestOnErrorHook' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestFlushDurability`
-- [ ] `--- PASS: TestCadenceFlush`
-- [ ] `--- PASS: TestCloseSemantics`
-- [ ] `--- PASS: TestOnErrorHook`
+**Expect:** All four tests pass.
 
-**Concurrent append — many goroutines record without interleaving or loss:**
+- [ ] TestFlushDurability
+- [ ] TestCadenceFlush
+- [ ] TestCloseSemantics
+- [ ] TestOnErrorHook
+
+3. Concurrent append — many goroutines write without data loss or interleaving:
 
 ```bash
 go test -run TestConcurrentAppend -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestConcurrentAppend`
+**Expect:** Test passes with no race detector warnings.
 
-**Optional benchmark — the cost of queuing an event:**
+- [ ] TestConcurrentAppend
+
+4. Benchmark (optional) — measure the cost of recording an event:
 
 ```bash
 go test -bench=BenchmarkRecord -benchtime=1s ./internal/session/
 ```
 
-- [ ] `BenchmarkRecord` runs (optional)
+**Expect:** Benchmark completes and reports ns/op and B/op.
 
-**Gates:**
+- [ ] BenchmarkRecord runs
+
+5. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+**Expect:** All checks pass (formatting, vet, lint, test, screens).
+
+- [ ] npm run check exits 0
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean)
+**Expect:** Race detector finds no issues.
+
+- [ ] npm run test:race exits 0
 
 ```bash
 $(go env GOPATH)/bin/govulncheck ./internal/session/...
 ```
 
-- [ ] `govulncheck ./internal/session/...` reports no vulnerabilities in Kirsch code (the full path is used so no PATH setup is needed; the binary installs to `$(go env GOPATH)/bin/govulncheck`, and `npm run tools` installs it and prints the directory)
+**Expect:** No vulnerabilities in Kirsch code. (Standard library vulnerabilities are pre-existing; see Known limitations.)
 
-This section is the operator's independent verification of the m4-d1 acceptance
-(the boxes in milestone-4.md are already ticked with mission evidence —
-mission-20261014-01).
+- [ ] govulncheck ./internal/session/... reports no vulnerabilities in Kirsch code
+
+**If it fails:** Capture the test output (command + full stderr/stdout) and your Go version (`go version`).
 
 ---
 
 ## 2 · Storage Layout + Repair (m4-d2)
 
-`internal/session` gained the plan §7 storage layout and repair-on-load in mission-20261014-05. The corrected layout (post fix round 2a) is: state root `~/.local/share/kirsch/` (XDG-adjacent); sessions live under `<root>/sessions/<workspace-hash>/`; each session file is `<timestamp>-<ulid>.jsonl`; and `index.json` (canonical workspace path → `{last_session_id, updated_at}`) and `usage.json` (cumulative token totals) sit at the root beside `sessions/` — matching plan §7's tree (kirsch-plan.md:366–374). The ULID is a stdlib-only Crockford base32 encoding (48-bit millisecond timestamp + 80 bits `crypto/rand`), so no new module was added. This section runs the unit, race, and fuzz tests that back the m4-d2 acceptance, grouped to match the commands below.
+**What this tests:** Session files are stored in `~/.local/share/kirsch/sessions/<workspace-hash>/` as JSONL files named `<timestamp>-<ulid>.jsonl`. Index and usage metadata files live at the root. Torn final lines are repaired on load.
 
-**Layout + index — path generation, the §7 tree, and index.json read/write:**
+**Before you start:** Run the Setup section above to create `$T_CFG`, `$T_STATE`, `$WORKSPACE`, and the environment variables.
+
+**Steps:**
+
+1. Path and layout generation:
 
 ```bash
 go test -run 'TestDefaultStateRoot|TestCanonicalize|TestWorkspaceHash|TestSessionID|TestSessionPath|TestNewLayout|TestLayoutCreateSession|TestLayoutCreateSessionSortable|TestLayoutLastSession|TestIndexPathAndUsagePath|TestLayoutIndexJSONSchema|TestReadIndexMissing|TestWriteAndReadIndex|TestIndexSetUpdatesEntry|TestIndexMultipleWorkspaces' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestDefaultStateRoot`
-- [ ] `--- PASS: TestCanonicalize`
-- [ ] `--- PASS: TestWorkspaceHash`
-- [ ] `--- PASS: TestSessionID`
-- [ ] `--- PASS: TestSessionPath`
-- [ ] `--- PASS: TestNewLayout`
-- [ ] `--- PASS: TestLayoutCreateSession`
-- [ ] `--- PASS: TestLayoutCreateSessionSortable`
-- [ ] `--- PASS: TestLayoutLastSession`
-- [ ] `--- PASS: TestIndexPathAndUsagePath`
-- [ ] `--- PASS: TestLayoutIndexJSONSchema`
-- [ ] `--- PASS: TestReadIndexMissing`
-- [ ] `--- PASS: TestWriteAndReadIndex`
-- [ ] `--- PASS: TestIndexSetUpdatesEntry`
-- [ ] `--- PASS: TestIndexMultipleWorkspaces`
+**Expect:** All 15 tests pass.
 
-**Usage — usage.json schema and the update path:**
+- [ ] TestDefaultStateRoot
+- [ ] TestCanonicalize
+- [ ] TestWorkspaceHash
+- [ ] TestSessionID
+- [ ] TestSessionPath
+- [ ] TestNewLayout
+- [ ] TestLayoutCreateSession
+- [ ] TestLayoutCreateSessionSortable
+- [ ] TestLayoutLastSession
+- [ ] TestIndexPathAndUsagePath
+- [ ] TestLayoutIndexJSONSchema
+- [ ] TestReadIndexMissing
+- [ ] TestWriteAndReadIndex
+- [ ] TestIndexSetUpdatesEntry
+- [ ] TestIndexMultipleWorkspaces
+
+2. Usage metadata — `usage.json` schema and updates:
 
 ```bash
 go test -run 'TestReadUsageMissing|TestWriteAndReadUsage|TestUsageAddUpdatesTotals|TestAddUsageRootUpdatesFile' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestReadUsageMissing`
-- [ ] `--- PASS: TestWriteAndReadUsage`
-- [ ] `--- PASS: TestUsageAddUpdatesTotals`
-- [ ] `--- PASS: TestAddUsageRootUpdatesFile`
+**Expect:** All 4 tests pass.
 
-**Repair-on-load — a torn final line truncates and marks the session `recovered`, never blocking startup:**
+- [ ] TestReadUsageMissing
+- [ ] TestWriteAndReadUsage
+- [ ] TestUsageAddUpdatesTotals
+- [ ] TestAddUsageRootUpdatesFile
+
+3. Repair on load — torn final lines are truncated without blocking startup:
 
 ```bash
 go test -run 'TestRepairTruncatesTornFinalLine|TestRepairNoCorruption|TestRepairEmptyFile' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestRepairTruncatesTornFinalLine`
-- [ ] `--- PASS: TestRepairNoCorruption`
-- [ ] `--- PASS: TestRepairEmptyFile`
+**Expect:** All 3 tests pass.
 
-**Gates:**
+- [ ] TestRepairTruncatesTornFinalLine
+- [ ] TestRepairNoCorruption
+- [ ] TestRepairEmptyFile
+
+4. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [ ] npm run check exits 0
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean)
+- [ ] npm run test:race exits 0
 
 ```bash
 $(go env GOPATH)/bin/govulncheck ./internal/session/...
 ```
 
-- [ ] `govulncheck ./internal/session/...` reports no vulnerabilities in Kirsch code (the full path is used so no PATH setup is needed; the binary installs to `$(go env GOPATH)/bin/govulncheck`, and `npm run tools` installs it and prints the directory)
+- [ ] govulncheck ./internal/session/... reports no vulnerabilities in Kirsch code
+
+5. Fuzz tests (10 seconds each):
 
 ```bash
 FUZZTIME=10s npm run fuzz
 ```
 
-- [ ] `FUZZTIME=10s npm run fuzz` — `FuzzSessionPathContained` survives 10s (all fuzz targets survive 10s each)
+**Expect:** All fuzz targets survive 10 seconds. `FuzzSessionPathContained` is one target you'll see.
 
-This section is the operator's independent verification of the m4-d2 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261014-05). It is the record for the five m4-d2 acceptance boxes: the §7 storage layout, `index.json` mapping, `usage.json` existence, repair-on-load → `recovered`, and the unit tests.
+- [ ] Fuzz targets pass (10s each)
+
+**If it fails:** Capture the test output and any seed corpus files if the fuzz test reports a failure case.
 
 ---
 
 ## 3 · Event Recording Wiring (m4-d3)
 
-`internal/app` wired the real M3 event stream into the session store in mission-20261014-09. `Submit()` sets `ag.Recorder` to the session store (app.go:737, store built via `ensureStore` at app.go:548/706); every plan §7 event type is recorded to JSONL — `turn.started`/`turn.completed` (app.go:959/988), `user.message`/`assistant.message`/`assistant.thinking`/`tool.completed` (store.go `Record` → event.go §7 mapping), `usage` (app.go:1069 `RecordUsage` + usage.json via `AddUsage` at app.go:1072), and `approval.scope_granted` (app.go:1318–1323 after `pol.Grant`); `assistant.delta` is excluded per the reconstruction rule (§7:360); the `user.message` `role` field was removed to match the §7 schema (fix round 2a, re-verified 2b); and the store's `OnError` hook is wired to the telemetry debug log (app.go:572–574). This section runs the integration and store tests that back the m4-d3 acceptance, grouped to match the commands below.
+**What this tests:** The session store is wired into the real event stream. Every user message, assistant reply, tool execution, usage update, and approval grant is recorded to JSONL.
 
-**Integration — a full turn records the expected event sequence, and OnError reaches telemetry:**
+**Before you start:** Scratch environment from Setup (§2).
+
+**Steps:**
+
+1. Integration — a full turn records all expected event types, and errors reach telemetry:
 
 ```bash
 go test -run 'TestSubmitRecordsFullEventSequence|TestSessionStoreOnErrorLogsToTelemetry' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestSubmitRecordsFullEventSequence`
-- [ ] `--- PASS: TestSessionStoreOnErrorLogsToTelemetry`
+**Expect:** Both tests pass.
 
-**Session store — the event mapping and error hook (the m4-d3 delta removed the `role` assertion from `TestAppendMapping`):**
+- [ ] TestSubmitRecordsFullEventSequence
+- [ ] TestSessionStoreOnErrorLogsToTelemetry
+
+2. Session store — event mapping and error hook (reusing m4-d1 tests):
 
 ```bash
 go test -run 'TestAppendMapping|TestAppendToolEvents|TestFlushDurability|TestConcurrentAppend|TestCadenceFlush|TestCloseSemantics|TestOnErrorHook' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestAppendMapping`
-- [ ] `--- PASS: TestAppendToolEvents`
-- [ ] `--- PASS: TestFlushDurability`
-- [ ] `--- PASS: TestConcurrentAppend`
-- [ ] `--- PASS: TestCadenceFlush`
-- [ ] `--- PASS: TestCloseSemantics`
-- [ ] `--- PASS: TestOnErrorHook`
+**Expect:** All 7 tests pass.
 
-**Gates:**
+- [ ] TestAppendMapping
+- [ ] TestAppendToolEvents
+- [ ] TestFlushDurability
+- [ ] TestConcurrentAppend
+- [ ] TestCadenceFlush
+- [ ] TestCloseSemantics
+- [ ] TestOnErrorHook
+
+3. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [ ] npm run check exits 0
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree; the m4-d2 close's green race run was a lucky pass). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+**Expect:** Test passes. Note: `TestRunTurnApprovalToolUsesApprovalPath` in `internal/app/turn_adapter_test.go:348` is a known pre-existing flake (fails ~2/10 runs under `-race`). If it fails, retry; if it persists across multiple runs, note it in your report.
+
+- [ ] npm run test:race exits 0
 
 ```bash
 $(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/...
 ```
 
-- [ ] `govulncheck ./internal/session/... ./internal/app/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+- [ ] govulncheck reports no vulnerabilities in Kirsch code (standard library vulnerabilities are pre-existing)
 
-This section is the operator's independent verification of the m4-d3 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261014-09). It is the record for the seven m4-d3 acceptance boxes: `app.Submit()` sets `ag.Recorder`; every §7 event type recorded (user.message, assistant.message, assistant.thinking, tool.completed, usage, approval.scope_granted, turn.started/turn.completed; assistant.delta excluded); usage feeds usage.json; OnError wired to telemetry; the user.message role-field deviation removed; and the integration test.
+**If it fails:** Capture the test output. If `TestRunTurnApprovalToolUsesApprovalPath` fails, note how many attempts it took to pass.
 
 ---
 
 ## 4 · Resume Reconstruction (m4-d4)
 
-`internal/session` gained `Resume(path)` in mission-20261015-01. It rebuilds the
-`*agent.Conversation` and a plain `Transcript` from the JSONL session log per the
-locked reconstruction rule (plan §7): only `user.message`/`assistant.message`/
-`assistant.thinking`/`tool.completed` contribute; `assistant.delta` is explicitly
-skipped (UI replay only); `compaction.applied` replaces the conversation range
-with the summary, leaving the transcript intact; tool-call ids correlate via a
-pending map with `ErrMalformedSession` on mismatch/duplicate/orphan; and
-consecutive `user.message`/`tool.completed` merge (the `RecordMerge` semantics
-the store is documented to provide). This section runs the unit and race tests
-that back the m4-d4 acceptance, grouped to match the commands below. Tick each
-box as you run it.
+**What this tests:** Kirsch rebuilds the conversation and transcript from a session file by replaying the correct event types in the correct order. Tool call IDs are validated, and torn final lines are handled.
 
-**Reconstruction + round-trip — the four event types rebuild the conversation and transcript, and full store-write/resume cycles are byte-identical:**
+**Before you start:** Scratch environment from Setup.
+
+**Steps:**
+
+1. Reconstruction + round-trip — events are replayed into conversation and transcript; full write/read cycles are byte-identical:
 
 ```bash
 go test -run 'TestResumeEmptyFile|TestResumeMergesConsecutiveUserMessages|TestResumeReconstructsAssistantText|TestResumeReconstructsAssistantThinking|TestResumeReconstructsToolCallAndResult|TestResumeMergesConsecutiveToolResults|TestResumeRoundTripAllEventTypes|TestResumeRoundTripMerge' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestResumeEmptyFile`
-- [ ] `--- PASS: TestResumeMergesConsecutiveUserMessages`
-- [ ] `--- PASS: TestResumeReconstructsAssistantText`
-- [ ] `--- PASS: TestResumeReconstructsAssistantThinking`
-- [ ] `--- PASS: TestResumeReconstructsToolCallAndResult`
-- [ ] `--- PASS: TestResumeMergesConsecutiveToolResults`
-- [ ] `--- PASS: TestResumeRoundTripAllEventTypes`
-- [ ] `--- PASS: TestResumeRoundTripMerge`
+**Expect:** All 8 tests pass.
 
-**Delta-ignoring + compaction + torn-line repair — `assistant.delta` is skipped, `compaction.applied` replaces the conversation range only, and an invalid final line truncates like repair-on-load:**
+- [ ] TestResumeEmptyFile
+- [ ] TestResumeMergesConsecutiveUserMessages
+- [ ] TestResumeReconstructsAssistantText
+- [ ] TestResumeReconstructsAssistantThinking
+- [ ] TestResumeReconstructsToolCallAndResult
+- [ ] TestResumeMergesConsecutiveToolResults
+- [ ] TestResumeRoundTripAllEventTypes
+- [ ] TestResumeRoundTripMerge
+
+2. Delta exclusion, compaction, and torn-line repair:
 
 ```bash
 go test -run 'TestResumeIgnoresAssistantDelta|TestResumeAppliesCompactionToConversationNotTranscript|TestResumeTornLineTruncates' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestResumeIgnoresAssistantDelta`
-- [ ] `--- PASS: TestResumeAppliesCompactionToConversationNotTranscript`
-- [ ] `--- PASS: TestResumeTornLineTruncates`
+**Expect:** All 3 tests pass.
 
-**Malformed sessions — a tool.id mismatch, duplicate, orphan, empty assistant.message, or out-of-bounds compaction range returns `ErrMalformedSession` (distinct from torn-line repair):**
+- [ ] TestResumeIgnoresAssistantDelta
+- [ ] TestResumeAppliesCompactionToConversationNotTranscript
+- [ ] TestResumeTornLineTruncates
+
+3. Malformed session detection — tool ID mismatches, duplicates, orphans, empty messages, and compaction range errors:
 
 ```bash
 go test -run 'TestResumeReturnsMalformedSessionOnToolMismatch|TestResumeReturnsMalformedSessionOnDuplicateToolResult|TestResumeReturnsMalformedSessionOnOrphanToolResult|TestResumeReturnsMalformedSessionOnEmptyAssistantMessage|TestResumeReturnsMalformedSessionOnCompactionRangeOutOfBounds' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnToolMismatch`
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnDuplicateToolResult`
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnOrphanToolResult`
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnEmptyAssistantMessage`
-- [ ] `--- PASS: TestResumeReturnsMalformedSessionOnCompactionRangeOutOfBounds`
+**Expect:** All 5 tests pass.
 
-**Gates:**
+- [ ] TestResumeReturnsMalformedSessionOnToolMismatch
+- [ ] TestResumeReturnsMalformedSessionOnDuplicateToolResult
+- [ ] TestResumeReturnsMalformedSessionOnOrphanToolResult
+- [ ] TestResumeReturnsMalformedSessionOnEmptyAssistantMessage
+- [ ] TestResumeReturnsMalformedSessionOnCompactionRangeOutOfBounds
+
+4. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [ ] npm run check exits 0
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree; the m4-d2 close's green race run was a lucky pass). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+- [ ] npm run test:race exits 0
 
 ```bash
 $(go env GOPATH)/bin/govulncheck ./internal/session/...
 ```
 
-- [ ] `govulncheck ./internal/session/...` reports no vulnerabilities in Kirsch code (the full path is used so no PATH setup is needed; the binary installs to `$(go env GOPATH)/bin/govulncheck`, and `npm run tools` installs it and prints the directory)
+- [ ] govulncheck ./internal/session/... reports no vulnerabilities in Kirsch code
+
+5. Fuzz tests:
 
 ```bash
 FUZZTIME=10s npm run fuzz
 ```
 
-- [ ] `FUZZTIME=10s npm run fuzz` — `FuzzResume` survives 10s (all fuzz targets survive 10s each)
+- [ ] Fuzz targets pass (`FuzzResume` is one; all survive 10s)
 
-This section is the operator's independent verification of the m4-d4 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261015-01). It is the record for the six m4-d4 acceptance boxes: `session.Resume(path)` returns the reconstructed `*agent.Conversation` and transcript; reconstruction uses only `user.message`/`assistant.message`/`assistant.thinking`/`tool.completed` (never `assistant.delta`); `assistant.delta` is ignored; `compaction.applied` replaces the compacted range with the summary; tool call ids correlate; and the unit tests reconstruct from JSONL with all event types and verify the conversation matches the original.
+**If it fails:** Capture the test output and any fuzz seed corpus that triggered the failure.
 
 ---
 
 ## 5 · Resume State + CLI (m4-d5)
 
-`cmd/kirsch` gained the `resume` subcommand and `--new` flag plus no-flags
-auto-resume via `index.json` in mission-20261015-04. `chooseSessionInit`
-(main.go:151) routes the `resume` subcommand to `App.ResumeLastSession`
-(main.go:152–155), the `--new` flag to `App.StartNewSession` (main.go:157–160),
-and the no-flags path to auto-resume when `cfg.Session.AutoResume` is true
-(config.go:74/:114, default true) — falling back to a fresh session with a
-distinguishing notice on any resume error, so startup never blocks (main.go:162–175,
-fix round 2a, re-verified 2b). `internal/app` wires `ResumeLastSession`
-(app.go:599) → `Layout.LastSession` (app.go:613) + `session.Resume`, restores
-session-scoped grants from `approval.scope_granted` events via `session.LoadGrants`
-→ the existing `policy.Grant` API (app.go:661–675; apply_patch grants correctly
-skipped, `ErrPatchGrantForbidden`, policy.go:165–166), and restores pending state
-(`a.conv` = the reconstructed `*agent.Conversation`, app.go:647–648). The resumed
-transcript is rendered in the TUI via `tui.TranscriptLoadedMsg` (messages.go:171),
-including the ui-spec ⚠ recovered-session warning and the truncation-point notice
-(update.go:292–297). This section runs the unit, CLI-routing, and integration tests
-that back the m4-d5 acceptance, grouped to match the commands below. Tick each box
-as you run it.
+**What this tests:** The CLI `kirsch resume` command, `--new` flag, and auto-resume (default) load the last session, restore grants, and show prior transcript in the TUI. Errors fall back to a fresh session without blocking startup.
 
-**Grants restoration — `approval.scope_granted` events replay through `policy.Grant`; patch grants refused:**
+**Before you start:** Scratch environment from Setup.
+
+**Steps:**
+
+1. Grants restoration — `approval.scope_granted` events are replayed through the grant API:
 
 ```bash
 go test -run 'TestLoadGrantsReadsScopeGrantedEvents|TestLoadGrantsStopsAtTornLine|TestLoadGrantsEmptyFile|TestLoadGrantsMissingFile' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestLoadGrantsReadsScopeGrantedEvents`
-- [ ] `--- PASS: TestLoadGrantsStopsAtTornLine`
-- [ ] `--- PASS: TestLoadGrantsEmptyFile`
-- [ ] `--- PASS: TestLoadGrantsMissingFile`
+**Expect:** All 4 tests pass.
 
-**CLI session-init routing — `resume` / `--new` / auto-resume (incl. the error-fallback paths):**
+- [ ] TestLoadGrantsReadsScopeGrantedEvents
+- [ ] TestLoadGrantsStopsAtTornLine
+- [ ] TestLoadGrantsEmptyFile
+- [ ] TestLoadGrantsMissingFile
+
+2. CLI routing — `resume`, `--new`, and auto-resume (with error fallback):
 
 ```bash
 go test -run 'TestChooseSessionInitResume|TestChooseSessionInitNewFlag|TestChooseSessionInitAutoResumeNoSession|TestChooseSessionInitAutoResumeResumeError|TestChooseSessionInitAutoResumeDisabled' -v ./cmd/kirsch/
 ```
 
-- [ ] `--- PASS: TestChooseSessionInitResume`
-- [ ] `--- PASS: TestChooseSessionInitNewFlag`
-- [ ] `--- PASS: TestChooseSessionInitAutoResumeNoSession`
-- [ ] `--- PASS: TestChooseSessionInitAutoResumeResumeError`
-- [ ] `--- PASS: TestChooseSessionInitAutoResumeDisabled`
+**Expect:** All 5 tests pass.
 
-**Integration — quit mid-task, resume, complete the turn: identical transcript, grants, valid message array:**
+- [ ] TestChooseSessionInitResume
+- [ ] TestChooseSessionInitNewFlag
+- [ ] TestChooseSessionInitAutoResumeNoSession
+- [ ] TestChooseSessionInitAutoResumeResumeError
+- [ ] TestChooseSessionInitAutoResumeDisabled
+
+3. Integration — quit mid-task, resume, and complete: transcript and grants are identical:
 
 ```bash
 go test -run 'TestResumeCompletesPartialTurn' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestResumeCompletesPartialTurn`
+**Expect:** Test passes.
 
-**Gates:**
+- [ ] TestResumeCompletesPartialTurn
+
+4. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [ ] npm run check exits 0
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md. This m4-d5 close-out run was green.
+- [ ] npm run test:race exits 0
 
 ```bash
 $(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/...
 ```
 
-- [ ] `govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+- [ ] govulncheck reports no vulnerabilities in Kirsch code
 
-**Operator-observed (optional, not automated) — the manual TUI resume path:**
+5. Hands-on — manual TUI resume (operator-observed):
 
-This step is operator-observed only; it is modelled on the M3 §8 pattern and is not covered by an automated test. Set up the scratch environment from the Setup section, then:
+Set up a test by starting Kirsch and quitting mid-task, then restarting:
 
 ```bash
 cd /Volumes/DATA/Github/kirsch
 export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
-# Start Kirsch, begin a task, and quit mid-turn (Ctrl+C twice / /quit before the turn completes)
+# Start Kirsch, begin a task, and quit mid-turn (Ctrl+C twice or /quit before the turn finishes)
 go run ./cmd/kirsch --workspace "$WORKSPACE"
 # Restart with no flags — Kirsch auto-resumes the last session
 go run ./cmd/kirsch --workspace "$WORKSPACE"
 ```
 
-- [ ] (operator-observed) the resumed TUI shows the prior transcript (the ⚠ recovered-session warning if the session was repaired) and the active grants restored from the prior session
-- [ ] (operator-observed) continuing the turn from the resumed state completes it and the transcript is identical to a non-interrupted run
+**Expect:** The resumed TUI shows prior transcript (with a recovered-session warning if the session was repaired) and active grants from before.
 
-This section is the operator's independent verification of the m4-d5 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261015-04). It is the record for the six m4-d5 acceptance boxes: `kirsch resume` loads the last session via `index.json`; `kirsch --new` starts fresh even if a last session exists; with no flags Kirsch auto-resumes the last session; session-scoped grants are restored from `approval.scope_granted` events; pending state (the in-progress turn) is restored; and the integration test — quit mid-task, resume, complete the turn — yields an identical transcript, grants, and a valid message array.
+- [ ] Resumed TUI shows prior transcript with any recovery notice
+- [ ] Active grants are restored from the prior session
+- [ ] Completing the turn from the resumed state matches a non-interrupted run
+
+**If it fails:** Capture the transcript, any warning messages, and the command you used to start Kirsch.
 
 ---
 
 ## 6 · Single-Instance Guard (m4-d6)
 
-`internal/session` gained advisory `flock` support in mission-20261016-02. `Acquire(root, workspace)` takes a non-blocking advisory `flock` on `<workspace-hash>/.lock` (Unix only; non-unix stub at lock_other.go:28, not supported in v0.1); `Release` at lock.go:63, `Close` at :79; `ErrLockHeld` at lock_error.go:8. `cmd/kirsch/main.go:202` calls `(*App).AcquireLock` at startup before the resume decision; on lock held, app.go:522 sends `another Kirsch is running here`, app.go:528–529 logs and guard off; app.go:1469 `canApproveForSession` withholds approval; status bar internal/tui/statusbar.go:39–40 shows `⚠ another Kirsch is running here`. This section runs the unit, integration, and CLI-routing tests that back the m4-d6 acceptance, grouped to match the commands below.
+**What this tests:** Only one Kirsch instance can run in the same workspace at a time. A second instance shows a warning, doesn't auto-resume, and disables session grants.
 
-**Lock acquisition and second-instance detection — `Acquire` on `<workspace-hash>/.lock`, `ConcurrentInstance()` on lock failure:**
+**Before you start:** Scratch environment from Setup.
+
+**Steps:**
+
+1. Lock acquisition — first instance locks the workspace, second instance contends:
 
 ```bash
 go test -run 'TestAcquireSucceeds|TestSecondAcquireContends' -v ./internal/session/ && go test -run 'TestAcquireLockNonHeldError' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestAcquireSucceeds`
-- [ ] `--- PASS: TestSecondAcquireContends`
-- [ ] `--- PASS: TestAcquireLockNonHeldError`
+**Expect:** All 3 tests pass.
 
-**Second-instance degradation — sessionGrantsDisabled flag, auto-resume skipped:**
+- [ ] TestAcquireSucceeds
+- [ ] TestSecondAcquireContends
+- [ ] TestAcquireLockNonHeldError
+
+2. Second-instance degradation — session grants are disabled:
 
 ```bash
 go test -run 'TestLockSecondInstanceDegrades' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestLockSecondInstanceDegrades`
+- [ ] TestLockSecondInstanceDegrades
 
-**Integration — two instances in same workspace, second degrades:**
+3. Integration — two instances in same workspace:
 
 ```bash
 go test -run 'TestLockSecondInstanceDegrades' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestLockSecondInstanceDegrades`
+- [ ] TestLockSecondInstanceDegrades
 
-**CLI routing — explicit `kirsch resume` refused, auto-resume skipped when concurrent instance:**
+4. CLI routing — `kirsch resume` is refused when locked, auto-resume is skipped:
 
 ```bash
 go test -run 'TestChooseSessionInitExplicitResumeConcurrentInstance|TestChooseSessionInitAutoResumeConcurrentInstance' -v ./cmd/kirsch/
 ```
 
-- [ ] `--- PASS: TestChooseSessionInitExplicitResumeConcurrentInstance`
-- [ ] `--- PASS: TestChooseSessionInitAutoResumeConcurrentInstance`
+- [ ] TestChooseSessionInitExplicitResumeConcurrentInstance
+- [ ] TestChooseSessionInitAutoResumeConcurrentInstance
 
-**Status bar — the `⚠ another Kirsch is running here` glyph:**
+5. Status bar — the warning glyph appears:
 
 ```bash
 go test -run 'TestStatusWarningRendersWithGlyph' -v ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestStatusWarningRendersWithGlyph`
+- [ ] TestStatusWarningRendersWithGlyph
 
-**Gates:**
+6. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [ ] npm run check exits 0
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+- [ ] npm run test:race exits 0
 
 ```bash
 $(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/... ./internal/tui/...
 ```
 
-- [ ] `govulncheck ./internal/session/... ./internal/app/... ./cmd/kirsch/... ./internal/tui/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+- [ ] govulncheck reports no vulnerabilities in Kirsch code
 
-**Operator-observed (optional, not automated) — the manual guard in a running TUI:**
+7. Hands-on — two terminal windows (operator-observed):
 
-This step is operator-observed only; it is modelled on the M3 §8 pattern and is not covered by an automated test. Set up the scratch environment from the Setup section, with two terminal windows open to the same `$WORKSPACE`:
+Terminal A (holds the lock):
 
-Terminal A (hold the lock):
 ```bash
 cd /Volumes/DATA/Github/kirsch
 export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
 go run ./cmd/kirsch --workspace "$WORKSPACE"
 ```
 
-Terminal B (attempt to start while A holds the lock):
+Terminal B (tries to start in the same workspace):
+
 ```bash
 cd /Volumes/DATA/Github/kirsch
 export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
 go run ./cmd/kirsch --workspace "$WORKSPACE"
 ```
 
-- [ ] (operator-observed) Terminal A acquires the lock and runs normally
-- [ ] (operator-observed) Terminal B shows `⚠ another Kirsch is running here` in the status bar
-- [ ] (operator-observed) Terminal B does not auto-resume (shows a fresh workspace, no prior session transcript)
-- [ ] (operator-observed) Terminal B offers no session-grant approval option (if a session grant check is available, no `[a]` approval-for-session key is shown)
-- [ ] (operator-observed) In Terminal B, `kirsch resume` is refused (no `resume` subcommand available when locked out)
-- [ ] (operator-observed) Quit Terminal A (Ctrl+C twice or `/quit`), then Terminal B continues — it now acquires the lock and proceeds normally
+**Expect:**
+- Terminal A acquires the lock and runs normally
+- Terminal B shows `⚠ another Kirsch is running here` in the status bar
+- Terminal B does not auto-resume (shows a fresh workspace)
+- Terminal B offers no session-grant approval (no `[a]` key shown)
+- Terminal B's `kirsch resume` command is refused
+- Quit Terminal A, and Terminal B now acquires the lock and proceeds normally
 
-**Optional: Lock-unavailable case — state directory unwritable (tests the `lock unavailable — single-instance guard off` fallback):**
+- [ ] Terminal A acquires the lock and runs normally
+- [ ] Terminal B shows the warning glyph in the status bar
+- [ ] Terminal B does not auto-resume
+- [ ] Terminal B offers no session-grant approval option
+- [ ] Terminal B's `kirsch resume` is refused
+- [ ] Quit Terminal A, Terminal B acquires the lock and proceeds normally
 
-This is optional testing of the fallback path when the lock file cannot be created. For example, make `$T_STATE/kirsch` unwritable and verify:
-
-```bash
-chmod 000 "$T_STATE"/kirsch/sessions/$(cd "$WORKSPACE" && stat -f '%A' . | xargs -I {} python3 -c "import hashlib; print(hashlib.sha256(b'$(pwd)').hexdigest()[:16])")
-go run ./cmd/kirsch --workspace "$WORKSPACE"
-chmod 755 "$T_STATE"/kirsch/sessions/$(cd "$WORKSPACE" && stat -f '%A' . | xargs -I {} python3 -c "import hashlib; print(hashlib.sha256(b'$(pwd)').hexdigest()[:16])")
-```
-
-- [ ] (optional) Lock unavailable warning appears; app still starts and session grants are disabled (as tested in integration tests)
-- [ ] (optional) Note: this uses a 200ms settle window; testing may need retry tolerance for heavy load
-
-This section is the operator's independent verification of the m4-d6 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261016-02). It is the record for the four m4-d6 acceptance boxes: on start Kirsch takes advisory `flock` on `<workspace-hash>/.lock`; second instance in same workspace does not auto-resume (starts fresh), shows `⚠ another Kirsch is running here`, and disables session-scoped grants; unit tests for lock acquisition and second-instance degradation; and integration test verifying two instances.
+**If it fails:** Note which terminal showed unexpected behaviour and capture the status bar text.
 
 ---
 
 ## 7 · Compaction (m4-d7)
 
-`internal/session` gained `type Compaction` in mission-20261017-02. The `PlanCompaction` and `Compact` functions estimate the request budget (if estimated > 75% of context window − 4096 output reserve), build a model request keeping the original task and last 4 turns verbatim with a structured summary of turns in between (Objective, Files inspected, Key findings, Files changed, Commands run, Open questions). Cancellation before or after the summary returns leaves the session unchanged and never half-applies. Failure (provider error, empty summary, timeout) surfaces `context_overflow` and directs the user to `/new`. ALL thinking blocks are dropped, never summarised (every assembled block carries the `DropOnSummary` flag anyway). The `compaction.applied` event records the replaced range and summary. This section runs the unit, integration, and TUI tests that back the m4-d7 acceptance.
+**What this tests:** Kirsch compacts long conversation histories by calling the model with a summary prompt, keeping the original task and last 4 turns verbatim, and replacing the middle. Thinking blocks are never summarised. Cancellation leaves the session unchanged. Errors surface `context_overflow`.
 
-**Session compaction — planning, structure, thinking handling:**
+**Before you start:** Scratch environment from Setup.
+
+**Steps:**
+
+1. Planning — when to compact and what to keep:
 
 ```bash
 go test -run 'TestPlanCompactionNotEnoughTurns|TestPlanCompactionEmptySlice|TestPlanCompactionSevenTurns|TestPlanCompactionFirstMessageKept|TestPlanCompactionToolResultOnlyDoesNotStartTurn|TestThinkingBlocksNotInSummaryRequest' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestPlanCompactionNotEnoughTurns`
-- [ ] `--- PASS: TestPlanCompactionEmptySlice`
-- [ ] `--- PASS: TestPlanCompactionSevenTurns`
-- [ ] `--- PASS: TestPlanCompactionFirstMessageKept`
-- [ ] `--- PASS: TestPlanCompactionToolResultOnlyDoesNotStartTurn`
-- [ ] `--- PASS: TestThinkingBlocksNotInSummaryRequest`
+**Expect:** All 6 tests pass.
 
-**Compaction correctness — immutability, request shape, thinking preservation, cancellation, error handling:**
+- [ ] TestPlanCompactionNotEnoughTurns
+- [ ] TestPlanCompactionEmptySlice
+- [ ] TestPlanCompactionSevenTurns
+- [ ] TestPlanCompactionFirstMessageKept
+- [ ] TestPlanCompactionToolResultOnlyDoesNotStartTurn
+- [ ] TestThinkingBlocksNotInSummaryRequest
+
+2. Compaction correctness — immutability, thinking preservation, cancellation, error handling:
 
 ```bash
 go test -run 'TestCompactionSuccessPathImmutability|TestCompactionRequestShape|TestThinkingBlocksPreservedInResult|TestCompactionCancellation|TestCompactionModelError|TestCompactionEmptySummary|TestCompactionWhitespaceOnlySummary|TestCompactionCancelAndEmit|TestCompactionEventError|TestCompactionWithFiveTurns|TestCompactionRoundTrip|TestCompactionRoundTripWithToolCalls|TestCompactionOriginalTaskAndLastFourPreserved' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestCompactionSuccessPathImmutability`
-- [ ] `--- PASS: TestCompactionRequestShape`
-- [ ] `--- PASS: TestThinkingBlocksPreservedInResult`
-- [ ] `--- PASS: TestCompactionCancellation`
-- [ ] `--- PASS: TestCompactionModelError`
-- [ ] `--- PASS: TestCompactionEmptySummary`
-- [ ] `--- PASS: TestCompactionWhitespaceOnlySummary`
-- [ ] `--- PASS: TestCompactionCancelAndEmit`
-- [ ] `--- PASS: TestCompactionEventError`
-- [ ] `--- PASS: TestCompactionWithFiveTurns`
-- [ ] `--- PASS: TestCompactionRoundTrip`
-- [ ] `--- PASS: TestCompactionRoundTripWithToolCalls`
-- [ ] `--- PASS: TestCompactionOriginalTaskAndLastFourPreserved`
+**Expect:** All 13 tests pass.
 
-**App compaction integration — threshold logic, request flow, cancellation, failure:**
+- [ ] TestCompactionSuccessPathImmutability
+- [ ] TestCompactionRequestShape
+- [ ] TestThinkingBlocksPreservedInResult
+- [ ] TestCompactionCancellation
+- [ ] TestCompactionModelError
+- [ ] TestCompactionEmptySummary
+- [ ] TestCompactionWhitespaceOnlySummary
+- [ ] TestCompactionCancelAndEmit
+- [ ] TestCompactionEventError
+- [ ] TestCompactionWithFiveTurns
+- [ ] TestCompactionRoundTrip
+- [ ] TestCompactionRoundTripWithToolCalls
+- [ ] TestCompactionOriginalTaskAndLastFourPreserved
+
+3. App integration — threshold, request flow, cancellation, failure:
 
 ```bash
 go test -run 'TestSubmitBelowThresholdSendsOneRequestAndNoCompaction|TestSubmitAboveThresholdCompactsThenRunsTheTurn|TestSubmitCancelDuringCompactionLeavesSessionUntouched|TestSubmitCancelAfterSummaryBeforeSwapNeverHalfApplies|TestSubmitCompactionProviderErrorSurfacesContextOverflow|TestSubmitFewerThanSixTurnsOverBudgetSurfacesContextOverflow|TestSubmitOverBudgetCompactsInsteadOfRefusing|TestSubmitStillOverBudgetAfterCompactionSurfacesContextOverflow|TestSubmitCompactionSurvivesResume' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestSubmitBelowThresholdSendsOneRequestAndNoCompaction`
-- [ ] `--- PASS: TestSubmitAboveThresholdCompactsThenRunsTheTurn`
-- [ ] `--- PASS: TestSubmitCancelDuringCompactionLeavesSessionUntouched`
-- [ ] `--- PASS: TestSubmitCancelAfterSummaryBeforeSwapNeverHalfApplies`
-- [ ] `--- PASS: TestSubmitCompactionProviderErrorSurfacesContextOverflow`
-- [ ] `--- PASS: TestSubmitFewerThanSixTurnsOverBudgetSurfacesContextOverflow`
-- [ ] `--- PASS: TestSubmitOverBudgetCompactsInsteadOfRefusing`
-- [ ] `--- PASS: TestSubmitStillOverBudgetAfterCompactionSurfacesContextOverflow`
-- [ ] `--- PASS: TestSubmitCompactionSurvivesResume`
+**Expect:** All 9 tests pass.
 
-**TUI compaction messages — status bar glyph, header update:**
+- [ ] TestSubmitBelowThresholdSendsOneRequestAndNoCompaction
+- [ ] TestSubmitAboveThresholdCompactsThenRunsTheTurn
+- [ ] TestSubmitCancelDuringCompactionLeavesSessionUntouched
+- [ ] TestSubmitCancelAfterSummaryBeforeSwapNeverHalfApplies
+- [ ] TestSubmitCompactionProviderErrorSurfacesContextOverflow
+- [ ] TestSubmitFewerThanSixTurnsOverBudgetSurfacesContextOverflow
+- [ ] TestSubmitOverBudgetCompactsInsteadOfRefusing
+- [ ] TestSubmitStillOverBudgetAfterCompactionSurfacesContextOverflow
+- [ ] TestSubmitCompactionSurvivesResume
+
+4. TUI messages — status bar and header updates:
 
 ```bash
 go test -run 'TestCompactingMsgSetsBusyVerbCompacting|TestSessionCompactedMsgMarksHeaderCompactedAndKeepsBusy|TestCompactingBusyIsClearedByTurnErrorMsg|TestCompactingBusyIsClearedByTurnCancelledMsg' -v ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestCompactingMsgSetsBusyVerbCompacting`
-- [ ] `--- PASS: TestSessionCompactedMsgMarksHeaderCompactedAndKeepsBusy`
-- [ ] `--- PASS: TestCompactingBusyIsClearedByTurnErrorMsg`
-- [ ] `--- PASS: TestCompactingBusyIsClearedByTurnCancelledMsg`
+**Expect:** All 4 tests pass.
 
-**Gates:**
+- [ ] TestCompactingMsgSetsBusyVerbCompacting
+- [ ] TestSessionCompactedMsgMarksHeaderCompactedAndKeepsBusy
+- [ ] TestCompactingBusyIsClearedByTurnErrorMsg
+- [ ] TestCompactingBusyIsClearedByTurnCancelledMsg
+
+5. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [ ] npm run check exits 0
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree; the m4-d2 close's green race run was a lucky pass). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+- [ ] npm run test:race exits 0
 
 ```bash
 $(go env GOPATH)/bin/govulncheck ./internal/session/... ./internal/app/...
 ```
 
-- [ ] `govulncheck ./internal/session/... ./internal/app/...` — 10 pre-existing operator-deferred vulnerabilities in the Go standard library (`net/http` at `go1.25.13`, fixed in `go1.26.9`); none are in the changed code. The operator's dependency decision is pending.
+- [ ] govulncheck reports no vulnerabilities in Kirsch code
 
-This section is the operator's independent verification of the m4-d7 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261017-02). It is the record for the seven m4-d7 acceptance boxes: compaction is a model call using the session's provider and model; it keeps the original task and last 4 turns verbatim with a structured summary of the middle; it is cancellable (cancelled compaction leaves session uncompacted and turn unstarted); on failure it surfaces `context_overflow` telling the user to `/new`; thinking blocks are dropped (never summarised, all assembled blocks carry the DropOnSummary flag); `compaction.applied` event recorded with range and summary; and unit tests covering planning, thinking preservation, cancellation, and failure handling.
+**If it fails:** Capture the test output and any error messages about context budget calculations.
 
 ---
 
 ## 8 · Slash Commands for Real (m4-d8)
 
-`internal/tui` and `internal/app` gained the real slash commands in mission-20261017-03. The commands operate on real session state: `/status` shows model, endpoint, base_url, key source, proxy, context file + size, branch, `dirty N`, `session <id|none>`, `tokens in N out N cache N` and `compaction N%`, plus `grants N|none`; `/diff` shows the working tree diff (background run, no UI block, 10s timeout, 200 KiB cap); `/files` lists workspace paths touched by successful `apply_patch` calls this session; `/approvals` lists active grants and confirms clearing; `/new` starts a new session (confirms if a turn is in flight); `/compact` triggers manual compaction on demand; `/quit` and `/exit` quit; and an unknown `/command` shows a dim inline hint, never an error card. This section runs the unit, app, and integration tests that back the m4-d8 acceptance, grouped to match the commands below.
+**What this tests:** Commands like `/status`, `/diff`, `/files`, `/approvals`, `/new`, `/compact`, `/quit` operate on real session state.
 
-**`/status` fields — model, branch, dirty count, session id, tokens (in/out/cache), compaction %, context file, grants:**
+**Before you start:** Scratch environment from Setup.
+
+**Steps:**
+
+1. `/status` fields — model, session ID, token counts, compaction %, grants:
 
 ```bash
 go test -run 'TestStatusInfoShowsAccumulatedTokens|TestStatusInfoSessionID|TestStatusInfoCompactionPercent|TestStatusInfoActiveGrants|TestStatusInfoDirtyCount' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestStatusInfoShowsAccumulatedTokens`
-- [ ] `--- PASS: TestStatusInfoSessionID`
-- [ ] `--- PASS: TestStatusInfoCompactionPercent`
-- [ ] `--- PASS: TestStatusInfoActiveGrants`
-- [ ] `--- PASS: TestStatusInfoDirtyCount`
+**Expect:** All 5 tests pass.
 
-**`/diff` shows working tree diff (background, 10s timeout, 200 KiB cap, unstaged only):**
+- [ ] TestStatusInfoShowsAccumulatedTokens
+- [ ] TestStatusInfoSessionID
+- [ ] TestStatusInfoCompactionPercent
+- [ ] TestStatusInfoActiveGrants
+- [ ] TestStatusInfoDirtyCount
+
+2. `/diff` — shows working tree diff (background, non-blocking, 200 KiB cap):
 
 ```bash
 go test -run 'TestDiffCommandDoesNotBlockUpdate|TestDiffCommandOpensModalWithCallbackLines|TestDiffCommandCleanTreeShowsNotice|TestDiffCommandErrorShowsNotice|TestDiffCommandWithoutCallbackShowsNotice|TestDiffResultTruncationMarkerDerivesFromCap|TestDiffResultDoesNotReplaceAnOpenModal|TestDiffModalLinesAreSanitised|TestDiffResultIgnoresStaleSequence|TestDiffResultDroppedAfterNewSession|TestDiffResultBlockedByConfirmPrompt|TestGetDiffCountsExactlyAndExcludesUntracked|TestGetDiffCleanTreeIsEmptyWithNoError|TestGetDiffErrorPaths|TestGetDiffHeaderExclusionStopsAtFirstHunk|TestGetDiffSanitisesLines|TestGetDiffAppliesTheByteCap|TestCountDiffLinesStatesTheHeaderRule|TestDiffCommandThroughRealWiring' -v ./internal/tui/ ./internal/app/ ./cmd/kirsch/
 ```
 
-- [ ] `--- PASS: TestDiffCommandDoesNotBlockUpdate`
-- [ ] `--- PASS: TestDiffCommandOpensModalWithCallbackLines`
-- [ ] `--- PASS: TestDiffCommandCleanTreeShowsNotice`
-- [ ] `--- PASS: TestDiffCommandErrorShowsNotice`
-- [ ] `--- PASS: TestDiffCommandWithoutCallbackShowsNotice`
-- [ ] `--- PASS: TestDiffResultTruncationMarkerDerivesFromCap`
-- [ ] `--- PASS: TestDiffResultDoesNotReplaceAnOpenModal`
-- [ ] `--- PASS: TestDiffModalLinesAreSanitised`
-- [ ] `--- PASS: TestDiffResultIgnoresStaleSequence`
-- [ ] `--- PASS: TestDiffResultDroppedAfterNewSession`
-- [ ] `--- PASS: TestDiffResultBlockedByConfirmPrompt`
-- [ ] `--- PASS: TestGetDiffCountsExactlyAndExcludesUntracked`
-- [ ] `--- PASS: TestGetDiffCleanTreeIsEmptyWithNoError`
-- [ ] `--- PASS: TestGetDiffErrorPaths`
-- [ ] `--- PASS: TestGetDiffHeaderExclusionStopsAtFirstHunk`
-- [ ] `--- PASS: TestGetDiffSanitisesLines`
-- [ ] `--- PASS: TestGetDiffAppliesTheByteCap`
-- [ ] `--- PASS: TestCountDiffLinesStatesTheHeaderRule`
-- [ ] `--- PASS: TestDiffCommandThroughRealWiring`
+**Expect:** All 19 tests pass.
 
-**`/files` lists files touched by `apply_patch` this session (cleaned, de-duplicated, reset on resume):**
+- [ ] TestDiffCommandDoesNotBlockUpdate
+- [ ] TestDiffCommandOpensModalWithCallbackLines
+- [ ] TestDiffCommandCleanTreeShowsNotice
+- [ ] TestDiffCommandErrorShowsNotice
+- [ ] TestDiffCommandWithoutCallbackShowsNotice
+- [ ] TestDiffResultTruncationMarkerDerivesFromCap
+- [ ] TestDiffResultDoesNotReplaceAnOpenModal
+- [ ] TestDiffModalLinesAreSanitised
+- [ ] TestDiffResultIgnoresStaleSequence
+- [ ] TestDiffResultDroppedAfterNewSession
+- [ ] TestDiffResultBlockedByConfirmPrompt
+- [ ] TestGetDiffCountsExactlyAndExcludesUntracked
+- [ ] TestGetDiffCleanTreeIsEmptyWithNoError
+- [ ] TestGetDiffErrorPaths
+- [ ] TestGetDiffHeaderExclusionStopsAtFirstHunk
+- [ ] TestGetDiffSanitisesLines
+- [ ] TestGetDiffAppliesTheByteCap
+- [ ] TestCountDiffLinesStatesTheHeaderRule
+- [ ] TestDiffCommandThroughRealWiring
+
+3. `/files` — lists files touched by successful patches (cleaned, de-duplicated, reset on resume):
 
 ```bash
 go test -run 'TestFilesCommandListsPaths|TestFilesCommandEmptyNotice|TestFilesCommandWithoutCallbackShowsNotice|TestFilesCommandSanitisesPaths|TestToolExecutorRecordsTouchedFilesOnlyForSuccessfulPatches|TestAddTouchedFileNormalisesAndDeduplicates' -v ./internal/tui/ ./internal/app/
 ```
 
-- [ ] `--- PASS: TestFilesCommandListsPaths`
-- [ ] `--- PASS: TestFilesCommandEmptyNotice`
-- [ ] `--- PASS: TestFilesCommandWithoutCallbackShowsNotice`
-- [ ] `--- PASS: TestFilesCommandSanitisesPaths`
-- [ ] `--- PASS: TestToolExecutorRecordsTouchedFilesOnlyForSuccessfulPatches`
-- [ ] `--- PASS: TestAddTouchedFileNormalisesAndDeduplicates`
+**Expect:** All 6 tests pass.
 
-**`/approvals` lists active grants and confirms clearing (y/n/Esc):**
+- [ ] TestFilesCommandListsPaths
+- [ ] TestFilesCommandEmptyNotice
+- [ ] TestFilesCommandWithoutCallbackShowsNotice
+- [ ] TestFilesCommandSanitisesPaths
+- [ ] TestToolExecutorRecordsTouchedFilesOnlyForSuccessfulPatches
+- [ ] TestAddTouchedFileNormalisesAndDeduplicates
+
+4. `/approvals` — lists grants and confirms clearing:
 
 ```bash
 go test -run 'TestApprovalsNoticeSanitisesGrants' -v ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestApprovalsNoticeSanitisesGrants`
+- [ ] TestApprovalsNoticeSanitisesGrants
 
-**`/new` starts new session with confirm if turn in flight (resets conversation, tokens, compaction, touched, grants):**
+5. `/new` — starts new session with confirm if turn running:
 
 ```bash
 go test -run 'TestSlashNewRunsCallbackInCmdAndResetsOnDone|TestSlashNewDoesNotBlockUpdate|TestSlashNewFailureKeepsTranscript|TestNewSessionIsolatesTheOldTurnFromTheNewSession|TestNewSessionFailureLeavesTheSessionIntact|TestSubmitRefusesWhileNewSessionWaitsForATurn|TestSlashNewThroughRealWiringStartsANewSession' -v ./internal/tui/ ./internal/app/ ./cmd/kirsch/
 ```
 
-- [ ] `--- PASS: TestSlashNewRunsCallbackInCmdAndResetsOnDone`
-- [ ] `--- PASS: TestSlashNewDoesNotBlockUpdate`
-- [ ] `--- PASS: TestSlashNewFailureKeepsTranscript`
-- [ ] `--- PASS: TestNewSessionIsolatesTheOldTurnFromTheNewSession`
-- [ ] `--- PASS: TestNewSessionFailureLeavesTheSessionIntact`
-- [ ] `--- PASS: TestSubmitRefusesWhileNewSessionWaitsForATurn`
-- [ ] `--- PASS: TestSlashNewThroughRealWiringStartsANewSession`
+**Expect:** All 7 tests pass.
 
-**`/compact` triggers manual compaction on demand (status bar shows `compacting`, no turn start):**
+- [ ] TestSlashNewRunsCallbackInCmdAndResetsOnDone
+- [ ] TestSlashNewDoesNotBlockUpdate
+- [ ] TestSlashNewFailureKeepsTranscript
+- [ ] TestNewSessionIsolatesTheOldTurnFromTheNewSession
+- [ ] TestNewSessionFailureLeavesTheSessionIntact
+- [ ] TestSubmitRefusesWhileNewSessionWaitsForATurn
+- [ ] TestSlashNewThroughRealWiringStartsANewSession
+
+6. `/compact` — manual compaction on demand (no turn start):
 
 ```bash
 go test -run 'TestCompactCommandHoldsBusyUntilRealOutcome|TestCompactCommandRefusesSubmitAndKeepsBusyOnEsc|TestManualCompactMsgOutcomesShowDistinctNotices|TestCompactCommandWithoutCallback|TestManualCompactAppliesWithoutStartingATurn|TestManualCompactWithTooFewTurnsReportsNothing|TestManualCompactProviderErrorIsAFailureNotAnOverflow|TestManualCompactCancelDuringModelCallReportsCancelled|TestManualCompactCancelAfterSummaryBeforeSwapNeverHalfApplies|TestManualCompactRefusesWhileATurnIsLive|TestSubmitRefusesWhileManualCompactIsRunning' -v ./internal/tui/ ./internal/app/
 ```
 
-- [ ] `--- PASS: TestCompactCommandHoldsBusyUntilRealOutcome`
-- [ ] `--- PASS: TestCompactCommandRefusesSubmitAndKeepsBusyOnEsc`
-- [ ] `--- PASS: TestManualCompactMsgOutcomesShowDistinctNotices`
-- [ ] `--- PASS: TestCompactCommandWithoutCallback`
-- [ ] `--- PASS: TestManualCompactAppliesWithoutStartingATurn`
-- [ ] `--- PASS: TestManualCompactWithTooFewTurnsReportsNothing`
-- [ ] `--- PASS: TestManualCompactProviderErrorIsAFailureNotAnOverflow`
-- [ ] `--- PASS: TestManualCompactCancelDuringModelCallReportsCancelled`
-- [ ] `--- PASS: TestManualCompactCancelAfterSummaryBeforeSwapNeverHalfApplies`
-- [ ] `--- PASS: TestManualCompactRefusesWhileATurnIsLive`
-- [ ] `--- PASS: TestSubmitRefusesWhileManualCompactIsRunning`
+**Expect:** All 11 tests pass.
 
-**Dirty count on real workspace state:**
+- [ ] TestCompactCommandHoldsBusyUntilRealOutcome
+- [ ] TestCompactCommandRefusesSubmitAndKeepsBusyOnEsc
+- [ ] TestManualCompactMsgOutcomesShowDistinctNotices
+- [ ] TestCompactCommandWithoutCallback
+- [ ] TestManualCompactAppliesWithoutStartingATurn
+- [ ] TestManualCompactWithTooFewTurnsReportsNothing
+- [ ] TestManualCompactProviderErrorIsAFailureNotAnOverflow
+- [ ] TestManualCompactCancelDuringModelCallReportsCancelled
+- [ ] TestManualCompactCancelAfterSummaryBeforeSwapNeverHalfApplies
+- [ ] TestManualCompactRefusesWhileATurnIsLive
+- [ ] TestSubmitRefusesWhileManualCompactIsRunning
+
+7. Dirty count and diff driver blocking:
 
 ```bash
 go test -run 'TestDirtyCount|TestDirtyCountNonGitAndErrorBranches' -v ./internal/workspace/
 ```
 
-- [ ] `--- PASS: TestDirtyCount`
-- [ ] `--- PASS: TestDirtyCountNonGitAndErrorBranches`
-
-**Diff driver blocking — `--no-ext-diff --no-textconv`:**
+- [ ] TestDirtyCount
+- [ ] TestDirtyCountNonGitAndErrorBranches
 
 ```bash
 go test -run 'TestDiffArgsShape|TestGitDiffDoesNotRunConfiguredDiffDrivers' -v ./internal/tool/
 ```
 
-- [ ] `--- PASS: TestDiffArgsShape`
-- [ ] `--- PASS: TestGitDiffDoesNotRunConfiguredDiffDrivers`
+- [ ] TestDiffArgsShape
+- [ ] TestGitDiffDoesNotRunConfiguredDiffDrivers
 
-**Gates:**
+8. Hands-on — run the commands manually (operator-observed):
+
+```bash
+cd /Volumes/DATA/Github/kirsch
+export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+```
+
+Then in Kirsch, try each command:
+
+- [ ] `/status` shows model, session ID, tokens, compaction %, grants
+- [ ] `/diff` shows the working tree (clean or with changes), scrollable
+- [ ] `/files` after patches shows touched files (empty before any patches)
+- [ ] `/approvals` lists grants (empty or with active grants)
+- [ ] `/new` creates a new session and changes the session ID in `/status`
+- [ ] `/compact` (if ≥6 turns run) compacts; otherwise shows "nothing to compact yet"
+- [ ] `/quit` and `/exit` exit Kirsch
+- [ ] An unknown command like `/hello` shows a dim hint, never an error
+
+9. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [ ] npm run check exits 0
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`, proven pre-existing by the Step 2b stash protocol on the clean pre-delta tree). A full green run can require a retry; widen the collector timeout or count terminal messages if it trips. See *Carried from m4-d3* in plan/PROGRESS.md.
+- [ ] npm run test:race exits 0
 
-This section is the operator's independent verification of the m4-d8 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261017-03). It is the record for the nine m4-d8 acceptance boxes: `/status` fields; `/diff` on dirty/clean tree, background run, block UI block, 200 KiB cap, unstaged only, late result dropped, over modal/confirm; `/files` on touched paths, cleaned, de-duplicated, reset on resume; `/approvals` with/without grants confirming clear (y/n/Esc); `/new` with confirm if turn running, isolation, failure handling; `/compact` on demand without turn start, status glyph, notices, message refusal, failure handling; dirty count; and diff driver blocking.
+**If it fails:** Capture the command you ran, the output you saw, and any error messages in the status bar or modal.
 
 ---
 
 ## 9 · Token and Cost Tracking (m4-d9)
 
-`internal/provider`, `internal/session`, `internal/app`, `internal/agent`, and `internal/tui` gained token and cost tracking in mission-20261017-05. `usage` events are recorded to `usage.json` as cumulative totals (prompt, completion, cache-read, cache-write, total, cost_usd). The status bar shows session totals `in N out N cache R/W · $cost` (4 decimals for costs < $0.01, 2 otherwise), with fallback `N tok` on narrow terminals. Cost is calculated per call at that call's model price; cache-write price is 1.25× input and unverified. An unknown model degrades gracefully with a once-per-session notice and uses the smallest context window in the model table (currently 128000) as the conservative budget. Protected by an advisory flock on `usage.json.lock` (~1s retry, then drops the increment and logs a warning). A JSON-corrupt file is moved aside to `usage.json.corrupt-<UTC nanosecond stamp>` and counting restarts. This section runs the unit, integration, and TUI tests that back the m4-d9 acceptance.
+**What this tests:** Kirsch tracks token usage (input, output, cache read/write) and cost per call, persists totals to `usage.json`, shows them in the status bar, and handles unknown models gracefully.
 
-**Provider — cost calculation and unknown-model handling:**
+**Before you start:** Scratch environment from Setup.
+
+**Steps - Automated tests:**
+
+1. Provider — cost calculation for known and unknown models:
 
 ```bash
 go test -run 'TestUnknownModelFallback|TestCostPerTokenModel|TestCostFlatModel|TestCostUnknownModel|TestCostAllPerTokenModels|TestCostZeroTokens|TestConservativeBudgetEqualsTableMinimum|TestConservativeBudgetFollowsTheTable|TestCostStateStrings' -v ./internal/provider/
 ```
 
-- [ ] `--- PASS: TestUnknownModelFallback`
-- [ ] `--- PASS: TestCostPerTokenModel`
-- [ ] `--- PASS: TestCostFlatModel`
-- [ ] `--- PASS: TestCostUnknownModel`
-- [ ] `--- PASS: TestCostAllPerTokenModels`
-- [ ] `--- PASS: TestCostZeroTokens`
-- [ ] `--- PASS: TestConservativeBudgetEqualsTableMinimum`
-- [ ] `--- PASS: TestConservativeBudgetFollowsTheTable`
-- [ ] `--- PASS: TestCostStateStrings`
+**Expect:** All 9 tests pass.
 
-**Session usage — file I/O, corruption recovery, concurrency, locking:**
+- [ ] TestUnknownModelFallback
+- [ ] TestCostPerTokenModel
+- [ ] TestCostFlatModel
+- [ ] TestCostUnknownModel
+- [ ] TestCostAllPerTokenModels
+- [ ] TestCostZeroTokens
+- [ ] TestConservativeBudgetEqualsTableMinimum
+- [ ] TestConservativeBudgetFollowsTheTable
+- [ ] TestCostStateStrings
 
-```bash
-go test -run 'TestUsageAddUpdatesTotals|TestAddUsageRootUpdatesFile|TestUsageAccumulationWithUnknownCost|TestUsageBackwardCompatibility|TestAddUsageConcurrentGoroutines|TestAddUsageCorruptFileRecovery|TestAddUsageRecoveriesInOneSecondKeepBothFiles|TestAddUsageUnreadableFileLeftUntouched|TestWriteJSONFileRemovesTempWhenRenameFails|TestWriteJSONFileLeavesNoTempOnSuccess|TestWriteJSONFileConcurrentWritersNeverCollide' -v ./internal/session/
-```
-
-- [ ] `--- PASS: TestUsageAddUpdatesTotals`
-- [ ] `--- PASS: TestAddUsageRootUpdatesFile`
-- [ ] `--- PASS: TestUsageAccumulationWithUnknownCost`
-- [ ] `--- PASS: TestUsageBackwardCompatibility`
-- [ ] `--- PASS: TestAddUsageConcurrentGoroutines`
-- [ ] `--- PASS: TestAddUsageCorruptFileRecovery`
-- [ ] `--- PASS: TestAddUsageRecoveriesInOneSecondKeepBothFiles`
-- [ ] `--- PASS: TestAddUsageUnreadableFileLeftUntouched`
-- [ ] `--- PASS: TestWriteJSONFileRemovesTempWhenRenameFails`
-- [ ] `--- PASS: TestWriteJSONFileLeavesNoTempOnSuccess`
-- [ ] `--- PASS: TestWriteJSONFileConcurrentWritersNeverCollide`
-
-**Lock — advisory flock on usage.json.lock:**
+2. Session usage — file I/O, corruption recovery, concurrency, locking:
 
 ```bash
-go test -run 'TestAddUsageWaitsForHeldLock|TestAddUsageReturnsErrLockHeldWhenLockStaysHeld|TestTryLockInterruptHandling' -v ./internal/session/
+go test -run 'TestUsageAddUpdatesTotals|TestAddUsageRootUpdatesFile|TestUsageAccumulationWithUnknownCost|TestUsageBackwardCompatibility|TestAddUsageConcurrentGoroutines|TestAddUsageCorruptFileRecovery|TestAddUsageRecoveriesInOneSecondKeepBothFiles|TestAddUsageUnreadableFileLeftUntouched|TestWriteJSONFileRemovesTempWhenRenameFails|TestWriteJSONFileLeavesNoTempOnSuccess|TestWriteJSONFileConcurrentWritersNeverCollide|TestAddUsageWaitsForHeldLock|TestAddUsageReturnsErrLockHeldWhenLockStaysHeld|TestTryLockInterruptHandling' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestAddUsageWaitsForHeldLock`
-- [ ] `--- PASS: TestAddUsageReturnsErrLockHeldWhenLockStaysHeld`
-- [ ] `--- PASS: TestTryLockInterruptHandling`
+**Expect:** All 14 tests pass.
 
-**Compaction — usage recorded before, during and after compaction:**
+- [ ] TestUsageAddUpdatesTotals
+- [ ] TestAddUsageRootUpdatesFile
+- [ ] TestUsageAccumulationWithUnknownCost
+- [ ] TestUsageBackwardCompatibility
+- [ ] TestAddUsageConcurrentGoroutines
+- [ ] TestAddUsageCorruptFileRecovery
+- [ ] TestAddUsageRecoveriesInOneSecondKeepBothFiles
+- [ ] TestAddUsageUnreadableFileLeftUntouched
+- [ ] TestWriteJSONFileRemovesTempWhenRenameFails
+- [ ] TestWriteJSONFileLeavesNoTempOnSuccess
+- [ ] TestWriteJSONFileConcurrentWritersNeverCollide
+- [ ] TestAddUsageWaitsForHeldLock
+- [ ] TestAddUsageReturnsErrLockHeldWhenLockStaysHeld
+- [ ] TestTryLockInterruptHandling
+
+3. Compaction — usage recorded before, during, and after:
 
 ```bash
 go test -run 'TestCompactionUsageCapture|TestCompactionUsageReturnedOnError|TestCompactionUsageReturnedOnEveryErrorPath' -v ./internal/session/
 ```
 
-- [ ] `--- PASS: TestCompactionUsageCapture`
-- [ ] `--- PASS: TestCompactionUsageReturnedOnError`
-- [ ] `--- PASS: TestCompactionUsageReturnedOnEveryErrorPath`
+- [ ] TestCompactionUsageCapture
+- [ ] TestCompactionUsageReturnedOnError
+- [ ] TestCompactionUsageReturnedOnEveryErrorPath
 
-**App — session totals accumulation and per-call pricing:**
-
-```bash
-go test -run 'TestSubmitSendsExactSessionTotalsPerTurn|TestSessionCostPricesEachCallAtItsOwnModel|TestSubmitCompactionSendsSessionTotals|TestManualCompactSendsSessionTotals|TestSessionTotalsRestartAfterNewSession|TestUnknownModelNoticeOnceAcrossTwoTurns|TestKnownModelShowsNoUnknownNotice|TestUnknownModelNoticeAgainAfterNewSession' -v ./internal/app/
-```
-
-- [ ] `--- PASS: TestSubmitSendsExactSessionTotalsPerTurn`
-- [ ] `--- PASS: TestSessionCostPricesEachCallAtItsOwnModel`
-- [ ] `--- PASS: TestSubmitCompactionSendsSessionTotals`
-- [ ] `--- PASS: TestManualCompactSendsSessionTotals`
-- [ ] `--- PASS: TestSessionTotalsRestartAfterNewSession`
-- [ ] `--- PASS: TestUnknownModelNoticeOnceAcrossTwoTurns`
-- [ ] `--- PASS: TestKnownModelShowsNoUnknownNotice`
-- [ ] `--- PASS: TestUnknownModelNoticeAgainAfterNewSession`
-
-**Compaction error paths — usage recorded on all failure paths:**
+4. App — session totals and per-call pricing:
 
 ```bash
-go test -run 'TestSubmitCompactionRecordsSummaryAndTurnUsage|TestManualCompactRecordsSummaryUsage|TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched|TestManualCompactStreamErrorRecordsUsage|TestRecordUsageReportsCorruptUsageFileThroughLogger' -v ./internal/app/
+go test -run 'TestSubmitSendsExactSessionTotalsPerTurn|TestSessionCostPricesEachCallAtItsOwnModel|TestSubmitCompactionSendsSessionTotals|TestManualCompactSendsSessionTotals|TestSessionTotalsRestartAfterNewSession|TestUnknownModelNoticeOnceAcrossTwoTurns|TestKnownModelShowsNoUnknownNotice|TestUnknownModelNoticeAgainAfterNewSession|TestSubmitCompactionRecordsSummaryAndTurnUsage|TestManualCompactRecordsSummaryUsage|TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched|TestManualCompactStreamErrorRecordsUsage|TestRecordUsageReportsCorruptUsageFileThroughLogger' -v ./internal/app/
 ```
 
-- [ ] `--- PASS: TestSubmitCompactionRecordsSummaryAndTurnUsage`
-- [ ] `--- PASS: TestManualCompactRecordsSummaryUsage`
-- [ ] `--- PASS: TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched`
-- [ ] `--- PASS: TestManualCompactStreamErrorRecordsUsage`
-- [ ] `--- PASS: TestRecordUsageReportsCorruptUsageFileThroughLogger`
+**Expect:** All 13 tests pass.
 
-**Wiring — usage event reaches the status bar through the real pipeline:**
+- [ ] TestSubmitSendsExactSessionTotalsPerTurn
+- [ ] TestSessionCostPricesEachCallAtItsOwnModel
+- [ ] TestSubmitCompactionSendsSessionTotals
+- [ ] TestManualCompactSendsSessionTotals
+- [ ] TestSessionTotalsRestartAfterNewSession
+- [ ] TestUnknownModelNoticeOnceAcrossTwoTurns
+- [ ] TestKnownModelShowsNoUnknownNotice
+- [ ] TestUnknownModelNoticeAgainAfterNewSession
+- [ ] TestSubmitCompactionRecordsSummaryAndTurnUsage
+- [ ] TestManualCompactRecordsSummaryUsage
+- [ ] TestSubmitCompactionFailureRecordsUsageAndLeavesSessionUntouched
+- [ ] TestManualCompactStreamErrorRecordsUsage
+- [ ] TestRecordUsageReportsCorruptUsageFileThroughLogger
+
+5. Wiring — usage event reaches the status bar:
 
 ```bash
 go test -run 'TestProviderEventToAgentMapsUsage|TestUsageNonzero|TestUsageEventThroughRealWiringReachesTheStatusBar' -v ./internal/app/ ./internal/agent/ ./cmd/kirsch/
 ```
 
-- [ ] `--- PASS: TestProviderEventToAgentMapsUsage`
-- [ ] `--- PASS: TestUsageNonzero`
-- [ ] `--- PASS: TestUsageEventThroughRealWiringReachesTheStatusBar`
+- [ ] TestProviderEventToAgentMapsUsage
+- [ ] TestUsageNonzero
+- [ ] TestUsageEventThroughRealWiringReachesTheStatusBar
 
-**TUI rendering — status bar layout, cost format, unknown-model notice:**
+6. TUI — status bar layout and rendering:
 
 ```bash
 go test -run 'TestSessionUsageWideRender|TestSessionUsageFlatNoCost|TestSessionUsageSmallCostFormat|TestSessionUsageUnknownPricingShowsQuestionMark|TestSessionUsageCostBoundary|TestSessionUsageASCIIGlyphs|TestSessionUsageNarrowLayoutFallsBackToSessionTotal|TestStatusLadderDropsTokensBeforeGrants|TestUnknownModelNotice' -v ./internal/tui/
 ```
 
-- [ ] `--- PASS: TestSessionUsageWideRender`
-- [ ] `--- PASS: TestSessionUsageFlatNoCost`
-- [ ] `--- PASS: TestSessionUsageSmallCostFormat`
-- [ ] `--- PASS: TestSessionUsageUnknownPricingShowsQuestionMark`
-- [ ] `--- PASS: TestSessionUsageCostBoundary`
-- [ ] `--- PASS: TestSessionUsageASCIIGlyphs`
-- [ ] `--- PASS: TestSessionUsageNarrowLayoutFallsBackToSessionTotal`
-- [ ] `--- PASS: TestStatusLadderDropsTokensBeforeGrants`
-- [ ] `--- PASS: TestUnknownModelNotice`
+- [ ] TestSessionUsageWideRender
+- [ ] TestSessionUsageFlatNoCost
+- [ ] TestSessionUsageSmallCostFormat
+- [ ] TestSessionUsageUnknownPricingShowsQuestionMark
+- [ ] TestSessionUsageCostBoundary
+- [ ] TestSessionUsageASCIIGlyphs
+- [ ] TestSessionUsageNarrowLayoutFallsBackToSessionTotal
+- [ ] TestStatusLadderDropsTokensBeforeGrants
+- [ ] TestUnknownModelNotice
 
-**Gates:**
+**Steps - Hands-on tests (requires live model or config):**
+
+7. Inspect `usage.json` — where it lives and its structure:
+
+```bash
+grep -r "DefaultStateRoot\|share/kirsch" /Volumes/DATA/Github/kirsch/internal/session/layout.go
+```
+
+**Expect:** Shows `~/.local/share/kirsch/` as the default state root. In this walkthrough, usage.json is at `$XDG_STATE_HOME/kirsch/usage.json` because `$XDG_STATE_HOME` is set.
+
+- [ ] Default state root is `~/.local/share/kirsch/`
+
+8. Run a turn with a live model (optional — requires API key):
+
+```bash
+cd /Volumes/DATA/Github/kirsch
+export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+# (in Kirsch) read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
+# (in Kirsch) type a short message and press Enter
+```
+
+**Expect:** Status bar shows `in N out N cache R/W · $cost`. Token count is > 0. Cost is > $0.
+
+- [ ] Status bar shows tokens and cost after a live turn
+- [ ] Cost is non-zero
+- [ ] `/status` shows the same token counts
+- [ ] `usage.json` contains cumulative totals (prompt, completion, cache read/write, total, cost)
+- [ ] A second turn shows accumulated totals (`in 2N out 2M`)
+
+9. Unknown model (no key needed):
+
+```bash
+cat > "$T_CFG/kirsch/config.toml" << 'EOF'
+[provider.opencode]
+model = "unknown-model-xyz"
+EOF
+# Restart Kirsch
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+# (in Kirsch) type a message
+```
+
+**Expect:** Status bar shows a once-per-session notice and uses `?` for cost.
+
+- [ ] Status bar shows `cost display unavailable, conservative budget in use`
+- [ ] `/status` shows `$?` instead of cost
+- [ ] After `/new`, the notice appears again
+
+10. Compaction usage:
+
+Run ≥6 turns (fast with fake provider) and then `/compact`.
+
+**Expect:** Status bar shows `compacting` during compaction. After, `/status` shows total tokens including the compaction call.
+
+- [ ] Status bar shows `compacting` during compaction
+- [ ] After compaction, `/status` shows total tokens including the summary call
+- [ ] `usage.json` includes usage for the compaction call itself
+
+11. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [ ] npm run check exits 0
 
 ```bash
 npm run test:race
 ```
 
-- [ ] `npm run test:race` exits 0 (race-enabled test run clean) — NOTE: `TestRunTurnApprovalToolUsesApprovalPath` (`internal/app/turn_adapter_test.go:348`) is a known PRE-EXISTING flake (2/10 under `-race`). A full green run can require a retry.
+- [ ] npm run test:race exits 0
 
-This section is the operator's independent verification of the m4-d9 acceptance (the boxes in milestone-4.md are already ticked with mission evidence — mission-20261017-05). It is the record for the five m4-d9 acceptance boxes: `usage` events recorded to `usage.json`; status bar shows real token counts; unknown models degrade with warning and conservative budget; cost calculated from model pricing; and 38 unit tests covering usage accumulation, unknown-model degradation, file I/O, corruption recovery, concurrency, locking, compaction, session totals, per-call pricing, error paths, wiring and TUI rendering.
+**If it fails:** Capture the test output, the status bar text, and the contents of `usage.json` (without revealing the API key).
 
 ---
 
 ## 10 · Final-Task Report (m4-d10)
 
-**Testable.** The system prompt (internal/agent/prompt/system.md §6) enforces the final-task report format: every task that took actions must end with a structured report (Summary, Files changed, Commands run with PASS/FAIL, Limitations). A pure question may be answered without a report. The report structure is preserved across compaction: the compaction prompt preserves the most recent report verbatim. This section runs the unit tests that back the m4-d10 acceptance.
+**What this tests:** Every task that makes file changes must end with a structured report (Summary, Files changed, Commands run with PASS/FAIL, Limitations). The report format is preserved across compaction.
 
-**Automated — unit tests verifying system prompt and compaction:**
+**Before you start:** Scratch environment from Setup (§2). Optional: API key for live testing.
 
-(a) System prompt enforcement:
+**Steps - Automated:**
+
+1. System prompt enforcement:
 
 ```bash
 go test -count=1 -run 'TestAssembleFinalReportEnforcement' ./internal/agent/prompt/
 ```
 
-- [ ] `--- PASS: TestAssembleFinalReportEnforcement`
+- [ ] TestAssembleFinalReportEnforcement
 
-(b) Compaction prompt preservation and structure:
+2. Compaction preservation:
 
 ```bash
 go test -count=1 -run 'TestCompactionSystemPromptCommandOutcomes|TestCompactionSystemPromptPreservesFinalReport|TestCompactionRequestShape' ./internal/session/
 ```
 
-- [ ] `--- PASS: TestCompactionSystemPromptCommandOutcomes`
-- [ ] `--- PASS: TestCompactionSystemPromptPreservesFinalReport`
-- [ ] `--- PASS: TestCompactionRequestShape`
+- [ ] TestCompactionSystemPromptCommandOutcomes
+- [ ] TestCompactionSystemPromptPreservesFinalReport
+- [ ] TestCompactionRequestShape
 
-(c) System prompt survives compaction:
+3. System prompt survives compaction:
 
 ```bash
 go test -count=1 -run 'TestSystemPromptSurvivesCompaction' ./internal/app/
 ```
 
-- [ ] `--- PASS: TestSystemPromptSurvivesCompaction`
+- [ ] TestSystemPromptSurvivesCompaction
 
-**Live — report production and compaction survival:**
+**Steps - Hands-on (operator-observed):**
 
-(d) Give Kirsch a small task that edits a file and runs `go test ./...`, then check that the reply ends with the four labelled report sections (Summary, Files changed, Commands run, Limitations) and that PASS/FAIL appears for each command:
+4. Give Kirsch a small task (e.g., edit a file and run `go test`):
 
-- [ ] Final report is present, properly formatted, and shows PASS/FAIL per command
+```bash
+cd /Volumes/DATA/Github/kirsch
+export XDG_STATE_HOME="$T_STATE" XDG_CONFIG_HOME="$T_CFG"
+go run ./cmd/kirsch --workspace "$WORKSPACE"
+```
 
-(e) Ask a pure question (e.g., "What is the Fibonacci sequence?") and check that no report is required:
+**Expect:** Reply ends with four labelled sections: Summary, Files changed, Commands run (with PASS/FAIL per command), Limitations.
 
-- [ ] Pure question does not require a final report
+- [ ] Final report is present with all four sections
+- [ ] PASS/FAIL appears for each command
 
-(f) Run a long session, or execute `/compact` to trigger compaction, then finish a task and check that the report is still produced (this is the only real check of survival):
+5. Ask a pure question (e.g., "What is the Fibonacci sequence?"):
 
-- [ ] Final report still appears after compaction
+**Expect:** No report required (answer only).
 
-**Gates:**
+- [ ] Pure question does not require a report
+
+6. Long session or compaction test — run ≥6 turns or execute `/compact`, then finish a task:
+
+**Expect:** Report still appears after compaction.
+
+- [ ] Final report appears after compaction
+
+7. Code quality gates:
 
 ```bash
 npm run check
 ```
 
-- [ ] `npm run check` exits 0 (fmt, vet, lint, test, screens all green)
+- [ ] npm run check exits 0
+
+**If it fails:** Capture the task you gave, the reply, and whether the report sections are present.
 
 ---
 
 ## 11 · Smoke Test (m4-d11)
 
-**Testable.** The smoke test (`scripts/smoke-test.sh`) runs Kirsch against a git-initialised temp copy of `testdata/repo-go-module` with the prompt "Add input validation to the Divide function and cover it with a test". All approval requests are auto-approved through the real approval path. The test checks that the patch applies, `go test ./...` runs and passes, and the report names exactly {calc/divide.go, calc/divide_test.go}. An offline test suite verifies the behaviour with a scripted fake provider. A live run against a real model is operator-run and costs tokens.
+**What this tests:** A complete end-to-end workflow. Kirsch is given a real coding task ("Add input validation to the Divide function and cover it with a test"), auto-approves patches, and produces a valid report.
 
-**Automated — offline unit tests:**
+**Before you start:** Scratch environment from Setup. For live test (steps 4–5): API key and a clean config.
 
-(a) Offline smoke test with positive and negative controls:
+**Steps - Automated:**
+
+1. Offline smoke test with fake provider:
 
 ```bash
+cd /Volumes/DATA/Github/kirsch
 go test -count=1 -run 'TestSmokeOffline' ./internal/app/
 ```
 
-- [ ] `--- PASS: TestSmokeOffline` (positive control + 7 negative controls)
+**Expect:** Test passes (one positive control plus the negative controls, each a `t.Run` subtest; add `-v` to list them).
 
-(b) Report parsing:
+- [ ] TestSmokeOffline (all controls pass)
+
+2. Report parsing:
 
 ```bash
 go test -count=1 -run 'TestParseReportSummary|TestParseListLines' ./internal/app/
 ```
 
-- [ ] `--- PASS: TestParseReportSummary`
-- [ ] `--- PASS: TestParseListLines`
+- [ ] TestParseReportSummary
+- [ ] TestParseListLines
 
-**Live — operator-run integration test against real model:**
+**Steps - Hands-on (operator-run, costs tokens):**
 
-(c) Key check: no API key set exits rc=2:
-
-```bash
-env -u ANTHROPIC_API_KEY -u KIRSCH_ANTHROPIC_API_KEY -u OPENCODE_API_KEY -u KIRSCH_OPENCODE_API_KEY scripts/smoke-test.sh; echo rc=$?
-```
-
-- [ ] rc=2
-
-(d) Live run (operator runs and it costs tokens, auto-approves commands in temp copy):
+3. Verify the script exits 2 when no API key is set:
 
 ```bash
-scripts/smoke-test.sh
+env -u ANTHROPIC_API_KEY -u KIRSCH_ANTHROPIC_API_KEY -u OPENCODE_API_KEY -u KIRSCH_OPENCODE_API_KEY bash scripts/smoke-test.sh
+echo rc=$?
 ```
 
-- [ ] Patch applies after auto-approval
-- [ ] `go test ./...` runs and passes
-- [ ] Report names exactly {calc/divide.go, calc/divide_test.go}
+**Expect:** Script exits with rc=2.
 
-**Optional manual check:**
+- [ ] rc=2 (no key error)
 
-(e) Run Kirsch manually in a copy of `testdata/repo-go-module`, give the prompt, approve the patch, check the report:
+4. Clean config and run the live smoke test (costs tokens on a real model):
+
+Before running steps 4–5, start with a clean config:
+
+```bash
+rm -f "$XDG_CONFIG_HOME/kirsch/config.toml"
+```
+
+Then, from the checkout root, enter the key (it is not echoed) and run the script. The script does not prompt; with no key exported it exits 2.
+
+```bash
+cd /Volumes/DATA/Github/kirsch
+read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
+bash scripts/smoke-test.sh
+echo rc=$?
+```
+
+(Keep OPENCODE_API_KEY exported for step 5; unset it at the end of step 5.)
+
+**Expect:** Script exits 0. The test runs `go test -tags smoke -count=1 -timeout 10m -run '^TestSmokeLive$' -v ./internal/app/` and checks for `--- PASS: TestSmokeLive`. The smoke test verifies: patch applies after auto-approval, `go test ./...` passes in the modified workspace, report labels are present (Summary, Files changed, Commands run, Limitations), report lists exactly {calc/divide.go, calc/divide_test.go}, git status in the temp workspace shows exactly those two files touched, the agent itself ran a `go test` command, a test passing a zero divisor exists (source scan) and `go test ./...` passes.
+
+- [ ] Script exits 0 and reports `--- PASS: TestSmokeLive`
+
+5. Manual run (optional):
+
+If you skipped step 4, first run `rm -f "$XDG_CONFIG_HOME/kirsch/config.toml"` and enter the key as in step 4.
+
+Create a temp workspace from the tracked fixture files:
+
+```bash
+SMOKE_WS=$(mktemp -d)
+cp /Volumes/DATA/Github/kirsch/testdata/repo-go-module/go.mod "$SMOKE_WS/"
+cp -r /Volumes/DATA/Github/kirsch/testdata/repo-go-module/calc "$SMOKE_WS/"
+git -C "$SMOKE_WS" init
+git -C "$SMOKE_WS" add .
+git -C "$SMOKE_WS" -c user.name=kirsch -c user.email=kirsch@example.invalid commit -m "Initial commit"
+mkdir -p "$XDG_CONFIG_HOME/kirsch"
+printf '[session]\nstorage_dir = "%s"\n' "$T_STATE/sessions" > "$XDG_CONFIG_HOME/kirsch/config.toml"
+cd /Volumes/DATA/Github/kirsch
+# The key from step 4 must still be exported.
+go run ./cmd/kirsch --workspace "$SMOKE_WS"
+# (in Kirsch) type: "Add input validation to the Divide function and cover it with a test"
+# (approve every prompt: the patch and, if asked, the agent's go test command)
+# (when the report appears, type /quit)
+```
+
+After the run, check the workspace diff, then confirm the tracked fixture was not touched:
+
+```bash
+git -C "$SMOKE_WS" diff --stat
+# (expected: calc/divide.go and calc/divide_test.go)
+rm -f "$XDG_CONFIG_HOME/kirsch/config.toml"
+rm -rf -- "$SMOKE_WS"; unset SMOKE_WS OPENCODE_API_KEY
+git status testdata/repo-go-module/
+# (should show nothing modified)
+```
+
+If a stray `.git` exists in `testdata/repo-go-module/` from an earlier run, remove it with `rm -rf testdata/repo-go-module/.git`.
+
+**Expect:** Kirsch asks to approve a patch to calc/divide.go and calc/divide_test.go (and possibly the agent's go test command); after approval the final reply has the four report sections (Summary, Files changed, Commands run with PASS/FAIL, Limitations); `git -C "$SMOKE_WS" diff --stat` (run before cleanup) shows those two files. Session files are written under `$T_STATE/sessions/` because of the scratch config above (Kirsch's default is `~/.local/share/kirsch/sessions/`; `XDG_STATE_HOME` only moves `debug.log`). Check with `ls "$T_STATE/sessions"`.
 
 - [ ] Manual run produces a valid patch and report
+
+**If it fails:** Capture the error output, the shell rc, whether the temp workspace was cleaned up, and whether `testdata/repo-go-module/` has uncommitted changes.
 
 ---
 
 ## 12 · Final Acceptance (m4-d12)
 
-**Testable (operator-gated).** This is the final walkthrough and sign-off. Sections §1–§11 cover every Milestone 4 acceptance criterion. This section runs the final gate checks and records completion.
+**Testable (operator-gated).** This section completes Milestone 4. Sections §1–§11 cover all acceptance criteria. Run the final gate checks and sign off.
 
-**Gate checks (run locally — you can do these):**
+**Steps - Gate checks (run locally):**
 
-(a) Unit tests under race detector:
+1. Race detector on full test suite:
 
 ```bash
+cd /Volumes/DATA/Github/kirsch
 go test -race -count=1 ./...
 ```
 
-- [ ] `ok` (race-enabled test run clean)
+**Expect:** All tests pass under race detector.
 
-(b) Code format:
+- [ ] ok (race-enabled full test suite passes)
+
+2. Code format (wrapped by npm script):
 
 ```bash
-golangci-lint fmt --diff
+npm run fmt:check
 ```
 
-- [ ] No changes needed (no formatting drift)
+Equivalent direct command (works whether or not golangci-lint is on PATH):
 
-(c) Code analysis:
+```bash
+bash scripts/go-tool.sh golangci-lint fmt --diff
+```
+
+**Expect:** No changes needed (no formatting drift). Note: bare `golangci-lint` is usually not on PATH. Always use the npm script or `bash scripts/go-tool.sh golangci-lint ...`; the wrapper finds it in `$(go env GOPATH)/bin`.
+
+- [ ] No changes needed
+
+3. Static analysis:
 
 ```bash
 go vet ./...
 ```
 
+**Expect:** All packages clean.
+
 - [ ] All packages clean
 
-(d) Linting:
+4. Linting (wrapped by npm script):
 
 ```bash
-golangci-lint run
+npm run lint
 ```
+
+Equivalent direct command (works whether or not golangci-lint is on PATH):
+
+```bash
+bash scripts/go-tool.sh golangci-lint run
+```
+
+**Expect:** 0 issues. Note: bare `golangci-lint` is usually not on PATH. Always use the npm script or `bash scripts/go-tool.sh golangci-lint ...`; the wrapper finds it in `$(go env GOPATH)/bin`.
 
 - [ ] 0 issues
 
-(e) Screens:
+5. Screens (UI layout):
+
+```bash
+npm run screens
+```
+
+**Expect:** `kirsch-ui-screens.md` grids and content OK.
+
+- [ ] `kirsch-ui-screens.md: grids OK, content OK`
+
+6. Code quality (all checks combined):
 
 ```bash
 npm run check
 ```
 
-- [ ] `kirsch-ui-screens.md: grids OK, content OK`
+**Expect:** All of the above pass (format, vet, lint, screens, and test).
 
-**Operator sign-off (operator does these):**
+- [ ] npm run check exits 0
 
-(f) Live smoke test (from §11d):
+**Steps - Operator sign-off:**
 
-- [ ] `scripts/smoke-test.sh` passes
+7. Live smoke test from §11:
 
-(g) Manual walkthrough §1–§11 complete:
+- [ ] `bash scripts/smoke-test.sh` passes (costs tokens; re-enter the key first as in §11 step 4 if you unset it, and make sure `$XDG_CONFIG_HOME/kirsch/config.toml` is absent)
 
-- [ ] All sections tested and ticked
+8. Sections §1–§11 complete:
 
-(h) Milestone 4 Task 9 acceptance boxes:
+- [ ] All sections tested and checked
+
+9. Milestone 4 acceptance boxes:
 
 - [ ] All boxes ticked in `plan/milestones/milestone-4.md`
 
-(i) CI green:
+10. CI green:
 
 - [ ] GitHub Actions passes
 
-(j) Milestone 4 completion:
+11. Milestone 4 complete (create tag and update progress):
 
-- [ ] `git tag m4` (creates v0.1-M4 checkpoint)
-- [ ] `plan/PROGRESS.md` line 17 set to `☑ Complete`
+- [ ] `git tag m4`
+- [ ] `plan/PROGRESS.md` Milestones table row 4 set to complete
 
 ---
 
 ## Known limitations
 
-- `npm run security` is RED pre-existing: govulncheck reports 10 vulnerabilities in `golang.org/x/net` v0.56.0 (fixed in v0.60.0) and `net/http` at `go1.25.13` (fixed in `go1.26.9`), which appeared between 2026-10-08 and 2026-10-14 with zero repository change. None are in Kirsch code; the scoped `govulncheck ./internal/session/...` is clean. The operator's dependency decision is pending.
-- m4-d1's JSONL has `omitempty` gaps: `tool.completed` omits `tool` and `duration_ms`, and `assistant.message` omits `stop_reason`. These are populated at the m4-d3 wiring, which records the real event stream.
-- No live model is needed until m4-d11. The default model `minimax-m2.7` applies there; `KIRSCH_LIVE_MODEL` overrides only the live test, not the TUI.
+- **Govulncheck:** `npm run security` reports 10 pre-existing vulnerabilities in `golang.org/x/net` v0.56.0 (fixed in v0.60.0) and Go runtime `net/http` at v1.25.13 (fixed in v1.26.9). None are in Kirsch code. The operator's dependency strategy is pending.
+- **m4-d1 JSONL gaps:** `tool.completed` omits `tool` and `duration_ms`, and `assistant.message` omits `stop_reason`. These fields are populated at m4-d3 wiring (real event stream). This is expected.
+- **Live model:** Default model is `minimax-m2.7` (plan amendment 83). The smoke test reads the config from `$XDG_CONFIG_HOME/kirsch/config.toml` and the project config; start with a clean config before §11 steps 4–5. §9 step 9 writes `model = "unknown-model-xyz"` to `$T_CFG/kirsch/config.toml`; remove that file before §11 steps 4–5 or the live smoke fails at config validation.
 
 ---
 
 ## Reporting
 
-For anything marked ❌:
+For any check marked ❌:
 
-1. The exact command and what happened
-2. Your terminal size (`echo $COLUMNS $LINES`) and whether you are in tmux
-3. The section number and case name
-4. The config file content if the case involves one
-5. The debug log (`cat "$XDG_STATE_HOME/kirsch/debug.log"`) if relevant
+1. The exact command you ran
+2. Terminal size (`echo $COLUMNS $LINES`) and whether you are in tmux
+3. Section and check name
+4. Config file content if relevant (Kirsch `config.toml`)
+5. Debug log if relevant: `cat "$XDG_STATE_HOME/kirsch/debug.log"`
 
-Never paste the API key into a report.
+Never paste API keys in reports.

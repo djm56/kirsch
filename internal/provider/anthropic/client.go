@@ -16,6 +16,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/djm56/kirsch/internal/config"
 	"github.com/djm56/kirsch/internal/provider"
@@ -33,6 +34,7 @@ const (
 	KindAuth        ErrorKind = "auth"         // 401 or 403
 	KindConfig      ErrorKind = "config"       // gateway policy error such as MissingSessionID
 	KindBadRequest  ErrorKind = "bad_request"  // any other 400
+	KindBilling     ErrorKind = "billing"      // 402; usage limit reached or billing not set up; never retried
 	KindRedirect    ErrorKind = "redirect"     // any 3xx; never followed
 	KindHTTP        ErrorKind = "http"         // any other non-2xx, or a 2xx other than 200
 	KindStream      ErrorKind = "stream"       // failure while decoding a 200 response
@@ -188,9 +190,11 @@ func (c *Client) Stream(ctx context.Context, req provider.Request, onEvent func(
 	}
 	var lastStatus int
 	var lastNetErr error
+	var lastBody []byte
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		status, headers, _, retErr, retry := c.streamAttempt(ctx, attempt, reqBody, onEvent)
+		status, headers, body, retErr, retry := c.streamAttempt(ctx, attempt, reqBody, onEvent)
 		lastStatus = status
+		lastBody = body
 		lastNetErr = nil
 		if retErr != nil && isNetworkError(retErr) {
 			lastNetErr = retErr
@@ -201,8 +205,14 @@ func (c *Client) Stream(ctx context.Context, req provider.Request, onEvent func(
 		if attempt < maxAttempts {
 			wait, waitErr := c.retryWait(status, headers, attempt)
 			if waitErr != nil {
-				if e, isErr := waitErr.(*Error); isErr && e.Attempts == 0 {
-					e.Attempts = attempt
+				if e, isErr := waitErr.(*Error); isErr {
+					if e.Attempts == 0 {
+						e.Attempts = attempt
+					}
+					// retryWait has no body; add this attempt's server text to a 429 it refused to wait for.
+					if e.Kind == KindRateLimited {
+						e.Message = withServerMessage(e.Message, c.serverMessage(body))
+					}
 				}
 				return c.fail(ctx, onEvent, waitErr)
 			}
@@ -221,9 +231,9 @@ func (c *Client) Stream(ctx context.Context, req provider.Request, onEvent func(
 	}
 	var e *Error
 	if lastStatus == 429 {
-		e = &Error{Kind: KindRateLimited, Status: lastStatus, Attempts: maxAttempts, Message: "rate limited"}
+		e = &Error{Kind: KindRateLimited, Status: lastStatus, Attempts: maxAttempts, Message: withServerMessage("rate limited", c.serverMessage(lastBody))}
 	} else {
-		e = &Error{Kind: KindUnavailable, Status: lastStatus, Attempts: maxAttempts, Message: "service unavailable", Err: lastNetErr}
+		e = &Error{Kind: KindUnavailable, Status: lastStatus, Attempts: maxAttempts, Message: withServerMessage("service unavailable", c.serverMessage(lastBody)), Err: lastNetErr}
 	}
 	return c.fail(ctx, onEvent, e)
 }
@@ -356,7 +366,81 @@ func (c *Client) doSleep(ctx context.Context, d time.Duration) error {
 	}
 }
 
-// handleNonRetryable handles non-retryable responses.
+// maxServerMessage caps the server text shown to the user, in bytes before the
+// ellipsis clip adds. The real messages seen so far run to about 120 bytes; 300
+// leaves room for a longer one while keeping the provider_error line to a few
+// terminal rows, so a hostile or runaway body cannot flood the display.
+const maxServerMessage = 300
+
+// withServerMessage returns base when msg is empty, otherwise base followed by
+// ": server said " and strconv.Quote(msg). The label marks msg as the server's
+// text; Quote escapes any quote or backslash inside msg, so the closing quote
+// is unambiguous.
+func withServerMessage(base, msg string) string {
+	if msg == "" {
+		return base
+	}
+	return base + ": server said " + strconv.Quote(msg)
+}
+
+// serverMessage returns error.message from an Anthropic-shaped error body,
+// {"type":"error","error":{"type":...,"message":...}}, made safe to display:
+// control characters (C0 including ESC, DEL, and C1 other than U+0085) and
+// Unicode format characters (category Cf, such as U+200B and the bidi
+// overrides U+202E and U+2066) are removed; each whitespace run, which
+// includes U+0085 (NEL) and U+00A0, becomes one space; the result is trimmed
+// and clipped by clip to maxServerMessage bytes. When clipped, an ellipsis of
+// 3 bytes is appended, so the result can be up to maxServerMessage+3 bytes.
+// It returns "" for an empty or non-JSON body, a body whose top-level type is
+// not "error", or one without error.message.
+// It also returns "" when the message contains the client's API key, either
+// as sent (checked first) or after control/format removal and whitespace
+// collapse (checked again on the cleaned text); the whole message
+// is dropped, never partly redacted. That guarantee covers the whole key as
+// sent: a case variant or a partial key is not detected.
+func (c *Client) serverMessage(body []byte) string {
+	var env struct {
+		Type  string `json:"type"`
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil || env.Type != "error" {
+		return ""
+	}
+	raw := env.Error.Message
+	if c.key != "" && strings.Contains(raw, c.key) {
+		return ""
+	}
+	var b strings.Builder
+	pendingSpace := false
+	for _, r := range raw {
+		switch {
+		case unicode.IsSpace(r):
+			pendingSpace = b.Len() > 0
+		case unicode.IsControl(r) || unicode.Is(unicode.Cf, r):
+			// dropped
+		default:
+			if pendingSpace {
+				b.WriteByte(' ')
+				pendingSpace = false
+			}
+			b.WriteRune(r)
+		}
+	}
+	clean := b.String()
+	// Removing control or format characters can join the pieces of a key into one run.
+	if c.key != "" && strings.Contains(clean, c.key) {
+		return ""
+	}
+	return clip(clean, maxServerMessage)
+}
+
+// handleNonRetryable handles non-retryable responses. The server's own message
+// (via serverMessage, labelled by withServerMessage) is appended for 400 other
+// than MissingSessionID, 402, 429 (rate limited and lockout) and any status
+// reaching the default case other than 3xx. These keep fixed text with no
+// server text: 401, 403, 3xx and the 400 MissingSessionID configuration error.
 func (c *Client) handleNonRetryable(status int, bodyBytes []byte, headers http.Header, attempt int, isLockout bool, reqBody []byte) *Error {
 	switch status {
 	case 401, 403:
@@ -367,19 +451,23 @@ func (c *Client) handleNonRetryable(status int, bodyBytes []byte, headers http.H
 			return &Error{Kind: KindConfig, Status: status, Attempts: attempt, Message: fmt.Sprintf("provider %q refused the request: MissingSessionID (configuration error, not retried)", c.endpoint)}
 		}
 		c.logBadRequest(string(reqBody), string(bodyBytes))
-		return &Error{Kind: KindBadRequest, Status: status, Attempts: attempt, Message: "bad request"}
+		return &Error{Kind: KindBadRequest, Status: status, Attempts: attempt, Message: withServerMessage("bad request", c.serverMessage(bodyBytes))}
+	case 402:
+		msg := withServerMessage("payment required (HTTP 402): usage limit reached or billing not set up for this key", c.serverMessage(bodyBytes))
+		return &Error{Kind: KindBilling, Status: status, Attempts: attempt, Message: msg}
 	case 429:
+		// The non-lockout branch below is defensive: Stream retries a 429 that is not a lockout.
 		if isLockout {
-			return &Error{Kind: KindLockout, Status: status, Attempts: attempt, Message: "rate limit lockout"}
+			return &Error{Kind: KindLockout, Status: status, Attempts: attempt, Message: withServerMessage("rate limit lockout", c.serverMessage(bodyBytes))}
 		}
-		return &Error{Kind: KindRateLimited, Status: status, Attempts: attempt, Message: "rate limited"}
+		return &Error{Kind: KindRateLimited, Status: status, Attempts: attempt, Message: withServerMessage("rate limited", c.serverMessage(bodyBytes))}
 	default:
 		if status >= 300 && status < 400 {
 			baseURL, _ := url.Parse(c.baseURL + "/messages")
 			host := c.getLocationHost(baseURL, headers)
 			return &Error{Kind: KindRedirect, Status: status, Attempts: attempt, Message: fmt.Sprintf("provider %q redirected (HTTP %d) to host %q; redirects are refused", c.endpoint, status, host)}
 		}
-		return &Error{Kind: KindHTTP, Status: status, Attempts: attempt, Message: fmt.Sprintf("HTTP %d", status)}
+		return &Error{Kind: KindHTTP, Status: status, Attempts: attempt, Message: withServerMessage(fmt.Sprintf("HTTP %d", status), c.serverMessage(bodyBytes))}
 	}
 }
 

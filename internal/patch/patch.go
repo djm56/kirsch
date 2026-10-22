@@ -35,7 +35,8 @@ type HunkLine struct {
 
 // Hunk represents a contiguous block of changes with context.
 // OldStart/OldLines describe the line range in the original file;
-// NewStart/NewLines describe the line range in the new file.
+// NewStart/NewLines describe the line range in the new file. OldLines and
+// NewLines are counted from the body, not taken from the @@ header.
 // Lines contains the hunk's content with prefixes preserved.
 type Hunk struct {
 	OldStart, OldLines int
@@ -82,11 +83,34 @@ func (e *ParseError) Error() string {
 
 // Parse reads a unified diff and returns the file changes.
 // It parses git diff output and hand-written unified diffs alike.
+//
+// Parse returns an error for a hunk that comes before any file header, for a
+// hunk with no --- line or no +++ line earlier in its file change, and for
+// input that yields no file change at all. A whitespace-only final fragment
+// with no newline after it is dropped before parsing, so it cannot become a
+// context line.
 func Parse(data []byte) ([]FileChange, error) {
-	p := &parser{
-		lines: strings.Split(string(data), "\n"),
+	lines := strings.Split(string(data), "\n")
+	// The last element has no newline after it. Whitespace only there is a
+	// fragment, not a body line, so it is dropped. A whitespace-only line that
+	// ends in a newline is not the last element and is kept.
+	if n := len(lines); n > 0 && strings.TrimSpace(lines[n-1]) == "" {
+		lines = lines[:n-1]
 	}
-	return p.parse()
+	p := &parser{
+		lines: lines,
+	}
+	changes, err := p.parse()
+	if err != nil {
+		return nil, err
+	}
+	if len(changes) == 0 {
+		return nil, &ParseError{
+			Kind:    ErrMissingHeader,
+			Message: "no file changes found: expected --- a/… / +++ b/… or diff --git headers",
+		}
+	}
+	return changes, nil
 }
 
 type parser struct {
@@ -145,6 +169,12 @@ func (p *parser) parse() ([]FileChange, error) {
 				return nil, err
 			}
 			changes = append(changes, change)
+		} else if strings.HasPrefix(line, "@@ ") {
+			// A hunk outside any file change belongs to no file, so it cannot be applied
+			return nil, &ParseError{
+				Kind:    ErrMissingHeader,
+				Message: fmt.Sprintf("hunk at line %d has no file header (--- a/… / +++ b/…)", p.pos+1),
+			}
 		} else {
 			p.next()
 		}
@@ -342,7 +372,15 @@ func (p *parser) parseFileChange(hasHeader bool) (FileChange, error) {
 
 		// Hunks
 		if strings.HasPrefix(line, "@@ ") {
-			hunk, err := p.parseHunk(change.originalAPath)
+			// A hunk needs both its --- and +++ lines before it. Without both, the
+			// diff does not name the file the hunk applies to, so the hunk is refused.
+			if !seenMinusLine || !seenPlusLine {
+				return FileChange{}, &ParseError{
+					Kind:    ErrMissingHeader,
+					Message: fmt.Sprintf("hunk at line %d has no file header (--- a/… / +++ b/…)", p.pos+1),
+				}
+			}
+			hunk, err := p.parseHunk(change.originalAPath, hasHeader)
 			if err != nil {
 				return FileChange{}, err
 			}
@@ -357,7 +395,10 @@ func (p *parser) parseFileChange(hasHeader bool) (FileChange, error) {
 	return change, nil
 }
 
-func (p *parser) parseHunk(filePath string) (Hunk, error) {
+// parseHunk reads one hunk, its @@ header and body. hasHeader reports whether
+// the file change began with "diff --git ", which decides how a header-like
+// pair inside the body is read.
+func (p *parser) parseHunk(filePath string, hasHeader bool) (Hunk, error) {
 	header := p.peekTrimmed()
 	p.next()
 
@@ -454,38 +495,53 @@ func (p *parser) parseHunk(filePath string) (Hunk, error) {
 		NewLines: newLines,
 	}
 
-	// Parse hunk lines - preserve CRLF in content
+	// Parse hunk lines - preserve CRLF in content.
+	// The body is counted, not trusted: the header counts never decide where
+	// the body ends. OldLines and NewLines are replaced with the counted values
+	// below, as git apply --recount does.
 	var oldCount, newCount int
 
 hunkLoop:
 	for p.hasLine() {
 		rawLine := p.peek()
 		trimmedLine := strings.TrimSuffix(rawLine, "\r")
+		st := hunkState{
+			hasHeader: hasHeader,
+			declOld:   oldLines,
+			declNew:   newLines,
+			oldCount:  oldCount,
+			newCount:  newCount,
+		}
 
-		// Stop at next hunk or file
-		if strings.HasPrefix(trimmedLine, "@@") || strings.HasPrefix(trimmedLine, "diff --git ") {
+		// Stop at next hunk, next file, or end of input
+		if p.hunkEndsAt(p.pos, st) {
 			break
 		}
 
+		// A fully empty line is a blank context line when more body lines follow
+		// before the hunk ends. Otherwise it is trailing and adds nothing.
 		if trimmedLine == "" {
-			break
-		}
-
-		// Handle "\ No newline at end of file" — special marker that doesn't count towards line arithmetic.
-		// This handler must run *before* the completion check below: the marker does not increment either
-		// oldCount or newCount, so if completion ran first, a hunk would terminate when counts matched,
-		// leaving the marker to fall through the unknown-line skip at line 354. That silently drops it,
-		// violating Task 2 rule 3 (do not silently rewrite files). Running the handler first preserves
-		// the marker and lets the completion check run after.
-		if strings.HasPrefix(trimmedLine, `\ No newline at end of file`) {
-			hunk.Lines = append(hunk.Lines, HunkLine{Prefix: '\\', Content: `No newline at end of file`})
+			if !p.bodyContinuesAt(p.pos, st) {
+				break
+			}
+			// A bare blank line keeps the CR it had, as non-empty lines do
+			content := ""
+			if len(rawLine) > len(trimmedLine) {
+				content = "\r"
+			}
+			oldCount++
+			newCount++
+			hunk.Lines = append(hunk.Lines, HunkLine{Prefix: ' ', Content: content})
 			p.next()
 			continue
 		}
 
-		// Stop if hunk is complete (counts satisfied) — but only for regular content lines
-		if oldCount == oldLines && newCount == newLines {
-			break
+		// Handle "\ No newline at end of file" — special marker that doesn't count towards line arithmetic.
+		// It is kept in the hunk and never counted, so it neither ends the hunk nor shifts the counts.
+		if strings.HasPrefix(trimmedLine, `\ No newline at end of file`) {
+			hunk.Lines = append(hunk.Lines, HunkLine{Prefix: '\\', Content: `No newline at end of file`})
+			p.next()
+			continue
 		}
 
 		prefix := trimmedLine[0]
@@ -519,26 +575,188 @@ hunkLoop:
 			// Backslash lines are already handled above
 			p.next()
 		default:
-			// Unknown prefix, end of hunk
+			// A line with another prefix is not part of the patch text. If body
+			// lines follow it before the hunk ends, ending the hunk here would drop
+			// them and report the patch as applied, so it is an error. With no body
+			// line after it, it is trailing text and ends the hunk.
+			if p.bodyFollowsAt(p.pos+1, st) {
+				return Hunk{}, &ParseError{
+					Kind:    ErrHunkCountMismatch,
+					Message: fmt.Sprintf("in %s %s: line %d is not a hunk line (it starts with neither ' ', '+', '-' nor '\\'): %q", filePath, header, p.pos+1, trimmedLine),
+				}
+			}
 			break hunkLoop
 		}
 	}
 
-	// Validate hunk arithmetic
-	if oldCount != oldLines {
+	// A body with no ' ', '+' or '-' line has nothing to recount into a hunk
+	if oldCount == 0 && newCount == 0 {
 		return Hunk{}, &ParseError{
 			Kind:    ErrHunkCountMismatch,
-			Message: fmt.Sprintf("in %s %s: old line count mismatch: declared %d, found %d", filePath, header, oldLines, oldCount),
-		}
-	}
-	if newCount != newLines {
-		return Hunk{}, &ParseError{
-			Kind:    ErrHunkCountMismatch,
-			Message: fmt.Sprintf("in %s %s: new line count mismatch: declared %d, found %d", filePath, header, newLines, newCount),
+			Message: fmt.Sprintf("in %s %s: hunk has no body lines", filePath, header),
 		}
 	}
 
+	// The declared counts are replaced by the counted values
+	hunk.OldLines = oldCount
+	hunk.NewLines = newCount
+
 	return hunk, nil
+}
+
+// hunkState is what the body loop has counted when it asks whether a line
+// ends the hunk. The counts are compared against the counts declared in the @@
+// header in two places only: a format-patch signature, in any file change, and
+// a header-like pair, in a file change that has no "diff --git " line.
+type hunkState struct {
+	hasHeader          bool // the file change began with "diff --git "
+	declOld, declNew   int  // counts declared in the @@ header
+	oldCount, newCount int  // body lines counted so far
+}
+
+// hunkEndsAt reports whether the line at index i ends the hunk body, given the
+// counts in st. The hunk ends at the end of input, at a "@@" or "diff --git "
+// line, at a format-patch signature, or at a file header: a "--- " line, a
+// "+++ " line, then an "@@" line.
+//
+// A header-like pair inside a "diff --git " change is always body, because git
+// starts the next file with "diff --git ". A header-like pair in a header-less
+// change is body until the counted lines reach the declared counts. Only then
+// does it end the hunk.
+//
+// A "-- " line is a signature only when the counted lines have reached the
+// declared counts and exactly one non-empty line follows it before the end of
+// input, that line looking like a git version (see signatureAt). A real
+// signature follows a complete hunk. A "-- " line met before the counts are
+// reached, or with no version-like line after it, is the removal of the file
+// line "- ". A format-patch with a custom --signature is therefore not
+// recognised, and its "-- " line is read as that removal.
+//
+// Known limitations, grouped by the mechanism.
+//
+// Counts short when the line is reached, because the header over-declares:
+//   - In a header-less change, the next file's "--- " and "+++ " lines are
+//     swallowed as body, so that hunk attaches to the earlier file and apply
+//     fails with patch_conflict on it, not with a parse error.
+//   - A format-patch signature after the hunk is read as the removal of "- ",
+//     and apply fails the same way.
+//
+// Counts already reached when the line is reached, because the header
+// under-declares. This is the silent case: a genuine removal of "- " as the
+// final body line, followed by exactly one non-empty line that looks like a git
+// version, is read as a signature and dropped without an error.
+func (p *parser) hunkEndsAt(i int, st hunkState) bool {
+	if i >= len(p.lines) {
+		return true
+	}
+	line := strings.TrimSuffix(p.lines[i], "\r")
+	if strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "diff --git ") {
+		return true
+	}
+	// A format-patch signature is a "-- " line that follows a hunk whose counted
+	// lines have reached the declared counts, with exactly one non-empty line after
+	// it, a version-like one.
+	if line == "-- " && st.oldCount >= st.declOld && st.newCount >= st.declNew && p.signatureAt(i+1) {
+		return true
+	}
+	if strings.HasPrefix(line, "--- ") && i+2 < len(p.lines) &&
+		strings.HasPrefix(strings.TrimSuffix(p.lines[i+1], "\r"), "+++ ") &&
+		strings.HasPrefix(strings.TrimSuffix(p.lines[i+2], "\r"), "@@") {
+		if st.hasHeader {
+			return false
+		}
+		return st.oldCount >= st.declOld && st.newCount >= st.declNew
+	}
+	return false
+}
+
+// signatureAt reports whether the lines from index i to the end of input hold
+// a format-patch signature body: exactly one non-empty line, which looks like a
+// git version (see isVersionLine), and any number of empty lines. Called just
+// after a "-- " line. With no non-empty line after it, the "-- " line is not a
+// signature.
+func (p *parser) signatureAt(i int) bool {
+	found := 0
+	for ; i < len(p.lines); i++ {
+		line := strings.TrimSuffix(p.lines[i], "\r")
+		if line == "" {
+			continue
+		}
+		found++
+		if !isVersionLine(line) {
+			return false
+		}
+	}
+	return found == 1
+}
+
+// isVersionLine reports whether line starts with a version number: one or more
+// digits, then one or more groups of a dot and one or more digits. It matches
+// "2.39.1" and "2.39.1.windows.1", and anything after the number is ignored.
+func isVersionLine(line string) bool {
+	digits := func(i int) int {
+		for i < len(line) && line[i] >= '0' && line[i] <= '9' {
+			i++
+		}
+		return i
+	}
+	i := digits(0)
+	if i == 0 {
+		return false
+	}
+	groups := 0
+	for i < len(line) && line[i] == '.' {
+		end := digits(i + 1)
+		if end == i+1 {
+			break
+		}
+		groups++
+		i = end
+	}
+	return groups > 0
+}
+
+// bodyFollowsAt reports whether a line starting with ' ', '+', '-' or '\\'
+// occurs from index i up to where the hunk ends, given the counts in st. It is
+// the test for text a stray line would cut off: lines after the hunk end are
+// not scanned, and empty lines are skipped.
+func (p *parser) bodyFollowsAt(i int, st hunkState) bool {
+	for ; i < len(p.lines) && !p.hunkEndsAt(i, st); i++ {
+		line := strings.TrimSuffix(p.lines[i], "\r")
+		if line == "" {
+			continue
+		}
+		switch line[0] {
+		case ' ', '+', '-', '\\':
+			return true
+		}
+	}
+	return false
+}
+
+// bodyContinuesAt reports whether a hunk body line follows the position i
+// before the hunk ends, given the counts in st. Empty lines from i onward are
+// skipped while looking ahead, and each is counted as context, as the body loop
+// counts it. The first non-empty line decides: a body line ' ', '+', '-' or '\'
+// continues the hunk, and anything else ends it.
+func (p *parser) bodyContinuesAt(i int, st hunkState) bool {
+	for ; i < len(p.lines); i++ {
+		line := strings.TrimSuffix(p.lines[i], "\r")
+		if line == "" {
+			st.oldCount++
+			st.newCount++
+			continue
+		}
+		if p.hunkEndsAt(i, st) {
+			return false
+		}
+		switch line[0] {
+		case ' ', '+', '-', '\\':
+			return true
+		}
+		return false
+	}
+	return false
 }
 
 // ── Helper functions ────────────────────────────────────────────────────────

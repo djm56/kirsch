@@ -87,7 +87,7 @@ func Defaults() Config {
 			Default: "opencode",
 			Endpoints: map[string]EndpointConfig{
 				"opencode": {
-					BaseURL: "https://opencode.ai/zen/go/v1", Auth: "x-api-key",
+					BaseURL: "https://opencode.ai/inference/go/anthropic/v1", Auth: "x-api-key",
 					APIKeyEnv: "OPENCODE_API_KEY", // #nosec G101 -- variable name, not a secret
 					Model:     "minimax-m2.7", PromptCaching: true, Thinking: "off",
 				},

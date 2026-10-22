@@ -1,0 +1,1 @@
+{"model":"qwen3.8-flash","max_tokens":64,"stream":true,"messages":[{"role":"user","content":"say hello"}]}

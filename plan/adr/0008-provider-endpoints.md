@@ -243,3 +243,57 @@ the provider and agent packages' exported surfaces.
   its 429 handling: honouring `Retry-After` as a transient back-off no longer
   covers a usage-limit 429, which is surfaced as a lockout (above). The rest of
   ADR 0003 stands.
+
+## Addendum — 2026-10-22 (mission-20261022-02)
+
+This addendum records changes made after the decision above. The original text
+is kept as written; where the two disagree, this addendum governs. The change
+record is plan §11 amendment 87.
+
+**The v2 base URLs.** The Context statement that OpenCode Go "serves one base
+URL, `https://opencode.ai/zen/go/v1`, in three wire formats" describes the
+2026-10-02 gateway. On 2026-10-22 the Messages path answered under
+`https://opencode.ai/inference/go/v1`, and the documented Messages path
+`https://opencode.ai/inference/go/anthropic/v1/messages` gave the same results
+for the models probed. `/models` returns 404 under `/inference/go/anthropic/v1`
+and 200 under `/inference/go/v1` (Bishop live check, 2026-10-22). The
+defaults therefore differ on purpose:
+
+- Kirsch's `opencode` default `base_url` is
+  `https://opencode.ai/inference/go/anthropic/v1` (`config.Defaults`,
+  `internal/config/config.go`). Kirsch calls only `/messages`.
+- `cmd/kirsch-probe` defaults to `https://opencode.ai/inference/go/v1`
+  (`defaultBaseURL`, `cmd/kirsch-probe/main.go`), because its S0 scenario calls
+  `/models`.
+
+The Chat Completions and Responses paths under the v2 base were not verified in
+this mission. Nothing here confirms that either format is served there.
+
+**Thinking `off` is decided per model.** `encodeThinkingFields`
+(`internal/provider/anthropic/encode.go`) sends `thinking.type="between_tools"`
+at `off` only for a model ID in `betweenToolsModels`, matched exactly. The
+verified member is `claude-sonnet-5-5`. Other members are kept for the
+`anthropic` endpoint and are not confirmed live. Any model outside the set gets
+no `thinking` field and no `output_config` field at `off`. The reason is that
+opencode Go v2 returned HTTP 400 `"thinking.type.between_tools" is not supported
+for this model` to `claude-haiku-5-5`, and `qwen3.7-plus` refused
+`between_tools` in the milestone 3 probe (`plan/testing/manual/milestone-3.md`).
+
+`minimax-m3` at `off` now does no thinking. Kirsch sends it no thinking field,
+and the live probes showed it returns no thinking without one. The "Thinking"
+paragraph's statement that `minimax-m3` thinks with `between_tools` still holds
+as a fact about the endpoint; Kirsch no longer sends that field at `off`.
+
+**Provider errors.** The adapter appends the server's `error.message`, labelled
+and sanitised, to the errors for 400, 402, 429, exhausted 5xx and other
+unrecognised statuses (`handleNonRetryable` and `withServerMessage` in
+`internal/provider/anthropic/client.go`). A 402 has its own `billing` kind, and
+it is never retried. Auth responses (401, 403) and redirects (3xx) keep fixed
+text, because auth responses are the likeliest to echo a credential and a
+redirect body is not error-shaped.
+
+**Empty thinking signatures.** A thinking block with `signature: ""` round-trips
+unchanged through decode, session storage, resume and encode. Its test is
+`TestThinkingSignatureRoundTrip` (`internal/app/signature_roundtrip_test.go`).
+It pins current behaviour and does not assert that the endpoint accepts an
+empty signature.

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/djm56/kirsch/internal/agent"
 	"github.com/djm56/kirsch/internal/tui"
 )
 
@@ -28,6 +29,14 @@ func TestSmokeLive(t *testing.T) {
 	}
 
 	e := newSmokeEnv(t, os.Getenv, nil)
+	// On failure, log every apply_patch call and its result, and the final
+	// assistant text. This is registered here so it also runs when a t.Fatalf
+	// below ends the test early.
+	e.t.Cleanup(func() {
+		logApplyPatchOnFailure(e.t.Failed(), e.t, e.a.rootCancel,
+			func(d time.Duration) bool { return waitWithin(&e.a.inFlight, d) },
+			func() []agent.Message { return e.a.conv.Messages })
+	})
 
 	// Create context with 5-minute deadline for live test.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

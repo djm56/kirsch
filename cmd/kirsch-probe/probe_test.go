@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -949,6 +950,26 @@ func TestBaseURLValidation(t *testing.T) {
 				t.Errorf("validateBaseURL(%q) error = %v, wantError = %v", tt.baseURL, err, tt.wantError)
 			}
 		})
+	}
+}
+
+// TestParseFlagsDefaultBaseURL drives parseFlags with no arguments and pins
+// the resulting baseURL to the probe's /v1 root (not Kirsch's /anthropic/v1
+// default; see the defaultBaseURL docblock). It swaps the
+// global flag set and os.Args for the call and restores both afterwards.
+func TestParseFlagsDefaultBaseURL(t *testing.T) {
+	const want = "https://opencode.ai/inference/go/v1"
+	oldArgs, oldFlags := os.Args, flag.CommandLine
+	defer func() { os.Args, flag.CommandLine = oldArgs, oldFlags }()
+	os.Args = []string{"kirsch-probe"}
+	flag.CommandLine = flag.NewFlagSet("kirsch-probe", flag.ContinueOnError)
+
+	opts := parseFlags()
+	if opts.baseURL != want {
+		t.Fatalf("default baseURL = %q, want %q", opts.baseURL, want)
+	}
+	if defaultBaseURL != want {
+		t.Fatalf("defaultBaseURL = %q, want %q", defaultBaseURL, want)
 	}
 }
 

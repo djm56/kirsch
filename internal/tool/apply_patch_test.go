@@ -66,14 +66,14 @@ func TestApplyPatchParseFailureNoApproval(t *testing.T) {
 	approver := newFakeApprover(policy.DecisionAllow)
 	tool := &ApplyPatch{WS: ws, Approver: approver}
 
-	// Invalid diff with hunk count mismatch (says 3 lines but only 2 provided)
+	// Invalid diff: a hunk header with no body. Header counts that disagree
+	// with a body are recounted and would apply, so a zero-body hunk is used
+	// to keep this a parse failure.
 	input := applyPatchInput{
 		Diff: "diff --git a/file.txt b/file.txt\n" +
 			"--- a/file.txt\n" +
 			"+++ b/file.txt\n" +
-			"@@ -1,3 +1,3 @@\n" + // Says 3 old lines, 3 new lines
-			" line1\n" +
-			"-line2\n", // Only 2 old lines total, only 2 new lines total
+			"@@ -1,3 +1,3 @@\n",
 		Description: "test",
 	}
 	raw, _ := json.Marshal(input)

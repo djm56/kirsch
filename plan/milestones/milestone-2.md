@@ -231,6 +231,7 @@ byte-for-byte for the well-formed cases.
    whitespace tolerance. On mismatch return `patch_conflict` carrying the
    offending hunk and the actual file content at that location — that text is
    what lets the model re-read and retry rather than guess.
+   **Amended 2026-10-21, mission-20261021-04:** the original intent above is kept for the record. As built, matching is still byte-exact, with no whitespace tolerance and no fuzz, but the position may move. A hunk's ' ' and '-' lines are tried at the expected position first. If they do not match there, the nearest exact match within ±10 lines (`maxRelocation` in `internal/patch/apply.go`) is used. Equally near matches fail with `patch_conflict` ("ambiguous"). A hunk never lands before the end of the previous applied hunk. A pure insertion (`-N,0`) is never relocated. It inserts after old line N, and N=0 is the start of the file. N past the end of the file fails with `patch_conflict`. No match within the window fails with `patch_conflict`, with the hunk index and old line, and names any match found outside the window. The offending hunk and the file lines around the expected position are still returned. A hunk applied away from its declared line is named in the `apply_patch` result, for example `patch applied; calc/divide_test.go hunk 2 applied at old line 11 (declared 12, offset -1)`. Otherwise the result is exactly `patch applied`.
 2. **Atomicity is the hard requirement.** A patch touching N files is
    all-or-nothing:
    - apply every file to a temp copy in the same directory (same filesystem, so
