@@ -543,11 +543,11 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 **Acceptance:**
 
 - [x] `scripts/smoke-test.sh` exists and is executable
-- [ ] Runs against `testdata/repo-go-module` with real model — pending operator live run: scripts/smoke-test.sh
+- [x] Runs against `testdata/repo-go-module` with real model — operator live run on 2026-10-23: `bash scripts/smoke-test.sh`, `--- PASS: TestSmokeLive (22.12s)`
 - [x] Prompt: "Add input validation to the Divide function and cover it with a test"
-- [x] Produces shown patch, applies after approval, runs `go test ./...`, ends with report (verified offline via TestSmokeOffline; live run pending operator)
-- [x] Report names exactly the expected files (verified offline via TestSmokeOffline; live run pending operator)
-- [ ] Integration test: full end-to-end run passes — pending operator live run: scripts/smoke-test.sh
+- [x] Produces shown patch, applies after approval, runs `go test ./...`, ends with report (verified offline via TestSmokeOffline; live run: operator, 2026-10-23, `TestSmokeLive` PASS, 22.12s)
+- [x] Report names exactly the expected files (verified offline via TestSmokeOffline; live run: operator, 2026-10-23, `TestSmokeLive` PASS)
+- [x] Integration test: full end-to-end run passes — operator live run on 2026-10-23: `bash scripts/smoke-test.sh`, `--- PASS: TestSmokeLive (22.12s)`; the zero-divisor check (`zeroDivisorTestExercised`, called from the live checker at `internal/app/smoke_test.go:1750`) was exercised in that run
 
 **Must-know-before:** All prior chunks must be complete.
 
@@ -575,14 +575,14 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 
 **Acceptance (old Task 9 boxes):**
 
-- [ ] Smoke test passes on a real model, end to end
+- [x] Smoke test passes on a real model, end to end — operator live run on 2026-10-23: `bash scripts/smoke-test.sh`, `--- PASS: TestSmokeLive (22.12s)`
 - [ ] Quit mid-task, resume, and **complete the turn** — identical transcript, pending state and grants, and a valid message array
 - [ ] A session truncated by `kill -9` loads as `recovered` and is resumable
 - [ ] A second instance warns and degrades per §7
 - [ ] Compaction is cancellable and never half-applies; failure surfaces `context_overflow` rather than an oversized request
 - [ ] All slash commands operate on real state
 - [ ] Token and cost tracking in the status bar and `usage.json`
-- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`, CI all clean — local gates clean 2026-10-18 (race, fmt, vet, lint); CI pending operator push
+- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`, CI all clean — local gates clean 2026-10-23 via `bash scripts/ci.sh all` on go1.26.10 (race, fmt, vet, lint, govulncheck, gosec, secrets, fuzz corpus, screens); GitHub CI pending operator push
 
 **Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md` set to `☑ Complete`, and a commit tagged so Milestone 5 starts from a known point.
 

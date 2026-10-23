@@ -37,7 +37,7 @@ func acquireUsageLock(root string) (*usageLock, error) {
 	lockPath := filepath.Join(root, "usage.json.lock")
 
 	// Open or create the lock file
-	file, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE, 0o600)
+	file, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE, 0o600) // #nosec G304 -- fixed basename under the operator-configured state root, created 0700
 	if err != nil {
 		return nil, fmt.Errorf("open usage lock file: %w", err)
 	}

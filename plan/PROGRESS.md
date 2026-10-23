@@ -153,7 +153,7 @@ Deferred by the operator on 2026-10-02, when Milestone 2 was accepted. Details a
 
 The session store core landed on 2026-10-14 (mission-20261014-01). One open item remains:
 
-- **Security gate red on pre-existing vulnerabilities:** `govulncheck ./...` exits 3 with 10 findings that pre-date m4-d1 — `golang.org/x/net v0.56.0` (fixed in v0.60.0) and `net/http` in `go1.25.13` (fixed in go1.26.9); none touch `internal/session` (package-scoped run exits 0). The gate was green on 2026-10-08 and red on 2026-10-14 with no repo change in between — the live vulnerability database moved. Operator decision needed: bump `x/net` and/or the Go toolchain, or accept and record. (Verified pre-existing by the Step 2 review via a stash-and-run on the pre-delta tree; mission-20261014-01.)
+- **Security gate red on pre-existing vulnerabilities:** `govulncheck ./...` exits 3 with 10 findings that pre-date m4-d1 — `golang.org/x/net v0.56.0` (fixed in v0.60.0) and `net/http` in `go1.25.13` (fixed in go1.26.9); none touch `internal/session` (package-scoped run exits 0). The gate was green on 2026-10-08 and red on 2026-10-14 with no repo change in between — the live vulnerability database moved. Operator decision needed: bump `x/net` and/or the Go toolchain, or accept and record. (Verified pre-existing by the Step 2 review via a stash-and-run on the pre-delta tree; mission-20261014-01.) **Resolved 2026-10-23** (mission-20261023-01, amendment 88): the Go toolchain is go1.26.10 (`go.mod`) and `golang.org/x/net` is v0.60.0, which fixes the x/net finding and the standard-library advisories listed in amendment 88. Local `bash scripts/ci.sh all` on go1.26.10 exits 0; GitHub CI is pending the operator's push.
 
 ## Carried from m4-d2
 

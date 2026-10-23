@@ -1352,6 +1352,7 @@ I am skipping this as you just cant fix this at all
 ## Known limitations
 
 - **Govulncheck:** `npm run security` reports 10 pre-existing vulnerabilities in `golang.org/x/net` v0.56.0 (fixed in v0.60.0) and Go runtime `net/http` at v1.25.13 (fixed in v1.26.9). None are in Kirsch code. The operator's dependency strategy is pending.
+- **Update 2026-10-23 (mission-20261023-01):** the Go toolchain is now go1.26.10 (`go.mod`) and `golang.org/x/net` is v0.60.0 (plan amendment 88). Bishop's `govulncheck ./...` run under that toolchain reported no vulnerabilities. The line above describes the state before this update.
 - **m4-d1 JSONL gaps:** `tool.completed` omits `tool` and `duration_ms`, and `assistant.message` omits `stop_reason`. These fields are populated at m4-d3 wiring (real event stream). This is expected.
 - **Live model:** Default model is `minimax-m2.7` (plan amendment 83). The smoke test reads the config from `$XDG_CONFIG_HOME/kirsch/config.toml` and the project config; start with a clean config before §11 steps 4–5. §9 step 9 writes `model = "unknown-model-xyz"` to `$T_CFG/kirsch/config.toml`; remove that file before §11 steps 4–5 or the live smoke fails at config validation.
 

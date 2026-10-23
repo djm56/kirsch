@@ -75,7 +75,7 @@ func writeJSONFile(path string, v any) error {
 	tmp = ""
 
 	// Fsync the directory so the rename is durable.
-	dirFile, err := os.Open(dirPath)
+	dirFile, err := os.Open(dirPath) // #nosec G304 -- parent directory of the Kirsch-owned write target (index.json or usage.json under the state root)
 	if err != nil {
 		return fmt.Errorf("open directory for fsync: %w", err)
 	}

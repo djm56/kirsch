@@ -10,38 +10,35 @@ permissions:
   contents: read
 
 jobs:
+  # Every job's steps live in scripts/ci.sh, so `bash scripts/ci.sh <job>` runs
+  # the same commands locally. Checkout and setup-go stay here: the runner needs
+  # the repository and Go, and setup-go installs the version on go.mod's `go`
+  # line, which scripts/ci.sh reads the same way to pin a local run to it.
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      # scripts/ci.sh mirrors setup-go@v5's version choice with GOTOOLCHAIN=
+      # go<X.Y.Z>+auto. Revisit that parity if setup-go moves past v5: v6 sets
+      # GOTOOLCHAIN=local (setup-go PR #460).
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
 
-      - name: gofmt
-        run: |
-          unformatted="$(gofmt -l .)"
-          if [ -n "$unformatted" ]; then
-            echo "These files are not gofmt-clean:"
-            echo "$unformatted"
-            exit 1
-          fi
-
-      - name: go vet
-        run: go vet ./...
-
-      # .golangci.yml is a v2 config, so the binary has to be v2 — and the
-      # action only speaks v2 from its own v7 onward. The previous pairing
-      # (action v6 + golangci-lint v1.62.2) failed before it read the config at
-      # all: a binary built with go1.23 refuses a module targeting go1.25.
-      # Keep the pin concrete so a linter release cannot turn a green branch red
-      # on its own. scripts/install-tools.sh installs @latest locally, so a
-      # local run can be ahead of this number — bump it when that gap matters.
-      - uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.13.2
+      # gofmt, go vet, then golangci-lint. .golangci.yml is a v2 config, so the
+      # binary has to be v2, and the version is pinned concretely so a linter
+      # release cannot turn a green branch red on its own. The pin lives in
+      # scripts/golangci-lint-version, the one place that names it. The script
+      # installs that release binary rather than using golangci-lint-action
+      # (which could read the pin through its version-file input) so that local
+      # and CI run lint through one command, `ci.sh lint`; keeping the action
+      # would split lint into two invocations. Given up: the action's analysis
+      # cache and its config verification. Bump the pin when the gap to the
+      # latest release matters.
+      - name: lint
+        run: bash scripts/ci.sh lint
 
   test:
     runs-on: ubuntu-latest
@@ -53,18 +50,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: go test
-        run: go test -race -timeout 5m ./...
-
-      # Plan §2's dependency rules are enforced by a test, not by review. Run
-      # explicitly as well as via ./... so a failure names itself in the log.
-      - name: architecture rules
-        run: go test -run TestImportRules ./internal/arch/
-
-      # A test that writes golden files as a side effect is the only way CI
-      # could silently accept a rendering change. Fail if the tree moved.
-      - name: golden files unchanged
-        run: git diff --exit-code -- internal/tui/testdata
+      # go test -race, the architecture rules (plan §2's dependency rules are
+      # enforced by a test, not by review), and a check that the golden files
+      # did not change: a test that writes golden files as a side effect is the
+      # only way CI could silently accept a rendering change.
+      - name: test
+        run: bash scripts/ci.sh test
 
   security:
     runs-on: ubuntu-latest
@@ -76,29 +67,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # Known vulnerabilities in dependencies and in the standard library,
-      # with reachability analysis so it reports what this code actually calls.
-      # This is how the toolchain pin in go.mod gets maintained: a new advisory
-      # fails the build instead of waiting to be noticed.
-      - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-
-      # Static analysis. Every finding is either fixed or carries a #nosec with
-      # a written reason; an unannotated finding fails the job.
-      - name: gosec
-        run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec -quiet -exclude-generated ./...
-
-      - name: committed credentials
-        run: bash scripts/secret-scan.sh
-
-      # The seed corpus only. Real fuzzing is `npm run fuzz`, run deliberately
-      # rather than on every push — but a committed crasher must never regress.
-      - name: fuzz corpus
-        run: go test -run 'Fuzz' ./...
+      # govulncheck (known vulnerabilities in dependencies and in the standard
+      # library, with reachability analysis), gosec, the committed-credentials
+      # scan, and the fuzz seed corpus. govulncheck and gosec are installed
+      # @latest, so results move with advisory-database and tool releases. That
+      # is intended: it is how the toolchain pin in go.mod gets maintained, a new
+      # advisory fails the build instead of waiting to be noticed.
+      - name: security
+        run: bash scripts/ci.sh security
 
   screens:
     name: screen reference lint
@@ -110,4 +86,4 @@ jobs:
       # the golden files. They were committed with ragged borders and an
       # over-width row; this keeps that from recurring.
       - name: lint character grids
-        run: python3 scripts/lint-screens.py
+        run: bash scripts/ci.sh screens

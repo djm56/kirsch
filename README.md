@@ -117,6 +117,7 @@ read-only `git` and `rg`.
 npm run tools      # install the lint and security tooling (one-off)
 npm run check      # fmt + vet + lint + test + screens
 npm run security   # govulncheck + gosec + secret scan
+npm run ci:local   # every CI job, run locally by scripts/ci.sh
 npm run fuzz       # property tests over the untrusted-input surfaces
 ```
 

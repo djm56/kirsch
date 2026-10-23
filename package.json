@@ -35,7 +35,12 @@
     "screens": "python3 scripts/lint-screens.py",
 
     "tools": "bash scripts/install-tools.sh",
-    "ci": "npm run check && npm run security && npm run test:race"
+    "ci": "npm run check && npm run security && npm run test:race",
+    "ci:local": "bash scripts/ci.sh all",
+    "ci:lint": "bash scripts/ci.sh lint",
+    "ci:test": "bash scripts/ci.sh test",
+    "ci:security": "bash scripts/ci.sh security",
+    "ci:screens": "bash scripts/ci.sh screens"
   },
   "engines": {
     "node": ">=18"

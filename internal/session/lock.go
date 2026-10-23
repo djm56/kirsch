@@ -39,7 +39,7 @@ func Acquire(root, workspace string) (*Lock, error) {
 
 	// Open or create the lock file. Use O_WRONLY|O_CREATE to create if needed,
 	// but do not truncate (|O_TRUNC).
-	file, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE, 0o600)
+	file, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE, 0o600) // #nosec G304 -- fixed ".lock" basename in a session dir named by a sha256 hex of the workspace, created 0700
 	if err != nil {
 		return nil, fmt.Errorf("open lock file: %w", err)
 	}
