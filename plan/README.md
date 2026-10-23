@@ -35,10 +35,11 @@ ahead is usually wrong by the time anyone reads it.
 
 M2, M3 and M4 were drafted together on 2026-09-12 at the owner's request, so
 that trade has been made deliberately and is recorded as plan §11 amendment 50.
-Each carries a status banner saying how far it can be trusted: **M2 is
-executable as written**, M3 is settled in shape but provisional in detail, and
-M4 is a scope statement whose task breakdown should be expected to need real
-work. The evidence for the caution is close to hand — Milestone 1 produced seven
+**M0–M4 are complete** (tag `m4`, 2026-10-23) and M5 is next. Each of the
+drafted instruction sets carried a status banner saying how far it could be
+trusted: **M2 was executable as written**, M3 was settled in shape but
+provisional in detail, and M4 was a scope statement that was rewritten into a
+detailed instruction set on 2026-10-13. The evidence for the caution is close to hand — Milestone 1 produced seven
 amendments correcting instructions written just *one* milestone ahead.
 
 Re-read the next milestone's document against the code before starting it, and

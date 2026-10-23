@@ -61,4 +61,4 @@ Make this distinction crisp: an ADR records a decision about *how the system is 
 
 ## Status Update
 
-ADRs 0001–0007 were written during planning, and most still carry the status "Accepted (planning phase; no code yet)". That parenthetical is now stale, because Milestones 0–2 have shipped. Whether to update it is the operator's decision, not an agent's. One status has changed, at the operator's direction on 2026-10-02: ADR 0003 now records that ADR 0008 supersedes it in part.
+ADRs 0001–0007 were written during planning, and most still carry the status "Accepted (planning phase; no code yet)". That parenthetical is now stale, because Milestones 0–4 have shipped. Whether to update it is the operator's decision, not an agent's. One status has changed, at the operator's direction on 2026-10-02: ADR 0003 now records that ADR 0008 supersedes it in part.

@@ -570,19 +570,19 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 1. Tick every box below (the old Task 9 acceptance).
 2. Update `CHANGELOG.md` under `[Unreleased]` → `Added` with the Milestone 4 entries.
 3. Set `plan/PROGRESS.md` Milestone 4 to `☑ Complete`.
-4. Tag the commit `m4` (the operator's tag; the tree lands uncommitted from this planning mission, so the tag is applied at close-out).
+4. Tag the commit `m4` (the operator's tag; the tree lands uncommitted from this planning mission, so the tag is applied at close-out). — done: tag `m4` exists.
 5. Run `go test -race ./...`, `golangci-lint fmt --diff`, `go vet ./...`, `golangci-lint run`, and CI — all clean.
 
 **Acceptance (old Task 9 boxes):**
 
 - [x] Smoke test passes on a real model, end to end — operator live run on 2026-10-23: `bash scripts/smoke-test.sh`, `--- PASS: TestSmokeLive (22.12s)`
-- [ ] Quit mid-task, resume, and **complete the turn** — identical transcript, pending state and grants, and a valid message array
-- [ ] A session truncated by `kill -9` loads as `recovered` and is resumable
-- [ ] A second instance warns and degrades per §7
-- [ ] Compaction is cancellable and never half-applies; failure surfaces `context_overflow` rather than an oversized request
-- [ ] All slash commands operate on real state
-- [ ] Token and cost tracking in the status bar and `usage.json`
-- [ ] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`, CI all clean — local gates clean 2026-10-23 via `bash scripts/ci.sh all` on go1.26.10 (race, fmt, vet, lint, govulncheck, gosec, secrets, fuzz corpus, screens); GitHub CI pending operator push
+- [x] Quit mid-task, resume, and **complete the turn** — identical transcript, pending state and grants, and a valid message array — operator walkthrough 2026-10-23, donovan §5 (lines 456, 493–495: transcript, grants, completing the turn); pending-state reconstruction covered by donovan §4 (lines 346–353)
+- [x] A session truncated by `kill -9` loads as `recovered` and is resumable — accepted by the operator 2026-10-23 on automated evidence — torn-line repair and resume tests (donovan §2 lines 231–233, §4 line 365; TestRepairTruncatesTornFinalLine, TestResumeTornLineTruncates); no manual `kill -9` run.
+- [x] A second instance warns and degrades per §7 — operator walkthrough 2026-10-23, donovan §6 (lines 517–535 tests; lines 600–604 two-terminal run)
+- [x] Compaction is cancellable and never half-applies; failure surfaces `context_overflow` rather than an oversized request — operator walkthrough 2026-10-23, donovan §7 (lines 642–654 and 666–667: cancellation, never half-applies; lines 668–669: `context_overflow` on provider error and on fewer than six turns over budget)
+- [x] All slash commands operate on real state — operator walkthrough 2026-10-23, donovan §8 (lines 846–853)
+- [x] Token and cost tracking in the status bar and `usage.json` — operator walkthrough 2026-10-23, donovan §9 (lines 1004–1008, 1024–1026, 1034–1036). **Exception:** the narrow-width fallback failed (donovan §9 step 11, line 1042, marked ❌) — carried to Milestone 5 as a defect.
+- [x] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`, CI all clean — local gates clean 2026-10-23 via `bash scripts/ci.sh all` on go1.26.10 (race, fmt, vet, lint, govulncheck, gosec, secrets, fuzz corpus, screens); GitHub Actions passes — operator walkthrough 2026-10-23, donovan §12 step 10 (line 1343)
 
 **Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md` set to `☑ Complete`, and a commit tagged so Milestone 5 starts from a known point.
 

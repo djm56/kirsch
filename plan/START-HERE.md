@@ -14,23 +14,23 @@ Get your bearings in this order. Stop here if you just want to understand what K
 
 ## Understanding the Full Plan
 
-Kirsch's instruction set is big — about 7,600 lines across the plan folder — so this section shows you what to read and what to skim.
+Kirsch's instruction set is big — about 15,400 lines across the plan folder — so this section shows you what to read and what to skim.
 
-**Always read these three** (about 2,200 lines together):
+**Always read these three** (about 2,430 lines together):
 
-- **[spec/kirsch-plan.md](spec/kirsch-plan.md)** — The locked v0.1 spec. *About 1,030 lines.* Sections §1–§3 are essential: the contract, the architecture, and the tool contracts. Sections §4–§10 are reference; read them when you need them. §11 is the amendment log; skim it to understand what has been decided since the plan was written.
+- **[spec/kirsch-plan.md](spec/kirsch-plan.md)** — The locked v0.1 spec. *About 1,250 lines.* Sections §1–§3 are essential: the contract, the architecture, and the tool contracts. Sections §4–§10 are reference; read them when you need them. §11 is the amendment log; skim it to understand what has been decided since the plan was written.
 
-- **[spec/architecture.md](spec/architecture.md)** — Why the code is shaped this way. *About 340 lines.* Dependency rules (enforced by CI), the four interfaces that matter, concurrency model, error handling. If you touch `internal/`, read this first.
+- **[spec/architecture.md](spec/architecture.md)** — Why the code is shaped this way. *About 330 lines.* Dependency rules (enforced by CI), the four interfaces that matter, concurrency model, error handling. If you touch `internal/`, read this first.
 
-- **[spec/ui-spec-v0.1.md](spec/ui-spec-v0.1.md)** — The TUI specification. *About 840 lines.* **This is normative.** Everything visual must match this spec. Skim §1–§2 (layout, breakpoints), read §13 (the golden states), and refer to the rest as needed. When the spec and the code disagree, the spec is law.
+- **[spec/ui-spec-v0.1.md](spec/ui-spec-v0.1.md)** — The TUI specification. *About 850 lines.* **This is normative.** Everything visual must match this spec. Skim §1–§2 (layout, breakpoints), read §13 (the golden states), and refer to the rest as needed. When the spec and the code disagree, the spec is law.
 
-**Read for the milestone you are working** (about 440 lines for Milestone 2):
+**Read for the milestone you are working** (Milestone 4 is complete, tag `m4`; Milestone 5 is next, and its instruction set is not yet written):
 
-- **Milestone instruction sets** — [milestones/milestone-2.md](milestones/milestone-2.md) (about 440 lines). Pick the milestone you are claiming work from, read the Ground Rules and the deliverables table, then read the tasks that belong to your deliverable. Later milestones are drafted further ahead; read them when they become current.
+- **Milestone instruction sets** — [milestones/README.md](milestones/README.md) lists each milestone's document and its confidence level. Pick the milestone you are claiming work from, read the Ground Rules and the deliverables table, then read the tasks that belong to your deliverable. Completed milestone documents are reference only.
 
 **Refer to on demand**:
 
-- **[spec/kirsch-ui-screens.md](spec/kirsch-ui-screens.md)** — Screen reference. *About 840 lines.* **This is normative.** Every screen in the TUI is drawn here as a literal 80-column character grid. If you are building or testing anything visual, this is your render target and your acceptance test. Golden-test files are captured against these grids.
+- **[spec/kirsch-ui-screens.md](spec/kirsch-ui-screens.md)** — Screen reference. *About 900 lines.* **This is normative.** Every screen in the TUI is drawn here as a literal 80-column character grid. If you are building or testing anything visual, this is your render target and your acceptance test. Golden-test files are captured against these grids.
 
 - **[testing/README.md](testing/README.md)** — How to verify Kirsch. The commands and which to run before you commit. Includes pointers to the manual walkthroughs and the security tooling.
 
@@ -46,12 +46,12 @@ When using an AI coding tool, hand this prioritized list to it as context. Load 
 - `PROGRESS.md`
 - `README.md`
 
-**Load for the current milestone** (Milestone 2, currently):
+**Load for the current milestone** (Milestone 4 is complete; Milestone 5 is next, and its instruction set is not yet written):
 - `spec/kirsch-plan.md` (sections §1–§3 minimum; full file better)
 - `spec/architecture.md`
 - `spec/ui-spec-v0.1.md`
 - `process/code-standards.md` — required for any Go file you write; covers naming, comments, file layout, testing, and the pre-PR checklist
-- `milestones/milestone-2.md`
+- `milestones/README.md` — until the Milestone 5 instruction set is written
 
 **Load on demand**:
 - `spec/kirsch-ui-screens.md` — required for any visual work; reference only otherwise

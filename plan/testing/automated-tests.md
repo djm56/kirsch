@@ -154,7 +154,8 @@ Worth stating plainly, so nobody mistakes silence for coverage.
 - **No live model calls.** Nothing in the suite needs an API key. A test suite
   that costs money and needs a credential is a test suite that stops being run.
   The agent loop is tested against `provider.Fake` from Milestone 3; the only
-  live exercise is `scripts/smoke-test.sh` in Milestone 4.
+  live exercise is `scripts/smoke-test.sh`, which the operator ran on a real
+  model on 2026-10-23 at Milestone 4 close-out.
 - **No real terminal.** Tests drive `Update` with synthetic messages and assert
   on `View()`. Terminal behaviour — whether `Alt+Enter` arrives, whether braille
   renders — cannot be tested this way and lives in the manual walkthroughs.

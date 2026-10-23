@@ -154,7 +154,7 @@ $(go env GOPATH)/bin/govulncheck ./internal/session/...
 
 **Expect:** No vulnerabilities in Kirsch code. (Standard library vulnerabilities are pre-existing; see Known limitations.)
 
-- [ ] govulncheck ./internal/session/... reports no vulnerabilities in Kirsch code
+- [✅] govulncheck ./internal/session/... reports no vulnerabilities in Kirsch code
 
 > **Operator notes:**
 > ```
@@ -1340,12 +1340,12 @@ I am skipping this as you just cant fix this at all
 
 10. CI green:
 
-- [ ] GitHub Actions passes
+- [✅] GitHub Actions passes
 
 11. Milestone 4 complete (create tag and update progress):
 
-- [ ] `git tag m4`
-- [ ] `plan/PROGRESS.md` Milestones table row 4 set to complete
+- [✅] `git tag m4`
+- [✅] `plan/PROGRESS.md` Milestones table row 4 set to complete
 
 ---
 

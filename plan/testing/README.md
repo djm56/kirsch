@@ -8,6 +8,8 @@ the automated suite actually covers, and how the security tooling is wired.
 | [`manual/milestone-0.md`](manual/milestone-0.md) | Sitting down to check the TUI by hand |
 | [`manual/milestone-1.md`](manual/milestone-1.md) | Checking the workspace engine and read-only tools by hand |
 | [`manual/milestone-2.md`](manual/milestone-2.md) | Checking the approval flow and write tools by hand |
+| [`manual/milestone-3.md`](manual/milestone-3.md) | Checking the provider interface, endpoints, and agent state machine by hand |
+| [`manual/milestone-4.md`](manual/milestone-4.md) | Checking the task loop, sessions, and compaction by hand |
 | [`automated-tests.md`](automated-tests.md) | You want to know what the suite covers, and what it deliberately does not |
 | [`security.md`](security.md) | Running the security tooling, or triaging what it reports |
 
@@ -21,7 +23,8 @@ build depends on Node.
 npm run tools        # install the security and lint tooling (one-off)
 
 npm run check        # fmt + vet + lint + test + screens — the pre-commit gate
-npm run ci           # check + security + race — what CI runs
+npm run ci           # check + security + race
+npm run ci:local     # every CI job, run locally (scripts/ci.sh all) — what CI runs
 
 npm test             # go test ./...
 npm run test:race    # the same under the race detector
@@ -48,7 +51,7 @@ The test suite is the specification: a test that passes means the code meets its
 
 ### CI — The Shared Arbiter
 
-Pull requests run CI automatically. CI runs `npm run ci` — the full suite, including security tooling and the race detector — and it must pass before merging. Neither developer's local green is authoritative over CI. If your code passes locally but fails CI, there is something about the shared environment that you missed. Read the CI logs and fix it.
+Pull requests run CI automatically. CI runs each job in `.github/workflows/ci.yml` as `bash scripts/ci.sh <job>`, and `npm run ci:local` runs the same jobs on your machine. The test job includes the race detector. CI must pass before merging. Neither developer's local green is authoritative over CI. If your code passes locally but fails CI, there is something about the shared environment that you missed. Read the CI logs and fix it.
 
 Never merge a pull request with red CI.
 
@@ -97,6 +100,8 @@ Seven manual walkthrough checks remain unticked from Milestone 0 testing:
 
 The milestone-1 unticked item ("Outside a repository it refuses with a message naming `--workspace`") is the failure path for workspace detection. The operator has confirmed Milestones 0 and 1 are tested and is moving forward; close these unticked items as part of Milestone 2's acceptance work or afterward as a cleanup step.
 
+**Milestone 4 known defect (carried to Milestone 5):** the operator's walkthrough marks one check ❌ — the narrow-width status-bar fallback (`user-testing/milestone-4-donovan.md`, §9 step 11, line 1042). The status bar drops tokens entirely instead of falling back to `N tok`. See [`../PROGRESS.md`](../PROGRESS.md).
+
 ## The One Rule Worth Repeating
 
 **A test double must not be more forgiving than the thing it replaces.**
@@ -113,7 +118,7 @@ repository were verified that way, and both would otherwise have been decorative
 
 ## What to Run, and When
 
-**Before every commit:** `npm run check`. Fast, and it is what CI will run locally before you push.
+**Before every commit:** `npm run check`. Fast. It does not match CI exactly; `npm run ci:local` runs what CI runs.
 
 **Before a pull request:** Run the full pre-merge gate:
 ```bash
