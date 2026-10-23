@@ -58,7 +58,7 @@ Definitions are in `plan/milestones/milestone-4.md`. The detailed breakdown (mis
 | m4-d9 | Token and Cost Tracking | done | — | m4-d3 |
 | m4-d10 | Final-Task Report | done | — | m4-d7 |
 | m4-d11 | Smoke Test | done | — | m4-d1…m4-d10 |
-| m4-d12 | Final Acceptance | ready — operator-gated | — | m4-d11 |
+| m4-d12 | Final Acceptance | done | — | m4-d11 |
 
 ## Carried from m3-d5
 
