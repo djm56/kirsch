@@ -1,12 +1,19 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -835,6 +842,278 @@ func TestSmokeOffline(t *testing.T) {
 	}
 }
 
+// TestZeroDivisorTestExercised calls zeroDivisorTestExercised directly on a
+// temp workspace per case (go.mod, calc/divide.go unless divide is empty,
+// calc/divide_test.go, plus any extra files). The helper under test is the
+// behavioural zero-divisor check, not checkSmokeRun. Each case is checked on
+// the verdict and on the returned string: wantOutput empty means the string
+// must be exactly empty, otherwise the string must contain wantOutput.
+func TestZeroDivisorTestExercised(t *testing.T) {
+	const guarded = "package calc\n\nimport \"errors\"\n\nvar ErrDivideByZero = errors.New(\"divide by zero\")\n\n" +
+		"// Divide returns a divided by b.\nfunc Divide(a, b float64) (float64, error) {\n" +
+		"\tif b == 0 {\n\t\treturn 0, ErrDivideByZero\n\t}\n\treturn a / b, nil\n}\n"
+	const unguarded = "package calc\n\nimport \"errors\"\n\nvar ErrDivideByZero = errors.New(\"divide by zero\")\n\n" +
+		"// Divide returns a divided by b.\nfunc Divide(a, b float64) (float64, error) {\n\treturn a / b, nil\n}\n"
+
+	cases := []struct {
+		name       string
+		divide     string
+		testFile   string
+		want       zeroDivisorVerdict
+		wantOutput string            // substring the returned string must contain; empty means it must be exactly empty
+		extra      map[string]string // extra workspace files by path relative to the workspace
+		timeout    time.Duration     // when set, replaces zeroDivisorGoTestTimeout for the case
+		grace      time.Duration     // replaces zeroDivisorBuildGrace when timeout is set
+		maxElapsed time.Duration     // when set, the helper call must return in less than this
+	}{
+		{
+			name:   "live shape: unkeyed table row called through Divide(tt.a, tt.b)",
+			divide: guarded,
+			testFile: "package calc\n\nimport (\n\t\"errors\"\n\t\"testing\"\n)\n\n" +
+				"func TestDivide(t *testing.T) {\n" +
+				"\ttests := []struct {\n\t\tname string\n\t\ta, b  float64\n\t\twant error\n\t}{\n" +
+				"\t\t{\"normal\", 6, 3, nil},\n" +
+				"\t\t{\"zero divisor\", 1, 0, ErrDivideByZero},\n\t}\n" +
+				"\tfor _, tt := range tests {\n\t\tt.Run(tt.name, func(t *testing.T) {\n" +
+				"\t\t\tgot, err := Divide(tt.a, tt.b)\n" +
+				"\t\t\tif !errors.Is(err, tt.want) {\n\t\t\t\tt.Fatalf(\"Divide(%v, %v) = %v, %v; want error %v\", tt.a, tt.b, got, err, tt.want)\n\t\t\t}\n" +
+				"\t\t})\n\t}\n}\n",
+			want:       zeroDivisorExercised,
+			wantOutput: "--- FAIL: TestDivide/zero_divisor",
+		},
+		{
+			name:   "keyed field table with b: 0",
+			divide: guarded,
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"func TestDivide(t *testing.T) {\n" +
+				"\ttests := []struct {\n\t\ta, b    float64\n\t\twantErr bool\n\t}{\n" +
+				"\t\t{a: 6, b: 3},\n\t\t{a: 1, b: 0, wantErr: true},\n\t}\n" +
+				"\tfor _, tt := range tests {\n\t\t_, err := Divide(tt.a, tt.b)\n" +
+				"\t\tif (err != nil) != tt.wantErr {\n\t\t\tt.Errorf(\"Divide(%v, %v) error = %v, wantErr %v\", tt.a, tt.b, err, tt.wantErr)\n\t\t}\n\t}\n}\n",
+			want:       zeroDivisorExercised,
+			wantOutput: "--- FAIL: TestDivide",
+		},
+		{
+			name:   "comment mentions Divide(1, 0) but only Divide(6, 3) is called",
+			divide: guarded,
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"// Divide(1, 0) should error\n" +
+				"func TestDivide(t *testing.T) {\n" +
+				"\tif got, err := Divide(6, 3); err != nil || got != 2 {\n\t\tt.Errorf(\"Divide(6, 3) = %v, %v\", got, err)\n\t}\n}\n",
+			want: zeroDivisorNotExercised,
+		},
+		{
+			name: "second validation only: negative divisor tested, zero divisor never passed",
+			divide: "package calc\n\nimport \"errors\"\n\nvar ErrNegative = errors.New(\"negative divisor\")\n\n" +
+				"func Divide(a, b float64) (float64, error) {\n" +
+				"\tif b == 0 {\n\t\treturn 0, errors.New(\"divide by zero\")\n\t}\n" +
+				"\tif b < 0 {\n\t\treturn 0, ErrNegative\n\t}\n\treturn a / b, nil\n}\n",
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"func TestDivide(t *testing.T) {\n" +
+				"\tif _, err := Divide(6, -3); err == nil {\n\t\tt.Errorf(\"Divide(6, -3) returned a nil error\")\n\t}\n}\n",
+			want: zeroDivisorNotExercised,
+		},
+		{
+			name:   "unguarded Divide: control run fails",
+			divide: unguarded,
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"func TestDivide(t *testing.T) {\n" +
+				"\tif _, err := Divide(1, 0); err == nil {\n\t\tt.Errorf(\"Divide(1, 0) returned a nil error\")\n\t}\n}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "control run failed",
+		},
+		{
+			name:   "sabotaged copy does not build: test redeclares kirschOrigDivide",
+			divide: guarded,
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"func kirschOrigDivide() {}\n\n" +
+				"func TestDivide(t *testing.T) {\n" +
+				"\tif _, err := Divide(1, 0); err == nil {\n\t\tt.Errorf(\"Divide(1, 0) returned a nil error\")\n\t}\n\tkirschOrigDivide()\n}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "sabotaged copy did not build or initialise",
+		},
+		{
+			name:   "Divide declared only as a method",
+			divide: "package calc\n\ntype calc struct{}\n\nfunc (calc) Divide(a, b float64) (float64, error) { return a / b, nil }\n",
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"func TestDivide(t *testing.T) {\n\tif got, _ := (calc{}).Divide(6, 3); got != 2 {\n\t\tt.Errorf(\"got %v\", got)\n\t}\n}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "no package-level func Divide",
+		},
+		{
+			name:   "Divide declared as a var holding a func",
+			divide: "package calc\n\nvar Divide = func(a, b float64) (float64, error) { return a / b, nil }\n",
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"func TestDivide(t *testing.T) {\n\tif got, _ := Divide(6, 3); got != 2 {\n\t\tt.Errorf(\"got %v\", got)\n\t}\n}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "no package-level func Divide",
+		},
+		{
+			name:   "Divide declared only in a _test.go file",
+			divide: "package calc\n\nfunc other() {}\n",
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"func Divide(a, b float64) (float64, error) { return a / b, nil }\n\n" +
+				"func TestDivide(t *testing.T) {\n\tif got, _ := Divide(6, 3); got != 2 {\n\t\tt.Errorf(\"got %v\", got)\n\t}\n}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "no package-level func Divide",
+		},
+		{
+			name:   "live shape split across files with a build-tagged duplicate Divide",
+			divide: "",
+			extra: map[string]string{
+				"calc/errors.go": "package calc\n\nimport \"errors\"\n\nvar ErrDivideByZero = errors.New(\"divide by zero\")\n",
+				"calc/divide_other.go": "//go:build kirsch_never\n\npackage calc\n\n" +
+					"func Divide(a, b float64) (float64, error) { return a / b, nil }\n",
+				"calc/divide_unix.go": "//go:build !kirsch_never\n\npackage calc\n\n" +
+					"func Divide(a, b float64) (float64, error) {\n\tif b == 0 {\n\t\treturn 0, ErrDivideByZero\n\t}\n\treturn a / b, nil\n}\n",
+			},
+			testFile: "package calc\n\nimport (\n\t\"errors\"\n\t\"testing\"\n)\n\n" +
+				"func TestDivide(t *testing.T) {\n\tif _, err := Divide(1, 0); !errors.Is(err, ErrDivideByZero) {\n\t\tt.Errorf(\"Divide(1, 0) error = %v\", err)\n\t}\n}\n",
+			want:       zeroDivisorExercised,
+			wantOutput: "--- FAIL: TestDivide",
+		},
+		{
+			name:   "sabotaged run fails in TestMain after the tests",
+			divide: guarded,
+			testFile: "package calc\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\n" +
+				"func TestMain(m *testing.M) {\n\tcode := m.Run()\n\tif _, err := Divide(1, 0); err == nil {\n\t\tos.Exit(3)\n\t}\n\tos.Exit(code)\n}\n\n" +
+				"func TestDivide(t *testing.T) {\n\tif got, _ := Divide(6, 3); got != 2 {\n\t\tt.Errorf(\"got %v\", got)\n\t}\n}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "sabotaged copy did not build or initialise",
+		},
+		{
+			name:   "sabotaged run panics in init",
+			divide: guarded,
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"func init() {\n\tif _, err := Divide(1, 0); err == nil {\n\t\tpanic(\"unguarded\")\n\t}\n}\n\n" +
+				"func TestDivide(t *testing.T) {}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "sabotaged copy did not build or initialise",
+		},
+		{
+			name:   "sabotaged run exits non-zero from a test with no --- FAIL: line",
+			divide: guarded,
+			testFile: "package calc\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\n" +
+				"func TestDivide(t *testing.T) {\n\tif _, err := Divide(1, 0); err == nil {\n\t\tos.Exit(1)\n\t}\n}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "sabotaged run failed without a failing test",
+		},
+		{
+			// Only -timeout is small here. The grace is 60s, so the context
+			// deadline is 2s+60s = 62s and does not also bound the control and
+			// build runs, which compile and link a test binary. The 30s sleep
+			// outlasts the 2s -timeout, so go test itself ends the run. That run
+			// prints "panic: test timed out after" and no `--- FAIL:` line; this
+			// was observed on this toolchain, so a toolchain that adds the line is
+			// expected drift. Without the -timeout flag the 30s sleep completes
+			// inside the 62s deadline and the suite passes, so the verdict becomes
+			// not exercised with empty output, and the panic text is absent.
+			name:   "sabotaged run hangs and hits the timeout",
+			divide: guarded,
+			testFile: "package calc\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\n" +
+				"func TestDivide(t *testing.T) {\n\tif _, err := Divide(1, 0); err == nil {\n\t\ttime.Sleep(30 * time.Second)\n\t}\n}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "panic: test timed out after",
+			timeout:    2 * time.Second,
+			grace:      60 * time.Second,
+		},
+		{
+			// Bounds the context deadline, not -timeout: -timeout does not bound
+			// init, so only the deadline stops the hung init in the -run '^$'
+			// build step. The deadline of every go test run here is 2s+8s = 10s.
+			// Under the guarded control Divide(1, 0) errors and nothing sleeps, so
+			// the control run, compile and link included, must finish inside 10s;
+			// on a machine that cannot, the verdict becomes "control run failed".
+			// In the sabotaged build step the init sleeps 30s and the deadline
+			// kills go at 10s, so the expected elapsed time is the control run plus
+			// about 10s. Without the deadline the 30s init sleep runs out, the
+			// build step passes, and the suite run sleeps 30s again in init and
+			// passes, so the elapsed time exceeds the 20s maxElapsed and the
+			// verdict becomes not exercised.
+			name:   "sabotaged init hangs: context deadline bounds the build step",
+			divide: guarded,
+			testFile: "package calc\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\n" +
+				"func init() {\n\tif _, err := Divide(1, 0); err == nil {\n\t\ttime.Sleep(30 * time.Second)\n\t}\n}\n\n" +
+				"func TestDivide(t *testing.T) {}\n",
+			want:       zeroDivisorInconclusive,
+			wantOutput: "did not build or initialise",
+			timeout:    2 * time.Second,
+			grace:      8 * time.Second,
+			maxElapsed: 20 * time.Second,
+		},
+		{
+			// A panic inside a test goroutine prints `--- FAIL:` before the panic
+			// line, so it is classified exercised.
+			name:   "sabotaged run panics inside a test",
+			divide: guarded,
+			testFile: "package calc\n\nimport \"testing\"\n\n" +
+				"func TestDivide(t *testing.T) {\n\tif _, err := Divide(1, 0); err == nil {\n\t\tpanic(\"boom\")\n\t}\n}\n",
+			want:       zeroDivisorExercised,
+			wantOutput: "--- FAIL: TestDivide",
+		},
+		{
+			name:   "suite reads calc/testdata/x.txt",
+			divide: guarded,
+			extra:  map[string]string{"calc/testdata/x.txt": "6 3\n"},
+			testFile: "package calc\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\n" +
+				"func TestDivide(t *testing.T) {\n\tif _, err := os.ReadFile(\"testdata/x.txt\"); err != nil {\n\t\tt.Fatal(err)\n\t}\n" +
+				"\tif _, err := Divide(1, 0); err == nil {\n\t\tt.Errorf(\"Divide(1, 0) returned a nil error\")\n\t}\n}\n",
+			want:       zeroDivisorExercised,
+			wantOutput: "--- FAIL: TestDivide",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.timeout > 0 {
+				oldTimeout, oldGrace := zeroDivisorGoTestTimeout, zeroDivisorBuildGrace
+				zeroDivisorGoTestTimeout, zeroDivisorBuildGrace = tt.timeout, tt.grace
+				t.Cleanup(func() { zeroDivisorGoTestTimeout, zeroDivisorBuildGrace = oldTimeout, oldGrace })
+			}
+			dir := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(dir, "calc"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			files := map[string]string{
+				"go.mod":              "module example.test/zd\n\ngo 1.21\n",
+				"calc/divide_test.go": tt.testFile,
+			}
+			if tt.divide != "" {
+				files["calc/divide.go"] = tt.divide
+			}
+			for name, content := range tt.extra {
+				files[name] = content
+			}
+			for name, content := range files {
+				if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			start := time.Now()
+			got, out, err := zeroDivisorTestExercised(t, dir)
+			elapsed := time.Since(start)
+			t.Logf("elapsed %s", elapsed)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.maxElapsed > 0 && elapsed >= tt.maxElapsed {
+				t.Errorf("elapsed %s, want under %s: the hung init ran to its end, so the context deadline did not stop it", elapsed, tt.maxElapsed)
+			}
+			if got != tt.want {
+				t.Errorf("verdict = %d, want %d; output: %s", got, tt.want, out)
+			}
+			if tt.wantOutput == "" && out != "" {
+				t.Errorf("output = %q, want empty", out)
+			}
+			if !strings.Contains(out, tt.wantOutput) {
+				t.Errorf("output %q does not contain %q", out, tt.wantOutput)
+			}
+		})
+	}
+}
+
 // cleanSectionLines joins one section's body lines: each line is trimmed, a
 // line wholly wrapped in a single pair of backticks is unwrapped, and empty
 // lines are dropped.
@@ -1119,33 +1398,216 @@ func touchedFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-var (
-	rePassedTest = regexp.MustCompile(`(?m)^--- PASS: (\S+)`)
-	// reZeroDivisorCall matches Divide(<anything>, 0) / Divide(x, 0.0) / Divide(x, zero).
-	reZeroDivisorCall = regexp.MustCompile(`Divide\(\s*[^,]+,\s*(?:0(?:\.0+)?|zero)\s*\)`)
-	// reZeroDivisorField matches a table-test field such as `b: 0,` or `b: 0}`.
-	reZeroDivisorField = regexp.MustCompile(`\bb\s*:\s*0(?:\.0+)?\s*[,}]`)
+var rePassedTest = regexp.MustCompile(`(?m)^--- PASS: (\S+)`)
+
+// zeroDivisorVerdict is the outcome of zeroDivisorTestExercised.
+type zeroDivisorVerdict int
+
+const (
+	// zeroDivisorInconclusive means the check could not decide; it adds no
+	// failure of its own.
+	zeroDivisorInconclusive zeroDivisorVerdict = iota
+	// zeroDivisorExercised means a calc test fails when Divide loses its guard.
+	zeroDivisorExercised
+	// zeroDivisorNotExercised means every calc test still passes without it.
+	zeroDivisorNotExercised
 )
 
-// zeroDivisorTestExists reports whether any calc/*_test.go in dir contains a
-// call or table entry that passes a zero divisor. It is a source heuristic:
-// it cannot see a divisor held in an unrelated variable or an unkeyed table
-// row.
-func zeroDivisorTestExists(dir string) (bool, error) {
-	files, err := filepath.Glob(filepath.Join(dir, "calc", "*_test.go"))
-	if err != nil {
-		return false, err
-	}
-	for _, f := range files {
-		src, err := os.ReadFile(f)
+// zeroDivisorGoTestTimeout is the -timeout given to every go test run of
+// zeroDivisorTestExercised. Sixty seconds is far above the few milliseconds a
+// small calc suite needs, so only a hung test reaches it; a test that hangs
+// once Divide loses its guard must not hang the smoke run.
+var zeroDivisorGoTestTimeout = 60 * time.Second
+
+// zeroDivisorBuildGrace is added to zeroDivisorGoTestTimeout to form the
+// context deadline of each go test run. The -timeout flag bounds only the tests
+// the binary runs, not compiling and linking it or its init functions, so the
+// extra time covers those; the deadline kills a go command that outlives both.
+var zeroDivisorBuildGrace = 60 * time.Second
+
+// zeroDivisorWaitDelay is the cmd.WaitDelay of each go test run. In
+// local-directory mode (no package argument) a go command killed by the context
+// deadline leaves its child test binary holding the output pipe, and WaitDelay
+// stops the wait for it after this long. Every run here passes ./calc/, where go
+// test buffers the binary's output and the pipe closes with the kill, so no test
+// here can tell the value from zero. A probe with a 20s sleeping init returned
+// in 4.0s with ./calc/ (reproduced); the 20.5s without a package argument is as
+// reported by the developer's probe and was not reproduced.
+var zeroDivisorWaitDelay = 5 * time.Second
+
+// copyCalcWorkspace copies go.mod, go.sum when present, and the whole calc/
+// tree (subdirectories such as testdata/ and test files included) from dir into
+// scratch. Only regular files are copied; symlinks are skipped.
+func copyCalcWorkspace(dir, scratch string) error {
+	for _, name := range []string{"go.mod", "go.sum"} {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if errors.Is(err, fs.ErrNotExist) && name == "go.sum" {
+			continue
+		}
 		if err != nil {
-			return false, err
+			return err
 		}
-		if reZeroDivisorCall.Match(src) || reZeroDivisorField.Match(src) {
-			return true, nil
+		if err := os.WriteFile(filepath.Join(scratch, name), b, 0o644); err != nil {
+			return err
 		}
 	}
-	return false, nil
+	root := filepath.Join(dir, "calc")
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		dst := filepath.Join(scratch, "calc", rel)
+		if d.IsDir() {
+			return os.MkdirAll(dst, 0o755)
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(dst, b, 0o644)
+	})
+}
+
+// renameDivide renames every package-level func Divide (no receiver) to
+// kirschOrigDivide in each non-test .go file directly in scratch/calc,
+// build-tagged files included, and returns the package name of the files it
+// changed. found is false when no such declaration exists in any of them; a
+// method, a var holding a func, and a declaration only in a _test.go file do
+// not count.
+func renameDivide(scratch string) (pkg string, found bool, err error) {
+	entries, err := os.ReadDir(filepath.Join(scratch, "calc"))
+	if err != nil {
+		return "", false, err
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		src := filepath.Join(scratch, "calc", e.Name())
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, src, nil, parser.ParseComments)
+		if err != nil {
+			return "", false, err
+		}
+		renamed := false
+		for _, decl := range f.Decls {
+			if fd, ok := decl.(*ast.FuncDecl); ok && fd.Recv == nil && fd.Name.Name == "Divide" {
+				fd.Name.Name = "kirschOrigDivide"
+				renamed = true
+			}
+		}
+		if !renamed {
+			continue
+		}
+		var buf bytes.Buffer
+		if err := format.Node(&buf, fset, f); err != nil {
+			return "", false, err
+		}
+		if err := os.WriteFile(src, buf.Bytes(), 0o644); err != nil {
+			return "", false, err
+		}
+		pkg, found = f.Name.Name, true
+	}
+	return pkg, found, nil
+}
+
+// reFailLine matches a `--- FAIL:` line of go test output, top-level or an
+// indented subtest.
+var reFailLine = regexp.MustCompile(`(?m)^\s*--- FAIL: .*$`)
+
+// zeroDivisorTestExercised reports behaviourally whether the calc tests in dir
+// exercise a zero divisor, instead of matching their source text. Each run
+// happens in a scratch copy of go.mod, go.sum when present, and the calc/ tree
+// (test files and testdata included), under a -timeout and a context deadline:
+//  1. a control run of `go test ./calc/` on the unmodified copy; if it fails the
+//     verdict is inconclusive, because the check cannot tell a failure the
+//     sabotage causes from one already present. The scratch copy holds only
+//     go.mod, go.sum and calc/, so a suite that reads files outside them fails
+//     here even though it passes in the real workspace;
+//  2. a sabotaged copy in which every package-level Divide in the non-test
+//     files is renamed kirschOrigDivide and a wrapper Divide returns a / b, nil
+//     when b == 0 and delegates otherwise. `-run '^$'` first builds that copy
+//     and runs its init functions and TestMain without running any test; if
+//     that fails (a test redeclares kirschOrigDivide, an init panics, say) the
+//     verdict is inconclusive. Then the suite runs: it counts as exercised only
+//     when go test exits with an *exec.ExitError and the output has a
+//     `--- FAIL:` line. Any other error (a kill by the context deadline) or an
+//     exit with no `--- FAIL:` line is inconclusive. Exits that print no such
+//     line include os.Exit in a test and a -timeout expiry. A panic inside a
+//     test does print one, so it counts as exercised.
+//
+// The returned string, by verdict:
+//   - exercised: the `--- FAIL:` lines of the sabotaged run, one per line;
+//   - not exercised: empty;
+//   - inconclusive: the reason. It is a fixed message when no package-level
+//     func Divide exists in a non-test file. When the control run fails or the
+//     sabotaged copy does not build or initialise, it is a fixed prefix plus the
+//     go test output. When the sabotaged run fails without a failing test, it is
+//     a fixed prefix + err.Error() + "; output: " + the go test output.
+func zeroDivisorTestExercised(t *testing.T, dir string) (zeroDivisorVerdict, string, error) {
+	t.Helper()
+	goTest := func(scratch string, args ...string) (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), zeroDivisorGoTestTimeout+zeroDivisorBuildGrace)
+		defer cancel()
+		all := append([]string{"test", "-count=1", "-timeout=" + zeroDivisorGoTestTimeout.String()}, args...)
+		cmd := exec.CommandContext(ctx, "go", all...)
+		cmd.Dir = scratch
+		// Inert for every call in this file: all three pass ./calc/, and
+		// WaitDelay only matters in local-directory mode; see zeroDivisorWaitDelay.
+		cmd.WaitDelay = zeroDivisorWaitDelay
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+
+	control := t.TempDir()
+	if err := copyCalcWorkspace(dir, control); err != nil {
+		return zeroDivisorInconclusive, "", err
+	}
+	if out, err := goTest(control, "./calc/"); err != nil {
+		return zeroDivisorInconclusive, "control run failed: " + out, nil
+	}
+
+	sabotaged := t.TempDir()
+	if err := copyCalcWorkspace(dir, sabotaged); err != nil {
+		return zeroDivisorInconclusive, "", err
+	}
+	pkg, found, err := renameDivide(sabotaged)
+	if err != nil {
+		return zeroDivisorInconclusive, "", err
+	}
+	if !found {
+		return zeroDivisorInconclusive, "no package-level func Divide in calc non-test files", nil
+	}
+	wrapper := "package " + pkg + "\n\n" +
+		"func Divide(a, b float64) (float64, error) {\n" +
+		"\tif b == 0 {\n\t\treturn a / b, nil\n\t}\n" +
+		"\treturn kirschOrigDivide(a, b)\n}\n"
+	if err := os.WriteFile(filepath.Join(sabotaged, "calc", "zz_kirsch_wrapper.go"), []byte(wrapper), 0o644); err != nil {
+		return zeroDivisorInconclusive, "", err
+	}
+	// -run '^$' compiles the package and its tests and runs init and TestMain,
+	// but selects no test, so a build or initialisation failure is told apart
+	// from a failing test.
+	if out, err := goTest(sabotaged, "-run", "^$", "./calc/"); err != nil {
+		return zeroDivisorInconclusive, "sabotaged copy did not build or initialise: " + out, nil
+	}
+	out, err := goTest(sabotaged, "./calc/")
+	if err == nil {
+		return zeroDivisorNotExercised, "", nil
+	}
+	var exitErr *exec.ExitError
+	fails := reFailLine.FindAllString(out, -1)
+	if !errors.As(err, &exitErr) || len(fails) == 0 {
+		return zeroDivisorInconclusive, "sabotaged run failed without a failing test: " + err.Error() + "; output: " + out, nil
+	}
+	return zeroDivisorExercised, strings.Join(fails, "\n"), nil
 }
 
 // probeDivideZero checks the behaviour of the patched calc package. It copies
@@ -1210,7 +1672,9 @@ func probeDivideZero(t *testing.T, dir string) (string, error) {
 //   - a probe in a scratch copy shows Divide(1, 0) returns an error;
 //   - `go test ./...` in the workspace exits 0 and passes TestDivide plus at
 //     least one other top-level test;
-//   - some calc/*_test.go passes a zero divisor.
+//   - some calc test fails when Divide returns a / b, nil for a zero divisor, in
+//     a scratch copy where the rest of Divide is unchanged; a failing control
+//     run or a copy that does not compile is inconclusive and adds no failure.
 func checkSmokeRun(t *testing.T, e *smokeEnv, result *smokeResult) []string {
 	t.Helper()
 
@@ -1278,10 +1742,21 @@ func checkSmokeRun(t *testing.T, e *smokeEnv, result *smokeResult) []string {
 		}
 	}
 
-	if found, err := zeroDivisorTestExists(e.dir); err != nil {
-		errs = append(errs, "zero-divisor test scan failed: "+err.Error())
-	} else if !found {
+	// An inconclusive verdict adds no failure: the suite can fail in the scratch
+	// copy for reasons unrelated to zero divisors (it reads a file outside
+	// go.mod, go.sum and calc/, say), and a suite that fails in the real
+	// workspace is already reported by the go test ./... check above. The
+	// reason is logged so the live run shows why nothing was decided.
+	verdict, detail, err := zeroDivisorTestExercised(t, e.dir)
+	switch {
+	case err != nil:
+		errs = append(errs, "zero-divisor test check failed: "+err.Error())
+	case verdict == zeroDivisorNotExercised:
 		errs = append(errs, "no test exercises a zero divisor")
+	case verdict == zeroDivisorInconclusive:
+		t.Logf("zero-divisor check inconclusive: %s", detail)
+	case verdict == zeroDivisorExercised:
+		t.Logf("zero-divisor check exercised; failing tests with the guard removed:\n%s", detail)
 	}
 
 	return errs
