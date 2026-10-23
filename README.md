@@ -1,6 +1,6 @@
 # Kirsch
 
-> **Status: Milestones 0–3 complete (Milestone 3 operator-accepted 2026-10-13); Milestone 4 (the real task loop + sessions) is in progress — m4-d1…m4-d6 done and committed: the session store, storage layout + repair, event recording, resume reconstruction, resume state + CLI, and single-instance guard.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. A second instance in the same workspace is detected and degraded gracefully (fresh start, status-bar warning, grants disabled). Remaining in M4: compaction, the real slash commands, token/cost tracking, the final-task report, and the smoke test. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+> **Status: Milestones 0–4 complete (Milestone 4, the real task loop + sessions, operator-accepted 2026-10-23, tag `m4`); Milestone 5 (polish and release, v0.1.0) is next.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. A second instance in the same workspace is detected and degraded gracefully (fresh start, status-bar warning, grants disabled). Long conversations are compacted to stay within the context window, and `/compact` does so on demand. The slash commands work on real session state, the status bar shows session token and cost totals, and the system prompt asks the agent to end each task that took actions with a final-task report. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
 > ```
 > go run ./cmd/kirsch
@@ -80,7 +80,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 | [`plan/spec/ui-spec-v0.1.md`](plan/spec/ui-spec-v0.1.md) | Full TUI spec: layout, cards, modals, mode state machine, palette, timing, accessibility |
 | [`plan/spec/kirsch-ui-screens.md`](plan/spec/kirsch-ui-screens.md) | Screen reference: every UI state as an 80-column character grid with per-region colour maps — the render target and golden-test source |
 | [`plan/testing/`](plan/testing/) | Manual walkthroughs, automated-test reference, security tooling |
-| [`plan/adr/`](plan/adr/) | Seven architecture decision records |
+| [`plan/adr/`](plan/adr/) | Architecture decision records |
 | [`plan/process/working-agreement.md`](plan/process/working-agreement.md) | Claiming, branches, commits, PRs, file ownership, and board discipline for shared work |
 | [`plan/process/code-standards.md`](plan/process/code-standards.md) | Go code standards — file layout, naming, comments, error handling, testing, and pre-PR checklist |
 | [`plan/milestones/milestone-0.md`](plan/milestones/milestone-0.md) | Instruction set — repo bootstrap + static TUI prototype |
@@ -92,7 +92,7 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 
 ## Progress
 
-Milestones 0–3 are complete. Milestone 4 (the real task loop + sessions) is in progress, with m4-d1…m4-d6 done (session store, storage layout + repair, event recording, resume reconstruction, resume state + CLI, single-instance guard) and m4-d7…m4-d12 remaining. Live status — what's in progress, what's blocked, who owns each deliverable — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+Milestones 0–4 are complete. Milestone 4 (the real task loop + sessions) was operator-accepted on 2026-10-23 and tagged `m4`; all of its deliverables are done. Milestone 5 (polish and release, v0.1.0) is next and has not started. Live status — what's in progress, what's blocked, who owns each deliverable, and the items carried forward — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 
 ## What works today
 
@@ -111,6 +111,19 @@ session log; quit mid-task and `kirsch resume` (or auto-resume) restores the
 transcript and grants. Apart from approved commands, the only subprocesses are
 read-only `git` and `rg`.
 
+When a conversation outgrows the context budget, Kirsch compacts it: the
+original task and the most recent turns are kept verbatim, and the turns
+between them are replaced by a structured summary. `/compact` runs the same
+step on demand. The status bar shows the session's token counts and cost. A
+model Kirsch has no pricing or context-window data for shows a notice once per
+session (a fresh session after `/new` shows it again), and Kirsch falls back to
+the smallest known context window. The system prompt asks the agent to end each
+task that took actions with a final-task report.
+
+The slash commands now work on your real session. For example, `/status`
+reports the session's state and `/diff` shows the unstaged diff in a modal.
+The command table in [`doc/usage.md`](doc/usage.md) lists the rest.
+
 ## Verifying it
 
 ```bash
@@ -120,6 +133,11 @@ npm run security   # govulncheck + gosec + secret scan
 npm run ci:local   # every CI job, run locally by scripts/ci.sh
 npm run fuzz       # property tests over the untrusted-input surfaces
 ```
+
+The smoke test runs one real task against `testdata/repo-go-module` with a
+real model. It needs an API key (`ANTHROPIC_API_KEY` or `OPENCODE_API_KEY`, or
+their `KIRSCH_` forms), and it spends tokens, so run it by hand with
+`bash scripts/smoke-test.sh`. It is not one of the `npm` scripts.
 
 `npm` is a front door, not a dependency — every script is one line of `go` or
 `bash`, and nothing in the build needs Node. See

@@ -4,13 +4,11 @@ Kirsch is a terminal-native coding agent. This page covers the interface: how
 the screen is laid out, every key it responds to, every slash command, and the
 approval model that stands between a tool and your files.
 
-> **Where this document is, and is not, complete.** Kirsch is mid-build. The
-> layout, the key bindings, the slash-command surface and the approval flow all
-> exist and behave as described below. The model does not: nothing here talks to
-> an LLM yet, and the transcript you see on first run is scripted. Sessions and
-> resume do not exist yet either. Both arrive in later milestones, and this page
-> gains them when they do — sections that describe something not yet wired say
-> so in place rather than leaving you to find out.
+> **What this page covers.** Kirsch runs real model turns against your
+> repository, keeps a durable session log, and resumes it on launch or with
+> `kirsch resume`. The layout, the key bindings, the slash commands and the
+> approval flow all work as described below. Sections that describe a limit
+> say so in place.
 >
 > The help overlay inside the program (`?`, or `/help`) is generated from the
 > same binding table the program dispatches on, so it cannot describe a key it
@@ -53,7 +51,7 @@ on without the flag.
  I found the issue in... ▌                        streaming assistant
 
  ──────────────────────────────────────────────   separator rule
- claude-sonnet-5 · ⠋ thinking · 12.4k tok         status bar
+ claude-sonnet-5 · ⠋ thinking · in 12.4k out 980 · $0.04   status bar
  ──────────────────────────────────────────────   separator rule
  > _                                              composer
 ```
@@ -67,10 +65,10 @@ first row carries a rule.
 **Transcript.** Everything that has been said and done, oldest at the top. It
 takes whatever rows the rest of the frame does not need.
 
-**Status bar.** Model, current state, token count, and any active session
-grants. Persistent warnings — a recovered session, another Kirsch running in the
-same workspace, a missing `rg` — sit at the right and are the last thing dropped
-when the bar runs out of room.
+**Status bar.** Model, current state, session token totals and cost, and any
+active session grants. Persistent warnings — a recovered session, another
+Kirsch running in the same workspace, a missing `rg` — sit at the right and are
+the last thing dropped when the bar runs out of room.
 
 **Composer.** One row, growing to five as you add lines, then scrolling
 internally. While a turn is running it dims and stops accepting input, and shows
@@ -244,9 +242,9 @@ stack trace is never mistaken for one. `Tab` completes a unique prefix.
 | Command | What it does |
 |---|---|
 | `/help` | The help overlay |
-| `/status` | A one-line notice: model, branch, token count |
-| `/diff` | The working tree as a diff, in a modal |
-| `/files` | A notice listing the files touched this session |
+| `/status` | A notice summarising the session — for example the model, endpoint, branch, dirty count, token totals and compaction level |
+| `/diff` | The unstaged working-tree diff, in a modal |
+| `/files` | A notice listing the files changed by approved patches this session |
 | `/approvals` | Lists active session grants, and offers to clear them |
 | `/new` | Start a new session — confirms first if a turn is running |
 | `/compact` | Compact the conversation history |
@@ -255,13 +253,6 @@ stack trace is never mistaken for one. `Tab` completes a unique prefix.
 
 An unknown command produces a dim hint under the composer, never an error card,
 and is **never sent to the model**.
-
-**In the current build**, `/diff`, `/files` and `/compact` answer from the
-scripted Milestone 0 fixture rather than from your repository — a placeholder
-diff, a fixed file list, and `nothing to compact yet`. The command surface,
-the completion, the re-pin behaviour and the modals around them are real; the
-content behind those three is not yet. `/read`, `/ls`, `/search`, `/gitstatus`
-and `/gitdiff` below *do* read your actual workspace.
 
 ### Debug commands — temporary
 
@@ -332,8 +323,9 @@ is a different change every time and a blanket yes to it would mean nothing. The
 status bar shows a count of active grants, `/approvals` lists them, and it
 offers to clear them.
 
-Grants live and die with the session. Nothing about them is written to disk, so
-starting Kirsch again starts from no grants.
+Grants live and die with the session. The session log records each grant, so
+`kirsch resume` (or auto-resume) restores them. A new session, including one
+started with `/new`, starts with none.
 
 ---
 
