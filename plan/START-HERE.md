@@ -14,7 +14,7 @@ Get your bearings in this order. Stop here if you just want to understand what K
 
 ## Understanding the Full Plan
 
-Kirsch's instruction set is big — about 15,400 lines across the plan folder — so this section shows you what to read and what to skim.
+Kirsch's instruction set is big, so this section shows you what to read and what to skim.
 
 **Always read these three** (about 2,430 lines together):
 
@@ -24,7 +24,7 @@ Kirsch's instruction set is big — about 15,400 lines across the plan folder �
 
 - **[spec/ui-spec-v0.1.md](spec/ui-spec-v0.1.md)** — The TUI specification. *About 850 lines.* **This is normative.** Everything visual must match this spec. Skim §1–§2 (layout, breakpoints), read §13 (the golden states), and refer to the rest as needed. When the spec and the code disagree, the spec is law.
 
-**Read for the milestone you are working** (Milestone 4 is complete, tag `m4`; Milestone 5 is next, and its instruction set is not yet written):
+**Read for the milestone you are working** (Milestone 4 is complete, tag `m4`; Milestone 5 is next, its instruction set is written in [milestones/milestone-5.md](milestones/milestone-5.md), and no M5 deliverable has started; for Milestone 5, begin with [milestones/milestone-5-start-here.md](milestones/milestone-5-start-here.md)):
 
 - **Milestone instruction sets** — [milestones/README.md](milestones/README.md) lists each milestone's document and its confidence level. Pick the milestone you are claiming work from, read the Ground Rules and the deliverables table, then read the tasks that belong to your deliverable. Completed milestone documents are reference only.
 
@@ -46,12 +46,12 @@ When using an AI coding tool, hand this prioritized list to it as context. Load 
 - `PROGRESS.md`
 - `README.md`
 
-**Load for the current milestone** (Milestone 4 is complete; Milestone 5 is next, and its instruction set is not yet written):
+**Load for the current milestone** (Milestone 4 is complete; Milestone 5 is next, its instruction set is written, and no M5 deliverable has started):
 - `spec/kirsch-plan.md` (sections §1–§3 minimum; full file better)
 - `spec/architecture.md`
 - `spec/ui-spec-v0.1.md`
 - `process/code-standards.md` — required for any Go file you write; covers naming, comments, file layout, testing, and the pre-PR checklist
-- `milestones/README.md` — until the Milestone 5 instruction set is written
+- `milestones/milestone-5.md` — the Milestone 5 instruction set; read it when you claim an M5 deliverable
 
 **Load on demand**:
 - `spec/kirsch-ui-screens.md` — required for any visual work; reference only otherwise

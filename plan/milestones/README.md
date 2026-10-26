@@ -11,7 +11,7 @@ This folder holds the per-milestone instruction sets for building Kirsch — one
 | 2 | Patches, commands, approvals | Executed | Complete. See [`../PROGRESS.md`](../PROGRESS.md) for deliverable status and task breakdown. |
 | 3 | Provider + agent loop | Executed | Complete. Written before Milestone 2 landed; see [`../PROGRESS.md`](../PROGRESS.md) for deliverable status. |
 | 4 | Real task loop + sessions | Executed | Complete and operator-accepted 2026-10-23 (tag `m4`). Known defect carried to Milestone 5: the narrow-width status-bar fallback (see [`../PROGRESS.md`](../PROGRESS.md)). |
-| 5 | Polish + release | — | Next. Written when its mission starts. (See section below.) |
+| 5 | Polish + release (v0.1.0) | Executable | Instruction set and testing skeletons written 2026-10-23–24 (mission-20261023-06). Complete definition is in `milestone-5.md`. Live status is in [`../PROGRESS.md`](../PROGRESS.md). (See section below.) |
 
 Live status for each milestone lives in [`../PROGRESS.md`](../PROGRESS.md).
 
@@ -23,19 +23,9 @@ Live status for each milestone lives in [`../PROGRESS.md`](../PROGRESS.md).
 
 **Outline** — A scope statement rather than a detailed instruction set. Expect to do real architectural work to break it down further. No amendments needed — the whole thing may be substantially rewritten as understanding grows. M4 was at this level until its detailed rewrite on 2026-10-13.
 
-## Milestone 5 — Not Yet Written
+## Milestone 5
 
-Kirsch's instruction sets are normally written **one at a time**, each after the previous milestone lands, because detail written three milestones ahead is almost always wrong by the time anyone reads it.
-
-M2, M3, and M4 were drafted together on 2026-09-12 at the owner's request, which was a deliberate trade. The evidence for caution is close to hand: Milestone 1 produced seven amendments correcting instructions written just one milestone ahead, including a security hole in the containment algorithm.
-
-M5 is next. It will be written when its mission starts, following the one-at-a-time pattern. It will cover:
-
-- **Final polish** — refinement, edge cases, performance tuning
-- **Release engineering** — binary distribution, version tagging, release notes
-- **User documentation** — [`doc/`](../../doc/), the installer, first-run, configuration reference, troubleshooting
-
-No task breakdown yet. The instruction set will describe the steps when the time comes.
+The instruction set is written (mission-20261023-06). [`milestone-5.md`](milestone-5.md) carries the deliverables, the decisions table and the waves. Each deliverable is a seed for one mission, and the file's Deliverables table names them. Live status is in [`../PROGRESS.md`](../PROGRESS.md). Start with [`milestone-5-start-here.md`](milestone-5-start-here.md) — the plain-language front door: first decisions, first mission, the per-deliverable loop and a short path for testing.
 
 ## Deliverables
 

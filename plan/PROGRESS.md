@@ -1,8 +1,8 @@
 # Progress — Kirsch
 
-**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is complete and operator-accepted on 2026-10-13: m3-d1 through m3-d6 are done (m3-d6 = wiring and integration, mission-20261007-02), the operator's manual walkthrough is all-green across §1–§8 (plan/testing/manual/user-testing/milestone-3-donovan.md), and Task 8 box 321 is ticked on the walkthrough's §8 evidence (mission-20261013-05). m4-d1 through m4-d11 are all complete: m4-d1 (session store core, 0d50b5e); m4-d2 (storage layout + repair, 0d50b5e); m4-d3 (event recording wiring, 2e30615); m4-d4 (resume reconstruction, f14a6a7); m4-d5 (resume state + CLI, 7c3913c); m4-d6 (single-instance guard, 6ad3160); m4-d7 (compaction, 6ad3160); m4-d8 (slash commands, d2ee294); m4-d9 (token and cost tracking, d2ee294); m4-d10 (final-task report, uncommitted); m4-d11 (smoke test, mission-20261018-04, uncommitted). The race condition in `TestRunTurnApprovalToolUsesApprovalPath` is resolved (mission-20261018-04): the test now reads the approval ID from the observed message instead of using a hard-coded constant. m4-d12 (final acceptance) is done, and Milestone 4 is complete and operator-accepted on 2026-10-23 (walkthrough at `plan/testing/manual/user-testing/milestone-4-donovan.md`; tag `m4`). **Resolved 2026-10-23:** the "uncommitted" markers on m4-d1 to m4-d11 above are historical; at the start of this step `git status` showed no modified tracked file except the operator's walkthrough, so that work is in HEAD (`2981658`).
+**Where we are:** Milestone 2 is complete, accepted by the operator on 2026-10-02 with deferred items (see *Carried from Milestone 2*). Milestone 3, the provider and agent loop, is complete and operator-accepted on 2026-10-13: m3-d1 through m3-d6 are done (m3-d6 = wiring and integration, mission-20261007-02), the operator's manual walkthrough is all-green across §1–§8 (plan/testing/manual/user-testing/milestone-3-donovan.md), and Task 8 box 321 is ticked on the walkthrough's §8 evidence (mission-20261013-05). m4-d1 through m4-d11 are all complete: m4-d1 (session store core, 0d50b5e); m4-d2 (storage layout + repair, 0d50b5e); m4-d3 (event recording wiring, 2e30615); m4-d4 (resume reconstruction, f14a6a7); m4-d5 (resume state + CLI, 7c3913c); m4-d6 (single-instance guard, 6ad3160); m4-d7 (compaction, 6ad3160); m4-d8 (slash commands, d2ee294); m4-d9 (token and cost tracking, d2ee294); m4-d10 (final-task report, uncommitted); m4-d11 (smoke test, mission-20261018-04, uncommitted). The race condition in `TestRunTurnApprovalToolUsesApprovalPath` is resolved (mission-20261018-04): the test now reads the approval ID from the observed message instead of using a hard-coded constant. m4-d12 (final acceptance) is done, and Milestone 4 is complete and operator-accepted on 2026-10-23 (walkthrough at `plan/testing/manual/user-testing/milestone-4-donovan.md`; tag `m4`). **Resolved 2026-10-23:** the "uncommitted" markers on m4-d1 to m4-d11 above are historical; at the start of this step `git status` showed no modified tracked file except the operator's walkthrough, so that work is in HEAD (`2981658`). **Milestone 5 planning (2026-10-23–24, mission-20261023-06):** Milestone 5's instruction set and testing skeletons are written, and no M5 deliverable has started.
 
-**What's next:** Milestone 5 (Polish and release, v0.1.0) is next. The operator commits and pushes this docs update first. Milestone 5's milestone document and testing documents are written in the next mission, not this one. Carried items are listed under *Carried from Milestone 4* and the sections below it.
+**What's next:** Milestone 5 (Polish and release, v0.1.0) is next, and no M5 deliverable has started. The next action is the operator's: commit and push these documents, then record the O-decisions a chosen deliverable needs (the decisions table in `plan/milestones/milestone-5.md`), then lift deliverables into missions in wave order. Milestone 5's deliverables are listed under *Milestone 5 — deliverables*, and its carried items under *Carried from Milestone 5 planning*; both are at the end of the file. The older carried sections start at *Carried from Milestone 4*.
 
 This file is the single source of truth for live state — what is in progress and what you can start next. Milestone instruction documents carry static definition only (IDs, tasks, dependencies, ownership of files) and never carry status or owner information.
 
@@ -15,7 +15,7 @@ This file is the single source of truth for live state — what is in progress a
 | 2 | Patches, commands, approvals | ☑ Complete (operator-accepted 2026-10-02, deferred items below) |
 | 3 | Provider + agent loop | ☑ Complete (operator-accepted 2026-10-13, carried items below) |
 | 4 | Real task loop + sessions | ☑ Complete (operator-accepted 2026-10-23, tag m4, carried items below) |
-| 5 | Polish + release (v0.1.0) | ☐ Not started |
+| 5 | Polish + release (v0.1.0) | ☐ Not started (instruction set and testing skeletons written 2026-10-23–24, mission-20261023-06) |
 
 ## Milestone 2 — deliverables
 
@@ -260,3 +260,92 @@ The single-instance guard landed on 2026-10-16 (mission-20261016-02, review APPR
 ---
 
 **Outstanding verification:** see [testing/README.md](testing/README.md#outstanding-verification).
+
+## Milestone 5 — deliverables
+
+Definitions, the decisions table and the waves are in `plan/milestones/milestone-5.md`. Where to start, and the loop for each deliverable: `plan/milestones/milestone-5-start-here.md`.
+
+| ID | Title | Status | Owner | Waits on |
+|---|---|---|---|---|
+| m5-d1 | Narrow-width status-bar fallback | not started | — | O1, O23 |
+| m5-d2 | `--version` and `--help` | not started | — | O4 |
+| m5-d3a | Doctor: dispatch, report grammar, version line, exit codes, arch entry | not started | — | m5-d2, O5 |
+| m5-d3b | Doctor: `rg`, `git`, repository and config probes | not started | — | m5-d3a, O5 |
+| m5-d4a | Doctor: key, backend, model and project-context lines; comment edits | not started | — | m5-d3b, O5 |
+| m5-d4b | Doctor: state directory and lock state | not started | — | m5-d4a, O5 |
+| m5-d5 | Persist `/approvals` clear | not started | — | O11 |
+| m5-d6 | Composer paste path and caret rows | not started | — | O10; m5-d1 (file ownership: `view.go`, if O10 is wrap) |
+| m5-d7a | Soft-wrap fidelity: `wrap()` | not started | — | m5-d1, m5-d6, O23 |
+| m5-d7b | Soft-wrap fidelity: composer cut marker | not started | — | m5-d6, m5-d7a, O17, O23 |
+| m5-d8 | Paste debounce | not started | — | m5-d6, O9 |
+| m5-d9 | Terminal capability and resize tests | not started | — | O18 |
+| m5-d10a | Build wrapper and version proof | not started | — | m5-d2, O4 |
+| m5-d10b | goreleaser config and target-compile check | not started | — | m5-d2, O2, O4, O20 |
+| m5-d11 | GitHub release workflow | not started | — | m5-d10b, O3 |
+| m5-d12 | Repository files and golden-regeneration note | not started | — | m5-d10a, m5-d10b, O7, O8, O21; m5-d8 (file ownership: `ui-spec-v0.1.md`, amend branch) |
+| m5-d13a | `doc/configuration.md` | not started | — | O6 |
+| m5-d13b | Key-coverage test (S36) | not started | — | m5-d13a |
+| m5-d13c | `doc/install.md` | not started | — | m5-d2, m5-d10a, m5-d10b, O4, O6 |
+| m5-d14a | `doc/usage.md` corrections | not started | — | m5-d1, m5-d5, m5-d6, m5-d7a, O6, O10 |
+| m5-d14b | `doc/troubleshooting.md` and `doc/README.md` | not started | — | m5-d3a, m5-d3b, m5-d4a, m5-d4b, m5-d13a, m5-d13c, O6 |
+| m5-d15 | Front-door and tracker freshness | not started | — | m5-d1, m5-d10a, m5-d10b, m5-d13c, O22 |
+| m5-d16 | Fresh-machine no-key check | not started | — | O14, O19; m5-d10a (builds the binary the script runs); m5-d2 and m5-d3a (file ownership: `cmd/kirsch/main.go`, only if O14 makes "not in a repo" a screen) |
+| m5-d17a (optional) | `/new` lifecycle: C51, C52 | not started | — | m5-d5, O13 |
+| m5-d17b (optional) | `/new` busy state and turn fencing: C48, C49 | not started | — | m5-d8, m5-d17a, O13 |
+| m5-d18 (optional) | Resume totals and compaction % | not started | — | m5-d17a (file ownership only), O13 |
+| m5-d19a | Safety-test repair for `run_command`: C30, C35, C36 | not started | — | — (O13) |
+| m5-d19b | Safety-test repair: C29 | not started | — | m5-d19a, O15, O13 |
+| m5-d20 (operator) | Record the operator's decisions | not started | — | None; records O12, O15, O16 and the decision list in its section |
+| m5-d21a (conditional) | Model table (X5, C9) | not started | — | m5-d20 |
+| m5-d21b (conditional) | Help footer and goldens (X8, O16) | not started | — | m5-d20, O16, O23 |
+| m5-d21c (conditional) | Debug log clip (C24) | not started | — | m5-d20 |
+| m5-d21d (conditional) | Debug log disclosure (C24) | not started | — | m5-d20, m5-d12 (file ownership: `SECURITY.md`) |
+| m5-d21e (conditional) | ULID dependency (C40) | not started | — | m5-d20 |
+| m5-d21f (conditional) | §7 amendment (C43, C46) | not started | — | m5-d20, m5-d5 (file ownership: `plan/spec/kirsch-plan.md` §7) |
+| m5-d21g (conditional) | Lock behaviour (C8) | not started | — | m5-d20 |
+| m5-d22 (operator) | Demo, release smoke run, tag | not started | — | m5-d21 deliverables that ran, O12, O15, O16 |
+
+## Carried from Milestone 5 planning (mission-20261023-06)
+
+These items are open. None blocks Milestone 5 planning. Items labelled "fix before lifting" are applied to the deliverable's brief before that deliverable is lifted into a mission; the others are applied when it is lifted. The milestone document review is step 3f of mission-20261023-06, and the testing skeleton review is step 5h. Line references `master:N` point to `plan/testing/manual/milestone-5.md`.
+
+**Milestone document review (step 3f), keyed by deliverable:**
+
+- **m5-d12, O21 `-update` branch (fix before lifting):** the acceptance box greps `-update` in `internal/tui/regen_test.go`, but a Go flag definition has no hyphen. The branch needs a `@hicks` step with `regen_test.go` and `golden_test.go` ownership.
+- **m5-d13a, m5-d13c, m5-d14a, m5-d14b (word-boundary plural grep, fix before lifting):** the word-boundary grep `-w -E 'milestone|ADR'` misses plurals ("ADRs", "milestones"). Use `'milestones?|ADRs?'`, with a plural in the control.
+- **m5-d21c and m5-d21d (SECURITY.md ownership, fix before lifting):** d21c's Depends cell omits m5-d12, which creates `SECURITY.md`. The d21 group scope sentence "one code or docs step" is false for d21c. d21c and d21d both own `SECURITY.md`, which works only because decision C24 makes them alternatives.
+- **m5-d12 and m5-d21c ("full request body" literal coupling, fix before lifting):** d12 must write the literal "full request body" in `SECURITY.md` and check it, because d21c's control and d21d's box depend on that literal. d21c's box must pair absence with presence of the recorded bound.
+- **Wave check (`plan/milestones/milestone-5.md`, Wave check section) (vacuous pass, fix before lifting):** it can pass vacuously on an unreadable file or an unparsed table, and its control output is not auto-asserted.
+- **Lower-priority warnings, to apply as each deliverable is lifted:**
+  - m5-d15: the section ownership omits `AGENTS.md:21`, and the D5 coverage row omits `plan/README.md:25` and `AGENTS.md:21`.
+  - Golden fences are identified by screen key, not by W×H header, because 80×17 and 80×14 repeat.
+  - d7a, d7b and d21b need saved-copy file names, and `go test ./internal/tui` and `npm run screens` boxes.
+  - m5-d8 must say who saves the ui-spec copy, and when.
+  - Grouping note 13's wave range is off.
+  - DIR-001 "same invocation" for pre-copy controls.
+  - Residual prose counts beside lists (`milestone-5.md:55`, `:339`, `:43`, `:1324`).
+
+**Testing skeleton review (step 5h), suggestions:**
+
+- **S-1:** `master:695` "Run Setup in each window first" should name the Guard functions block and `guard`.
+- **S-2:** the Guard functions intro (`master:242`) says "same terminal". §24 also pastes it in a second terminal.
+- **S-3:** check (e) requires a whole-line `keycount` but not `keycount_control`.
+- **S-4:** `keycount` exits 1 when the count is 0, because `grep -c` exits non-zero on no match. The printed value is what counts. Add a comment, or end the function with `; true`.
+
+**Open questions for the operator:**
+
+- Where DIR-020 pre-edit copies live during deliverable execution: `workspace/` or scratch. The testing controls name workspace copies.
+- Many "(test)" acceptance boxes in `milestone-5.md` give no command. The testing skeleton marks them TO EXPAND.
+- Some hands-on steps have no offline path yet: m5-d5 grant creation, the m5-d19a `run_command` invocation, and the m5-d18 turn.
+
+## Milestone 5 — decisions recorded
+
+| ID | Choice | Date |
+|----|--------|------|
+| O1 | Go with a | 2026-10-26 |
+| O4 | Go with a | 2026-10-26 |
+| O6 | `@lambert` writes, `@apone` reviews the claims against the code. This is the milestone's own recommendation. | 2026-10-26 |
+| O11 | (b) Whether `/new` records one too. The milestone's own note says no, because `/new` starts a new file. | 2026-10-26 |
+| O13 | schedule the optional groups (m5-d17, m5-d18) and the safety-test group (m5-d19) into v0.1 | 2026-10-26 |
+| O18 | let go with this no-color.org convention treats it as unset | 2026-10-26 |
+| O23 | Go with a | 2026-10-26 |
