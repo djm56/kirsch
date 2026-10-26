@@ -35,7 +35,7 @@ ahead is usually wrong by the time anyone reads it.
 
 M2, M3 and M4 were drafted together on 2026-09-12 at the owner's request, so
 that trade has been made deliberately and is recorded as plan §11 amendment 50.
-**M0–M4 are complete** (tag `m4`, 2026-10-23) and M5 is next. Each of the
+**M0–M4 are complete** (tag `m4`, 2026-10-23) and M5 is in progress. Each of the
 drafted instruction sets carried a status banner saying how far it could be
 trusted: **M2 was executable as written**, M3 was settled in shape but
 provisional in detail, and M4 was a scope statement that was rewritten into a

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -246,5 +249,120 @@ func TestChooseSessionInitAutoResumeConcurrentInstance(t *testing.T) {
 	}
 	if !strings.Contains(nm.Text, "another Kirsch instance is running") {
 		t.Errorf("notice text = %q, want it to contain 'another Kirsch instance is running'", nm.Text)
+	}
+}
+
+// TestRunVersionOutsideRepository drives run() with --version from a directory
+// that is not a Git repository. It must print exactly "kirsch <version>\n" and
+// succeed, which proves the flag is handled before workspace detection.
+func TestRunVersionOutsideRepository(t *testing.T) {
+	t.Chdir(t.TempDir())
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"--version"}, &stdout, &stderr); err != nil {
+		t.Fatalf("run --version: %v", err)
+	}
+	if want := "kirsch " + buildVersion() + "\n"; stdout.String() != want {
+		t.Errorf("stdout = %q, want %q", stdout.String(), want)
+	}
+	// Shape check independent of buildVersion().
+	if got := stdout.String(); !strings.HasPrefix(got, "kirsch ") || !strings.HasSuffix(got, "\n") {
+		t.Errorf("stdout = %q, want prefix \"kirsch \" and suffix newline", got)
+	}
+}
+
+// TestRunHelp drives run() with each spelling of a help request. Help must
+// succeed, list the commands and every flag on stdout, and not mention doctor.
+func TestRunHelp(t *testing.T) {
+	for _, args := range [][]string{
+		{"--help"},
+		{"-h"},
+		{"resume", "--help"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			var stdout, stderr bytes.Buffer
+			if err := run(args, &stdout, &stderr); err != nil {
+				t.Fatalf("run %v: %v", args, err)
+			}
+			if stderr.Len() != 0 {
+				t.Errorf("stderr = %q, want empty (help goes to stdout only)", stderr.String())
+			}
+			out := stdout.String()
+			for _, want := range []string{"resume", "--workspace", "--new", "--debug", "--version"} {
+				if !strings.Contains(out, want) {
+					t.Errorf("stdout lacks %q:\n%s", want, out)
+				}
+			}
+			if strings.Contains(out, "doctor") {
+				t.Errorf("stdout mentions doctor:\n%s", out)
+			}
+		})
+	}
+}
+
+// TestRunBadFlag drives run() with an undefined flag. It must fail, with the
+// flag package's error and usage on stderr and nothing on stdout.
+func TestRunBadFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"--nope"}, &stdout, &stderr); err == nil {
+		t.Fatal("run --nope returned nil, want an error")
+	}
+	if !strings.Contains(stderr.String(), "nope") || !strings.Contains(stderr.String(), "--workspace") {
+		t.Errorf("stderr lacks the error or usage:\n%s", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want empty", stdout.String())
+	}
+}
+
+// TestResolveVersion covers the stamped-wins rule and each build-info shape the
+// fallback must accept or reject.
+func TestResolveVersion(t *testing.T) {
+	tests := []struct {
+		name, stamped, mainVersion, want string
+	}{
+		{"stamped wins over release tag", "9.9.9", "v0.1.0", "9.9.9"},
+		{"stamped wins over empty", "9.9.9", "", "9.9.9"},
+		{"release tag", devVersion, "v0.1.0", "0.1.0"},
+		{"pre-release tag", devVersion, "v0.2.0-rc.1", "0.2.0-rc.1"},
+		{"devel", devVersion, "(devel)", devVersion},
+		{"empty", devVersion, "", devVersion},
+		{"pseudo-version", devVersion, "v0.0.0-20261026103300-6956cc7abcde", devVersion},
+		{"pseudo-version after tag", devVersion, "v0.1.1-0.20261026103300-6956cc7abcde", devVersion},
+		{"dirty", devVersion, "v0.1.0+dirty", devVersion},
+		{"tag without leading v", devVersion, "0.1.0", "0.1.0"},
+		{"incompatible build metadata", devVersion, "v2.0.0+incompatible", devVersion},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveVersion(tt.stamped, tt.mainVersion); got != tt.want {
+				t.Errorf("resolveVersion(%q, %q) = %q, want %q", tt.stamped, tt.mainVersion, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestLdflagsVersionBuild builds the real binary with -X main.version and runs
+// --version from outside any repository. The value must come out bare.
+func TestLdflagsVersionBuild(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds the binary; skipped under -short")
+	}
+	bin := filepath.Join(t.TempDir(), "kirsch")
+	// The test binary runs on the machine that built it, so GOROOT is the
+	// toolchain that is running this test, not whatever "go" PATH finds first.
+	goBin := filepath.Join(runtime.GOROOT(), "bin", "go") //nolint:staticcheck // SA1019: same-machine lookup is intended
+	build := exec.Command(goBin, "build", "-ldflags", "-X main.version=9.9.9", "-o", bin, ".")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("go build: %v\n%s", err, out)
+	}
+	cmd := exec.Command(bin, "--version")
+	cmd.Dir = t.TempDir()
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("kirsch --version: %v", err)
+	}
+	if want := "kirsch 9.9.9\n"; string(out) != want {
+		t.Errorf("stdout = %q, want %q", out, want)
 	}
 }

@@ -11,7 +11,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"regexp"
+	"runtime/debug"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,11 +27,48 @@ import (
 	"github.com/djm56/kirsch/internal/workspace"
 )
 
-// version is overridden at release time via -ldflags (Milestone 5).
-var version = "0.1.0-dev"
+// devVersion is the value version holds when no release stamp was applied.
+const devVersion = "0.1.0-dev"
+
+// version is overridden at release time via -ldflags, for example
+// -X main.version=0.1.0. The injected value is bare: the TUI adds its own "v".
+// When it is left at devVersion, resolveVersion may replace it with the module
+// version a `go install ...@vX.Y.Z` build records in its build info.
+var version = devVersion
+
+// pseudoVersionRe matches the timestamp and commit suffix of a Go
+// pseudo-version, in both the "-<ts>-<hash>" and ".<ts>-<hash>" forms.
+var pseudoVersionRe = regexp.MustCompile(`[-.]\d{14}-[0-9a-f]{12}`)
+
+// resolveVersion returns the version string kirsch reports. A stamped value
+// that differs from devVersion wins unchanged. Otherwise mainVersion, the main
+// module version from the build info, is used with one leading "v" removed —
+// but only when it is a clean release or pre-release tag. Empty, "(devel)",
+// build metadata ("+dirty") and pseudo-versions are rejected, because a plain
+// `go build` inside a checkout stamps one of those and must keep reporting the
+// dev default.
+func resolveVersion(stamped, mainVersion string) string {
+	if stamped != devVersion {
+		return stamped
+	}
+	if mainVersion == "" || mainVersion == "(devel)" ||
+		strings.Contains(mainVersion, "+") || pseudoVersionRe.MatchString(mainVersion) {
+		return stamped
+	}
+	return strings.TrimPrefix(mainVersion, "v")
+}
+
+// buildVersion resolves version against the running binary's build info.
+func buildVersion() string {
+	mainVersion := ""
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		mainVersion = bi.Main.Version
+	}
+	return resolveVersion(version, mainVersion)
+}
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		// The TUI owns the alternate screen until Run returns, so by the time
 		// we get here stderr is safe to write to again.
 		fmt.Fprintln(os.Stderr, "kirsch:", err)
@@ -36,11 +76,31 @@ func main() {
 	}
 }
 
-func run() error {
+// usageText is the help text written for -h and --help and after a bad flag.
+const usageText = `Usage:
+  kirsch [flags]
+  kirsch resume [flags]
+
+Commands:
+  resume    resume the most recent session for this workspace
+
+Flags:
+  --workspace <path>  workspace root (defaults to the enclosing Git repository)
+  --new               start a fresh session even when a previous session exists
+  --debug             write a structured debug log
+  --version           print the version and exit
+  --help, -h          show this help and exit
+`
+
+// run parses args and starts the TUI. Output goes to stdout and stderr so the
+// tests can capture it. Requests for help or the version are answered here, ahead
+// of workspace detection and config loading, and return nil.
+func run(args []string, stdout, stderr io.Writer) error {
+	ver := buildVersion()
+
 	// Parse subcommands before flags so that `kirsch resume -workspace ...`
 	// and `kirsch --new` are both handled by the same flag set.
 	var subcommand string
-	args := os.Args[1:]
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		switch args[0] {
 		case "resume":
@@ -55,7 +115,24 @@ func run() error {
 	flagWorkspace := fs.String("workspace", "", "workspace root (defaults to the enclosing Git repository)")
 	flagNew := fs.Bool("new", false, "start a fresh session even when a previous session exists")
 	flagDebug := fs.Bool("debug", false, "write a structured debug log")
+	flagVersion := fs.Bool("version", false, "print the version and exit")
+
+	// The flag set writes into buf; where buf goes depends on the outcome below.
+	var buf strings.Builder
+	fs.SetOutput(&buf)
+	fs.Usage = func() { _, _ = io.WriteString(fs.Output(), usageText) }
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			// Help was asked for: usage goes to stdout and the exit is clean.
+			_, werr := io.WriteString(stdout, buf.String())
+			return werr
+		}
+		// A bad flag: the flag package's error and usage go to stderr.
+		_, _ = io.WriteString(stderr, buf.String())
+		return err
+	}
+	if *flagVersion {
+		_, err := fmt.Fprintf(stdout, "kirsch %s\n", ver)
 		return err
 	}
 
@@ -100,7 +177,7 @@ func run() error {
 
 	info := a.WorkspaceInfo()
 	m := tui.New(tui.Options{
-		Version: version,
+		Version: ver,
 		Caps:    tui.DetectCaps(os.Stdout),
 		Session: tui.SessionInfo{
 			Project: info.Project,
@@ -129,7 +206,7 @@ func run() error {
 		log.Warn("config", "detail", w.String())
 	}
 	log.Info("starting",
-		"version", version,
+		"version", ver,
 		"workspace", ws.Root,
 		"git", ws.IsGit,
 		"tools", a.Registry().Names())
@@ -137,7 +214,7 @@ func run() error {
 	// Generate one session ID per invocation for the opencode endpoint and tell
 	// the app the version before any turn can start. This must happen after the
 	// program is attached so onboarding messages have somewhere to go.
-	if err := startupPostAttach(a, p, version, initSession); err != nil {
+	if err := startupPostAttach(a, p, ver, initSession); err != nil {
 		return err
 	}
 

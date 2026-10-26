@@ -400,13 +400,39 @@ _Placeholder. Write what you saw here._
 
 ## 2 · Version and help flags (m5-d2)
 
-**Context:** Terminal: Setup. Binary: `kirsch` on PATH (install path TO EXPAND; the milestone writes `kirsch`, not `bin/kirsch`). Working directory: `$T_CFG`, outside any Git repository. Workspace: n/a. The check requires no repository, so `--workspace` is not passed. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: `bin/kirsch` and `bin/kirsch-999`, built from the checkout by the build block below (`bin/` is git-ignored) and run by absolute path, so nothing needs to be on PATH. Working directory: `$T_CFG`, outside any Git repository, for the binary runs; `/Volumes/DATA/Github/kirsch` for the build block and the `go test` check. Workspace: n/a. The check requires no repository, so `--workspace` is not passed. Key state: all key variables unset. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d2 lands:** the `--version` and `--help` output, and the `--help` exit status as observed (`plan/milestones/milestone-5.md:494`, unverified until run).
+O4 is recorded in `plan/PROGRESS.md:346`. This is what the code now does.
 
-**Waits on:** O4 (version string: bare `0.1.0` in ldflags, whether `--version` prints commit and date, whether a `debug.ReadBuildInfo` fallback is wanted), from `plan/milestones/milestone-5.md:98`.
+`--version` prints `kirsch <version>` only. It prints no commit and no date. A version stamped with `-ldflags "-X main.version=…"` is printed as given. With no stamp, a `go install …@vX.Y.Z` build reports that module version with the leading `v` removed. A plain `go build` in the checkout keeps `0.1.0-dev`, because Go stamps a pseudo-version or `+dirty` there, and those are ignored (`cmd/kirsch/main.go:50–59`, `resolveVersion`). That `go install` path is covered by `TestResolveVersion`, which feeds version strings to the function; no real `go install` from a tag has been run.
+
+`--version` and `--help` are handled before workspace detection and config loading, so both work outside a Git repository. The TUI shows the same resolved version.
+
+Before this change, `--help` and `-h` printed the flag package's default usage and exited 1 (`kirsch: flag: help requested`), and `--version` was an undefined flag (exit 1). Reported by @hicks in mission-20261026-01, step 1, from a build of the pre-change code; not re-run since. The current status is the one the checks below verify (`plan/milestones/milestone-5.md:494` called it unverified).
+
+Now `--help` and `-h` go to stdout and exit 0. `kirsch resume --help` also exits 0. An unknown flag prints the error and usage on stderr and exits 1. `kirsch help` (no dashes) is still an unknown command; the milestone does not ask for it.
+
+The help text, exactly:
+
+```text
+Usage:
+  kirsch [flags]
+  kirsch resume [flags]
+
+Commands:
+  resume    resume the most recent session for this workspace
+
+Flags:
+  --workspace <path>  workspace root (defaults to the enclosing Git repository)
+  --new               start a fresh session even when a previous session exists
+  --debug             write a structured debug log
+  --version           print the version and exit
+  --help, -h          show this help and exit
+```
+
+**Waits on:** O4, recorded (`plan/PROGRESS.md:346`), from `plan/milestones/milestone-5.md:98`.
 
 **Key-state and repository checks, first.** Authored here. It must print `CONTROL PASS`, then `0`. The first `git` line must exit non-zero (`not a git repository`), which shows the scratch directory is outside any repository. The last line must print `true`: the positive control, the same command finding the workspace.
 
@@ -418,32 +444,109 @@ git -C "$T_CFG" rev-parse --is-inside-work-tree; echo "exit=$?"
 git -C "$WORKSPACE" rev-parse --is-inside-work-tree
 ```
 
+Then build the binaries. `npm run build` runs `go build -o bin/kirsch ./cmd/kirsch` (`package.json:9`). Both files must be listed.
+
+```bash
+# authored here
+cd /Volumes/DATA/Github/kirsch
+npm run build
+go build -ldflags "-X main.version=9.9.9" -o bin/kirsch-999 ./cmd/kirsch
+export KIRSCH_BIN=/Volumes/DATA/Github/kirsch/bin/kirsch
+ls -l bin/kirsch bin/kirsch-999
+```
+
 **Automated checks**
 
-- [ ] `kirsch --version` run outside a Git repository prints the version and exits 0 (`plan/milestones/milestone-5.md:498`). Run from a directory outside any Git repository. `$T_CFG` is one. The milestone does not name the directory.
+- [ ] `"$KIRSCH_BIN" --version` run outside a Git repository prints the version and exits 0 (`plan/milestones/milestone-5.md:498`). Run from a directory outside any Git repository. `$T_CFG` is one. The milestone does not name the directory.
 
   ```bash
+  # authored here
   cd "$T_CFG"
-  kirsch --version
+  "$KIRSCH_BIN" --version
   echo $?
   ```
 
-- [ ] A build with `-ldflags "-X main.version=9.9.9"` prints `9.9.9`, with no leading `v` (`plan/milestones/milestone-5.md:499`). The build command is `TO EXPAND`. Only the ldflags string is given: `-ldflags "-X main.version=9.9.9"`.
+  Expected: `kirsch 0.1.0-dev`, then `0`, on a checkout with uncommitted changes or not sitting exactly on a `vX.Y.Z` tag. On a clean checkout exactly at tag `vX.Y.Z`, Go stamps that tag and the line reads `kirsch X.Y.Z`.
 
-- [ ] `kirsch --help` lists the commands and the flags, and `echo $?` after it prints 0 (`plan/milestones/milestone-5.md:500–501`).
+- [ ] A build with `-ldflags "-X main.version=9.9.9"` prints `9.9.9`, with no leading `v` (`plan/milestones/milestone-5.md:499`). The build command is the one in the build block above, which made `bin/kirsch-999`:
 
   ```bash
+  # authored here
   cd "$T_CFG"
-  kirsch --help
+  /Volumes/DATA/Github/kirsch/bin/kirsch-999 --version
   echo $?
   ```
 
-- [ ] `cmd/kirsch/main_test.go` covers both flags (`plan/milestones/milestone-5.md:502`). Command: `TO EXPAND`.
+  Expected: `kirsch 9.9.9`, then `0`. No leading `v`.
+
+- [ ] `"$KIRSCH_BIN" --help` lists the commands and the flags, and `echo $?` after it prints 0 (`plan/milestones/milestone-5.md:500–501`).
+
+  ```bash
+  # authored here
+  cd "$T_CFG"
+  "$KIRSCH_BIN" --help
+  echo $?
+  ERR=$(mktemp)
+  "$KIRSCH_BIN" --help 2>"$ERR" >/dev/null; wc -c < "$ERR" | tr -d ' '
+  "$KIRSCH_BIN" --nope 2>"$ERR" >/dev/null; wc -c < "$ERR" | tr -d ' '
+  rm -f "$ERR"
+  "$KIRSCH_BIN" resume --help >/dev/null; echo $?
+  "$KIRSCH_BIN" --help | grep -c doctor
+  "$KIRSCH_BIN" --help | grep -c resume
+  ```
+
+  Expected, in order: the help text in *What landed*, then `0`. Then `0` (nothing on stderr for `--help`). Then a non-zero count (`517` on 2026-10-26), the control: it proves the same capture does see stderr. Then `0` (`resume --help` exits 0). Then `0` (`doctor` is not in the help yet; m5-d3a adds it later). Then `2`, the control: it proves the same grep finds a word that is there. `grep -c` exits 1 when the count is 0; the printed number is what counts.
+
+- [ ] An unknown flag exits non-zero.
+
+  ```bash
+  # authored here
+  cd "$T_CFG"
+  "$KIRSCH_BIN" --nope
+  echo $?
+  ```
+
+  Expected, exactly:
+
+  ```text
+  flag provided but not defined: -nope
+  Usage:
+    kirsch [flags]
+    kirsch resume [flags]
+
+  Commands:
+    resume    resume the most recent session for this workspace
+
+  Flags:
+    --workspace <path>  workspace root (defaults to the enclosing Git repository)
+    --new               start a fresh session even when a previous session exists
+    --debug             write a structured debug log
+    --version           print the version and exit
+    --help, -h          show this help and exit
+  kirsch: flag provided but not defined: -nope
+  1
+  ```
+
+  The error appears twice, once from the flag parser and once from `kirsch:` in `main` (`cmd/kirsch/main.go:74`), the same as before this change.
+
+- [ ] `cmd/kirsch/main_test.go` covers both flags (`plan/milestones/milestone-5.md:502`). Command:
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch
+  go test -count=1 -v ./cmd/kirsch -run 'TestRunVersionOutsideRepository|TestRunHelp|TestRunBadFlag|TestResolveVersion|TestLdflagsVersionBuild' 2>&1 | grep -E '^(--- |ok|FAIL)'
+  ```
+
+  Expected: a `--- PASS` line for each name in the list (`TestRunVersionOutsideRepository`, `TestRunHelp`, `TestRunBadFlag`, `TestResolveVersion`, `TestLdflagsVersionBuild`) and a final `ok  	github.com/djm56/kirsch/cmd/kirsch` followed by the run time. No `FAIL`.
 
 **Hands-on checks**
 
-1. Record O4 in the step report before running the binary (`plan/milestones/milestone-5.md:490`).
-2. Run `kirsch --help` from `$T_CFG` with the key variables unset (Setup), and record the observed exit status. The milestone calls the current status unverified until run (`plan/milestones/milestone-5.md:494`).
+1. O4 is recorded in `plan/PROGRESS.md:346` (see *What landed*). Read it before running the binary (`plan/milestones/milestone-5.md:490`).
+2. Run `"$KIRSCH_BIN" --help` from `$T_CFG` with the key variables unset (Setup), then `echo $?`. Expected exit status `0`. Record what you see under *Notes / evidence*.
+
+**Cleanup**
+
+`rm -f /Volumes/DATA/Github/kirsch/bin/kirsch-999` (optional; `bin/` is git-ignored).
 
 **Notes / evidence**
 
