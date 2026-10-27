@@ -2,7 +2,7 @@
 
 Kirsch Milestone 5 is polish and release: the narrow-width status bar, the `kirsch doctor` command, `--version` and `--help`, the release tooling (build wrapper, goreleaser configuration, release workflow), the repository files, the user documentation under `doc/`, and the operator decisions that gate the conditional follow-through. The deliverables are defined in `plan/milestones/milestone-5.md`.
 
-> **Status: skeleton.** This document was written at planning time (mission-20261023-06, 2026-10-23). It is expanded as each deliverable lands. No command in it has been run. Every block marked `TO EXPAND` is a placeholder, and the expansion belongs to the step that lands the deliverable. To run one section without reading the whole document, follow *Testing a deliverable — the short path* in [`../../milestones/milestone-5-start-here.md`](../../milestones/milestone-5-start-here.md).
+> **Status: skeleton.** This document was written at planning time (mission-20261023-06, 2026-10-23). It is expanded as each deliverable lands. Section 2's commands were run in mission-20261026-01, and the operator passed section 2 of the plain checklist on 2026-10-27; no other section's commands have been run. Every block marked `TO EXPAND` is a placeholder, and the expansion belongs to the step that lands the deliverable. The operator runs tests from the plain checklist `plan/testing/manual/user-testing/milestone-5-donovan.md`, set up with `source scripts/m5-test-env.sh`; see [`milestone-5-start-here.md`](../../milestones/milestone-5-start-here.md).
 
 ## How to read this document
 
@@ -17,7 +17,7 @@ Kirsch Milestone 5 is polish and release: the narrow-width status bar, the `kirs
 - **Placeholder convention.** `> **TO EXPAND when m5-dN lands:** …` marks every place where the detail depends on a decision that is not yet recorded (an O-number in `plan/milestones/milestone-5.md:61–85`) or on code that does not exist yet.
 - **Golden screens.** The goldens are sized fences in `plan/spec/kirsch-ui-screens.md`. Use only the procedure in *Golden mechanism and regeneration procedure* (`plan/milestones/milestone-5.md:39–53`). `KIRSCH_REGEN=1` writes the current render to `/tmp/kirsch-grids.txt` (`internal/tui/regen_test.go:27`, as the milestone states). It changes no screen document. A person reconciles the grids by hand.
 - **Saved copies.** Before any edit, a section saves the copy it names, with the file name it gives, and then edits. The names are the ones the milestone uses, except where a section says its name is chosen here.
-- **Where expansions land.** Expansions land in this master file first. The operator's working copy, `plan/testing/manual/user-testing/milestone-5-donovan.md`, is then copied from it under DIR-020. The working copy keeps this file's wording.
+- **Where expansions land.** Expansions land in this master file first. The operator's checklist, `plan/testing/manual/user-testing/milestone-5-donovan.md`, is a separate plain-language runbook: for each section, the delivering mission writes it fresh in the paste / you-should-see / tick style and runs every step first. It does not copy this file's wording.
 
 **Mechanical checks.** Run this block before a run, and after any expansion. Each check is followed by a control in the same invocation: a copy with one planted fault, which the check must report. Every check prints PASS or FAIL, and the block ends with a verdict. The Wave column and the Hands-on and Live tokens of the Type column are checked mechanically. The Automated and Operator tokens of the Type column, and the Deliverable and Waits-on columns, are kept by hand against `plan/milestones/milestone-5.md:97–133`. Run this block under bash, not zsh: paste it into a bash shell, or save it to a file and run `bash <file>`. The block is wrapped in `bash <<'CHECK'` and `CHECK`, so `LC_ALL`, the `exit` in `plant` and the EXIT trap stay in a child shell. An abort then cannot close the terminal the block was pasted into.
 
@@ -315,13 +315,17 @@ Removing the scratch directories is the operator's step, and agents do not run i
 
 ## 1 · Narrow-width status-bar fallback (m5-d1)
 
-**Context:** Terminal: Setup. Binary: none for the automated checks; `go run ./cmd/kirsch --workspace "$WORKSPACE"` for hands-on step 2 (TO EXPAND; the launch line is authored here). Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the hands-on launch; n/a for the checks. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: none for the automated checks; `go run ./cmd/kirsch --workspace "$WORKSPACE"` for hands-on step 2. Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the hands-on launch; n/a for the checks. Key state: all key variables unset, so no provider key is set and no turn runs in hands-on step 2. Config state: Setup, unchanged. The hands-on table assumes no session grants and no other kirsch running in the same workspace; either adds text to the bar.
 
 **What landed**
 
-> **TO EXPAND when m5-d1 lands:** the band rule and the ladder that O1 records, and the sized fences that moved.
+O1 (`plan/PROGRESS.md`, Milestone 5 decisions) keeps `plan/spec/ui-spec-v0.1.md` §2.2: no token figure is shown below 80 columns. At 80 columns and wider, the status bar takes the first token figure that fits. With session totals, that is the session detail (`in … out … cache …`), then the session total `N tok`. With no session totals yet, it is the last call's figure as `N tok`, which is `0 tok` before any turn. If none fits, the bar drops to the model with grants, the model alone, or the family, with no token figure. Below 80 it shows no token figure at all, not even `N tok`. A cost figure appears only for per-token pricing, or as `$?` for unknown pricing; flat-priced models never show one. The Milestone 4 walkthrough ❌ (`plan/testing/manual/user-testing/milestone-4-donovan.md` §9 step 11) recorded a wrong expectation, not a code defect.
 
-**Waits on:** O1 (what the narrow bar shows) and O23 (golden handling), from `plan/milestones/milestone-5.md:97`. Golden procedure: `plan/milestones/milestone-5.md:39–53`. This is the defect the Milestone 4 walkthrough marked ❌ (`plan/testing/manual/user-testing/milestone-4-donovan.md:1042`).
+No product code changed. m5-d1 edited the spec sections §2.2 (the width rows, which now say no token figure below 80) and §2.3 (the truncation order, which below 80 starts at the grants indicator). It extended the existing test `TestSessionUsageNarrowLayoutFallsBackToSessionTotal` in `internal/tui/turn_messages_test.go`. The test already pinned 79 columns before m5-d1. m5-d1 added 60, 59 and 30 columns, and a cost assertion that no `$` figure appears below 80 columns. Only the test file changed in code.
+
+The sized fences below 80 columns in `plan/spec/kirsch-ui-screens.md` were `40×11`, `38×6` and `40×6` when mission-20261027-03 ran. None moved. The file is byte-identical to the committed copy, `git show HEAD:plan/spec/kirsch-ui-screens.md`, which is valid as the pre-change baseline until the next commit that touches that file. No fence at 80 columns or wider moved either.
+
+**Recorded:** O1 (`plan/PROGRESS.md`, Milestone 5 decisions) keeps ui-spec §2.2, no token figure below 80 columns, and corrects the Milestone 4 acceptance text. O23 (`plan/PROGRESS.md`, "Go with a") regenerates any golden that moves and has a human review the golden diff. No golden moved in m5-d1. Golden procedure: `plan/milestones/milestone-5.md:39–53`. The Milestone 4 walkthrough ❌ (`plan/testing/manual/user-testing/milestone-4-donovan.md:1042`) recorded a wrong expectation, resolved as O1 states.
 
 **Key-state check, first.** Authored here. Run it before any kirsch launch in this section. It must print `CONTROL PASS`, then `0`.
 
@@ -339,11 +343,11 @@ keycount
   cd /Volumes/DATA/Github/kirsch && npm run check
   ```
 
-- [ ] Sized fences at 80 columns and wider are unchanged. The command extracts them from the saved copy and from the file, and compares them. Empty diff output means pass (`plan/milestones/milestone-5.md:441–458`). The command needs `$PRE`, the saved copy that Hands-on step 1 creates. Run that step first.
+- [ ] Sized fences at 80 columns and wider are unchanged. The command extracts them from the saved copy and from the file, and compares them. Empty diff output means pass (`plan/milestones/milestone-5.md:441–458`). The command takes `$PRE` from the committed copy, `HEAD:plan/spec/kirsch-ui-screens.md`. That copy is the pre-change baseline only until the next commit that touches the file. After that commit, point `$PRE` at the commit before the change instead.
 
   ```bash
   # authored here
-  PRE=/Volumes/DATA/Github/kirsch/.claude/memory/workspace/m5-d1-kirsch-ui-screens.pre.md
+  PRE=$(mktemp); git -C /Volumes/DATA/Github/kirsch show HEAD:plan/spec/kirsch-ui-screens.md > "$PRE"
   NOW=/Volumes/DATA/Github/kirsch/plan/spec/kirsch-ui-screens.md
   wide() { awk '/^```text [0-9]+×[0-9]+$/ { split($2, d, "×"); keep = (d[1] + 0 >= 80); if (keep) print "@@FENCE " $2; infence = 1; next }
        /^```$/ { infence = 0; keep = 0; next }
@@ -354,32 +358,111 @@ keycount
   CTRL=$(mktemp)
   awk 'BEGIN { d = 0; m = 0 } /^```text 80×/ && !d { on = 1; d = 1; print; next } on && /^```$/ { on = 0 } on && !m { print $0 "X"; m = 1; next } { print }' "$PRE" > "$CTRL"
   diff <(wide "$PRE") <(wide "$CTRL")
-  rm -f "$CTRL"
+  rm -f "$CTRL" "$PRE"
   ```
 
   The first output line is the count of wide fences. The control `diff` must print a difference. Without that, an empty diff proves nothing.
 
-- [ ] At 60–79 columns and below 60, the status bar shows exactly what O1 specifies. `internal/tui/turn_messages_test.go:619–627` pins that behaviour and passes (`plan/milestones/milestone-5.md:438–439`). Command: `TO EXPAND`. The milestone gives no command line for this test.
+- [ ] At 60–79 columns and below 60, the status bar shows no token figure, as O1 specifies. The test is `TestSessionUsageNarrowLayoutFallsBackToSessionTotal` in `internal/tui/turn_messages_test.go`; its subtests named `below 80 columns: no tokens at all, …` cover 79, 60, 59 and 30 columns (`plan/milestones/milestone-5.md:438–439`). Command:
 
-- [ ] ui-spec §2.2 and §2.3 agree with the code (`plan/milestones/milestone-5.md:440`). Command: `TO EXPAND`. Review step, not a command.
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./internal/tui -run TestSessionUsageNarrowLayoutFallsBackToSessionTotal -v
+  ```
+
+  Expected: `--- PASS: TestSessionUsageNarrowLayoutFallsBackToSessionTotal` and a `PASS` line for each subtest. The test renders the status row through the TUI's own `statusRow` path at each width. It proves the narrow-width rule. It does not run kirsch in a terminal.
+
+- [ ] ui-spec §2.2 and §2.3 agree with the code (`plan/milestones/milestone-5.md:440`). Review step, not a command. The reviewer compares the §2.2 width rows with the band switch in `internal/tui/view.go` (the `case w >= 80`, `case w >= 60` and `case w >= 40` arms) and the token gate `if lay.ShowTokens` in `internal/tui/statusbar.go`. Below 80 there must be no token figure. At 80 and wider the figure is, in order: the session detail (`in … out … cache …`, with the cost when it fits) while session totals exist and the detail fits; otherwise the session total `N tok` while session totals exist; otherwise the last call's `N tok`, which is `0 tok` before any turn. If none of those fits, the bar shows no token figure. The reviewer also compares the §2.3 truncation order with the candidate ladder in `internal/tui/statusbar.go`.
 
 **Hands-on checks**
 
-1. Before any change, record the sized fences below 80 columns by fence header. Save the pre-change copy of `plan/spec/kirsch-ui-screens.md` to `.claude/memory/workspace/m5-d1-kirsch-ui-screens.pre.md` first (`plan/milestones/milestone-5.md:428`).
+1. **Record of mission-20261027-03, done (not an instruction).** Before the change, the sized fences below 80 columns were recorded by fence header: `40×11`, `38×6` and `40×6` (`plan/milestones/milestone-5.md:428`). The pre-change copy is `HEAD:plan/spec/kirsch-ui-screens.md`, as in the automated check above. The command below reproduces the list from the current file. Its verbatim output is pasted under *Notes / evidence*. It lists the same headers, so no fence moved.
 
    ```bash
    grep -n '^```text [0-9]*×' /Volumes/DATA/Github/kirsch/plan/spec/kirsch-ui-screens.md | awk -F'[ ×]' '$2+0 < 80'
    ```
 
-   If the list is empty, record "no golden below 80 columns" and change no fence.
+   A later mission that changes a golden repeats this record before it changes anything. If the list is empty, the record says "no golden below 80 columns", and no fence changes.
 
 2. Run the status bar at each width band that O1 names, and compare the bar with the O1 text.
 
-   > **TO EXPAND when O1 is recorded:** the terminal widths to walk (60–79 and below 60), the expected bar text at each, and the terminal size command (`echo $COLUMNS $LINES`).
+   Launch from the checkout, with `$WORKSPACE` set by the setup block:
+
+   ```bash
+   cd /Volumes/DATA/Github/kirsch && go run ./cmd/kirsch --workspace "$WORKSPACE"
+   ```
+
+   Before each row of the table, resize the terminal and run `stty size`. It prints rows, then columns. `$COLUMNS` is not reliable here, because the shell does not export it by default. Quit with `/quit`.
+
+   With no provider key no turn runs, so no usage is reported and the bar shows no session total. The expected status-bar row at each width is below. The table shows the left segment only. The render output in *Notes / evidence* shows the full row as the code draws it:
+
+   | Columns | Status-bar row (`<model>` is the configured model) | Token figure |
+   |---|---|---|
+   | 100 | `<model> · idle · 0 tok` | `0 tok`, the last-call figure before any totals exist |
+   | 80 | `<model> · idle · 0 tok` | `0 tok`, as above |
+   | 79 | `<model> · idle` | none |
+   | 60 | `<model> · idle` | none |
+   | 59 | `<model> · idle` | none |
+   | 40 | `<model> · idle` | none |
+   | 30 | `<model> · idle` | none |
+
+   The 80-column row shows `0 tok` because O1 allows a token figure at 80 and wider, and no turn has reported usage yet, so the last-call figure is the one shown. The no-figure rows below 80 are the O1 rule. The rows above were rendered by the status-bar code with no turn, in a scratch copy of the checkout and not in a live terminal (*Notes / evidence*). The session-total fallback (`N tok`) appears at 80 columns and wider only when session totals exist, the detail does not fit, and the total does. Scenario C in *Notes / evidence* shows it. The test covers both sides: the fallback at 80 columns, and no figure at 79 columns and below even with session totals present. A live check with a real turn is operator-owned and optional.
 
 **Notes / evidence**
 
-_Empty. Fill at run: command, output, step report reference._
+Render, run 2026-10-27 09:20 UTC by `@lambert` in mission-20261027-03 (step 6). The program was run in a scratch copy of the checkout, not in the repository: the working tree was copied with `rsync` (excluding `.git`, `.claude`, `node_modules`, `bin`), and a test file was added to that copy only. Command, from the scratch copy: `go test -count=1 ./internal/tui -run TestZZRenderStatusRow -v` (Go 1.26.10, darwin/arm64). The test calls `statusRow(layout())` through the helpers `sizedModel`, `drive` and `stripEscapes` that the existing narrow-layout test uses. Model `minimax-m2.7`, family `minimax`. The program prints each row between `[` and `]`; the brackets are not part of the row. Scenario A is the state of the walkthrough (no turn, no usage). Scenario B is one turn with usage reported (`UsageMsg` 100 in, 11 out; `SessionUsageMsg` 1000 in, 300 out, 8000 cache read, 2000 cache write, $0.04). Scenario C is scenario B with a 40-character model name, so the detail does not fit at 80 columns.
+
+```text
+== scenario A: no turn has run (no session totals, no usage) ==
+100 cols: [minimax-m2.7 · idle · 0 tok]
+80 cols: [minimax-m2.7 · idle · 0 tok]
+79 cols: [minimax-m2.7 · idle]
+60 cols: [minimax-m2.7 · idle]
+59 cols: [minimax-m2.7 · idle]
+40 cols: [minimax-m2.7 · idle]
+30 cols: [minimax-m2.7 · idle]
+== scenario B: one turn reported usage (session totals present) ==
+100 cols: [minimax-m2.7 · idle · in 1.0k out 300 cache 8.0k/2.0k · $0.04]
+80 cols: [minimax-m2.7 · idle · in 1.0k out 300 cache 8.0k/2.0k · $0.04]
+79 cols: [minimax-m2.7 · idle]
+60 cols: [minimax-m2.7 · idle]
+59 cols: [minimax-m2.7 · idle]
+40 cols: [minimax-m2.7 · idle]
+30 cols: [minimax-m2.7 · idle]
+== scenario C: session totals present, model name long enough that the detail does not fit ==
+100 cols: [mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm · idle · in 1.0k out 300 cache 8.0k/2.0k · $0.04]
+80 cols: [mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm · idle · 11.3k tok]
+```
+
+Reading the render against the rule: at 100 and 80 columns scenario A shows the last-call `0 tok`, and no session total exists yet. Scenario B shows the session detail at both widths, because the model name is short enough for the cost to fit. Scenario C shows the session total at 80 columns when the detail does not fit, and the detail at 100. Scenarios A and B show no token figure at any width below 80. Scenario C was rendered at 100 and 80 only. The hands-on table matches scenario A.
+
+**Re-running the render.** The program is kept at `.claude/memory/workspace/m5-d1-zz_render_test.go` while mission-20261027-03 is live. It is not part of the repository. To find it, run `find .claude/memory/workspace -name m5-d1-zz_render_test.go`. The program uses the package's test helpers `sizedModel`, `drive` and `stripEscapes` from `internal/tui`, so it must be copied into `internal/tui` of a scratch copy of the module. `sizedModel` and `stripEscapes` are in `turn_messages_test.go`, and `drive` is in `view_smoke_test.go`. It also compiles against `Model.statusRow`, `Model.layout`, `UsageMsg` and `SessionUsageMsg`. A rename of any of those helpers or symbols would stop it compiling. To re-run it, copy the checkout into a new scratch directory (excluding `.git`, `.claude`, `node_modules` and `bin`), copy the file into that copy's `internal/tui/` as `zz_render_test.go`, and run `go test -count=1 ./internal/tui -run TestZZRenderStatusRow -v` from the scratch copy. Never copy it into the repository tree.
+
+**Fence-list output (hands-on step 1).** Run from the checkout, verbatim:
+
+````text
+574:```text 40×11
+590:```text 38×6
+601:```text 40×6
+````
+
+Fence check, run 2026-10-27 09:22 UTC, with the command block above. The baseline is `HEAD:plan/spec/kirsch-ui-screens.md`. The first line is the count of wide fences in the file. The control diff must print a difference, and it does.
+
+```text
+wide fence count in NOW:
+11
+wide fence count in PRE:
+11
+--- diff PRE NOW (empty means pass):
+exit 0
+--- control diff PRE CTRL (must print a difference):
+2c2
+<  Kirsch ───────────────────────────────────────────────────────────────────────
+---
+>  Kirsch ───────────────────────────────────────────────────────────────────────X
+exit 1
+```
+
+The `exit 1` on the control is the expected result of `diff`, which exits 1 when it finds a difference. Step report reference: mission-20261027-03, step 6.
 
 ---
 
@@ -2073,7 +2156,7 @@ _Empty. Fill at run. Paste the smoke transcript and the tag output. No key appea
 
 ## Known limitations
 
-> **TO EXPAND as items land:** any limit found while a deliverable runs that is not already listed below. The M4 narrow-width defect is not a limit. It is m5-d1 (`plan/milestones/milestone-5.md:7`).
+> **TO EXPAND as items land:** any limit found while a deliverable runs that is not already listed below. The M4 narrow-width item is not a limit. It was m5-d1 (`plan/milestones/milestone-5.md:7`), resolved on 2026-10-27 as a wrong expectation, not a code defect.
 
 The carried items below are the Backlog in `plan/milestones/milestone-5.md:1906–1943`. The milestone records them as recorded and not scheduled for v0.1. Check (c) in *Mechanical checks* compares this table's IDs against that Backlog.
 

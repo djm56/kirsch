@@ -574,9 +574,9 @@ func TestSessionUsageASCIIGlyphs(t *testing.T) {
 
 // TestSessionUsageNarrowLayoutFallsBackToSessionTotal drives a per-call UsageMsg
 // (111 tokens) and session totals (11.3k tokens). Where the detail does not fit
-// the row shows the session total and never the per-call figure; below the
-// spec width it shows no token figure. The wide row is the control that the
-// totals are what the bar normally shows.
+// the row shows the session total and never the per-call figure; below 80
+// columns (O1) it shows no token or cost figure. The wide row is the control
+// that the totals are what the bar normally shows.
 func TestSessionUsageNarrowLayoutFallsBackToSessionTotal(t *testing.T) {
 	msgs := []any{
 		UsageMsg{InputTokens: 100, OutputTokens: 11},
@@ -616,15 +616,35 @@ func TestSessionUsageNarrowLayoutFallsBackToSessionTotal(t *testing.T) {
 		}
 	})
 
-	t.Run("below the spec width: no tokens at all", func(t *testing.T) {
-		row := build(79, "claude-sonnet-5-5")
-		if strings.Contains(row, "tok") || strings.Contains(row, "cache") {
-			t.Errorf("row shows tokens below 80 columns:\n%s", row)
-		}
-		if !strings.Contains(row, "claude-sonnet-5-5") {
-			t.Errorf("control: the model is missing from the row:\n%s", row)
-		}
-	})
+	// O1 (plan/PROGRESS.md): no token figure below 80 columns, in either narrow
+	// band or below 40. Each model name is short enough that the "N tok" rung
+	// would fit at its width, so a missing figure comes from the band gate and
+	// not from the ladder running out of room. The model name is the positive
+	// control that the row is not empty. At 30 columns the transcript is hidden
+	// and the status bar still renders.
+	for _, tc := range []struct {
+		name  string
+		width int
+		model string
+	}{
+		{"79 columns, top of the 60-79 band", 79, "claude-sonnet-5-5"},
+		{"60 columns, bottom of the 60-79 band", 60, "claude-sonnet-5-5"},
+		{"59 columns, top of the 40-59 band", 59, "claude-sonnet-5-5"},
+		{"30 columns, below 40", 30, "mdl"},
+	} {
+		t.Run("below 80 columns: no tokens at all, "+tc.name, func(t *testing.T) {
+			row := build(tc.width, tc.model)
+			if row == "" {
+				t.Fatalf("control: the status row is empty at %d columns", tc.width)
+			}
+			if strings.Contains(row, "tok") || strings.Contains(row, "cache") || strings.Contains(row, "$") {
+				t.Errorf("row shows a token or cost figure at %d columns:\n%s", tc.width, row)
+			}
+			if !strings.Contains(row, tc.model) {
+				t.Errorf("control: the model %q is missing from the row:\n%s", tc.model, row)
+			}
+		})
+	}
 }
 
 // TestStatusLadderDropsTokensBeforeGrants sweeps the model-name length and, for

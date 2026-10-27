@@ -582,6 +582,9 @@ This is a Bishop decision, confirmed by the operator on 2026-10-14 (mission-2026
 - [x] Compaction is cancellable and never half-applies; failure surfaces `context_overflow` rather than an oversized request — operator walkthrough 2026-10-23, donovan §7 (lines 642–654 and 666–667: cancellation, never half-applies; lines 668–669: `context_overflow` on provider error and on fewer than six turns over budget)
 - [x] All slash commands operate on real state — operator walkthrough 2026-10-23, donovan §8 (lines 846–853)
 - [x] Token and cost tracking in the status bar and `usage.json` — operator walkthrough 2026-10-23, donovan §9 (lines 1004–1008, 1024–1026, 1034–1036). **Exception:** the narrow-width fallback failed (donovan §9 step 11, line 1042, marked ❌) — carried to Milestone 5 as a defect.
+
+> Note (agent-added 2026-10-27, m5-d1, mission-20261027-03): the spec says no token figure below 80 columns (`plan/spec/ui-spec-v0.1.md` §2.2), and the code does that. O1 kept the spec (`plan/PROGRESS.md`, Milestone 5 decisions), so the ❌ expectation in the walkthrough was wrong, not the code. No product code changed; only the test file (`internal/tui/turn_messages_test.go`) was extended. The box above is the operator's tick and its text is unchanged.
+
 - [x] `go test -race ./...`, `golangci-lint fmt --diff`, `go vet`, `golangci-lint run`, CI all clean — local gates clean 2026-10-23 via `bash scripts/ci.sh all` on go1.26.10 (race, fmt, vet, lint, govulncheck, gosec, secrets, fuzz corpus, screens); GitHub Actions passes — operator walkthrough 2026-10-23, donovan §12 step 10 (line 1343)
 
 **Definition of done:** every box checked, CHANGELOG updated, `../PROGRESS.md` set to `☑ Complete`, and a commit tagged so Milestone 5 starts from a known point.

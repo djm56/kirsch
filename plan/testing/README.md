@@ -11,7 +11,7 @@ the automated suite actually covers, and how the security tooling is wired.
 | [`manual/milestone-3.md`](manual/milestone-3.md) | Checking the provider interface, endpoints, and agent state machine by hand |
 | [`manual/milestone-4.md`](manual/milestone-4.md) | Checking the task loop, sessions, and compaction by hand |
 | [`manual/milestone-5.md`](manual/milestone-5.md) | Checking Milestone 5 (polish + release) by hand. Planning-time skeleton, expanded as each deliverable lands |
-| [`manual/user-testing/milestone-5-donovan.md`](manual/user-testing/milestone-5-donovan.md) | The operator's working copy of the M5 walkthrough. To run one section, use the short path in [`../milestones/milestone-5-start-here.md`](../milestones/milestone-5-start-here.md) |
+| [`manual/user-testing/milestone-5-donovan.md`](manual/user-testing/milestone-5-donovan.md) | The operator's plain step-by-step test checklist for M5. Setup: `source scripts/m5-test-env.sh`. Start at [`../milestones/milestone-5-start-here.md`](../milestones/milestone-5-start-here.md). |
 | [`automated-tests.md`](automated-tests.md) | You want to know what the suite covers, and what it deliberately does not |
 | [`security.md`](security.md) | Running the security tooling, or triaging what it reports |
 
@@ -102,7 +102,7 @@ Seven manual walkthrough checks remain unticked from Milestone 0 testing:
 
 The milestone-1 unticked item ("Outside a repository it refuses with a message naming `--workspace`") is the failure path for workspace detection. The operator has confirmed Milestones 0 and 1 are tested and is moving forward; close these unticked items as part of Milestone 2's acceptance work or afterward as a cleanup step.
 
-**Milestone 4 known defect (carried to Milestone 5):** the operator's walkthrough marks one check ❌ — the narrow-width status-bar fallback (`user-testing/milestone-4-donovan.md`, §9 step 11, line 1042). The status bar drops tokens entirely instead of falling back to `N tok`. See [`../PROGRESS.md`](../PROGRESS.md). The fix is m5-d1 in [`../milestones/milestone-5.md`](../milestones/milestone-5.md).
+**Milestone 4 walkthrough check, resolved (m5-d1):** the operator's walkthrough marked one check ❌ — the narrow-width status-bar fallback (`user-testing/milestone-4-donovan.md`, §9 step 11, line 1042). It recorded a wrong expectation, not a code defect. The spec says no token figure below 80 columns (`plan/spec/ui-spec-v0.1.md` §2.2), and the status bar drops the tokens there. The operator kept the spec (O1). m5-d1 (mission-20261027-03) extended the existing test `TestSessionUsageNarrowLayoutFallsBackToSessionTotal` (widths 79, 60, 59 and 30 columns, and a cost check). No product code changed; only the test file did. See [`../PROGRESS.md`](../PROGRESS.md) and [`../milestones/milestone-5.md`](../milestones/milestone-5.md).
 
 ## The One Rule Worth Repeating
 

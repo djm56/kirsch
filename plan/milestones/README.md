@@ -10,7 +10,7 @@ This folder holds the per-milestone instruction sets for building Kirsch — one
 | 1 | Workspace engine + read-only tools | Executed | Instructions tested in the field. Eight unticked walkthrough items noted in [`../testing/README.md`](../testing/README.md#outstanding-verification); see that section for detail. |
 | 2 | Patches, commands, approvals | Executed | Complete. See [`../PROGRESS.md`](../PROGRESS.md) for deliverable status and task breakdown. |
 | 3 | Provider + agent loop | Executed | Complete. Written before Milestone 2 landed; see [`../PROGRESS.md`](../PROGRESS.md) for deliverable status. |
-| 4 | Real task loop + sessions | Executed | Complete and operator-accepted 2026-10-23 (tag `m4`). Known defect carried to Milestone 5: the narrow-width status-bar fallback (see [`../PROGRESS.md`](../PROGRESS.md)). |
+| 4 | Real task loop + sessions | Executed | Complete and operator-accepted 2026-10-23 (tag `m4`). The narrow-width status-bar fallback, carried to Milestone 5 as m5-d1, was resolved on 2026-10-27 as a wrong expectation, not a code defect (see [`../PROGRESS.md`](../PROGRESS.md)). |
 | 5 | Polish + release (v0.1.0) | Executable | Instruction set and testing skeletons written 2026-10-23–24 (mission-20261023-06). Complete definition is in `milestone-5.md`. Live status is in [`../PROGRESS.md`](../PROGRESS.md). (See section below.) |
 
 Live status for each milestone lives in [`../PROGRESS.md`](../PROGRESS.md).
@@ -25,7 +25,7 @@ Live status for each milestone lives in [`../PROGRESS.md`](../PROGRESS.md).
 
 ## Milestone 5
 
-The instruction set is written (mission-20261023-06). [`milestone-5.md`](milestone-5.md) carries the deliverables, the decisions table and the waves. Each deliverable is a seed for one mission, and the file's Deliverables table names them. Live status is in [`../PROGRESS.md`](../PROGRESS.md). Start with [`milestone-5-start-here.md`](milestone-5-start-here.md) — the plain-language front door: first decisions, first mission, the per-deliverable loop and a short path for testing.
+The instruction set is written (mission-20261023-06). [`milestone-5.md`](milestone-5.md) carries the deliverables, the decisions table and the waves. Each deliverable is a seed for one mission, and the file's Deliverables table names them. Live status is in [`../PROGRESS.md`](../PROGRESS.md). Start with [`milestone-5-start-here.md`](milestone-5-start-here.md) — the plain-language front door: where Milestone 5 is, what to do next, the prompt to paste, and which piece can start.
 
 ## Deliverables
 

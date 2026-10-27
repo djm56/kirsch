@@ -121,9 +121,11 @@ nothing else paints an outer border.
 | Width | Behaviour |
 |---|---|
 | ≥ 80 | Full layout. Modals at 80% of viewport. |
-| 60–79 | Status bar drops the token count. Modals at 90%. |
-| 40–59 | Header shows project name only (no branch). Tool cards drop duration. Modals full-screen. |
-| < 40 | Transcript hidden. Status bar + composer only, with a dim `terminal too narrow` notice. No panic. |
+| 60–79 | Status bar drops the token count: no token figure at all, not even `N tok`. Modals at 90%. |
+| 40–59 | Header shows project name only (no branch). Tool cards drop duration. Status bar shows no token figure. Modals full-screen. |
+| < 40 | Transcript hidden. Status bar + composer only, with a dim `terminal too narrow` notice, and no token figure. No panic. |
+
+Token figures appear only at 80 columns and wider. Below 80 the status bar never shows a token count, not even the session total `N tok`.
 
 | Height | Behaviour |
 |---|---|
@@ -169,7 +171,9 @@ right  [⚠ warnings]
 
 **Truncation priority.** When the left segment does not fit, drop in this
 order: token count → grants indicator → model name shortened to its family
-(`sonnet-5`) → state verb reduced to the bare spinner. **Warnings are never
+(`sonnet-5`) → state verb reduced to the bare spinner. The token count is only
+present at 80 columns and wider (§2.2), so below 80 the order starts at the
+grants indicator. **Warnings are never
 dropped**; at narrow widths they are the entire reason the bar exists.
 
 ### 2.4 Scroll and pinning

@@ -1,10 +1,10 @@
 # Milestone 5 — Instruction Set
 
-> **Status: Detailed instruction set — written 2026-10-23 (mission-20261023-06).** Built from spec §8 (`plan/spec/kirsch-plan.md:472–492`), the open carried items in `plan/PROGRESS.md` (`:63–262`), and the mission-20261023-05 DEBRIEF (*Tracker And Reality*, `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:35–39`). Every code claim carries a `file:line` citation and was read against the code on 2026-10-23. Each citation is re-checked before its brief is written (see *Note for whoever executes this*). Every deliverable is written so the operator can lift it into a `/mission` brief. Live status and owners belong in `plan/PROGRESS.md`, not here. New to Milestone 5? Start with [`milestone-5-start-here.md`](milestone-5-start-here.md): where to begin, your first decisions, and the loop for each deliverable.
+> **Status: Detailed instruction set — written 2026-10-23 (mission-20261023-06).** Built from spec §8 (`plan/spec/kirsch-plan.md:472–492`), the open carried items in `plan/PROGRESS.md` (`:63–262`), and the mission-20261023-05 DEBRIEF (*Tracker And Reality*, `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:35–39`). Every code claim carries a `file:line` citation and was read against the code on 2026-10-23. Each citation is re-checked before its brief is written (see *Note for whoever executes this*). Every deliverable is written so the operator can lift it into a `/mission` brief. Live status and owners belong in `plan/PROGRESS.md`, not here. New to Milestone 5? Start with [`milestone-5-start-here.md`](milestone-5-start-here.md): where Milestone 5 is, what to do next, the prompt to paste, and which piece can start.
 
 ## Ground Rules (read first)
 
-1. **Milestone 4 is complete.** Operator-accepted 2026-10-23, tag `m4`. Its known defect, the narrow-width status-bar fallback, is the first deliverable here (m5-d1).
+1. **Milestone 4 is complete.** Operator-accepted 2026-10-23, tag `m4`. The narrow-width status-bar fallback that the walkthrough marked ❌ was the first deliverable here (m5-d1). O1 resolved it on 2026-10-27 as a wrong expectation, not a code defect.
 2. **Each deliverable is sized for one small junior mission** (a sequence of steps, each owned by one agent; one `@hicks` code step plus one `@apone` review, at most one fix round, as `plan/milestones/milestone-4.md` words it). This is a sizing target, not a cap on rounds. The two-round contract in `.claude/CREW-MANIFEST.md` (Delegation Constraints) and `.claude/skills/mission-lifecycle/SKILL.md` still governs every fix loop. Every code or docs step is followed immediately by an `@apone` review step, and that review covers exactly one step. A deliverable that needs more than one code step is split when its brief is written, not during execution.
 3. **Every code step goes to `@hicks`.** `@vasquez` is not in any step. It arrives only by escalation under the delegation contract (CREW-MANIFEST.md, Delegation Constraints).
 4. **Operator-owned steps are marked `(operator)`.** They are decisions, real-terminal checks, repository settings, token-spending runs, or the tag. Bishop does not delegate them. Their acceptance boxes are ticked by the operator.
@@ -436,12 +436,12 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Acceptance:**
 - [ ] O1 is recorded in `plan/PROGRESS.md` before this brief runs.
 - [ ] At 60–79 columns and below 60, the status bar shows exactly what O1 specifies.
-- [ ] `turn_messages_test.go:619–627` pins O1's behaviour and passes.
+- [ ] `TestSessionUsageNarrowLayoutFallsBackToSessionTotal` in `internal/tui/turn_messages_test.go` pins O1's behaviour and passes.
 - [ ] ui-spec §2.2 and §2.3 agree with the code.
-- [ ] Sized fences at 80 columns and wider are unchanged. The command extracts them from the saved copy and from the file, and compares them. Empty diff output means pass. The first output line is the count of wide fences in the file, so a count of zero shows that the extraction read nothing.
+- [ ] Sized fences at 80 columns and wider are unchanged. The command extracts them from the committed copy and from the file, and compares them. The committed copy is the pre-change baseline only until the next commit that touches `plan/spec/kirsch-ui-screens.md`; after that commit, point `$PRE` at the commit before the change instead. Empty diff output means pass. The first output line is the count of wide fences in the file, so a count of zero shows that the extraction read nothing.
 
   ```bash
-  PRE=/Volumes/DATA/Github/kirsch/.claude/memory/workspace/m5-d1-kirsch-ui-screens.pre.md
+  PRE=$(mktemp); git -C /Volumes/DATA/Github/kirsch show HEAD:plan/spec/kirsch-ui-screens.md > "$PRE"
   NOW=/Volumes/DATA/Github/kirsch/plan/spec/kirsch-ui-screens.md
   wide() { awk '/^```text [0-9]+×[0-9]+$/ { split($2, d, "×"); keep = (d[1] + 0 >= 80); if (keep) print "@@FENCE " $2; infence = 1; next }
        /^```$/ { infence = 0; keep = 0; next }
@@ -452,7 +452,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
   CTRL=$(mktemp)
   awk 'BEGIN { d = 0; m = 0 } /^```text 80×/ && !d { on = 1; d = 1; print; next } on && /^```$/ { on = 0 } on && !m { print $0 "X"; m = 1; next } { print }' "$PRE" > "$CTRL"
   diff <(wide "$PRE") <(wide "$CTRL")
-  rm -f "$CTRL"
+  rm -f "$CTRL" "$PRE"
   ```
 
   The control's `diff` must print a difference. Without that, an empty diff proves nothing.
@@ -464,7 +464,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Must-know-before:**
 - O1 is the blocker. The M4 acceptance, `CHANGELOG.md:16`, `plan/PROGRESS.md:231` and the walkthrough step (`plan/testing/manual/user-testing/milestone-4-donovan.md:1042`) disagree with ui-spec §2.2:124. Do not pick a side in the brief. Record O1.
 - X2 (the CHANGELOG and PROGRESS claims) is corrected in m5-d15, after this lands.
-- This is the defect the M4 walkthrough marked ❌ (`plan/PROGRESS.md:67`).
+- This is the item the M4 walkthrough marked ❌ (`plan/PROGRESS.md:67`). O1 resolved it as a wrong expectation, not a code defect.
 
 ---
 
