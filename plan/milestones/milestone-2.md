@@ -509,12 +509,12 @@ Each departure is recorded as a plan amendment in [`spec/kirsch-plan.md`](../spe
   - A file with no final newline gains one when a hunk stops short of the end.
   - A hunk that deletes the last line, with the `\ No newline` marker on the deleted line, drops the newline from the new last line.
   - Either would break Task 3.4. Deferred: reproduce and fix if real, in a follow-up.
-- **Tests that cannot detect a regression:**
+- **Tests that cannot detect a regression:** — addressed by m5-d19a (mission-20261027-05); see section 6 (*What landed*) of `plan/testing/manual/milestone-5.md`.
   - `TestRunCommandTimeoutProcessGroupDead` returns before its assertion.
   - `TestRunCommandCancellationProcessGroupDead` checks no PID.
   - `TestRunCommandStdinIsDevNull` passes without the code it names.
-- **Untested secret patterns:** `*_SECRET` and `AWS_*` stripping, and `*_KEY` outside the walkthrough.
-- **Unverified blank approval card:** an approval request with an unspecified operation sends empty `Subject` and `Detail`. Whether the card renders blank is unverified.
+- **Untested secret patterns:** `*_SECRET` and `AWS_*` stripping, and `*_KEY` outside the walkthrough. — addressed by m5-d19a (mission-20261027-05); see section 6 (*What landed*) of `plan/testing/manual/milestone-5.md`.
+- **Unverified blank approval card:** an approval request with an unspecified operation sends empty `Subject` and `Detail`. Whether the card renders blank is unverified. — superseded by m5-d19a (mission-20261027-05): the blank card is now pinned by `TestApprovalUnspecifiedCardBlankFieldsKnownDefect`; the product defect is still open, see the carried item under *Carried from Milestone 5 planning* in `plan/PROGRESS.md`.
 - **A comment contradicts behaviour:** `internal/tool/run_command.go:~316–321` and `~336–337` say the grace poll always waits the full 2s. `TestRunCommandTimeoutWithinDeadline` (`run_command_test.go:~755`) bounds a 1s timeout at 2s, so the poll must exit early once `Wait` reaps the process. The comment is probably wrong; confirm and fix.
 - **The configured command timeout is ignored:** wire `policy.default_command_timeout_seconds` into `run_command`, enforce a ceiling, and make the schema text match.
 - **Unwired policy settings and streaming:** wire `allow_session_scoped_grants` and the two `require_approval_for_*` keys into the policy and `ProgressSink` into `internal/app`, or remove the keys and the requirement.

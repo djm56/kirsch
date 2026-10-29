@@ -33,6 +33,9 @@ const (
 	eventTypeUsage = "usage"
 	// eventTypeApprovalScopeGranted is the JSONL type for a session-scope grant.
 	eventTypeApprovalScopeGranted = "approval.scope_granted"
+	// eventTypeApprovalScopesCleared is the JSONL type recording that every
+	// session-scope grant recorded before it was revoked (the /approvals clear).
+	eventTypeApprovalScopesCleared = "approval.scopes_cleared"
 	// eventTypeAssistantDelta is the JSONL type for a UI replay delta.
 	// It is never a source of truth for reconstruction; see plan §7.
 	eventTypeAssistantDelta = "assistant.delta"
@@ -129,6 +132,12 @@ type approvalScopeGrantedEvent struct {
 	baseEvent
 	Action  string `json:"action"`
 	Pattern string `json:"pattern"`
+}
+
+// approvalScopesClearedEvent records that all session-scope grants were revoked.
+// It carries no fields beyond the base event: it applies to every grant before it.
+type approvalScopesClearedEvent struct {
+	baseEvent
 }
 
 // encode turns a RecordKind and Message into one or more JSONL lines.
@@ -326,6 +335,13 @@ func marshalApprovalScopeGranted(action, pattern string) ([]byte, error) {
 		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopeGranted},
 		Action:    action,
 		Pattern:   pattern,
+	})
+}
+
+// marshalApprovalScopesCleared returns a JSONL line for an approval.scopes_cleared event.
+func marshalApprovalScopesCleared() ([]byte, error) {
+	return marshalLine(approvalScopesClearedEvent{
+		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopesCleared},
 	})
 }
 

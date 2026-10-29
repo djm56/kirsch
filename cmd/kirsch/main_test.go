@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/djm56/kirsch/internal/app"
 	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/doctor"
 	"github.com/djm56/kirsch/internal/session"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tui"
@@ -271,7 +273,7 @@ func TestRunVersionOutsideRepository(t *testing.T) {
 }
 
 // TestRunHelp drives run() with each spelling of a help request. Help must
-// succeed, list the commands and every flag on stdout, and not mention doctor.
+// succeed and list the commands (doctor included) and every flag on stdout.
 func TestRunHelp(t *testing.T) {
 	for _, args := range [][]string{
 		{"--help"},
@@ -288,13 +290,15 @@ func TestRunHelp(t *testing.T) {
 				t.Errorf("stderr = %q, want empty (help goes to stdout only)", stderr.String())
 			}
 			out := stdout.String()
-			for _, want := range []string{"resume", "--workspace", "--new", "--debug", "--version"} {
+			// The Commands entry, not just the word: the usage block also says
+			// "kirsch doctor", which would satisfy a bare substring check.
+			if !strings.Contains(out, "\n  doctor    check the installation") {
+				t.Errorf("stdout lacks the doctor entry under Commands:\n%s", out)
+			}
+			for _, want := range []string{"resume", "doctor", "--workspace", "--new", "--debug", "--version"} {
 				if !strings.Contains(out, want) {
 					t.Errorf("stdout lacks %q:\n%s", want, out)
 				}
-			}
-			if strings.Contains(out, "doctor") {
-				t.Errorf("stdout mentions doctor:\n%s", out)
 			}
 		})
 	}
@@ -364,5 +368,171 @@ func TestLdflagsVersionBuild(t *testing.T) {
 	}
 	if want := "kirsch 9.9.9\n"; string(out) != want {
 		t.Errorf("stdout = %q, want %q", out, want)
+	}
+}
+
+// brokenConfigEnv points XDG_CONFIG_HOME at a global config that is not valid
+// TOML and HOME at an empty directory, and returns the config home.
+func brokenConfigEnv(t *testing.T) string {
+	t.Helper()
+	cfgHome := t.TempDir()
+	dir := filepath.Join(cfgHome, "kirsch")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte("this = [is not toml\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", cfgHome)
+	t.Setenv("HOME", t.TempDir())
+	return cfgHome
+}
+
+// TestRunDoctorBeforeWorkspaceAndConfig drives run() with "doctor" from a
+// directory that is not a repository, with a broken global config. Doctor must
+// still print the version line and succeed. The control runs the same broken
+// config without doctor against a real repository and must fail on the config,
+// so the doctor pass is not just a config that happens to load.
+func TestRunDoctorBeforeWorkspaceAndConfig(t *testing.T) {
+	brokenConfigEnv(t)
+
+	t.Run("control: broken config without doctor fails", func(t *testing.T) {
+		repo, err := filepath.Abs(filepath.Join("..", "..", "testdata", "repo-small"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var stdout, stderr bytes.Buffer
+		err = run([]string{"--workspace", repo}, &stdout, &stderr)
+		if err == nil || errors.Is(err, errDoctorFailed) {
+			t.Fatalf("run with broken config = %v, want a config error", err)
+		}
+		if !strings.Contains(err.Error(), "config") {
+			t.Errorf("error = %q, want it to name the config", err)
+		}
+	})
+
+	t.Run("doctor in a non-repository with broken config", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		var stdout, stderr bytes.Buffer
+		if err := run([]string{"doctor"}, &stdout, &stderr); err != nil {
+			t.Fatalf("run doctor: %v", err)
+		}
+		first, _, _ := strings.Cut(stdout.String(), "\n")
+		if want := "kirsch " + buildVersion(); first != want {
+			t.Errorf("first line = %q, want %q", first, want)
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("stderr = %q, want empty", stderr.String())
+		}
+	})
+}
+
+// TestRunDoctorSkeletonReport pins the whole report when no probe exists yet:
+// the version line and a zero summary.
+func TestRunDoctorSkeletonReport(t *testing.T) {
+	t.Chdir(t.TempDir())
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"doctor"}, &stdout, &stderr); err != nil {
+		t.Fatalf("run doctor: %v", err)
+	}
+	want := "kirsch " + buildVersion() + "\ndoctor: 0 ok, 0 warn, 0 fail\n"
+	if stdout.String() != want {
+		t.Errorf("stdout = %q, want %q", stdout.String(), want)
+	}
+}
+
+// TestRunDoctorExitSentinel injects results through the doctorProbes seam and
+// calls run(). A fail must return errDoctorFailed after printing the report; a
+// warn-only set must return nil.
+func TestRunDoctorExitSentinel(t *testing.T) {
+	orig := doctorProbes
+	t.Cleanup(func() { doctorProbes = orig })
+	t.Chdir(t.TempDir())
+
+	doctorProbes = func() []doctor.Result {
+		return []doctor.Result{
+			{Status: doctor.StatusOK, Name: "a", Detail: "fine"},
+			{Status: doctor.StatusFail, Name: "b", Detail: "broken"},
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"doctor"}, &stdout, &stderr)
+	if !errors.Is(err, errDoctorFailed) {
+		t.Fatalf("run with a fail = %v, want errDoctorFailed", err)
+	}
+	if want := "fail  b: broken\n"; !strings.Contains(stdout.String(), want) {
+		t.Errorf("stdout lacks %q:\n%s", want, stdout.String())
+	}
+	if !strings.HasSuffix(stdout.String(), "doctor: 1 ok, 0 warn, 1 fail\n") {
+		t.Errorf("stdout lacks the summary:\n%s", stdout.String())
+	}
+
+	doctorProbes = func() []doctor.Result {
+		return []doctor.Result{{Status: doctor.StatusWarn, Name: "rg", Detail: "missing"}}
+	}
+	stdout.Reset()
+	if err := run([]string{"doctor"}, &stdout, &stderr); err != nil {
+		t.Errorf("run with only a warn = %v, want nil", err)
+	}
+}
+
+// TestRunDoctorVersionAndHelpFlags checks that --version and --help given with
+// doctor are answered by the flag handling: the version alone, or the help text,
+// with no doctor report.
+func TestRunDoctorVersionAndHelpFlags(t *testing.T) {
+	t.Chdir(t.TempDir())
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"doctor", "--version"}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if want := "kirsch " + buildVersion() + "\n"; stdout.String() != want {
+		t.Errorf("--version stdout = %q, want %q", stdout.String(), want)
+	}
+	stdout.Reset()
+	if err := run([]string{"doctor", "--help"}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if stdout.String() != usageText {
+		t.Errorf("--help stdout = %q, want the usage text", stdout.String())
+	}
+}
+
+// TestRunDoctorChangesNothing runs doctor with HOME, XDG_CONFIG_HOME and
+// XDG_STATE_HOME pointing at empty temp directories and the working directory
+// in another, and asserts nothing was created in any of them. The control is a
+// file written into the working directory beforehand: the snapshot must see it,
+// so an empty snapshot cannot be mistaken for a blind one. Doctor has no network
+// code in this step; that is by construction, not asserted here.
+func TestRunDoctorChangesNothing(t *testing.T) {
+	home, cfg, state, cwd := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("XDG_STATE_HOME", state)
+	t.Chdir(cwd)
+	if err := os.WriteFile(filepath.Join(cwd, "control.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := func() []string {
+		var got []string
+		for _, root := range []string{home, cfg, state, cwd} {
+			_ = filepath.WalkDir(root, func(p string, _ os.DirEntry, err error) error {
+				if err == nil && p != root {
+					got = append(got, p)
+				}
+				return nil
+			})
+		}
+		return got
+	}
+	before := snapshot()
+	if len(before) != 1 {
+		t.Fatalf("control snapshot = %v, want exactly the control file", before)
+	}
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"doctor"}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if after := snapshot(); strings.Join(after, "\n") != strings.Join(before, "\n") {
+		t.Errorf("doctor changed the filesystem: before %v, after %v", before, after)
 	}
 }

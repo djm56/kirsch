@@ -10,7 +10,7 @@
 4. **Operator-owned steps are marked `(operator)`.** They are decisions, real-terminal checks, repository settings, token-spending runs, or the tag. Bishop does not delegate them. Their acceptance boxes are ticked by the operator.
 5. **Decisions come first.** A deliverable whose *Depends on* cell names an open O-decision cannot start until that decision is recorded (see *Decisions the operator makes before starting*).
 6. **Live state goes in `plan/PROGRESS.md`.** This document carries no status and no owner. Acceptance boxes here are unchecked seed text for a mission brief. Their ticks, if any, live with the mission's evidence.
-7. **Locked decisions (do not re-litigate).** Release tooling is goreleaser (`plan/spec/kirsch-plan.md:481`). The targets are `darwin/amd64`, `darwin/arm64`, `linux/amd64` and `linux/arm64` (`:481`). The version string injected at build time is bare (`0.1.0`), not `v0.1.0`, because the TUI already writes the `v` (`internal/tui/empty.go:81`).
+7. **Locked decisions (do not re-litigate).** Release tooling is goreleaser (the Release bullet in `plan/spec/kirsch-plan.md`, matched by its text `Release via **goreleaser**`). The targets are `darwin/amd64`, `darwin/arm64`, `linux/amd64` and `linux/arm64` (the same bullet, which names all four). The version string injected at build time is bare (`0.1.0`), not `v0.1.0`, because the TUI already writes the `v` (`internal/tui/empty.go:81`).
 8. **Re-read before you start.** Each deliverable must be checked against the code before its brief is written. See *Note for whoever executes this*.
 9. **Mission steps name the agent.** Each deliverable lists its steps with the agent for each. A step that changes a file is followed by its `@apone` review as the next step.
 
@@ -20,18 +20,18 @@
 
 The spec's Milestone 5 section, quoted exactly (`plan/spec/kirsch-plan.md`):
 
-> **Goal:** Daily-driver quality; installable by others.  *(`:474`)*
+> **Goal:** Daily-driver quality; installable by others.  *(`:475`)*
 
-> **Acceptance:** `bash scripts/smoke-test.sh` passes all milestone-4 checks plus: fresh machine flow (no key → clear onboarding), `kirsch doctor` output correct, release binaries built for all four targets, and `doc/` contains the four user-facing documents with every config key in §5 documented.  *(`:487`)*
+> **Acceptance:** `bash scripts/smoke-test.sh` passes all milestone-4 checks plus: fresh machine flow (no key → clear onboarding), `kirsch doctor` output correct, release binaries built for all four targets, and `doc/` contains the four user-facing documents with every config key in §5 documented.  *(`:488`)*
 
 **Where the acceptance and the code, or the acceptance and itself, disagree:**
 
-- **No-key flow versus the smoke test.** `:487` asks for a fresh-machine no-key flow inside the smoke-test acceptance. `scripts/smoke-test.sh:16–22` exits 2 without a key and runs its live test (`:28`). The no-key flow cannot live in that script as written. It is m5-d16, and its placement is O14.
-- **"`kirsch doctor` output correct" has no format to check against.** The spec fixes no output format and no exit codes (`plan/spec/kirsch-plan.md:479, :487`). The format is O5.
-- **Doctor must run before the existing aborts.** `cmd/kirsch/main.go:62–65` (no repository) and `:71–81` (bad config) return before anything could be reported. Doctor, `--version` and `--help` must be dispatched ahead of both.
-- **`kirsch --help`.** The spec lists it (`:480`). Today the flag set prints flag defaults and exits 1 (`main.go:31–36, :58–60`). That path was read from the flag package's behaviour and not run, so the exit status is *unverified* until m5-d2 runs it.
-- **Release binaries for every target.** `:487` requires binaries for every target in the list above. Nothing cross-builds today. Compilation is *plausible but unverified*: there is no cgo in the tree, and the POSIX calls exist on both OSes (`internal/tool/run_command.go:183, :353–369`; `internal/session/lock.go:50`). m5-d10b must prove it.
-- **`doc/` and every §5 key.** `:487` requires every config key documented. The flags layer of §5 precedence is not wired (`internal/config/config.go:496–506`, called from `cmd/kirsch/main.go:71–75` with no flags). The document must not promise config flags. See the backlog (X6).
+- **No-key flow versus the smoke test.** `:488` asks for a fresh-machine no-key flow inside the smoke-test acceptance. `scripts/smoke-test.sh:16–22` exits 2 without a key and runs its live test (`:28`). The no-key flow cannot live in that script as written. It is m5-d16, and its placement is O14.
+- **"`kirsch doctor` output correct" has no format to check against.** The spec fixes no output format and no exit codes (`plan/spec/kirsch-plan.md:480, :488`). The format is O5.
+- **Doctor must run before the existing aborts.** `cmd/kirsch/main.go:172–175` (no repository, `workspace.Detect`) and `:181–191` (bad config, `config.Load` and `Validate`) return before anything could be reported. Doctor, `--version` and `--help` must be dispatched ahead of both.
+- **`kirsch --help`.** The spec lists it (`:481`). When planned (2026-10-23; these cites are from that date, before m5-d2), the flag set printed flag defaults and exited 1 (`main.go:31–36, :58–60`). That path was read from the flag package's behaviour and not run, so the exit status was *unverified* until m5-d2 ran it.
+- **Release binaries for every target.** `:488` requires binaries for every target in the list above. When planned (2026-10-23), nothing cross-built, and compilation was *plausible but unverified*: there is no cgo in the tree, and the POSIX calls exist on both OSes (`internal/tool/run_command.go:183, :353–369`; `internal/session/lock.go:50`). m5-d10b must prove it.
+- **`doc/` and every §5 key.** `:488` requires every config key documented. The flags layer of §5 precedence is not wired (`internal/config/config.go:496–506`, called from `cmd/kirsch/main.go:181–185` (`config.Load`) with no flags). The document must not promise config flags. See the backlog (X6).
 - **Smoke test on the release build.** The milestone-4 checks are re-run at release (S34). The live run spends tokens and is operator-owned.
 
 ---
@@ -61,26 +61,26 @@ A deliverable named in a *Blocks* cell cannot start until its decision is record
 | ID | Decision | Options | Recommendation | Blocks | Sources (file:line) |
 |----|----------|---------|----------------|--------|---------------------|
 | O1 | What the narrow status bar shows, and at which widths. | Keep ui-spec §2.2:124 (no tokens below 80) and correct the M4 acceptance text; or keep an `N tok` rung at 60–79 and below; or `N tok` only below some width. The walkthrough step (`plan/testing/manual/user-testing/milestone-4-donovan.md:1042`) says both "shows only `N tok`" and "dropping tokens first". | — | m5-d1 | `plan/PROGRESS.md:67`; `plan/spec/ui-spec-v0.1.md:124, :170–173`; `internal/tui/statusbar.go:44–48`; `internal/tui/turn_messages_test.go:619–627` |
-| O2 | goreleaser shape: archive format and names; checksums; changelog source (git log, or `CHANGELOG.md` `[Unreleased]`); Homebrew tap or none; SBOM; signing (cosign or GPG) or none. The spec fixes only goreleaser, the targets listed at `:481`, and a GitHub workflow. | — | — | m5-d10b | `plan/spec/kirsch-plan.md:481` |
-| O3 | Release workflow: trigger (`v*` tag; manual dispatch for dry runs); `permissions: contents: write`; goreleaser version and action pinning (CI pins by tag; the golangci-lint pin lives in `scripts/golangci-lint-version`); whether CI runs a snapshot build on pull requests. `GITHUB_TOKEN` covers release assets; extra secrets are needed only for signing or a tap. Repository Actions settings must allow write. | — | — | m5-d11 | `.github/workflows/ci.yml:9–10, :20, :25`; `plan/spec/kirsch-plan.md:481` |
-| O4 | Version string: bare `0.1.0` in ldflags (the TUI adds `v`); whether `--version` also prints commit and date; whether a `debug.ReadBuildInfo` fallback gives `go install` builds a real version. | — | — | m5-d2, m5-d10a, m5-d10b, m5-d13c | `cmd/kirsch/main.go:27–28`; `internal/tui/empty.go:81`; `internal/tui/modal.go:308` |
-| O5 | Doctor design: package placement (`internal/app`, or new `internal/doctor` with an `plan/spec/architecture.md:31–49` line and an `internal/arch` entry); output grammar; which failures are fail and which are warn (a missing `rg` has a fallback); exit codes; whether doctor may create directories or take the lock (`internal/session/lock.go:34, :42`) or must probe read-only; no network calls (the spec is silent). | — | — | m5-d3a, m5-d3b, m5-d4a, m5-d4b | `plan/spec/kirsch-plan.md:479, :487`; `internal/session/lock.go:29–60` |
+| O2 | goreleaser shape: archive format and names; checksums; changelog source (git log, or `CHANGELOG.md` `[Unreleased]`); Homebrew tap or none; SBOM; signing (cosign or GPG) or none. The spec fixes only goreleaser, the targets listed at `:482`, and a GitHub workflow. | — | — | m5-d10b | `plan/spec/kirsch-plan.md:482` |
+| O3 | Release workflow: trigger (`v*` tag; manual dispatch for dry runs); `permissions: contents: write`; goreleaser version and action pinning (CI pins by tag; the golangci-lint pin lives in `scripts/golangci-lint-version`); whether CI runs a snapshot build on pull requests. `GITHUB_TOKEN` covers release assets; extra secrets are needed only for signing or a tap. Repository Actions settings must allow write. | — | — | m5-d11 | `.github/workflows/ci.yml:9–10, :20, :25`; `plan/spec/kirsch-plan.md:482` |
+| O4 | Version string: bare `0.1.0` in ldflags (the TUI adds `v`); whether `--version` also prints commit and date; whether a `debug.ReadBuildInfo` fallback gives `go install` builds a real version. | — | — | m5-d2, m5-d10a, m5-d10b, m5-d13c | `cmd/kirsch/main.go:38` (`version`); `internal/tui/empty.go:81`; `internal/tui/modal.go:308` |
+| O5 | Doctor design: package placement (`internal/app`, or new `internal/doctor` with an `plan/spec/architecture.md:31–49` line and an `internal/arch` entry); output grammar; which failures are fail and which are warn (a missing `rg` has a fallback); exit codes; whether doctor may create directories or take the lock (`internal/session/lock.go:34, :42`) or must probe read-only; no network calls (the spec is silent). | — | — | m5-d3a, m5-d3b, m5-d4a, m5-d4b | `plan/spec/kirsch-plan.md:480, :488`; `internal/session/lock.go:29–60` |
 | O6 | Who writes `doc/`. The spec asks for user documentation. The crew table gives READMEs and changelogs to `@lambert`, and every coding step to `@hicks`. | — | `@lambert` writes, `@apone` reviews the claims against the code. | m5-d13a, m5-d13c, m5-d14a, m5-d14b | `.claude/CREW-MANIFEST.md` (crew table, Delegation Constraints) |
-| O7 | `SECURITY.md` reporting channel (GitHub private advisories or an email), supported versions, response promise. | — | — | m5-d12 | `plan/spec/kirsch-plan.md:482` |
-| O8 | `NOTICE`: only Bubble Tea, Lip Gloss and Bubbles, as the spec says, or every direct dependency. | — | — | m5-d12 | `plan/spec/kirsch-plan.md:482`; `go.mod:6–15` |
+| O7 | `SECURITY.md` reporting channel (GitHub private advisories or an email), supported versions, response promise. | — | — | m5-d12 | `plan/spec/kirsch-plan.md:483` |
+| O8 | `NOTICE`: only Bubble Tea, Lip Gloss and Bubbles, as the spec says, or every direct dependency. | — | — | m5-d12 | `plan/spec/kirsch-plan.md:483`; `go.mod:6–15` |
 | O9 | Paste debounce: implement the 20 ms coalescing, or amend ui-spec §7.2 and §11 because bracketed paste already gives a single message. | — | — | m5-d8 | `internal/tui/styles.go:22`; `github.com/charmbracelet/bubbletea@v1.3.10/key_sequences.go:106–118` |
 | O10 | Composer past five rows: scroll to the caret, or wrap. ui-spec §2:72 says scroll. | — | — | m5-d6, m5-d14a | `internal/tui/composer.go:100–106, :199–205`; `internal/tui/view.go:461` |
-| O11 | D3: name of the new session event (for example `approval.scopes_cleared`) and the §7 amendment. Whether `/new` also records one (it starts a new file, so no). | — | — | m5-d5 | `plan/adr/0006-session-scoped-approvals.md:45, :67–69`; `plan/spec/kirsch-plan.md:340–357` |
-| O12 | Demo assets: asciinema or screenshots; stored in the repository or linked. | — | — | m5-d22 | `plan/spec/kirsch-plan.md:484` |
+| O11 | D3: name of the new session event (for example `approval.scopes_cleared`) and the §7 amendment. Whether `/new` also records one (it starts a new file, so no). | — | — | m5-d5 | `plan/adr/0006-session-scoped-approvals.md:45, :67–69`; `plan/spec/kirsch-plan.md:340–359` |
+| O12 | Demo assets: asciinema or screenshots; stored in the repository or linked. | — | — | m5-d22 | `plan/spec/kirsch-plan.md:485` |
 | O13 | Whether to schedule the optional groups (m5-d17, m5-d18) and the safety-test group (m5-d19) into v0.1, or leave them in the backlog. | — | Schedule m5-d19: C30 names tests that cannot fail (`run_command_test.go`); the operator may defer it, but the gap stays open. | m5-d17a, m5-d17b, m5-d18, m5-d19a, m5-d19b | `plan/PROGRESS.md:149`; `internal/tool/run_command_test.go` |
-| O14 | Fresh-machine acceptance: does "no key gives onboarding" include "not in a repo" (stderr text today), and where it lives, given `smoke-test.sh` requires a key. | — | — | m5-d16 | `plan/spec/kirsch-plan.md:487`; `plan/spec/ui-spec-v0.1.md:597`; `scripts/smoke-test.sh:16–22` |
+| O14 | Fresh-machine acceptance: does "no key gives onboarding" include "not in a repo" (stderr text when this was written, 2026-10-23), and where it lives, given `smoke-test.sh` requires a key. | — | — | m5-d16 | `plan/spec/kirsch-plan.md:488`; `plan/spec/ui-spec-v0.1.md:597`; `scripts/smoke-test.sh:16–22` |
 | O15 | Operator-only carried decisions: C24 (clip the 400 debug log at a byte bound the operator records with the choice, or disclose), C34 (stdin box wording), C40 (ULID dependency), C43 (§7 flattening), C46 (`session.started`/`session.resumed`), C29 (the 500 ms box: tighten or relax). | — | — | m5-d19b (C29); m5-d20 (record) | `plan/PROGRESS.md:138, :148, :153, :170, :186, :194` |
 | O16 | The help footer's `docs: doc/usage.md` for installed binaries (X8). | — | — | m5-d20 (decision); m5-d21b (follow-through) | `internal/tui/modal.go:308` |
 | O17 | Composer rows cut at the frame edge: show a marker, or end the row in `⋯`. | Marker `⋯` at the cut; or wrap the row and show no marker. | — | m5-d7b | `plan/spec/ui-spec-v0.1.md:565–571`; `internal/tui/view.go:602–613` |
-| O18 | Empty `NO_COLOR`: the code treats an empty value as set; the no-color.org convention treats it as unset. Record which behaviour is pinned. | Keep the code (empty is set, colour off); or treat empty as unset (colour on, if the other conditions allow). | — | m5-d9 | `internal/tui/styles.go:44–60` (`LookupEnv` at `:48`); no-color.org convention (external) |
+| O18 | Empty `NO_COLOR`: before m5-d9 the code treated an empty value as set; the no-color.org convention treats it as unset. Record which behaviour is pinned. | Keep the code (empty is set, colour off); or treat empty as unset (colour on, if the other conditions allow). | — | m5-d9 | `internal/tui/styles.go:44–63` (`LookupEnv` at `:48` before m5-d9; `Getenv` at `:53` now); no-color.org convention (external) |
 | O19 | No-key check method: the flow is interactive, so the script must drive a pseudo-terminal or an equivalent. | A pseudo-terminal driver the script starts (for example `script(1)`, or a small pty helper in the repository's language). A manual run is not an option: the check runs inside the temporary repository that the script creates (m5-d16, instruction 3). | — | m5-d16 | `scripts/smoke-test.sh:16–22`; `internal/app/app.go:1298–1324` |
-| O20 | m5-d10b CI-check method: a snapshot build of every target through goreleaser, or a `GOOS=… GOARCH=… go build` loop over the target list. | `goreleaser build --snapshot` (needs goreleaser on CI); or a plain `go build` loop (no extra tool). | — | m5-d10b | `plan/spec/kirsch-plan.md:481`; `.github/workflows/ci.yml` |
-| O21 | C37 flag versus doc: the regeneration mechanism is `KIRSCH_REGEN=1`, not `-update`. Correct the spec, or implement `-update`. | Correct the two sentences that name `-update` (`plan/spec/kirsch-plan.md:498` and `plan/spec/ui-spec-v0.1.md:824`) so that they describe *Golden mechanism and regeneration procedure* (no product change); or add a `-update` flag. | — | m5-d12 | `plan/spec/kirsch-plan.md:498`; `plan/spec/ui-spec-v0.1.md:824`; `internal/tui/regen_test.go:13` |
+| O20 | m5-d10b CI-check method: a snapshot build of every target through goreleaser, or a `GOOS=… GOARCH=… go build` loop over the target list. | `goreleaser build --snapshot` (needs goreleaser on CI); or a plain `go build` loop (no extra tool). | — | m5-d10b | `plan/spec/kirsch-plan.md:482`; `.github/workflows/ci.yml` |
+| O21 | C37 flag versus doc: the regeneration mechanism is `KIRSCH_REGEN=1`, not `-update`. Correct the spec, or implement `-update`. | Correct the two sentences that name `-update` (`plan/spec/kirsch-plan.md:499` and `plan/spec/ui-spec-v0.1.md:824`) so that they describe *Golden mechanism and regeneration procedure* (no product change); or add a `-update` flag. | — | m5-d12 | `plan/spec/kirsch-plan.md:499`; `plan/spec/ui-spec-v0.1.md:824`; `internal/tui/regen_test.go:13` |
 | O22 | The "multiple providers" wording: README says "Multiple providers"; the spec says "Multiple wire formats (OpenAI-format adapters)". ADR 0008 and the spec describe the configured endpoints (`internal/config/config.go:91, :96`). | Keep the README wording and state the configured endpoints; or adopt the spec's wording. | — | m5-d15 | `README.md:47, :53–58`; `plan/spec/kirsch-plan.md:17, :32–34`; `plan/adr/0008-provider-endpoints.md` |
 | O23 | Golden regeneration handling for changed screens: regenerate, then a human reviews the golden diff; or list each moved golden first and stop for approval. | Reconcile the moved fences in `plan/spec/kirsch-ui-screens.md` by the procedure in *Golden mechanism and regeneration procedure*, then a human reviews the diff; or list-then-approve before reconciling. Either way, fences 80 columns and wider do not move unless their step says so. | — | m5-d1, m5-d7a, m5-d7b, m5-d21b | `plan/spec/kirsch-ui-screens.md`; `internal/tui/golden_test.go:22`; `internal/tui/regen_test.go:13` |
 
@@ -109,13 +109,13 @@ Each row is a seed for one mission. The *Wave* column gives the wave from *Paral
 | m5-d10a | Build wrapper and version proof | m5-d2, O4 | `scripts/build.sh` (new), `package.json` | 2 | `build.sh` reports the injected version with no leading `v` |
 | m5-d10b | goreleaser config and target-compile check | m5-d2, O2, O4, O20 | `.goreleaser.yaml` (new), `scripts/ci.sh`, `.github/workflows/ci.yml` | 2 | Config builds only `./cmd/kirsch`; every target in the list compiles; CI check fails on a forced failure |
 | m5-d11 | GitHub release workflow | m5-d10b, O3 | `.github/workflows/release.yml` (new) | 3 | Workflow triggers on `v*`; first live run is operator-owned |
-| m5-d12 | Repository files and golden-regeneration note | m5-d10a, m5-d10b, O7, O8, O21; m5-d8 (file ownership: `ui-spec-v0.1.md`, amend branch) | `CONTRIBUTING.md`, `SECURITY.md`, `NOTICE` (new); `plan/spec/kirsch-plan.md:498`; `plan/spec/ui-spec-v0.1.md:824` | 5 | Each file exists; the regeneration note matches the code |
+| m5-d12 | Repository files and golden-regeneration note | m5-d10a, m5-d10b, O7, O8, O21; m5-d8 (file ownership: `ui-spec-v0.1.md`, amend branch) | `CONTRIBUTING.md`, `SECURITY.md`, `NOTICE` (new); `plan/spec/kirsch-plan.md:499`; `plan/spec/ui-spec-v0.1.md:824` | 5 | Each file exists; the regeneration note matches the code |
 | m5-d13a | `doc/configuration.md` | O6 | `doc/configuration.md` (new) | 1 | Every §5 key documented with its default and valid values; no config flags promised |
 | m5-d13b | Key-coverage test (S36) | m5-d13a | `internal/config/key_coverage_test.go` (new) | 3 | The check passes on the page and fails when a key is removed from it |
 | m5-d13c | `doc/install.md` | m5-d2, m5-d10a, m5-d10b, O4, O6 | `doc/install.md` (new) | 3 | Install page states what a `go install` build reports, as O4 records it |
 | m5-d14a | `doc/usage.md` corrections | m5-d1, m5-d5, m5-d6, m5-d7a, O6, O10 | `doc/usage.md` | 4 | Usage claims match the code; debug-commands section gone; no milestone or ADR language |
 | m5-d14b | `doc/troubleshooting.md` and `doc/README.md` | m5-d3a, m5-d3b, m5-d4a, m5-d4b, m5-d13a, m5-d13c, O6 | `doc/troubleshooting.md` (new), `doc/README.md` | 6 | Troubleshooting explains every doctor line; index status lines match the files |
-| m5-d15 | Front-door and tracker freshness | m5-d1, m5-d10a, m5-d10b, m5-d13c, O22 | `README.md`, `CHANGELOG.md`, `plan/PROGRESS.md`, `plan/spec/kirsch-plan.md:391`, `plan/adr/README.md`, `plan/README.md:25`, `AGENTS.md:21` | 4 | README install section present; ADR range and script claim fixed; closed rows marked |
+| m5-d15 | Front-door and tracker freshness | m5-d1, m5-d10a, m5-d10b, m5-d13c, O22 | `README.md`, `CHANGELOG.md`, `plan/PROGRESS.md`, `plan/spec/kirsch-plan.md:392`, `plan/adr/README.md`, `plan/README.md:25`, `AGENTS.md:21` | 4 | README install section present; ADR range and script claim fixed; closed rows marked |
 | m5-d16 | Fresh-machine no-key check | O14, O19; m5-d10a (builds the binary the script runs); m5-d2 and m5-d3a (file ownership: `cmd/kirsch/main.go`, only if O14 makes "not in a repo" a screen) | new script in `scripts/` (name in the brief); `cmd/kirsch/main.go` only if O14 makes "not in a repo" a screen | 3 | A no-key run shows onboarding naming the active endpoint's key pair |
 | m5-d17a (optional) | `/new` lifecycle: C51, C52 | m5-d5, O13 | `internal/app/app.go` | 3 | No orphan empty session file on quit during `/new`; provider session id rotates on `/new` |
 | m5-d17b (optional) | `/new` busy state and turn fencing: C48, C49 | m5-d8, m5-d17a, O13 | `internal/tui/update.go`; `internal/app/app.go` (generation counter, after m5-d17a) | 5 | Enter during `/new` shows no stray card; late messages from a cancelled turn dropped |
@@ -204,15 +204,15 @@ The check depends only on this file. A pass means every expected ID appears once
 
 | ID | Item | Maps to | Source (file:line) |
 |----|------|---------|---------------------|
-| S1 | Bracketed paste: multi-line stack traces literal | m5-d6 | `internal/tui/update.go:707–709`; `internal/tui/composer.go:61–63`; `plan/spec/kirsch-plan.md:478` |
+| S1 | Bracketed paste: multi-line stack traces literal | m5-d6 | `internal/tui/update.go:707–709`; `internal/tui/composer.go:61–63`; `plan/spec/kirsch-plan.md:479` |
 | S2 | Soft-wrap long lines, keep indentation | m5-d7a, m5-d7b | `internal/tui/view.go:165–197, :602–613`; `plan/spec/ui-spec-v0.1.md:227, :232–234, :565–571` |
 | S3 | Zero-width resize safety | m5-d9 | `internal/tui/view.go:434–436, :554–558`; `internal/tui/view_smoke_test.go:32–55` |
-| S4 | No-colour fallback detection | m5-d9 | `internal/tui/styles.go:44–60`; `plan/spec/ui-spec-v0.1.md:572–575, :763` |
+| S4 | No-colour fallback detection | m5-d9 | `internal/tui/styles.go:44–63`; `plan/spec/ui-spec-v0.1.md:576–578, :768–769` |
 | S5 | Paste debouncing | m5-d8 | `internal/tui/styles.go:22`; `plan/spec/ui-spec-v0.1.md:561, :753` |
-| S6 | `doctor`: binary version | m5-d3a | `cmd/kirsch/main.go:27–28`; `plan/spec/kirsch-plan.md:479` |
+| S6 | `doctor`: binary version | m5-d3a | `cmd/kirsch/main.go:38` (`version`); `plan/spec/kirsch-plan.md:480` |
 | S7 | `doctor`: `rg` present | m5-d3b | `internal/tool/searchcode.go:161–163`; `internal/app/app.go:1450–1453` |
 | S8 | `doctor`: `git` present | m5-d3b | `internal/workspace/workspace.go:94, :116, :395` |
-| S9 | `doctor`: repository detected | m5-d3b | `internal/workspace/workspace.go:78–103`; `plan/spec/kirsch-plan.md:479` |
+| S9 | `doctor`: repository detected | m5-d3b | `internal/workspace/workspace.go:78–103`; `plan/spec/kirsch-plan.md:480` |
 | S10 | `doctor`: key resolvable (name, never value) | m5-d4a | `internal/config/config.go:521–532` |
 | S11 | `doctor`: config parses | m5-d3b | `internal/config/config.go:270, :604` |
 | S12 | `doctor`: session directory writable | m5-d4b | `internal/app/app.go:831–855`; `internal/session/layout.go:43–49` |
@@ -220,26 +220,26 @@ The check depends only on this file. A pass means every expected ID appears once
 | S14 | `doctor`: resolved model and whether in the table | m5-d4a | `internal/provider/models.go:16–20, :106` |
 | S15 | `doctor`: project-context file loaded | m5-d4a | `internal/agent/prompt/loader.go:50`; `internal/app/app.go:724–750` |
 | S16 | `doctor`: lock state | m5-d4b | `internal/session/lock.go:29–60` |
-| S17 | `doctor`: dispatch, report format, exit codes | m5-d3a | `cmd/kirsch/main.go:44–51`; `plan/spec/kirsch-plan.md:479, :487` |
-| S18 | `kirsch --version` via ldflags | m5-d2 | `cmd/kirsch/main.go:27–28, :55–57`; `plan/spec/kirsch-plan.md:480` |
-| S19 | `kirsch --help` | m5-d2; doctor line in m5-d3a | `cmd/kirsch/main.go:31–36, :54, :58–60`; `plan/spec/kirsch-plan.md:480` |
-| S20 | goreleaser release config | m5-d10b | `plan/spec/kirsch-plan.md:481`; `.gitignore:10` |
-| S21 | `scripts/build.sh` wrapper | m5-d10a | `plan/spec/kirsch-plan.md:481`; `package.json:9` |
-| S22 | Builds for every target, and the CI check | m5-d10b | `plan/spec/kirsch-plan.md:481, :487`; `internal/tool/run_command.go:183, :353–369`; `internal/session/lock.go:50` |
-| S23 | GitHub release workflow | m5-d11 | `plan/spec/kirsch-plan.md:481`; `.github/workflows/ci.yml:9–10` |
-| S24 | `CONTRIBUTING.md` | m5-d12 | `plan/spec/kirsch-plan.md:482`; `README.md:62–64` |
-| S25 | `SECURITY.md` | m5-d12 | `plan/spec/kirsch-plan.md:482`; `internal/tool/run_command.go:395–401`; `internal/provider/anthropic/client.go:453` (the call site; the request body is written in `logBadRequest`, `client.go:506–512`) |
-| S26 | `NOTICE` | m5-d12 | `plan/spec/kirsch-plan.md:482`; `go.mod:6–15` |
-| S27 | `doc/install.md` | m5-d13c | `plan/spec/kirsch-plan.md:483`; `doc/README.md:13` |
-| S28 | `doc/configuration.md` | m5-d13a | `plan/spec/kirsch-plan.md:483`; `internal/config/config.go:27–118` |
-| S29 | `doc/usage.md` corrections | m5-d14a, m5-d14b | `plan/spec/kirsch-plan.md:483`; `doc/usage.md:259`; `doc/README.md:3, :19` |
-| S30 | `doc/troubleshooting.md` | m5-d14b | `plan/spec/kirsch-plan.md:483`; `doc/README.md:16` |
-| S31 | README install section | m5-d15; m5-d22 (banner) | `plan/spec/kirsch-plan.md:484`; `README.md:5–7, :99–101` |
-| S32 | Screenshots or asciinema demo | m5-d22 | `plan/spec/kirsch-plan.md:484`; O12 |
-| S33 | Tag `v0.1.0` | m5-d22 | `plan/spec/kirsch-plan.md:485`; `.git/refs/tags/` |
-| S34 | Smoke test re-run on the release build | m5-d22 | `plan/spec/kirsch-plan.md:487`; `plan/PROGRESS.md:117` |
-| S35 | Fresh-machine flow: no key gives onboarding | m5-d16 | `plan/spec/kirsch-plan.md:487`; `internal/app/app.go:1298–1324`; `scripts/smoke-test.sh:16–22` |
-| S36 | Every §5 config key documented (mechanical check) | m5-d13b | `plan/spec/kirsch-plan.md:487`; `internal/config/config.go:57–80, :219–259` |
+| S17 | `doctor`: dispatch, report format, exit codes | m5-d3a | `cmd/kirsch/main.go:121–129`; `plan/spec/kirsch-plan.md:480, :488` |
+| S18 | `kirsch --version` via ldflags | m5-d2 | `cmd/kirsch/main.go:38` (`version`), `:137` (`--version` flag); `plan/spec/kirsch-plan.md:481` |
+| S19 | `kirsch --help` | m5-d2; doctor line in m5-d3a | `cmd/kirsch/main.go:133` (`flag.NewFlagSet`), `:142–147` (the help path); `plan/spec/kirsch-plan.md:481` |
+| S20 | goreleaser release config | m5-d10b | `plan/spec/kirsch-plan.md:482`; `.gitignore:10` |
+| S21 | `scripts/build.sh` wrapper | m5-d10a | `plan/spec/kirsch-plan.md:482`; `package.json:9` |
+| S22 | Builds for every target, and the CI check | m5-d10b | `plan/spec/kirsch-plan.md:482, :488`; `internal/tool/run_command.go:183, :353–369`; `internal/session/lock.go:50` |
+| S23 | GitHub release workflow | m5-d11 | `plan/spec/kirsch-plan.md:482`; `.github/workflows/ci.yml:9–10` |
+| S24 | `CONTRIBUTING.md` | m5-d12 | `plan/spec/kirsch-plan.md:483`; `README.md:62–64` |
+| S25 | `SECURITY.md` | m5-d12 | `plan/spec/kirsch-plan.md:483`; `internal/tool/run_command.go:395–401`; `internal/provider/anthropic/client.go:453` (the call site; the request body is written in `logBadRequest`, `client.go:506–512`) |
+| S26 | `NOTICE` | m5-d12 | `plan/spec/kirsch-plan.md:483`; `go.mod:6–15` |
+| S27 | `doc/install.md` | m5-d13c | `plan/spec/kirsch-plan.md:484`; `doc/README.md:13` |
+| S28 | `doc/configuration.md` | m5-d13a | `plan/spec/kirsch-plan.md:484`; `internal/config/config.go:27–118` |
+| S29 | `doc/usage.md` corrections | m5-d14a, m5-d14b | `plan/spec/kirsch-plan.md:484`; `doc/usage.md:259`; `doc/README.md:3, :19` |
+| S30 | `doc/troubleshooting.md` | m5-d14b | `plan/spec/kirsch-plan.md:484`; `doc/README.md:16` |
+| S31 | README install section | m5-d15; m5-d22 (banner) | `plan/spec/kirsch-plan.md:485`; `README.md:5–7, :99–101` |
+| S32 | Screenshots or asciinema demo | m5-d22 | `plan/spec/kirsch-plan.md:485`; O12 |
+| S33 | Tag `v0.1.0` | m5-d22 | `plan/spec/kirsch-plan.md:486`; `.git/refs/tags/` |
+| S34 | Smoke test re-run on the release build | m5-d22 | `plan/spec/kirsch-plan.md:488`; `plan/PROGRESS.md:117` |
+| S35 | Fresh-machine flow: no key gives onboarding | m5-d16 | `plan/spec/kirsch-plan.md:488`; `internal/app/app.go:1298–1324`; `scripts/smoke-test.sh:16–22` |
+| S36 | Every §5 config key documented (mechanical check) | m5-d13b | `plan/spec/kirsch-plan.md:488`; `internal/config/config.go:57–80, :219–259` |
 | C1 | Narrow-width status-bar fallback | m5-d1 | `plan/PROGRESS.md:67`; `internal/tui/view.go:447–448` |
 | C2 | Absence-check tests use fixed sleeps | backlog | `plan/PROGRESS.md:78` |
 | C3 | Out-of-order `SessionUsageMsg` can leave stale totals | backlog | `plan/PROGRESS.md:99` |
@@ -276,13 +276,13 @@ The check depends only on this file. A pass means every expected ID appears once
 | C34 | Stdin wording in the Task 9 box | m5-d20 (operator wording) | `plan/PROGRESS.md:153` |
 | C35 | Secret-name patterns partly untested | m5-d19a | `plan/PROGRESS.md:154`; `internal/tool/run_command_test.go:523–539`; `internal/tool/run_command.go:395–401` |
 | C36 | Blank approval card for an unspecified operation | m5-d19a | `plan/PROGRESS.md:155` |
-| C37 | No `-update` flag for goldens | m5-d12 | `plan/PROGRESS.md:156`; `plan/spec/kirsch-plan.md:498`; `plan/spec/ui-spec-v0.1.md:824`; `internal/tui/regen_test.go:13` |
+| C37 | No `-update` flag for goldens | m5-d12 | `plan/PROGRESS.md:156`; `plan/spec/kirsch-plan.md:499`; `plan/spec/ui-spec-v0.1.md:824`; `internal/tui/regen_test.go:13` |
 | C38 | Walkthrough checks not retested (M2 §10, §1) | m5-d20 (decision); m5-d22 (retest) | `plan/PROGRESS.md:157`; `plan/testing/manual/user-testing/milestone-2-donovan.md` |
 | C39 | Stale code comments | m5-d15 | `plan/PROGRESS.md:158`; `internal/policy/policy.go:57–58`; `internal/tool/run_command.go:334–341, :355–357` |
 | C40 | ULID dependency decision | m5-d20 (decision); m5-d21e (if changed) | `plan/PROGRESS.md:170`; `internal/session/layout.go:96–140` |
 | C41 | Fuzz seeds with `..` for `FuzzSessionPathContained` | backlog | `plan/PROGRESS.md:171` |
 | C42 | `usage.json` cost field (closed in code) | m5-d15 | `plan/PROGRESS.md:172`; `internal/session/usage.go:81–85` |
-| C43 | §7 flattening of interleaved text and tool calls | m5-d20 (decision); m5-d21f (§7 amendment) | `plan/PROGRESS.md:186`; `plan/spec/kirsch-plan.md:340–357` |
+| C43 | §7 flattening of interleaved text and tool calls | m5-d20 (decision); m5-d21f (§7 amendment) | `plan/PROGRESS.md:186`; `plan/spec/kirsch-plan.md:340–359` |
 | C44 | Pending-map leniency | backlog | `plan/PROGRESS.md:187–188` |
 | C45 | Per-event fuzz seeds; deep-copy comment | backlog | `plan/PROGRESS.md:188` |
 | C46 | `session.started` / `session.resumed` not written | m5-d20 (decision); m5-d21f (§7 amendment) | `plan/PROGRESS.md:194`; `plan/spec/kirsch-plan.md:342–343` |
@@ -291,7 +291,7 @@ The check depends only on this file. A pass means every expected ID appears once
 | C49 | Late async messages from a cancelled turn not fenced | m5-d17b | `plan/PROGRESS.md:202`; `internal/app/app.go`; `internal/tui/` |
 | C50 | `/status` compaction % stale after `/compact` | m5-d18 | `plan/PROGRESS.md:203` |
 | C51 | Quit during `/new` can leave an orphan empty session file | m5-d17a | `plan/PROGRESS.md:204`; `internal/app/app.go:947, :954–957` |
-| C52 | Provider session header id persists across `/new` | m5-d17a | `plan/PROGRESS.md:205`; `cmd/kirsch/main.go:199`; `internal/app/app.go:943–997` |
+| C52 | Provider session header id persists across `/new` | m5-d17a | `plan/PROGRESS.md:205`; `cmd/kirsch/main.go:309`; `internal/app/app.go:943–997` |
 | C53 | `/diff` shows unstaged changes only | backlog | `plan/PROGRESS.md:206` |
 | C54 | `/files` resets on resume | backlog | `plan/PROGRESS.md:207` |
 | C55 | `update_test.go` and `status_test.go` overlap | backlog | `plan/PROGRESS.md:208` |
@@ -305,7 +305,7 @@ The check depends only on this file. A pass means every expected ID appears once
 | D2 | Status-bar mock omits cache | m5-d14a | `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:36`; `doc/usage.md:54`; `internal/tui/statusbar.go:225` |
 | D3 | `/approvals` clear not persisted | m5-d5 | `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:37`; `internal/app/app.go:528–529` |
 | D4 | `/files` empty after resume, undocumented | m5-d14a | `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:38`; `doc/usage.md:247`; `internal/app/app.go:1006–1070` |
-| D5 | "0001–0007" ADR range | m5-d15 | `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:39`; `plan/spec/kirsch-plan.md:391`; `plan/adr/README.md:64` |
+| D5 | "0001–0007" ADR range | m5-d15 | `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:39`; `plan/spec/kirsch-plan.md:392`; `plan/adr/README.md:64` |
 | D6 | `usage.md` says every action waits on a card | m5-d14a | `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:39`; `doc/usage.md:299–302` |
 | D7 | "Starting it" omits `kirsch resume` and `--new` | m5-d14a | `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:39`; `doc/usage.md:22–26` |
 | D8 | README says every script is one line of go or bash | m5-d15 | `.claude/memory/missions/mission-20261023-05/DEBRIEF.md:39`; `README.md:142–143`; `package.json:35` |
@@ -314,8 +314,8 @@ The check depends only on this file. A pass means every expected ID appears once
 | X3 | README says one provider only | m5-d15 | `README.md:47`; `plan/spec/kirsch-plan.md:17` |
 | X4 | Composer shows only its first rows; caret can be off screen | m5-d6 | `internal/tui/composer.go:100–106, :138–143, :199–205`; `internal/tui/view.go:461` |
 | X5 | Model-table figures dated 2026-10-02 | m5-d20 (decision); m5-d21a (model table); m5-d22 (re-read, if m5-d21a did not) | `internal/provider/models.go:33–36`; `plan/spec/kirsch-plan.md:270, :274` |
-| X6 | §5 command-line flags precedence layer unwired | m5-d13a (documents no flags); wiring in Backlog | `internal/config/config.go:496–506`; `cmd/kirsch/main.go:71–75` |
-| X7 | "Not in a Git repo" is stderr text, not an onboarding screen | m5-d16 | `cmd/kirsch/main.go:62–65, :34`; `plan/spec/ui-spec-v0.1.md:597` |
+| X6 | §5 command-line flags precedence layer unwired | m5-d13a (documents no flags); wiring in Backlog | `internal/config/config.go:496–506`; `cmd/kirsch/main.go:181–185` |
+| X7 | "Not in a Git repo" is stderr text, not an onboarding screen | m5-d16 | `cmd/kirsch/main.go:172–175, :87–88`; `plan/spec/ui-spec-v0.1.md:597` |
 | X8 | Help overlay footer says `docs: doc/usage.md` | m5-d20 (decision); m5-d21b (footer and goldens) | `internal/tui/modal.go:308` |
 
 ---
@@ -473,8 +473,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** A `--version` flag that works outside a repository and prints the ldflags-injected value. A `--help` that names the commands and flags and exits 0.
 
 **Items covered:**
-- S18 — `cmd/kirsch/main.go:27–28` (the variable); `main.go:55–57` (flags today: `workspace`, `new`, `debug`). The TUI prefixes its own `v` (`internal/tui/empty.go:81`, `internal/tui/onboarding.go:37`, `internal/tui/modal.go:308`).
-- S19 — `main.go:54` (`flag.NewFlagSet("kirsch", flag.ContinueOnError)`); `main.go:31–36, :58–60` (the help path, not yet run); `main.go:49–50` (`kirsch help` is an unknown command).
+- S18 — `cmd/kirsch/main.go:38` (`version`) (the variable); `main.go:134–137` (flags: `workspace`, `new`, `debug`). The TUI prefixes its own `v` (`internal/tui/empty.go:81`, `internal/tui/onboarding.go:37`, `internal/tui/modal.go:308`).
+- S19 — `main.go:133` (`flag.NewFlagSet("kirsch", flag.ContinueOnError)`); `main.go:142–147` (the help path, not yet run when planned); `main.go:129` (`kirsch help` is an unknown command).
 
 **Dependencies:** O4 (recorded first). m5-d10a, m5-d10b and m5-d13c depend on this one.
 
@@ -488,10 +488,10 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Instruction items:**
 1. Record O4 first: the bare value in ldflags, whether `--version` prints commit and date, and whether a `debug.ReadBuildInfo` fallback is wanted.
-2. Add the `--version` flag. It must exit before `workspace.Detect` (`main.go:62`), so it works outside a Git repository.
-3. Keep the variable at `main.go:27–28`. The injected value must be bare (`0.1.0`). A leading `v` would show as `vv0.1.0`.
-4. Replace the default usage on the `flag.NewFlagSet` at `main.go:54` with a custom usage that names the commands and flags. Name `resume` (`main.go:46–48`) and `--version`. Do not name `doctor` here; m5-d3a adds it.
-5. Make `-h` and `--help` exit 0. Today they exit 1 (`main.go:31–36, :58–60`). This is unverified until run; record the observed status in the step report.
+2. Add the `--version` flag. It must exit before `workspace.Detect` (`main.go:172`), so it works outside a Git repository.
+3. Keep the variable at `main.go:38` (`version`). The injected value must be bare (`0.1.0`). A leading `v` would show as `vv0.1.0`.
+4. Replace the default usage on the `flag.NewFlagSet` at `main.go:133` with a custom usage that names the commands and flags. Name `resume` (`main.go:122–123`) and `--version`. Do not name `doctor` here; m5-d3a adds it.
+5. Make `-h` and `--help` exit 0. When planned (2026-10-23) they exited 1 (`main.go:31–36, :58–60`, cites from that date). This is unverified until run; record the observed status in the step report.
 6. Add tests in `cmd/kirsch/main_test.go` for `--version` and `--help`.
 
 **Acceptance:**
@@ -505,7 +505,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Must-know-before:**
 - O4 is the blocker.
-- `main.go:62–65` (no repository) and `:71–81` (bad config) return before anything else, so both flags must sit ahead of them.
+- `main.go:172–175` (no repository) and `:181–191` (bad config) return before anything else, so both flags must sit ahead of them.
 - The `--help` exit status is unverified until this step runs it.
 
 ---
@@ -515,8 +515,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** The `doctor` subcommand, its dispatch ahead of repository and config checks, its report grammar and exit codes (O5), the version line, and the `doctor` line in the help text with its test. Also the `internal/arch` entry and the layout line for a new package.
 
 **Items covered:**
-- S6 — version: `cmd/kirsch/main.go:27–28`.
-- S17 — dispatch and report: `main.go:44–51` accepts only `resume`; anything else is `unknown command` (`:50`). The spec fixes no format or exit codes (`plan/spec/kirsch-plan.md:479, :487`).
+- S6 — version: `cmd/kirsch/main.go:38` (`version`).
+- S17 — dispatch and report: `main.go:121–129` accepts `resume` and `doctor`; anything else is `unknown command` (`:129`). The spec fixes no format or exit codes (`plan/spec/kirsch-plan.md:480, :488`).
 - The help text gains a `doctor` line, owned here, per grouping note 1.
 
 **Dependencies:** m5-d2 (the help text and flag dispatch order), O5 (recorded first).
@@ -533,20 +533,20 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Instruction items:**
 1. Record O5 first: package placement, output grammar, fail versus warn, exit codes, and whether doctor may create directories or take the lock.
-2. Add `doctor` to the dispatch at `main.go:44–51`. It runs ahead of `workspace.Detect` (`main.go:62`) and ahead of config load (`main.go:71–81`), so it reports when there is no repository and when the config is broken.
-3. Print the version first (S6), from `main.version` at `main.go:27–28`.
+2. Add `doctor` to the dispatch at `main.go:121–129`. It runs ahead of `workspace.Detect` (`main.go:172`) and ahead of config load (`main.go:181–191`), so it reports when there is no repository and when the config is broken.
+3. Print the version first (S6), from `main.version` at `main.go:38` (`version`).
 4. Add `doctor` to the help text, and add a test in `cmd/kirsch/main_test.go` that asserts the help output names it.
 5. Set the report grammar and exit codes exactly as O5 records them. Every check line in later deliverables uses this grammar.
 6. If O5 chooses a new package, add its `internal/arch/imports_test.go` entry and the layout line in `plan/spec/architecture.md:31–49`.
 7. Make no network calls (O5 records this).
 
 **Acceptance:**
-- [ ] `kirsch doctor` is dispatched ahead of `workspace.Detect` and config load (test).
-- [ ] The first doctor line shows the version (test).
-- [ ] The help output names `doctor` (test in `cmd/kirsch/main_test.go`).
-- [ ] Exit status matches O5 for each status O5 defines (test).
-- [ ] The `internal/arch` test passes with the new package entry.
-- [ ] `plan/spec/architecture.md:31–49` names the new package.
+- [✅] `kirsch doctor` is dispatched ahead of `workspace.Detect` and config load (test). Ticked: `TestRunDoctorBeforeWorkspaceAndConfig` passed in `go test -count=1 ./cmd/kirsch/ -run 'Doctor|TestRunHelp' -v` (mission-20261028-03, step 9).
+- [✅] The first doctor line shows the version (test). Ticked: `TestRunDoctorSkeletonReport` passed in the same run (step 9). The line checked is the `kirsch <version>` line.
+- [✅] The help output names `doctor` (test in `cmd/kirsch/main_test.go`). Ticked: `TestRunHelp` passed in the same run (step 9).
+- [✅] Exit status matches O5 for each status O5 defines (test). Ticked: `TestRunDoctorExitSentinel` passed in the same run (step 9), and `TestFailed` in `internal/doctor` passed in `go test -count=1 ./internal/doctor/ ./internal/arch/ -v` (step 9). Caveat: the exit status 1 itself is set by `os.Exit(1)` in `main` (`cmd/kirsch/main.go:82–84`), which no test runs. This tick covers the sentinel and the `Failed` rule, not the binary's exit code (the same caveat is in `plan/testing/manual/milestone-5.md` §7).
+- [✅] The `internal/arch` test passes with the new package entry. Ticked: `TestImportRules` and `TestGuardedPackagesAreReal` passed in `go test -count=1 ./internal/doctor/ ./internal/arch/ -v` (step 9).
+- [✅] `plan/spec/architecture.md:31–49` names the new package. Ticked by grep: `internal/doctor` is on the layout block of `plan/spec/architecture.md` (step 9). The review of that line is a separate `@apone` step.
 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d3a (Walkthrough).
 
@@ -563,8 +563,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Items covered:**
 - S7 — `rg` present: `internal/tool/searchcode.go:161–163` (`ripgrepAvailable`, unexported); `internal/app/app.go:1450–1453` (`App.hasRG`, unexported). A missing `rg` degrades to the pure-Go backend (`searchcode.go:118–122`), so it is a warning.
 - S8 — `git` present: no `LookPath("git")` exists. Git runs through `exec.Command` (`internal/workspace/workspace.go:94, :116, :395`). A missing `git` makes `Detect` return `ErrNoWorkspace` (`workspace.go:94–96`), which reads as "not in a repo".
-- S9 — repository detected: `workspace.Detect` (`workspace.go:78–103`); `ErrNoWorkspace` (`:71–74`); `main.go` returns on error at `:62–65`; `--workspace` is handled inside `Detect`.
-- S11 — config parses: `config.Load` returns `(cfg, warnings, err)` (`internal/config/config.go:270`); `Validate` (`:604`). `main.go:71–81` returns on either error. Warnings go only to the debug log (`main.go:128–130`).
+- S9 — repository detected: `workspace.Detect` (`workspace.go:78–103`); `ErrNoWorkspace` (`:71–74`); `main.go` returns on error at `:172–175`; `--workspace` is handled inside `Detect`.
+- S11 — config parses: `config.Load` returns `(cfg, warnings, err)` (`internal/config/config.go:270`); `Validate` (`:604`). `main.go:181–191` returns on either error. Warnings go only to the debug log (`main.go:238–240`).
 
 **Dependencies:** m5-d3a (dispatch and report grammar), O5.
 
@@ -706,14 +706,14 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Dependencies:** O11 (event name and §7 amendment; recorded first).
 
-**File ownership:** `internal/session/event.go`, `internal/session/store.go`, `internal/session/grants.go`, `internal/app/app.go`, `plan/spec/kirsch-plan.md` §7 (`:340–357`, docs step).
+**File ownership:** `internal/session/event.go`, `internal/session/store.go`, `internal/session/grants.go`, `internal/app/app.go`, `plan/spec/kirsch-plan.md` §7 (`:340–359`, docs step).
 
 **Parallel execution:** Wave 1 (see *Parallel waves*). m5-d17a follows this one.
 
 **Mission steps:**
 1. `@hicks` — code: the event type, `ClearGrants`, `LoadGrants`, and the tests.
 2. `@apone` — review of step 1.
-3. `@lambert` — docs: the §7 amendment (`plan/spec/kirsch-plan.md:340–357`) listing the event the code writes.
+3. `@lambert` — docs: the §7 amendment (`plan/spec/kirsch-plan.md:340–359`) listing the event the code writes.
 4. `@apone` — review of step 3.
 
 **Instruction items:**
@@ -724,12 +724,12 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 5. Leave `/new` (`app.go:992`) as it is, unless O11 says otherwise. A new session file needs no clear event.
 
 **Acceptance:**
-- [ ] A round-trip test grants a command, clears the grants, reopens the session log, and asserts that no grants are returned.
-- [ ] A clear writes the new event into the session log (test reads the file).
-- [ ] `LoadGrants` returns the grants before the clear event and none after it (test).
-- [ ] A session log with no clear event restores its grants as before (backward-compatibility test).
-- [ ] The §7 amendment lists the new event type (step 3).
-- [ ] `go test -race ./internal/session/ ./internal/app/` passes in full, with no exclusion. `TestRunTurnApprovalToolUsesApprovalPath` is included: its race is RESOLVED (`plan/PROGRESS.md:180`), so a failure there is a returning race, not a known one.
+- [✅] A round-trip test grants a command, clears the grants, reopens the session log, and asserts that no grants are returned. (`TestResolveSessionGrantThenClearNotRestored`, run in mission-20261028-03 step 5.)
+- [✅] A clear writes the new event into the session log (test reads the file). (`TestRecordScopesClearedWritesEvent`, mission-20261028-03 step 5.)
+- [✅] `LoadGrants` returns the grants before the clear event and none after it (test). The wording above is ambiguous on this point. As built, and as the tests pin it: grants recorded before the clear are dropped, and grants recorded after it are kept. (`TestLoadGrantsClearThenGrantKeepsOnlyLater`, `TestLoadGrantsClearLeavesNone`, mission-20261028-03 step 5.)
+- [✅] A session log with no clear event restores its grants as before (backward-compatibility test). (`TestLoadGrantsWithoutClearEventUnchanged`, mission-20261028-03 step 5.)
+- [✅] The §7 amendment lists the new event type (step 3). (`plan/spec/kirsch-plan.md:353`, mission-20261028-03 step 5; the `@apone` review of step 3 is milestone step 4, reviewed in mission-20261028-03 (step 6 and its fix rounds).)
+- [✅] `go test -race ./internal/session/ ./internal/app/` passes in full, with no exclusion. `TestRunTurnApprovalToolUsesApprovalPath` is included: its race is RESOLVED (`plan/PROGRESS.md:180`), so a failure there is a returning race, not a known one. (Run in mission-20261028-03 step 5: each package reports `ok`.)
 - [ ] (operator) Grant with `a`, clear with `/approvals`, quit, run `kirsch resume`, run `/approvals`: no grants listed.
 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d5 (Walkthrough).
@@ -769,11 +769,11 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 6. Add a test with a 12-line paste where the caret row is on screen. `composer_test.go` has no such test (X4).
 
 **Acceptance:**
-- [ ] A multi-line paste with indentation lands verbatim (test).
-- [ ] A paste over 8 KB shows the y/n prompt; accept and decline are both tested.
-- [ ] A pasted multi-line text starting with `/` is not a command (test).
-- [ ] A 12-line paste leaves the caret row visible (test).
-- [ ] Existing composer tests pass.
+- [ ] A multi-line paste with indentation lands verbatim (test). Left unticked: `TestPasteLandsVerbatim` passes for space indentation only. A pasted tab becomes spaces (W1, operator decision), so tab indentation does not land verbatim and this box is not met as written.
+- [✅] A paste over 8 KB shows the y/n prompt; accept and decline are both tested (`TestLargePasteConfirmAcceptAndDecline`, subtests `accept` and `decline`; run in mission-20261028-03 step 17).
+- [✅] A pasted multi-line text starting with `/` is not a command (`TestMultiLinePasteStartingWithSlashIsNotACommand`).
+- [✅] A 12-line paste leaves the caret row visible (`TestComposerScrollsToTheCaret`, `TestComposerWindowFollowsTheCaretLineByLine`). Caveat: a pseudo-terminal pre-run did not confirm this in the real binary. See the operator's real-terminal check, and the m5-d6 carried item (c) in `plan/PROGRESS.md`.
+- [✅] Existing composer tests pass (`go test -count=1 ./internal/tui/` reports `ok`, and the tests named `Composer` pass).
 - [ ] (operator) Paste a 20-line trace in Terminal.app and iTerm2: newlines kept, nothing acts as a key.
 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d6 (Walkthrough). The real-terminal check is operator-owned.
@@ -912,7 +912,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Items covered:**
 - S3 — zero-width resize safety is already present: `computeLayout` returns early for `w<=0 ‖ h<=0` (`internal/tui/view.go:434–436`); `View` returns `""` (`view.go:554–558`); `wrap` guards `w<=0` (`view.go:168–171`). `TestFrameInvariants` sweeps widths and heights down to 0 and −1 (`internal/tui/view_smoke_test.go:32–55`). Nothing is required; the modal sweep is optional.
-- S4 — `DetectCaps` (`internal/tui/styles.go:44–60`): colour is off for `NO_COLOR` set (tested with `os.LookupEnv`, `styles.go:48`), for `TERM` equal to `dumb` or empty, and for stdout that is not a character device. Locale is in `unicodeLocale` (`styles.go:62–70`). It is called once at `cmd/kirsch/main.go:104`. No test calls it (`internal/tui/composer_test.go:434` is a comment only).
+- S4 — `DetectCaps` (`internal/tui/styles.go:44–63`): colour is off for a non-empty `NO_COLOR` (O18: an empty value counts as unset; the check is `os.Getenv` at `styles.go:53`), for `TERM` equal to `dumb` or empty, and for stdout that is not a character device. Locale is in `unicodeLocale` (`styles.go:65–73`). It is called once at `cmd/kirsch/main.go:214`. Before m5-d9 no test called it (`internal/tui/composer_test.go:434` is a comment only); `internal/tui/styles_test.go` now does.
 
 **Dependencies:** O18 (recorded first).
 
@@ -929,12 +929,12 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 2. Write `internal/tui/styles_test.go`. For the cases that set environment variables, use `t.Setenv`. For the non-terminal case, use a pipe.
 3. Cover these cases:
    - `NO_COLOR` set to a non-empty value: colour off.
-   - Positive control: `DetectCaps` takes an `*os.File` (`internal/tui/styles.go:46`) and reads its argument, not the global `os.Stdout`. Open `/dev/null` with `os.Open` and pass that file directly, with `TERM=xterm` and `NO_COLOR` unset: colour on. The control must return colour on, or the negative cases prove nothing.
-   - `NO_COLOR` empty, set with `t.Setenv("NO_COLOR", "")`: this sets the variable to empty and `LookupEnv` reports it set, so the case pins O18's behaviour.
+   - Positive control: `DetectCaps` takes an `*os.File` (`internal/tui/styles.go:52`) and reads its argument, not the global `os.Stdout`. Open `/dev/null` with `os.Open` and pass that file directly, with `TERM=xterm` and `NO_COLOR` unset: colour on. The control must return colour on, or the negative cases prove nothing.
+   - `NO_COLOR` empty, set with `t.Setenv("NO_COLOR", "")`: this sets the variable to empty, and under O18 an empty value is treated as unset, so the case expects colour on and pins O18's behaviour.
    - `NO_COLOR` truly unset: `os.Unsetenv("NO_COLOR")`, with a `t.Cleanup` that restores the prior value. `t.Setenv` cannot express unset.
    - `TERM=dumb` and `TERM` empty: colour off.
    - Stdout that is not a character device (a pipe): colour off.
-   - `LANG=C`: ASCII glyphs. First clear the higher-precedence variables with `t.Setenv("LC_ALL", "")` and `t.Setenv("LC_CTYPE", "")`. `unicodeLocale` (`internal/tui/styles.go:62–70`) reads `LC_ALL`, then `LC_CTYPE`, then `LANG`, and uses the first non-empty value, so a host `LC_ALL=en_US.UTF-8` would otherwise shadow `LANG=C`. Positive control for this case: `LANG=en_US.UTF-8` with the same two cleared gives the Unicode glyphs.
+   - `LANG=C`: ASCII glyphs. First clear the higher-precedence variables with `t.Setenv("LC_ALL", "")` and `t.Setenv("LC_CTYPE", "")`. `unicodeLocale` (`internal/tui/styles.go:65–73`) reads `LC_ALL`, then `LC_CTYPE`, then `LANG`, and uses the first non-empty value, so a host `LC_ALL=en_US.UTF-8` would otherwise shadow `LANG=C`. Positive control for this case: `LANG=en_US.UTF-8` with the same two cleared gives the Unicode glyphs.
 4. Record the O18 decision in the brief and pin it with the empty-`NO_COLOR` case.
 5. Optional: run `TestFrameInvariants` (`view_smoke_test.go:32–55`) with a modal and a confirm prompt open.
 
@@ -949,7 +949,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Must-know-before:**
 - The `NO_COLOR` decision (O18) is not in the operator's §7 list and must be recorded in the brief.
-- The no-colour fallback is already live (`cmd/kirsch/main.go:104`). The step adds tests, not behaviour, unless O18 changes it.
+- The no-colour fallback is already live (`cmd/kirsch/main.go:214`). The step adds tests, not behaviour, unless O18 changes it.
 
 ---
 
@@ -972,19 +972,19 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Instruction items:**
 1. Record O4 first.
-2. Write `scripts/build.sh`: builds `./cmd/kirsch` with `-X main.version=<bare>` in ldflags. The version comes from the first argument, or from `git describe` with any leading `v` removed. Output is `bin/kirsch`.
+2. Write `scripts/build.sh`: builds `./cmd/kirsch` with `-X main.version=<bare>` in ldflags. The version comes from the first argument, with one leading `v` removed, and must have the shape `X.Y.Z` with an optional `-suffix` or `+suffix`; any other shape exits 2. With no argument, the script stamps only when HEAD is exactly on a clean `v` release tag and the tree has no changes; otherwise it builds unstamped. Output is `bin/kirsch`. The rule is stated in the script header (`scripts/build.sh:1-29`).
 3. Point `package.json:9` (`build`) at `bash scripts/build.sh`.
 4. Prove the version with a known value.
 
 **Acceptance:**
 - [ ] `bash scripts/build.sh 9.9.9 && bin/kirsch --version` prints `9.9.9`, with no leading `v`.
 - [ ] `npm run build` runs `scripts/build.sh`.
-- [ ] With no argument, the version falls back the way O4 records.
+- [ ] With no argument, the script stamps only on a clean exact `v` release tag on HEAD (`scripts/build.sh:1-29`). Otherwise it builds unstamped, and the binary reports `0.1.0-dev` unless Go's build info records a clean release tag (`resolveVersion`, `cmd/kirsch/main.go:51–60`). That build-info fallback is O4(b). The checkout stamping is the script's own rule, and O4 does not cover it.
 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d10a (Walkthrough).
 
 **Must-know-before:**
-- O4 is the blocker.
+- O4 is recorded (2026-10-26, `plan/PROGRESS.md`, *Milestone 5 — decisions recorded*), so nothing blocks this step.
 
 ---
 
@@ -994,7 +994,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Items covered:**
 - S20 — goreleaser config absent (no `.goreleaser*`). `.gitignore:10` already ignores `/dist/`. `cmd/kirsch-probe` is a second `main` and must not ship. There is no cgo (no `import "C"`).
-- S22 — the targets are listed at `plan/spec/kirsch-plan.md:481` and `:487`. Nothing cross-builds today. Compilation is unverified until the check runs. The POSIX calls exist on both OSes (`internal/tool/run_command.go:183, :353–369`; `internal/session/lock.go:50`), and `lock_other.go` covers non-unix. ADR 0001:33 names the cross-compile targets.
+- S22 — the targets are listed at `plan/spec/kirsch-plan.md:482` and `:488`. When planned (2026-10-23), nothing cross-built, and compilation was unverified. The POSIX calls exist on both OSes (`internal/tool/run_command.go:183, :353–369`; `internal/session/lock.go:50`), and `lock_other.go` covers non-unix. ADR 0001:33 names the cross-compile targets.
 
 **Dependencies:** m5-d2 (the ldflags variable), O2, O4, O20 (all recorded first).
 
@@ -1008,15 +1008,15 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Instruction items:**
 1. Record O2, O4 and O20 first.
-2. Write `.goreleaser.yaml`: builds `./cmd/kirsch` only; `CGO_ENABLED=0`; ldflags `-X main.version={{.Version}}` (bare); the targets listed at `plan/spec/kirsch-plan.md:481`; archives; checksums; the changelog source O2 chooses.
+2. Write `.goreleaser.yaml`: builds `./cmd/kirsch` only; `CGO_ENABLED=0`; ldflags `-X main.version={{.Version}}` (bare); the targets listed at `plan/spec/kirsch-plan.md:482`; archives; checksums; the changelog source O2 chooses.
 3. Add a build of every listed target to `scripts/ci.sh` and `.github/workflows/ci.yml`, using the method O20 records. The check must fail when any target does not compile.
 4. Prove that each listed target compiles locally with the chosen method. Record each target's result in the step report.
 5. Force one target to fail, confirm the CI check exits non-zero, then revert the forced failure and record both results.
 
 **Acceptance:**
-- [ ] `.goreleaser.yaml` builds only `./cmd/kirsch`, with `CGO_ENABLED=0` and `-X main.version={{.Version}}`.
-- [ ] A forced failure in one target makes the CI check exit non-zero. The forced failure is reverted and recorded.
-- [ ] Every target listed at `plan/spec/kirsch-plan.md:481` compiles. The step report lists each target and its result.
+- [✅] `.goreleaser.yaml` builds only `./cmd/kirsch`, with `CGO_ENABLED=0` and `-X main.version={{.Version}}`. Ticked: the `main:`, `CGO_ENABLED` and ldflags lines were read in mission-20261028-03 (step 13); `.claude/memory/workspace/m10b-step13-evidence.txt`, section C.
+- [✅] A forced failure in one target makes the CI check exit non-zero. The forced failure is reverted and recorded. Ticked on recorded evidence, not re-run in step 13: `.claude/memory/workspace/m11-step12a-evidence.txt`, lines 157–171 (`target linux/arm64: FAILED`, `exit=1`), with the removal and the green rerun at lines 228–241. The log does not show the `rm` command itself; the `zz_` count of 0 at line 229 shows the file is gone, and no `zz_` file was in `cmd/kirsch` on 2026-10-28.
+- [✅] Every target listed at `plan/spec/kirsch-plan.md:482` compiles. The step report lists each target and its result. Ticked: `bash scripts/ci.sh targets` exited 0 with an `ok` line for each target, run in mission-20261028-03 step 13 (`.claude/memory/workspace/m10b-step13-evidence.txt`, section A). The set in the spec's Release bullet equals the config's set (section D).
 - [ ] (operator) `goreleaser release --snapshot --clean` produces `dist/` with archives and a checksums file, and the native binary reports its version.
 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d10b (Walkthrough). The snapshot run is operator-owned.
@@ -1076,16 +1076,16 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - S24 — `CONTRIBUTING.md` absent. The build-time rules live in `plan/process/working-agreement.md` and `plan/process/code-standards.md`, which `README.md:62–64` says go away after v0.1.0.
 - S25 — `SECURITY.md` absent. The limits below must be stated, each traced to code: `run_command` strips env names ending `_TOKEN`, `_KEY` or `_SECRET`, and names prefixed `AWS_`, by case-sensitive match (`internal/tool/run_command.go:395–401`); and a 400 writes the full request body to the debug log (`internal/provider/anthropic/client.go:453`, C24).
 - S26 — `NOTICE` absent. The named libraries are Bubble Tea, Lip Gloss and Bubbles (`go.mod:7–9`). The other direct requires are at `go.mod:6, :10–15`. Licence: `LICENSE` (MIT).
-- C37 — `plan/spec/kirsch-plan.md:498` says `go test ./internal/tui -update`, and `plan/spec/ui-spec-v0.1.md:824` says the goldens are regenerated with `-update`. The code gates regeneration on `KIRSCH_REGEN=1` (`internal/tui/regen_test.go:13`), and a person reconciles the grids by hand (see *Golden mechanism and regeneration procedure*). O21 decides whether the spec is corrected or a flag is added.
+- C37 — `plan/spec/kirsch-plan.md:499` says `go test ./internal/tui -update`, and `plan/spec/ui-spec-v0.1.md:824` says the goldens are regenerated with `-update`. The code gates regeneration on `KIRSCH_REGEN=1` (`internal/tui/regen_test.go:13`), and a person reconciles the grids by hand (see *Golden mechanism and regeneration procedure*). O21 decides whether the spec is corrected or a flag is added.
 
 **Dependencies:** m5-d10a and m5-d10b (build commands), O7 and O8 (`SECURITY.md` and `NOTICE`), O21 (C37). All recorded first. m5-d8 (file ownership: `plan/spec/ui-spec-v0.1.md`, amend branch only).
 
-**File ownership:** `CONTRIBUTING.md` (new), `SECURITY.md` (new), `NOTICE` (new), `plan/spec/kirsch-plan.md:498` and `plan/spec/ui-spec-v0.1.md:824` (docs step).
+**File ownership:** `CONTRIBUTING.md` (new), `SECURITY.md` (new), `NOTICE` (new), `plan/spec/kirsch-plan.md:499` and `plan/spec/ui-spec-v0.1.md:824` (docs step).
 
 **Parallel execution:** Wave 5 (see *Parallel waves*). It sits in wave 5 because m5-d8's amend branch also edits `plan/spec/ui-spec-v0.1.md`. m5-d15 (wave 4) edits a different line of `kirsch-plan.md`.
 
 **Mission steps:**
-1. `@lambert` — docs: `CONTRIBUTING.md`, `SECURITY.md`, `NOTICE`, and the corrections at `plan/spec/kirsch-plan.md:498` and `plan/spec/ui-spec-v0.1.md:824` as O21 records.
+1. `@lambert` — docs: `CONTRIBUTING.md`, `SECURITY.md`, `NOTICE`, and the corrections at `plan/spec/kirsch-plan.md:499` and `plan/spec/ui-spec-v0.1.md:824` as O21 records.
 2. `@apone` — review of step 1, including each `SECURITY.md` claim against its cited line.
 
 **Instruction items:**
@@ -1093,7 +1093,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 2. `CONTRIBUTING.md`: the build, test and check commands (`npm run check`, `scripts/ci.sh`); how goldens are regenerated, following *Golden mechanism and regeneration procedure* (the `KIRSCH_REGEN=1` dump, the hand reconciliation of `plan/spec/kirsch-ui-screens.md`, `go test ./internal/tui` and `npm run screens`) (C37); the project's non-negotiables (`plan/spec/kirsch-plan.md:23–30`); pull-request expectations. Do not link to `plan/process/` files, which go away after v0.1.0 (`README.md:62–64`).
 3. `SECURITY.md`: supported versions and the reporting channel (O7), a one-page threat model, and the limits in S25. Read it against `plan/testing/security.md`. Every claim must trace to a code location or a test. The 400 sentence states today's behaviour, that a 400 writes the full request body, because that is the behaviour until O15 decides C24. m5-d21c or m5-d21d amends that sentence.
 4. `NOTICE`: credit Bubble Tea, Lip Gloss and Bubbles. List further direct dependencies only as O8 says.
-5. Unless O21 chose to implement `-update`, correct the sentence in `plan/spec/kirsch-plan.md:498` that names `go test ./internal/tui -update`, and the sentence in `plan/spec/ui-spec-v0.1.md:824` that says the goldens are regenerated with `-update`. Each corrected sentence must describe *Golden mechanism and regeneration procedure*. Record which branch was taken. Before the edit, save verbatim copies of both spec files to `.claude/memory/workspace/m5-d12-kirsch-plan.pre.md` and `.claude/memory/workspace/m5-d12-ui-spec.pre.md`. The acceptance box uses them as its control.
+5. Unless O21 chose to implement `-update`, correct the sentence in `plan/spec/kirsch-plan.md:499` that names `go test ./internal/tui -update`, and the sentence in `plan/spec/ui-spec-v0.1.md:824` that says the goldens are regenerated with `-update`. Each corrected sentence must describe *Golden mechanism and regeneration procedure*. Record which branch was taken. Before the edit, save verbatim copies of both spec files to `.claude/memory/workspace/m5-d12-kirsch-plan.pre.md` and `.claude/memory/workspace/m5-d12-ui-spec.pre.md`. The acceptance box uses them as its control.
 
 **Acceptance:**
 - [ ] (operator) Each command in `CONTRIBUTING.md` is run once on a clean clone and exits 0.
@@ -1117,8 +1117,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** `doc/configuration.md`, written for a user, not a builder. It lists every §5 config key with its default and valid values.
 
 **Items covered:**
-- S28 — `doc/configuration.md` absent (`doc/README.md:14`). Keys are in `internal/config/config.go:27–118`. Precedence and the project allowlist are at `plan/spec/kirsch-plan.md:253–255`. `KIRSCH_DEBUG` is at `cmd/kirsch/main.go:88`. The config path is at `internal/config/config.go:665–681`. Defaults come from `Defaults()` (`config.go:84–118`).
-- X6 — the §5 command-line flags precedence layer is unwired. `ApplyFlags` (`internal/config/config.go:496–506`) is called by `Load` only when `Options.Flags` is set (`:291`). `cmd/kirsch/main.go:71–75` passes no flags. This page does not promise config flags. Wiring them is a backlog item (see *Backlog*, X6).
+- S28 — `doc/configuration.md` absent (`doc/README.md:14`). Keys are in `internal/config/config.go:27–118`. Precedence and the project allowlist are at `plan/spec/kirsch-plan.md:253–255`. `KIRSCH_DEBUG` is at `cmd/kirsch/main.go:198`. The config path is at `internal/config/config.go:665–681`. Defaults come from `Defaults()` (`config.go:84–118`).
+- X6 — the §5 command-line flags precedence layer is unwired. `ApplyFlags` (`internal/config/config.go:496–506`) is called by `Load` only when `Options.Flags` is set (`:291`). `cmd/kirsch/main.go:181–185` passes no flags. This page does not promise config flags. Wiring them is a backlog item (see *Backlog*, X6).
 
 **Dependencies:** O6 (recorded first).
 
@@ -1133,7 +1133,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Instruction items:**
 1. Record O6 first.
 2. Every key, with its default and valid values, its scope (global or project), and what it does. Derive the key list from the struct tags (`config.go:57–80`) and from `UnmarshalTOML` for endpoint fields (`config.go:219–259`).
-3. Include `KIRSCH_DEBUG` (`cmd/kirsch/main.go:88`) and the config path (`config.go:665–681`).
+3. Include `KIRSCH_DEBUG` (`cmd/kirsch/main.go:198`) and the config path (`config.go:665–681`).
 4. Note that the project file may set only `context.project_files` (`config.go:355`, `plan/spec/kirsch-plan.md:255`).
 5. Note that API keys are read from the environment variables named by `api_key_env`, never from config (`config.go:521–532`).
 6. Make no promise of command-line config flags (X6). State it outright, in one sentence, that v0.1 reads no configuration from command-line flags.
@@ -1148,7 +1148,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Must-know-before:**
 - O6 is the blocker.
-- The spec requires "every config key in §5" (`plan/spec/kirsch-plan.md:483, :487`).
+- The spec requires "every config key in §5" (`plan/spec/kirsch-plan.md:484, :488`).
 
 ---
 
@@ -1190,7 +1190,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** `doc/install.md`, written for a user. Install from a release archive, install with `go install`, install from source, the supported platforms, key setup, and `kirsch doctor`.
 
 **Items covered:**
-- S27 — `doc/install.md` absent (`doc/README.md:13`). The module path is at `go.mod:1`. A `go install` build reports `0.1.0-dev` (`cmd/kirsch/main.go:27–28`) unless O4 changes that. Supported platforms are at `plan/spec/kirsch-plan.md:21`.
+- S27 — `doc/install.md` absent (`doc/README.md:13`). The module path is at `go.mod:1`. A `go install` build reports `0.1.0-dev` (`cmd/kirsch/main.go:38` (`version`)) unless O4 changes that. Supported platforms are at `plan/spec/kirsch-plan.md:21`.
 
 **Dependencies:** m5-d2 (the `--version` text), m5-d10a and m5-d10b (archive names and build wrapper), O4 (the `go install` version text), O6 (recorded first).
 
@@ -1216,7 +1216,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Must-know-before:**
 - O4 and O6 are the blockers.
-- `go install` builds report `0.1.0-dev` (`cmd/kirsch/main.go:27–28`) unless O4 changes it.
+- `go install` builds report `0.1.0-dev` (`cmd/kirsch/main.go:38` (`version`)) unless O4 changes it.
 
 ---
 
@@ -1229,7 +1229,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - D2 — the status-bar mock at `doc/usage.md:54` omits cache. The code prints `in %s out %s cache %s/%s` (`internal/tui/statusbar.go:225`). The narrow-band wording at `:84–89` depends on m5-d1.
 - D4 — `doc/usage.md:247` says nothing about `/files` after resume. `ResumeLastSession` restores no touched files (`internal/app/app.go:1006–1070`). `CHANGELOG.md:17` says "a resumed session starts empty". If C54 is built, D4 changes.
 - D6 — `doc/usage.md:299–302` says every action waits on a card. The exact-match allowlist and session grants let some commands run without one (`README.md:105–108`; `internal/policy/policy_test.go:620–660`).
-- D7 — `doc/usage.md:22–26` ("Starting it") omits `kirsch resume` and `--new`. Both exist at `cmd/kirsch/main.go:46–48, :56`.
+- D7 — `doc/usage.md:22–26` ("Starting it") omits `kirsch resume` and `--new`. Both exist at `cmd/kirsch/main.go:122–123, :135`.
 - X1 — `doc/usage.md:69–71` claims a missing-`rg` warning in the status bar. The warning is listed at ui-spec §2.3:168. The step checks the `.go` files for an emitter before removing the claim.
 
 **Dependencies:** m5-d1 (narrow bar, for D2 wording), m5-d5 (grant clearing, for D6 wording), m5-d6 (composer text, with O10), m5-d7a (wrap), O6 and O10 (recorded first).
@@ -1250,7 +1250,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 3. Status-bar mock at `:54`: show cache read and write, matching `internal/tui/statusbar.go:225`. Update the narrow-band wording at `:84–89` to match what m5-d1 landed.
 4. The `/files` row at `:247`: add that a resumed session starts empty, unless C54 has been built.
 5. Replace the sentence that reads "Nothing consequential happens silently. Before Kirsch writes a file or runs a command, the action appears as a card and waits:". The replacement names the exact-match allowlist and session grants as running without a card, and says that other writes and commands appear as a card and wait (`README.md:105–108`).
-6. "Starting it" at `:22–26`: add `kirsch resume` and `kirsch --new`, from `cmd/kirsch/main.go:46–48, :56`.
+6. "Starting it" at `:22–26`: add `kirsch resume` and `kirsch --new`, from `cmd/kirsch/main.go:122–123, :135`.
 7. Remove the missing-`rg` claim at `:69–71`, after the `.go` files are checked for an emitter. Removing the claim is enough for v0.1. Implementing the warning is not in this step.
 8. The milestone sentence at `:259` is inside the section deleted in instruction 2, so it goes with it.
 9. The composer paragraph at `doc/usage.md:73–75` says the composer grows to five rows "then scrolling internally". Reword it to the behaviour O10 records: scroll to the caret, or wrap.
@@ -1272,6 +1272,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - m5-d1, m5-d5, m5-d6 and m5-d7a are complete. Their outcomes change what the page must say.
 - D4's wording changes if C54 is built. C54 is in the backlog, so this step documents the limit.
 - D6's wording about grants must match the D3 fix in m5-d5.
+- `doc/usage.md:326` and `plan/spec/kirsch-plan.md:202` do not yet say that a clear is saved (the D3 fix in m5-d5). The m5-d14a step adds that wording at those lines.
 
 ---
 
@@ -1321,7 +1322,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Items covered:**
 - S31 — the README has no install section. The banner and "What works today" start from `go run ./cmd/kirsch` (`README.md:5–7, :99–101`).
-- D5 — "0001–0007" appears at `plan/spec/kirsch-plan.md:391`, `plan/README.md:25` and `AGENTS.md:21`. Each states the range as a live fact, and each is out of date, because `plan/adr/` holds eight ADRs. At `plan/adr/README.md:64` ("ADRs 0001–0007 were written during planning") the sentence may be true as written, so the executor judges it (DIR-004). `CHANGELOG.md:21` is a dated history line and stays. `0008-provider-endpoints.md` exists (`plan/adr/README.md:60`). The ADR status note at `plan/adr/README.md:64` is the operator's decision.
+- D5 — "0001–0007" appears at `plan/spec/kirsch-plan.md:392`, `plan/README.md:25` and `AGENTS.md:21`. Each states the range as a live fact, and each is out of date, because `plan/adr/` holds eight ADRs. At `plan/adr/README.md:64` ("ADRs 0001–0007 were written during planning") the sentence may be true as written, so the executor judges it (DIR-004). `CHANGELOG.md:21` is a dated history line and stays. `0008-provider-endpoints.md` exists (`plan/adr/README.md:60`). The ADR status note at `plan/adr/README.md:64` is the operator's decision.
 - D8 — `README.md:142–143` says "every script is one line of `go` or `bash`". `package.json:35` runs `python3 scripts/lint-screens.py` as `screens`.
 - X2 — `CHANGELOG.md:16` ("with fallback `N tok` on narrow terminals") and `plan/PROGRESS.md:231` ("narrow terminal fallback `N tok`") claim a narrow fallback. Corrected after m5-d1.
 - X3 — `README.md:47` reads "| Providers | One only for v0.1 (Anthropic) |". `plan/spec/kirsch-plan.md:17` and ADR 0008 describe the configured endpoints (`internal/config/config.go:91, :96`).
@@ -1334,7 +1335,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Dependencies:** m5-d1 (X2 wording), m5-d10a and m5-d10b (release tooling the README refers to), m5-d13c (the install page the README links to), O22 (recorded first).
 
-**File ownership:** `README.md`, `CHANGELOG.md`, `plan/PROGRESS.md`, `plan/spec/kirsch-plan.md:391`, `plan/adr/README.md`, `plan/README.md:25`.
+**File ownership:** `README.md`, `CHANGELOG.md`, `plan/PROGRESS.md`, `plan/spec/kirsch-plan.md:392`, `plan/adr/README.md`, `plan/README.md:25`.
 
 **Parallel execution:** Wave 4 (see *Parallel waves*).
 
@@ -1346,7 +1347,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Instruction items:**
 1. Add an install section to `README.md` that links `doc/install.md`. Keep the banner's `go run` line only as a developer path (`README.md:5–7, :99–101`).
-2. Judge each site of "0001–0007" (DIR-004), and record the judgement for each site in the step report. Change `plan/spec/kirsch-plan.md:391`, `plan/README.md:25` and `AGENTS.md:21` to the range that matches `ls plan/adr/`. At `plan/adr/README.md:64`, edit only if "ADRs 0001–0007 were written during planning" is false as written; a true sentence stays. Leave `CHANGELOG.md:21` alone, because it is history. Leave the ADR status wording alone (the operator's call).
+2. Judge each site of "0001–0007" (DIR-004), and record the judgement for each site in the step report. Change `plan/spec/kirsch-plan.md:392`, `plan/README.md:25` and `AGENTS.md:21` to the range that matches `ls plan/adr/`. At `plan/adr/README.md:64`, edit only if "ADRs 0001–0007 were written during planning" is false as written; a true sentence stays. Leave `CHANGELOG.md:21` alone, because it is history. Leave the ADR status wording alone (the operator's call).
 3. Reword `README.md:142–143` to match `package.json:35`: name the Python script that `npm run screens` runs, and drop "every script is one line of `go` or `bash`".
 4. Correct `CHANGELOG.md:16` and `plan/PROGRESS.md:231` to describe the narrow-width behaviour that m5-d1 built. Per DIR-020, the corrected sentence goes beside the original, with the verdict beside it, and the original is kept.
 5. Correct `README.md:47` to state the configured endpoints, in the wording O22 records. Read it with the out-of-scope bullet at `README.md:53–58`.
@@ -1376,7 +1377,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Items covered:**
 - S35 — onboarding for a missing key exists (`CheckOnboarding`, `internal/app/app.go:1298–1324`; the screen landed at m3-d5). `KeyVars` is set at `app.go:1313` as `"KIRSCH_" + ep.APIKeyEnv` and `ep.APIKeyEnv`. The onboarding text renders at `internal/tui/onboarding.go:51` ("No API key: set … → …"). `scripts/smoke-test.sh:16–22` refuses to start without a key, so a no-key flow cannot live in it as written.
-- X7 — `cmd/kirsch/main.go:62–65, :34` prints `kirsch: Kirsch runs inside a Git repository…` and exits 1. ui-spec §7.5:597 lists it among onboarding screens.
+- X7 — `cmd/kirsch/main.go:172–175, :87–88` prints `kirsch: Kirsch runs inside a Git repository…` and exits 1. ui-spec §7.5:597 lists it among onboarding screens.
 
 **Dependencies:** O14 and O19 (both recorded first); m5-d10a (builds the binary the script runs); m5-d2 and m5-d3a (file ownership: `cmd/kirsch/main.go`, only if O14 makes "not in a repo" a screen). This deliverable does not depend on m5-d4: `CheckOnboarding` does not use doctor.
 
@@ -1396,7 +1397,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 3. Write the no-key check as a separate script. The command shape is `env -i HOME=<temporary directory> PATH=$PATH TERM=xterm-256color <binary>`, where `<binary>` is `bin/kirsch` built by `bash scripts/build.sh` (m5-d10a). The script runs it inside a temporary Git repository the script creates and removes.
 4. Drive the TUI by the method O19 records.
 5. Check that the onboarding text names the active endpoint's key pair: `KIRSCH_<api_key_env>` and `<api_key_env>`, from `app.go:1313`, rendered at `internal/tui/onboarding.go:51`. With the default endpoint (`internal/config/config.go:87, :91`) the pair is `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY`. The check asserts that pair.
-6. If O14 includes "not in a repo", decide whether it becomes a screen (`cmd/kirsch/main.go:62–65`), and record the decision.
+6. If O14 includes "not in a repo", decide whether it becomes a screen (`cmd/kirsch/main.go:172–175`), and record the decision.
 
 **Acceptance:**
 - [ ] A no-key run in a clean environment shows onboarding that names `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY`. The output is pasted into the step report.
@@ -1426,7 +1427,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Items covered:**
 - C51 — quit during `/new` can leave an orphan empty session file. `NewSession` creates the file first (`internal/app/app.go:947`, `createSessionStore`), then cancels and swaps (`:954–957`). `plan/PROGRESS.md:204`.
-- C52 — the provider session header id persists across `/new`. `SetSessionID` is called once (`cmd/kirsch/main.go:199`). `NewSession` and `installSession` (`internal/app/app.go:943–997`) never touch `a.sessionID`. `plan/PROGRESS.md:205`.
+- C52 — the provider session header id persists across `/new`. `SetSessionID` is called once (`cmd/kirsch/main.go:309`). `NewSession` and `installSession` (`internal/app/app.go:943–997`) never touch `a.sessionID`. `plan/PROGRESS.md:205`.
 
 **Dependencies:** m5-d5 (the session layer), O13 (recorded first).
 
@@ -1440,7 +1441,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Instruction items:**
 1. C51: create the session file lazily, or remove the empty file on cancel (`app.go:947, :954–957`). Choose one, and record it.
-2. C52: rotate the provider session id on `/new` (`app.go:943–997`). Today `SetSessionID` is called once, at `cmd/kirsch/main.go:199`.
+2. C52: rotate the provider session id on `/new` (`app.go:943–997`). Today `SetSessionID` is called once, at `cmd/kirsch/main.go:309`.
 
 **Acceptance:**
 - [ ] A test shows that quitting during `/new` leaves no empty session file.
@@ -1797,17 +1798,17 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** Amend §7 of the spec, if the operator amends it under m5-d20.
 
 **Items covered:**
-- C43 — §7 flattening of interleaved text and tool calls (`plan/spec/kirsch-plan.md:340–357`).
+- C43 — §7 flattening of interleaved text and tool calls (`plan/spec/kirsch-plan.md:340–359`).
 - C46 — the session events `session.started` and `session.resumed` (`plan/spec/kirsch-plan.md:342–343`).
 
 **Dependencies:** m5-d20 (the C43 and C46 decisions); m5-d5 (file ownership: `plan/spec/kirsch-plan.md` §7).
 
-**File ownership:** `plan/spec/kirsch-plan.md` §7 (`:340–357`).
+**File ownership:** `plan/spec/kirsch-plan.md` §7 (`:340–359`).
 
 **Parallel execution:** Wave 7 (see *Parallel waves*).
 
 **Mission steps:**
-1. `@lambert` — docs: `plan/spec/kirsch-plan.md` §7 (`:340–357`), including the session events at `:342–343`.
+1. `@lambert` — docs: `plan/spec/kirsch-plan.md` §7 (`:340–359`), including the session events at `:342–343`.
 2. `@apone` — review of step 1.
 
 **Instruction items:**
@@ -1856,7 +1857,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** The steps only the operator can take: the demo, the operator-run smoke test on the release build, the tag, and the release-day tracker updates. **No agent delegates this deliverable.**
 
 **Items covered:**
-- S32 — no screenshots or asciinema demo. It needs a real terminal and is blocked by O12 (`plan/spec/kirsch-plan.md:484`).
+- S32 — no screenshots or asciinema demo. It needs a real terminal and is blocked by O12 (`plan/spec/kirsch-plan.md:485`).
 - S33 — tag `v0.1.0`. `git tag -l` prints `m3` and `m4` (checked 2026-10-23). Tagging triggers the release workflow (m5-d11).
 - S34 — re-run `bash scripts/smoke-test.sh` on the release build. It spends tokens. The live run passed on 2026-10-23 (`plan/PROGRESS.md:117`). Re-run at release.
 - C9 — re-read the cache-write prices against the vendor pages before tagging, if m5-d21a did not already do it (`internal/provider/models.go:33–36`).
@@ -1866,6 +1867,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - C61 — tick the outstanding verification boxes (`plan/testing/README.md:97–101`).
 - X5 — re-read the vendor pricing pages before tagging, if m5-d21a did not already do it.
 - S31 (banner) — the README banner and "What works today" name v0.1.0.
+- m5-d5 operator box — grant with `a`, clear with `/approvals`, quit, run `kirsch resume`, run `/approvals`: no grants listed. The crew did not run it: a grant needs a model turn and a provider key (`plan/milestones/milestone-5.md:733`).
+- m5-d10b operator box — `goreleaser release --snapshot --clean` produces `dist/` with archives and a checksums file, and the native binary reports its version. The crew did not run it: goreleaser was not installed on 2026-10-28, and no install was allowed in mission-20261028-03 step 13. The same run shows whether the stamped version is bare. Confirming which ldflags were used, and whether goreleaser's default ldflags are replaced, needs `go version -m` on the built binary. On 2026-10-28 (mission-20261028-03, step 14c) that check ran on `bin/`, because goreleaser was not installed and `dist/` does not exist: `bash scripts/build.sh 9.9.9`, then `go version -m bin/kirsch | grep -- -ldflags`, which printed `build -ldflags="-X main.version=9.9.9"`. The `dist/` form, `go version -m dist/<native-build-folder>/kirsch | grep -- -ldflags`, is still owed with the snapshot, and its folder name comes from `ls dist`.
 
 **Dependencies:** the m5-d21 deliverables that ran; O12, O15 and O16 recorded. All deliverables above are complete.
 
@@ -1940,7 +1943,7 @@ Recorded, not scheduled for v0.1. Each line is an ID, its title, and its source.
 - **C58** — per-field mutant evidence shown for Signature only (`:217`; evidence only).
 - **C59** — `held_lock_no_warning` fixed 200 ms settle (`:223`).
 - **C60** — lock-unavailable fallback has no automated test (`:224`).
-- **X6 (wiring)** — the §5 command-line flags precedence layer is unwired (`internal/config/config.go:496–506`; `cmd/kirsch/main.go:71–75`). Whether to wire it is a separate decision, not numbered here. m5-d13a documents no flags.
+- **X6 (wiring)** — the §5 command-line flags precedence layer is unwired (`internal/config/config.go:496–506`; `cmd/kirsch/main.go:181–185`). Whether to wire it is a separate decision, not numbered here. m5-d13a documents no flags.
 
 ---
 

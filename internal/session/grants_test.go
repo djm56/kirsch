@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -101,5 +102,82 @@ func TestLoadGrantsMissingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "does-not-exist.jsonl")
 	if _, err := LoadGrants(path); err == nil {
 		t.Fatal("LoadGrants missing file: expected error")
+	}
+}
+
+// writeGrantLog records the given steps into a fresh session log and returns
+// its path. A step is either "grant:<pattern>" or "clear".
+func writeGrantLog(t *testing.T, steps ...string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "session.jsonl")
+	s, err := New(path, WithCadence(time.Hour))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	for _, step := range steps {
+		if step == "clear" {
+			s.RecordScopesCleared()
+		} else {
+			s.RecordScopeGranted("run_command", strings.TrimPrefix(step, "grant:"))
+		}
+	}
+	if err := s.Flush(); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	return path
+}
+
+// TestLoadGrantsClearThenGrantKeepsOnlyLater verifies that a clear event
+// discards earlier grants while a grant recorded after it still counts.
+func TestLoadGrantsClearThenGrantKeepsOnlyLater(t *testing.T) {
+	path := writeGrantLog(t, "grant:go test", "clear", "grant:git status")
+	grants, err := LoadGrants(path)
+	if err != nil {
+		t.Fatalf("LoadGrants: %v", err)
+	}
+	if len(grants) != 1 || grants[0].Pattern != "git status" {
+		t.Fatalf("grants = %+v, want only [git status]", grants)
+	}
+}
+
+// TestLoadGrantsClearLeavesNone verifies that grant followed by clear yields
+// no grants.
+func TestLoadGrantsClearLeavesNone(t *testing.T) {
+	path := writeGrantLog(t, "grant:go test", "grant:git status", "clear")
+	grants, err := LoadGrants(path)
+	if err != nil {
+		t.Fatalf("LoadGrants: %v", err)
+	}
+	if len(grants) != 0 {
+		t.Fatalf("grants = %+v, want none", grants)
+	}
+}
+
+// TestLoadGrantsWithoutClearEventUnchanged is the backward-compatibility case:
+// a log written before the clear event existed restores every grant.
+func TestLoadGrantsWithoutClearEventUnchanged(t *testing.T) {
+	path := writeGrantLog(t, "grant:go test", "grant:git status")
+	grants, err := LoadGrants(path)
+	if err != nil {
+		t.Fatalf("LoadGrants: %v", err)
+	}
+	if len(grants) != 2 || grants[0].Pattern != "go test" || grants[1].Pattern != "git status" {
+		t.Fatalf("grants = %+v, want [go test, git status]", grants)
+	}
+}
+
+// TestRecordScopesClearedWritesEvent verifies the line written to the log has
+// the approval.scopes_cleared type.
+func TestRecordScopesClearedWritesEvent(t *testing.T) {
+	path := writeGrantLog(t, "clear")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"type":"approval.scopes_cleared"`) {
+		t.Fatalf("log lacks approval.scopes_cleared event:\n%s", data)
 	}
 }

@@ -6,7 +6,7 @@
   "scripts": {
     "check": "npm run fmt:check && npm run vet && npm run lint && npm run test && npm run screens",
 
-    "build": "go build -o bin/kirsch ./cmd/kirsch",
+    "build": "bash scripts/build.sh",
     "start": "go run ./cmd/kirsch",
     "start:debug": "go run ./cmd/kirsch --debug",
     "probe": "go run ./cmd/kirsch-probe",
@@ -40,7 +40,8 @@
     "ci:lint": "bash scripts/ci.sh lint",
     "ci:test": "bash scripts/ci.sh test",
     "ci:security": "bash scripts/ci.sh security",
-    "ci:screens": "bash scripts/ci.sh screens"
+    "ci:screens": "bash scripts/ci.sh screens",
+    "ci:targets": "bash scripts/ci.sh targets"
   },
   "engines": {
     "node": ">=18"

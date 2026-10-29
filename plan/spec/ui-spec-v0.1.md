@@ -573,8 +573,9 @@ and **never sent to the model**. `Tab` completes a unique prefix.
   than an elision and carries no marker, so anything whose width is not a
   constant — a build-time version string, a project name, a branch — is
   truncated by its own renderer before it reaches that bound.
-- **No-color fallback**: `NO_COLOR` set, `TERM=dumb`, or not a TTY → styling
-  degrades to plain prefixes (`+`/`-`, `[ok]`, `[err]`); layout identical.
+- **No-color fallback**: `NO_COLOR` set to a non-empty value (an empty value is
+  treated as unset), `TERM=dumb`, or not a TTY → styling degrades to plain
+  prefixes (`+`/`-`, `[ok]`, `[err]`); layout identical.
 - **No-Unicode fallback**: when the locale is not UTF-8, every glyph falls back
   per the §10.2 table.
 - **Resize**: reflow at any size; modals re-clamp; selection and scroll position
@@ -764,7 +765,8 @@ Collected here so they are not scattered magic numbers.
 1. **Never signal state by colour alone.** Every state carries a glyph; colour
    reinforces. This is what makes the no-color fallback a downgrade rather than
    a loss of information.
-2. `NO_COLOR`, `TERM=dumb`, and non-TTY output are all honoured.
+2. A non-empty `NO_COLOR`, `TERM=dumb`, and non-TTY output are all honoured. An
+   empty `NO_COLOR` is treated as unset.
 3. No blinking, no flashing, no animation other than the spinner.
 4. No binding requires more than two keys; no mouse, ever.
 5. Dim and faint text never carry unique information.

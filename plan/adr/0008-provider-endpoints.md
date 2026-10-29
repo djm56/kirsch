@@ -297,3 +297,19 @@ unchanged through decode, session storage, resume and encode. Its test is
 `TestThinkingSignatureRoundTrip` (`internal/app/signature_roundtrip_test.go`).
 It pins current behaviour and does not assert that the endpoint accepts an
 empty signature.
+
+## Addendum — 2026-10-29 (mission-20261029-01)
+
+This addendum records a change made after the decision above. The original text
+is kept as written; where the two disagree, this addendum governs. The change
+record is plan §11 amendment 90.
+
+**The `opencode` default model.** The `opencode` default model is `minimax-m3`.
+This supersedes the choice of `minimax-m2.7` in the Decision text (amendment 83),
+which the Decision still describes as the shipped default. The evidence is the
+operator's probe on 2026-10-29, which returned 200 on every scenario
+(`testdata/probe/opencode/2026-10-29T0538Z/`). `minimax-m2.7` stays a known model.
+
+At `off`, `minimax-m3` does no thinking, because no thinking field is sent
+(amendment 87). This governs the "the default since amendment 83" sentence in
+the Thinking section.

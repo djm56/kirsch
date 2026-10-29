@@ -43,11 +43,14 @@ type Caps struct {
 
 // DetectCaps resolves terminal capabilities from the environment. It is called
 // once, from main, and never from inside the package. ui-spec §7.3.
+//
+// Colour is off when NO_COLOR is set to a non-empty value, when TERM is "dumb"
+// or empty, or when out is not a character device (a nil out or a failed Stat
+// skips this check and leaves colour as the other two conditions set it). An
+// empty NO_COLOR is treated as unset, the no-color.org convention (operator
+// decision O18).
 func DetectCaps(out *os.File) Caps {
-	colour := true
-	if _, set := os.LookupEnv("NO_COLOR"); set {
-		colour = false
-	}
+	colour := os.Getenv("NO_COLOR") == ""
 	if os.Getenv("TERM") == "dumb" || os.Getenv("TERM") == "" {
 		colour = false
 	}

@@ -11,7 +11,7 @@
 | Document | Covers | State |
 |---|---|---|
 | `install.md` | Install (release binary, `go install`, build from source), first-run setup, API key | Not written |
-| `configuration.md` | Every key in `config.toml`, its default, and what it does — global vs project precedence | Not written |
+| [`configuration.md`](configuration.md) | Every key in `config.toml`, its default, and what it does — global vs project precedence | Written — every key, its default and scope; the project-file allowlist and secret rules |
 | [`usage.md`](usage.md) | Key bindings, slash commands, the approval model, sessions and resume | Written — layout, keys, commands and approvals; sessions and resume arrive with the feature |
 | `troubleshooting.md` | `kirsch doctor` output explained, common failures and what they mean | Not written |
 

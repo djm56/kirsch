@@ -232,6 +232,20 @@ func (s *Store) RecordScopeGranted(action, pattern string) {
 	s.postLine(line)
 }
 
+// RecordScopesCleared writes an approval.scopes_cleared event.
+//
+// It is emitted when the user revokes every session-scope grant, so that
+// LoadGrants discards the grants recorded before it and a resumed session does
+// not restore them.
+func (s *Store) RecordScopesCleared() {
+	line, err := marshalApprovalScopesCleared()
+	if err != nil {
+		s.report(err)
+		return
+	}
+	s.postLine(line)
+}
+
 // RecordCompaction writes a compaction.applied event.
 //
 // from and to are the inclusive message indices (conversation-message indices)

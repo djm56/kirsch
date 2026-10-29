@@ -2,7 +2,7 @@
 
 Kirsch Milestone 5 is polish and release: the narrow-width status bar, the `kirsch doctor` command, `--version` and `--help`, the release tooling (build wrapper, goreleaser configuration, release workflow), the repository files, the user documentation under `doc/`, and the operator decisions that gate the conditional follow-through. The deliverables are defined in `plan/milestones/milestone-5.md`.
 
-> **Status: skeleton.** This document was written at planning time (mission-20261023-06, 2026-10-23). It is expanded as each deliverable lands. Section 2's commands were run in mission-20261026-01, and the operator passed section 2 of the plain checklist on 2026-10-27; no other section's commands have been run. Every block marked `TO EXPAND` is a placeholder, and the expansion belongs to the step that lands the deliverable. The operator runs tests from the plain checklist `plan/testing/manual/user-testing/milestone-5-donovan.md`, set up with `source scripts/m5-test-env.sh`; see [`milestone-5-start-here.md`](../../milestones/milestone-5-start-here.md).
+> **Status: skeleton.** This document was written at planning time (mission-20261023-06, 2026-10-23). It is expanded as each deliverable lands. Section 1's commands were run in mission-20261027-03, and the operator passed section 1 of the plain checklist on 2026-10-27. Section 2's commands were run in mission-20261026-01, and the operator passed section 2 of the plain checklist on 2026-10-27. Section 4's commands were run in mission-20261027-04, and the operator passed section 4 of the plain checklist on 2026-10-27, with a note (see the carried item under *Carried from Milestone 5 planning* in `plan/PROGRESS.md`). Section 5's commands were run in mission-20261027-06 (step 7) on 2026-10-27, and the operator passed section 5 of the plain checklist on 2026-10-28. Section 6's automated commands were run in mission-20261027-05 (step 5) on 2026-10-27, and the operator passed section 6 of the plain checklist on 2026-10-28; its hands-on steps need a live model turn and have not been run, and the operator checklist's section 6 has only automated steps. Section 9's commands were run in mission-20261027-08 on 2026-10-27, and the operator passed section 9 of the plain checklist on 2026-10-28. Section 16's automated check was run in mission-20261027-07 (step 3) on 2026-10-27; its removal control is recorded in mission-20261027-07 step 1, and the operator passed section 16 of the plain checklist on 2026-10-28. Section 3's automated checks were run in mission-20261028-03 (step 5) on 2026-10-28, from zsh after `source scripts/m5-test-env.sh`, and the output is in `.claude/memory/workspace/m5d5-step5-evidence.txt`; its hands-on step needs a live model turn and an API key. No key-free route was found in a 25-minute attempt (mission-20261028-03 step 6a), so the step has not been run; the operator has not yet tested section 3 of the plain checklist, and that checklist's quit-and-reopen check is checked at the final release check (section 37 of the checklist). Section 7's automated checks and hands-on commands were run in mission-20261028-03 (step 9) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m7d-step9-evidence.txt`; the operator has not yet tested section 7 of the plain checklist. Section 10's automated commands were run in mission-20261028-03 (step 13) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m10b-step13-evidence.txt`; the goreleaser snapshot was not run (goreleaser is not installed, and no install was allowed in that step), and the operator has not yet tested section 10 of the plain checklist. Section 8's automated checks were run in mission-20261028-03 (step 17) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m6d-step17-auto.txt`; the operator has not yet tested section 8 of the plain checklist, and its hands-on paste step has not been pre-run. Every block marked `TO EXPAND` is a placeholder, and the expansion belongs to the step that lands the deliverable. The operator runs tests from the plain checklist `plan/testing/manual/user-testing/milestone-5-donovan.md`, set up with `source scripts/m5-test-env.sh`; see [`milestone-5-start-here.md`](../../milestones/milestone-5-start-here.md).
 
 ## How to read this document
 
@@ -230,7 +230,7 @@ mkdir -p "$T_CFG/kirsch"
 printf '[session]\nstorage_dir = "%s"\n' "$T_STATE/sessions" > "$T_CFG/kirsch/config.toml"
 ```
 
-The unset line clears the key variables, as the m5-d16 box does (`plan/milestones/milestone-5.md:1408`), and clears `MY_TOKEN` and `T_BROKEN`, which earlier sections export. `KIRSCH_LIVE_MODEL` is unset as Milestone 4 does (`plan/testing/manual/milestone-4.md:40`).
+The unset line clears the key variables, as the m5-d16 box does (`plan/milestones/milestone-5.md:1408`), and clears `MY_TOKEN` and `T_BROKEN`. Nothing in this document sets `T_BROKEN` now: section 7 uses a throwaway folder inside a subshell and leaves nothing behind. The name stays in the unset line because `scripts/m5-test-env.sh` still names it. That is a known leftover, carried in `plan/PROGRESS.md`. `KIRSCH_LIVE_MODEL` is unset as Milestone 4 does (`plan/testing/manual/milestone-4.md:40`).
 
 **Guard.** Run this after Setup, and after any section that changes the config. The first `grep` must print one line, the `storage_dir` line under `$T_STATE`. The printf control must print `0`. If the first grep prints nothing, stop. A kirsch launch would then write to the real store. The guard functions in the next block check the environment and the file together. Run that block too.
 
@@ -299,7 +299,7 @@ grep -n -i 'model' "$T_CFG/kirsch/config.toml"
 read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
 ```
 
-**Cleanup.** If you ran section 7, first run `rm -rf -- "$T_BROKEN"`, because the block below unsets `T_BROKEN`. Then unset the variables when a session ends, and check the count. Authored here. It must print `CONTROL PASS`, then `0`.
+**Cleanup.** Section 7 leaves no folder behind, so there is nothing to remove before Cleanup runs. The block below still unsets `T_BROKEN`, because `scripts/m5-test-env.sh` still names it. That is a known leftover (see the Setup note above). Then unset the variables when a session ends, and check the count. Authored here. It must print `CONTROL PASS`, then `0`.
 
 ```bash
 # authored here
@@ -309,7 +309,7 @@ keycount_control
 keycount
 ```
 
-Removing the scratch directories is the operator's step, and agents do not run it. If you ran section 7, first run `rm -rf -- "$T_BROKEN"` before the Cleanup block, because Cleanup unsets `T_BROKEN`. After Cleanup, copy the removal line from `plan/testing/manual/milestone-4.md:60`: a recursive `rm` of `$T_CFG`, `$T_STATE` and `$WORKSPACE`. It does not remove `$T_BROKEN`. The variable `MY_TOKEN` is unset above.
+Removing the scratch directories is the operator's step, and agents do not run it. Section 7 leaves no folder behind, so no `$T_BROKEN` removal is needed before the Cleanup block. After Cleanup, copy the removal line from `plan/testing/manual/milestone-4.md:60`: a recursive `rm` of `$T_CFG`, `$T_STATE` and `$WORKSPACE`. That line names no section 7 folder. The variable `MY_TOKEN` is unset above. If `T_BROKEN` is still set in an older terminal and names a folder, `m5_done` still lists that folder for removal. That is the known leftover in `scripts/m5-test-env.sh`.
 
 ---
 
@@ -500,6 +500,8 @@ Flags:
   --help, -h          show this help and exit
 ```
 
+**Note (2026-10-28, m5-d3a):** the help text above is the text from m5-d2. m5-d3a adds a `kirsch doctor` line under Usage and a `doctor` line under Commands, so the text printed now differs from the block above. The current help text is shown under *What landed* in §7, the m5-d3a section. The expectations below that quote the old text are kept as they were at m5-d2 and are stale for the help screen as it is now.
+
 **Waits on:** O4, recorded (`plan/PROGRESS.md:346`), from `plan/milestones/milestone-5.md:98`.
 
 **Key-state and repository checks, first.** Authored here. It must print `CONTROL PASS`, then `0`. The first `git` line must exit non-zero (`not a git repository`), which shows the scratch directory is outside any repository. The last line must print `true`: the positive control, the same command finding the workspace.
@@ -563,7 +565,7 @@ ls -l bin/kirsch bin/kirsch-999
   "$KIRSCH_BIN" --help | grep -c resume
   ```
 
-  Expected, in order: the help text in *What landed*, then `0`. Then `0` (nothing on stderr for `--help`). Then a non-zero count (`517` on 2026-10-26), the control: it proves the same capture does see stderr. Then `0` (`resume --help` exits 0). Then `0` (`doctor` is not in the help yet; m5-d3a adds it later). Then `2`, the control: it proves the same grep finds a word that is there. `grep -c` exits 1 when the count is 0; the printed number is what counts.
+  Expected, in order: the help text in *What landed*, then `0`. Then `0` (nothing on stderr for `--help`). Then a non-zero count (`517` on 2026-10-26), the control: it proves the same capture does see stderr. Then `0` (`resume --help` exits 0). Then `2` (the Usage line `kirsch doctor` and the Commands line `doctor`; at m5-d2, before m5-d3a, `doctor` was not in the help and the count was `0`). Then `2`, the control: it proves the same grep finds a word that is there. `grep -c` exits 1 when the count is 0; the printed number is what counts.
 
 - [ ] An unknown flag exits non-zero.
 
@@ -595,7 +597,7 @@ ls -l bin/kirsch bin/kirsch-999
   1
   ```
 
-  The error appears twice, once from the flag parser and once from `kirsch:` in `main` (`cmd/kirsch/main.go:74`), the same as before this change.
+  The error appears twice, once from the flag parser and once from `kirsch:` in `main` (`cmd/kirsch/main.go:74`), the same as before this change. The usage text in the block above is the m5-d2 text. Since m5-d3a the usage text also names `kirsch doctor`, so this block is stale for the help screen as it is now (see the note under the help text above).
 
 - [ ] `cmd/kirsch/main_test.go` covers both flags (`plan/milestones/milestone-5.md:502`). Command:
 
@@ -624,13 +626,19 @@ _Empty. Fill at run._
 
 ## 3 · Persist `/approvals` clear (m5-d5)
 
-**Context:** Terminal: Setup. Binary: `go test` for the automated checks; `kirsch resume` for hands-on step 1 (TO EXPAND). Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the hands-on launches, the first and the resume. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: `go test` for the automated checks; `kirsch --workspace` and `kirsch resume --workspace` for the hands-on step, which the crew did not run (see *Hands-on checks*). Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the hands-on launches: the launch that makes the grant, and the resume. Key state: all key variables unset for the automated checks and the key-state check; the hands-on step is run by the operator, in the operator's own terminal, with a key. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d5 lands:** the new session event (O11), the §7 amendment, and whether `/new` records anything (it does not, unless O11 says so).
+Clearing approvals with `/approvals` is now saved in the session log. The confirmed clear writes an `approval.scopes_cleared` line (`internal/session/event.go:342`, `marshalApprovalScopesCleared`), and `App.ClearGrants` (`internal/app/app.go:530–547`) flushes that line to disk straight away, so a quit right after the clear cannot lose it. On resume, `LoadGrants` (`internal/session/grants.go:28`, rule in the doc comment at `:22–23`) discards every grant read before the clear line. Grants made after the clear still come back. The spec's session-events block lists the line (`plan/spec/kirsch-plan.md` §7, the JSONL block).
 
-**Waits on:** O11 (event name and §7 amendment), from `plan/milestones/milestone-5.md:103`. ADR 0006 makes revocability a requirement (`plan/adr/0006-session-scoped-approvals.md:45, :67–69`).
+Things to know:
+
+- `/new` writes no event. It clears the grants in memory (`internal/app/app.go:1010`), and it starts a new session file, which needs no clear line (the `O11` row, part (b)).
+- With no session file open, a clear writes nothing and creates no file (`App.ClearGrants` checks for a nil store at `app.go:539`, and its comment at `:536–538` gives the reason).
+- The flush runs on the UI event loop, inside the confirmed `/approvals` clear. A slow disk can pause the screen briefly, and only at a confirmed clear. This is an accepted trade, recorded by Bishop.
+
+**Waits on:** nothing. O11 is recorded: the event name `approval.scopes_cleared` and `/new` writes no event. The `O11` row (part (b), which reads "Whether `/new` records one too. The milestone's own note says no, because `/new` starts a new file.") and the `O11 (a)` row (which reads "`approval.scopes_cleared`, the milestone's own example") are in *Milestone 5 — decisions recorded*, `plan/PROGRESS.md`. ADR 0006 makes revocability a requirement (`plan/adr/0006-session-scoped-approvals.md:45, :67–69`).
 
 **Key-state check, first.** Authored here. Run it before any kirsch launch in this section. It must print `CONTROL PASS`, then `0`.
 
@@ -642,103 +650,275 @@ keycount
 
 **Automated checks**
 
-- [ ] `go test -race ./internal/session/ ./internal/app/` passes in full, with no exclusion. `TestRunTurnApprovalToolUsesApprovalPath` is included (`plan/milestones/milestone-5.md:732`).
+- [✅] `go test -race ./internal/session/ ./internal/app/` passes in full, with no exclusion. `TestRunTurnApprovalToolUsesApprovalPath` is included (`plan/milestones/milestone-5.md:732`). Run by the crew in mission-20261028-03 (step 5) with `-count=1` added; each package reports `ok` (output under *Notes / evidence*).
 
   ```bash
-  cd /Volumes/DATA/Github/kirsch && go test -race ./internal/session/ ./internal/app/
+  cd /Volumes/DATA/Github/kirsch && go test -race -count=1 ./internal/session/ ./internal/app/
   ```
 
-- [ ] A round-trip test grants a command, clears the grants, reopens the session log, and asserts that no grants are returned (`plan/milestones/milestone-5.md:727`). Command: `TO EXPAND`.
-- [ ] A clear writes the new event into the session log, and the test reads the file (`plan/milestones/milestone-5.md:728`). Command: `TO EXPAND`.
-- [ ] `LoadGrants` returns the grants before the clear event and none after it (`plan/milestones/milestone-5.md:729`). Command: `TO EXPAND`.
-- [ ] A session log with no clear event restores its grants as before (`plan/milestones/milestone-5.md:730`). Command: `TO EXPAND`.
-- [ ] The §7 amendment lists the new event type (`plan/milestones/milestone-5.md:731`). Command: `TO EXPAND`. Review step.
+- [✅] A round-trip test grants a command, clears the grants, reopens the session log, and asserts that no grants are returned (`plan/milestones/milestone-5.md:727`). The test is `TestResolveSessionGrantThenClearNotRestored` (`internal/app/resume_integration_test.go:496`). It first runs a control with no clear, and asserts the grant does come back there. Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./internal/app/ -run 'ClearGrants|ResolveSessionGrantThenClear' -v
+  ```
+
+- [✅] A clear writes the new event into the session log, and the test reads the file (`plan/milestones/milestone-5.md:728`). The test is `TestRecordScopesClearedWritesEvent` (`internal/session/grants_test.go:174`), which reads the log and looks for `"type":"approval.scopes_cleared"`. Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./internal/session/ -run 'LoadGrants|RecordScopesCleared' -v
+  ```
+
+- [✅] `LoadGrants` returns the grants before the clear event and none after it (`plan/milestones/milestone-5.md:729`). The milestone's wording is ambiguous on this point. The tests pin what ADR 0006 needs: grants recorded before the clear are dropped, and grants recorded after it are kept. `TestLoadGrantsClearLeavesNone` and `TestLoadGrantsClearThenGrantKeepsOnlyLater` (`internal/session/grants_test.go:148, :135`) pin those cases. Command: the one above.
+- [✅] A session log with no clear event restores its grants as before (`plan/milestones/milestone-5.md:730`). The test is `TestLoadGrantsWithoutClearEventUnchanged` (`internal/session/grants_test.go:161`). Command: the one above.
+- [✅] The §7 amendment lists the new event type (`plan/milestones/milestone-5.md:731`). The line is `{"v":1,"type":"approval.scopes_cleared"}` in the §7 JSONL block of `plan/spec/kirsch-plan.md:353`, and it matches what `marshalApprovalScopesCleared` writes (`internal/session/event.go:342`). Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep 'approval.scopes_cleared' plan/spec/kirsch-plan.md
+  ```
+
+  The review of the amendment is the separate `@apone` step the milestone names (milestone step 4), reviewed in mission-20261028-03 (step 6 and its fix rounds). This tick records the grep and the comparison, not that review.
 
 **Hands-on checks**
 
-1. Launch `kirsch --workspace "$WORKSPACE"`. The first launch needs the flag: it is where the grant is made, and without the flag the checkout becomes the workspace. Grant a command with `a`. Run `/approvals` and confirm the grant is listed. That is the positive control, and it shows the grant exists before the clear. If nothing is listed, stop: the run would prove nothing. Clear with `/approvals`, quit, run `kirsch resume --workspace "$WORKSPACE"`, then run `/approvals`. Expected after the clear and the resume: no grants listed (`plan/milestones/milestone-5.md:733`, operator). The session directory is keyed by the workspace hash (`internal/session/layout.go:78–79`), so the launches must name `$WORKSPACE`. A resume without the flag reads a different directory and lists nothing, which would pass for the wrong reason.
+1. Launch `kirsch --workspace "$WORKSPACE"`. The launch that makes the grant needs the flag: it is where the grant is made, and without the flag the checkout becomes the workspace. Grant a command with `a`. Run `/approvals` and confirm the grant is listed. That is the positive control, and it shows the grant exists before the clear. If nothing is listed, stop: the run would prove nothing. Clear with `/approvals`, quit, run `kirsch resume --workspace "$WORKSPACE"`, then run `/approvals`. Expected after the clear and the resume: no grants listed (`plan/milestones/milestone-5.md:733`, operator). The session directory is keyed by the workspace hash (`internal/session/layout.go:78–79`), so the launches must name `$WORKSPACE`. A resume without the flag reads a different directory and lists nothing, which would pass for the wrong reason.
 
-   > **TO EXPAND when m5-d5 lands:** how a grant is created without a live model turn. `milestone-5.md:733` does not say. Until this is expanded, do not run this step with any key variable set.
+   > **Not run by the crew.** A grant is made when the agent asks to run a command and the operator answers the approval card with `a`. The agent asks inside a live model turn, which needs a provider key. The test setup (`scripts/m5-test-env.sh`) unsets the key variables, and the crew did not set one. The operator runs this step in their own terminal, with the key set there, and runs the key-state check above first. The expected result is the one stated in step 1. Until the operator has run it, this step is unverified; `milestone-5.md:733` stays unticked.
+
+   > **Key-free route tried (mission-20261028-03 step 6a, W5): no key-free route found in a 25-minute attempt.** What was tried. Reading the grant path: a grant is written only by `App.Resolve`, which calls `store.RecordScopeGranted` (`internal/app/app.go:2245`) when the operator answers an approval card. The card is raised only by `App.Request`, which the agent's tool calls reach (`internal/tool/run_command.go:129`, `internal/tool/apply_patch.go:128`). So a grant needs a model turn, and so a provider key. The only fake provider (`internal/provider/fake.go`) serves the tests and cannot be selected from the binary or the config. Also tried: a session log written by hand, with an `approval.scope_granted` line and an `index.json` entry keyed by the workspace's resolved path. Kirsch read the entry, then appeared to wait for terminal replies (`]11;?`, `[6n`) that the non-interactive `script` run never sent, so nothing rendered and `/approvals` could not be driven. Whether a reply sender would let it render was not established. Not tried: a local endpoint (`doc/configuration.md` allows a custom endpoint with a `http://127.0.0.1…` `base_url`) returning a canned `run_command` tool call, with a dummy key value. That is not run now. The check stays with the operator's live run (`milestone-5.md:733`), and is checked at the final release check (section 37 of the checklist). Evidence: the W5 section of `.claude/memory/workspace/m5d5-step5-evidence.txt`.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Crew run: mission-20261028-03, step 5, 2026-10-28. Shell for every run below: zsh 5.9, after `source scripts/m5-test-env.sh`, which printed `Ready.`. The full output is in `.claude/memory/workspace/m5d5-step5-evidence.txt`. If the file has moved, it is under `.claude/memory/workspace/`. To find it, run `find .claude/memory/workspace -name m5d5-step5-evidence.txt`.
+
+Key-state check (zsh, after source):
+
+```
+CONTROL PASS: a planted key line counts as 1
+0
+```
+
+`keycount_control` exited 0. `keycount` printed `0` and exited 1. That exit comes from `grep -c` finding no match, the point recorded as S-4 in the testing review; the printed value is what counts.
+
+Session package, `go test -count=1 ./internal/session/ -run 'LoadGrants|RecordScopesCleared' -v` (the `=== RUN` lines are left out; every `--- PASS` line is kept):
+
+```
+--- PASS: TestLoadGrantsReadsScopeGrantedEvents (0.02s)
+--- PASS: TestLoadGrantsStopsAtTornLine (0.01s)
+--- PASS: TestLoadGrantsEmptyFile (0.00s)
+--- PASS: TestLoadGrantsMissingFile (0.00s)
+--- PASS: TestLoadGrantsClearThenGrantKeepsOnlyLater (0.01s)
+--- PASS: TestLoadGrantsClearLeavesNone (0.01s)
+--- PASS: TestLoadGrantsWithoutClearEventUnchanged (0.01s)
+--- PASS: TestRecordScopesClearedWritesEvent (0.01s)
+PASS
+ok  	github.com/djm56/kirsch/internal/session	0.223s
+```
+
+App package, `go test -count=1 ./internal/app/ -run 'ClearGrants|ResolveSessionGrantThenClear' -v`:
+
+```
+--- PASS: TestClearGrantsRoundTripAndEvent (0.12s)
+--- PASS: TestClearGrantsAfterResumeBeforeAnyTurn (0.09s)
+--- PASS: TestClearGrantsWithoutStoreCreatesNoSession (0.02s)
+--- PASS: TestClearGrantsIsDurableWithoutClose (0.02s)
+--- PASS: TestResolveSessionGrantThenClearNotRestored (0.09s)
+PASS
+ok  	github.com/djm56/kirsch/internal/app	0.537s
+```
+
+Race, `go test -race -count=1 ./internal/session/ ./internal/app/`, exit 0:
+
+```
+ok  	github.com/djm56/kirsch/internal/session	6.373s
+ok  	github.com/djm56/kirsch/internal/app	98.164s
+```
+
+Hands-on step 1 was not run, and no no-model substitute was found. `/approvals` is a slash command inside the TUI (`internal/tui/update.go:1471`). `kirsch resume` runs `ResumeLastSession` as the app's startup hook (`cmd/kirsch/main.go:232–238`), and the app is the TUI. Nothing outside the TUI prints the grants, so no command-line check can show the grants a resume restores. Nothing in this section was run against a live provider.
 
 ---
 
 ## 4 · Terminal capability and resize tests (m5-d9)
 
-**Context:** Terminal: Setup. Binary: `go test`. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup for the hands-on step (`source scripts/m5-test-env.sh` run in that terminal); the automated checks need no Setup folders. Binary: `go test` for the automated checks; `bin/kirsch`, from `npm run build`, for the hands-on step. Working directory: /Volumes/DATA/Github/kirsch for the automated checks; the Setup practice project (`$WORKSPACE`) for the hands-on step. Workspace: `$WORKSPACE` for the hands-on step; n/a for the checks. Key state: all key variables unset (Setup clears them, and no step calls a model). Config state: Setup, unchanged (kirsch reads the Setup settings through `XDG_CONFIG_HOME`).
 
 **What landed**
 
-> **TO EXPAND when m5-d9 lands:** the `DetectCaps` cases written, the O18 decision recorded for empty `NO_COLOR`, and whether `view_smoke_test.go` was extended.
+- `DetectCaps` (`internal/tui/styles.go:44–63`) turns colour off when `NO_COLOR` is set to a non-empty value, when `TERM` is `dumb` or empty, or when stdout is not a character device. An empty `NO_COLOR` is treated as unset, following the no-color.org convention. Before m5-d9 the code turned colour off for an empty value.
+- New tests in `internal/tui/styles_test.go`: `TestDetectCapsColour` (the positive control, each colour-off case, and the empty-`NO_COLOR` case), `TestDetectCapsNoColourUnsetRestores` (a truly unset `NO_COLOR`, and the earlier value restored afterwards), and `TestDetectCapsUnicode` (the locale order `LC_ALL`, `LC_CTYPE`, `LANG`).
+- `TestFrameInvariants` in `internal/tui/view_smoke_test.go` now also draws the help modal and a confirm prompt at every size in its sweep. At 80×24 and larger it checks that each overlay's own text is drawn and that the other overlay's text is not.
 
-**Waits on:** O18 (empty `NO_COLOR`: keep the code, or treat empty as unset), from `plan/milestones/milestone-5.md:108`.
+**Waits on:** nothing. O18 is recorded (2026-10-26, `plan/PROGRESS.md`, decisions table): an empty `NO_COLOR` is treated as unset. The tests above pin that choice (`plan/milestones/milestone-5.md:80`).
 
 **Automated checks**
 
-- [ ] `internal/tui/styles_test.go` covers each case in `plan/milestones/milestone-5.md:931–937`, and the positive control returns colour on (`plan/milestones/milestone-5.md:942`). Command: `TO EXPAND`. The milestone names the file and the cases but no command line.
-- [ ] The truly-unset `NO_COLOR` case passes, and the test asserts that the prior value is restored (`plan/milestones/milestone-5.md:943`). Command: `TO EXPAND`.
-- [ ] The O18 behaviour is pinned by the empty-`NO_COLOR` case (`plan/milestones/milestone-5.md:944`). Command: `TO EXPAND`.
-- [ ] (optional) The invariants sweep also runs with a modal and a confirm prompt open (`plan/milestones/milestone-5.md:945`). Command: `TO EXPAND`.
+- [ ] `internal/tui/styles_test.go` covers each case in `plan/milestones/milestone-5.md:931–937`, and the positive control returns colour on (`plan/milestones/milestone-5.md:942`). Command: `go test -count=1 ./internal/tui -run 'TestDetectCapsColour' -v`. Expect: every subtest reads PASS, including `control:_xterm,_NO_COLOR_unset,_char_device` (`-v` prints the spaces as underscores), and the last line starts `ok`.
+- [ ] The truly-unset `NO_COLOR` case passes, and the test asserts that the prior value is restored (`plan/milestones/milestone-5.md:943`). Command: `go test -count=1 ./internal/tui -run 'TestDetectCapsNoColourUnsetRestores' -v`. Expect: `--- PASS: TestDetectCapsNoColourUnsetRestores` and its `unset` subtest PASS. The test fails if the earlier value is not put back.
+- [ ] The O18 behaviour is pinned by the empty-`NO_COLOR` case (`plan/milestones/milestone-5.md:944`). Command: `go test -count=1 ./internal/tui -run 'TestDetectCapsColour/NO_COLOR_empty' -v`. Expect: `NO_COLOR_empty_is_treated_as_unset_(O18)` PASS.
+- [ ] (optional) The invariants sweep also runs with a modal and a confirm prompt open (`plan/milestones/milestone-5.md:945`). Command: `go test -count=1 ./internal/tui -run 'TestFrameInvariants' -v`. Expect: `--- PASS: TestFrameInvariants` and the last line starts `ok`.
+
+Every check above in one run: `go test -count=1 ./internal/tui -run 'TestDetectCaps|TestFrameInvariants' -v`. The last line starts `ok`. That run also includes `TestDetectCapsUnicode`, which no check above names.
 
 **Hands-on checks**
 
+**Key-state check, first.** Authored here. Run it before any kirsch launch in this section. It must print `CONTROL PASS`, then `0`.
+
+```bash
+# authored here
+keycount_control
+keycount
+```
+
 1. (operator) A real resize with a modal open (`plan/milestones/milestone-5.md:946`).
 
-   > **TO EXPAND when m5-d9 lands:** the terminal, the modal to open, and the expected result.
+   - Terminal: a Terminal window at least 100 columns and 30 rows, in the Setup terminal, from the kirsch folder: `"$KIRSCH_BIN" --workspace "$WORKSPACE"`.
+   - Press Tab once (focus moves from the typing line to the card list; the bottom hint changes). Then press `?`.
+   - Expected at 100 columns: a box whose top border reads `help`, whose rows list `composing`, `browsing`, `approval`, `modal` and `commands`, and whose bottom row ends `Esc or ? closes`.
+   - Resize the window narrower, to about 60 columns, keeping it at least 30 rows tall. Expected: the box is still drawn, its top border still reads `help`, its bottom row still ends `Esc or ? closes`, and no line runs past the window edge.
+   - Resize the window wider again. Expected: the box is drawn at the wider width, with the same text.
+   - Press Esc: the box closes. Press Esc again: focus returns to the typing line. Type `/quit` and press Enter.
+   - Trace: the title is `Title: "help"` from `internal/tui/update.go:959` (also `:993` and `:1459`); the footer text is built in `internal/tui/modal.go:294–329` (`modalExit` at `:333–338`). `Esc or ? closes` is not the shortest of its variants: `modal.go:304` and `:311` use `key` alone, which is the bare `Esc or ?` set at `modal.go:335`, and is shorter. The footer ends in `Esc or ? closes` at 100 and 60 columns in the dry run (verified at those sizes only). Dry run for this step (expect in a pseudo-terminal, screens replayed through a terminal emulator at 100×30 and 60×30, including a resize from 100×30 to 60×30 with help open): `.claude/memory/workspace/m4-step15-dryrun.txt`. That run did not use Terminal.app; the operator's run is the real check.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Operator run, 2026-10-27: every step of section 4 in the plain checklist passed. One note is open and not investigated: in step 2 (kirsch under `script` with `NO_COLOR=1`), each typed key left a new copy of the typing line on screen instead of redrawing it in place. The carried item in `plan/PROGRESS.md` (*Carried from Milestone 5 planning*) records the possible causes.
 
 ---
 
 ## 5 · `doc/configuration.md` (m5-d13a)
 
-**Context:** Terminal: Setup. Binary: none (greps on `doc/`). Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: `bin/kirsch`, built from this checkout by `npm run build`, for hands-on check 3; none for the automated checks, which grep `doc/`. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d13a lands:** the key table as written, with the scope of each key, and the one sentence stating that v0.1 reads no configuration from command-line flags (`plan/milestones/milestone-5.md:1139`).
+`doc/configuration.md` (new) is the settings guide, written for a user. It covers where the global and project config files live and the order the layers apply; that a project file may set only `context.project_files`; that API keys come only from the variables named by `api_key_env`; a key reference for each `[provider]`, `[policy]`, `[context]`, `[session]` and `[telemetry]` setting, with its default, valid values, scope and effect; the environment variables Kirsch reads; the debug log; the startup checks; and worked examples. It says once that v0.1 reads no configuration from command-line flags (`doc/configuration.md:41–42`), and that `--new`, `--debug` and `--workspace` change one run and set no key (`:9–11`).
 
-**Waits on:** O6 (who writes `doc/`; recommendation: `@lambert` writes, `@apone` reviews the claims against the code), from `plan/milestones/milestone-5.md:113`.
+**Code facts the review uncovered.** Each was read again against the code at step 7. The output is in the evidence file.
+
+- **Timeout range.** Valid values run from 1 to 300. Startup refuses only a value of zero or less (`internal/config/config.go:652`). The 300 ceiling applies to each command (`internal/tool/run_command.go:147–160`), and a command that names no timeout takes the configured default first. A default above 300 therefore passes startup, and every command without its own timeout is then refused. The page says so in the policy section.
+- **Command approval.** `ForCommand` (`internal/policy/policy.go:91–122`) decides in this order: shells and runners always ask, matched by file name (`policy.go:258–266`); the built-in allowlist runs exact matches only (`policy.go:75–84`); `require_approval_for_commands` allows the rest when it is false; session grants apply last.
+- **File-change approval.** `require_approval_for_patches` is passed to `policy.New` (`internal/app/app.go:500`), but `ForPatch` (`internal/policy/policy.go:128`) has no caller outside the tests, and the patch approval request (`internal/tool/apply_patch.go:130`) is made whatever the setting. Every file change asks. The page says so (`doc/configuration.md:154–157`).
+- **Warnings.** Config warnings go to `log.Warn` (`cmd/kirsch/main.go:206`). That logger is disabled unless the debug log is on (`main.go:166–172`), so a warning about an ignored project key or a refused context file is shown nowhere by default. The page says so (`doc/configuration.md:208–211`).
+- **Credential names.** `checkSecrets` runs whenever a config file is read (`internal/config/config.go:326`, `:376`). It refuses a key whose last name part matches `(?i)(api_?key|token|secret|password)` (`config.go:165`, `:468`), and a refusal stops startup. So `max_tokens` stops startup. Hands-on check 3 shows it.
+- **Upper-case env strip.** `buildEnvironment` removes names ending in `_TOKEN`, `_KEY` or `_SECRET`, and names starting with `AWS_` (`internal/tool/run_command.go:398–401`, using `strings.HasSuffix` and `strings.HasPrefix`). The match is case-sensitive. `TestRunCommandLowerCaseSecretNamesPassThrough` (`internal/tool/run_command_test.go:601`) pins that a lower-case name passes through. The page's env row says so, added at step 7.
+
+**Review history.** `@apone` reviewed the page against the code during mission-20261027-06. The mission journal, `.claude/memory/state/FLIGHT-RECORDER.md`, records the review history.
+
+**Waits on:** O6, recorded on 2026-10-26: `@lambert` writes, and `@apone` reviews the claims against the code (`plan/PROGRESS.md`, Milestone 5 decisions).
 
 **Automated checks**
 
-- [ ] Every key in `internal/config/config.go:57–80` and every endpoint field in `config.go:219–259` is listed, with its default and valid values (`plan/milestones/milestone-5.md:1143`). The mechanical check is m5-d13b (its section below). Command: `TO EXPAND`.
+- [ ] Every key in `internal/config/config.go:57–80` and every endpoint field in `config.go:219–259` is listed, with its default and valid values (`plan/milestones/milestone-5.md:1143`). The mechanical check is m5-d13b (its section below). The key-name cross-check below checks that each name taken from `config.go` (the struct tags, and the endpoint cases at `config.go:219–259`) appears on the page, as a backticked `.name` or as a `[section]` header. It does not check that the list is complete, and it does not check defaults. The defaults and valid values were compared by hand in hands-on check 2.
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch
+  KEYS=$(mktemp)
+  keycheck() {
+    local page="$1" k n=0 bad=0
+    { grep -o 'toml:"[a-z_]*"' internal/config/config.go | sed 's/toml:"//; s/"$//'
+      sed -n '219,259p' internal/config/config.go | grep -o 'case "[a-z_]*":' | sed 's/case "//; s/":$//'; } | sort -u > "$KEYS"
+    while IFS= read -r k; do
+      n=$((n + 1))
+      case " provider policy context session telemetry " in
+        *" $k "*) grep -q -F "[$k]" "$page" || { echo "MISSING section [$k]"; bad=$((bad + 1)); } ;;
+        *) grep -q -F ".$k\`" "$page" || { echo "MISSING key .$k"; bad=$((bad + 1)); } ;;
+      esac
+    done < "$KEYS"
+    echo "names checked: $n, missing: $bad"
+  }
+  keycheck doc/configuration.md
+  grep -q -F '`provider.default`' doc/configuration.md && echo "provider.default present"
+  # control: the session.auto_resume row removed from a copy; must print MISSING key .auto_resume
+  grep -v -F '`session.auto_resume`' doc/configuration.md > "$KEYS.control"
+  keycheck "$KEYS.control"
+  ```
 - [ ] `grep -n -i 'flag' doc/configuration.md` prints at least one line. Every line it prints is a sentence that promises no config flag (`plan/milestones/milestone-5.md:1144`). Paste the output.
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && grep -n -i 'flag' doc/configuration.md
   ```
 
-- [ ] `grep -n -i -w -E 'milestone|ADR' doc/configuration.md` prints nothing (`plan/milestones/milestone-5.md:1145`). Control: the printf line must print `an ADR` and not `headroom`.
+- [ ] `grep -n -i -w -E 'milestones?|ADRs?' doc/configuration.md` prints nothing. The milestone's own pattern, `'milestone|ADR'` (`plan/milestones/milestone-5.md:1145`), misses plurals, and the control below shows it. Control: the printf line must print `an ADR`, `ADRs` and `milestones`, and not `headroom`. The old pattern on the same input prints only `an ADR`.
 
   ```bash
-  cd /Volumes/DATA/Github/kirsch && grep -n -i -w -E 'milestone|ADR' doc/configuration.md
-  printf 'an ADR\nheadroom\n' | grep -i -w -E 'milestone|ADR'
+  # authored here
+  cd /Volumes/DATA/Github/kirsch && grep -n -i -w -E 'milestones?|ADRs?' doc/configuration.md
+  printf 'an ADR\nADRs\nmilestones\nheadroom\n' | grep -i -w -E 'milestones?|ADRs?'
+  printf 'an ADR\nADRs\nmilestones\nheadroom\n' | grep -i -w -E 'milestone|ADR'
   ```
 
 **Hands-on checks**
 
-1. Read the page as a user, not a builder. Confirm that `KIRSCH_DEBUG` and the config path are present (`plan/milestones/milestone-5.md:1136`), and that API keys are read from the variables named by `api_key_env` (`plan/milestones/milestone-5.md:1138`).
-2. > **TO EXPAND when m5-d13a lands:** the review of each documented default against `Defaults()` (`internal/config/config.go:84–118`), and the reviewer's citations.
+**Key-state check, first.** Authored here. Run it before any kirsch launch in this section. It must print `CONTROL PASS`, then `0`.
+
+```bash
+# authored here
+keycount_control
+keycount
+```
+
+1. Read the page as a user, not a builder. Confirm that `KIRSCH_DEBUG` and the config path are present (`plan/milestones/milestone-5.md:1136`), and that API keys are read from the variables named by `api_key_env` (`plan/milestones/milestone-5.md:1138`). The config path is on line 22, `KIRSCH_DEBUG` on line 193, and the secrets rule on lines 63 and 71–73.
+
+   ```bash
+   # authored here
+   cd /Volumes/DATA/Github/kirsch && grep -n 'KIRSCH_DEBUG\|XDG_CONFIG_HOME\|api_key_env' doc/configuration.md
+   ```
+
+2. Compare each documented default with `Defaults()` (`internal/config/config.go:84–118`). Every default on the page matches `Defaults()`: the built-in endpoints, the policy and context values, the storage folder, `auto_resume` and `debug_log`. The sentence that a new endpoint defaults `thinking` and `prompt_caching` to off is not a `Defaults()` value. It rests on the comment on `EndpointConfig` and on the review.
+
+   ```bash
+   # authored here
+   cd /Volumes/DATA/Github/kirsch && grep -n '^| `' doc/configuration.md | cut -c1-90
+   sed -n '84,118p' internal/config/config.go | grep -E 'Default:|BaseURL|Auth:|APIKeyEnv|Model:|DefaultCommandTimeout|RequireApproval|AllowSession|EnvPassthrough|ProjectFiles|MaxProject|StorageDir|AutoResume|DebugLog|PromptCaching'
+   ```
+
+3. A settings file with a credential-looking name stops kirsch from starting. This is the same check as operator checklist step 4. It needs `bin/kirsch` built from this checkout (`npm run build`) and the test setup (`source scripts/m5-test-env.sh`). The command writes a throwaway file in a new folder and leaves the settings file alone.
+
+   ```bash
+   # authored here
+   ( d=$(mktemp -d); mkdir -p "$d/kirsch"; printf '[provider]\nmax_tokens = 1\n' > "$d/kirsch/config.toml"; XDG_CONFIG_HOME="$d" "$KIRSCH_BIN" --workspace "$WORKSPACE" ; echo "result: $?"; rm -f "$d/kirsch/config.toml"; rmdir "$d/kirsch" "$d" )
+   ```
+
+   Expected: a message that names the key `provider.max_tokens` as one that looks like a credential, and `result: 1`. Control: the same file with `max_steps` in place of `max_tokens` does not print the credential message. `max_steps` is not a Kirsch key, so config ignores it as an unknown key, and the control shows the name rule, not a real setting. Run with `</dev/null` and no controlling terminal, the control exits 1 with `could not open a new TTY: open /dev/tty: device not configured`. That message comes from the missing terminal, not from the config file. This control was not run in a Terminal window. The refusal comes from the name, not the file.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Run 2026-10-27 in mission-20261027-06, step 7, by `@lambert`. The key cross-check and the mechanical checks ran under bash; the operator-checklist run ran in zsh after `source scripts/m5-test-env.sh`; the evidence file shows each command as run. The verbatim output of every run is in `.claude/memory/workspace/archive-mission-20261027-07/m6-step7-evidence.txt`. If that file has moved again, it is under `.claude/memory/workspace/`, found with `find .claude/memory/workspace -name m6-step7-evidence.txt`. The short results are:
+
+- Word check, corrected pattern: no output, exit status 1. Control: `an ADR`, `ADRs`, `milestones`. The old pattern on the same control input prints only `an ADR`.
+- Flag grep: lines 9, 41 and 42, each saying that v0.1 reads no configuration from command-line flags.
+- Key cross-check: no `MISSING` line on the page. Control with the `session.auto_resume` row removed: `MISSING key .auto_resume`.
+- Hands-on check 3: `result: 1`, and the credential message for `provider.max_tokens`. Control with `max_steps`, run with no controlling terminal: no credential message, then `could not open a new TTY: open /dev/tty: device not configured` and `result: 1`.
+- Tests: `TestRunCommandLowerCaseSecretNamesPassThrough` and `TestRunCommandAllStripPatterns` pass.
+
+The step 7 control run left one throwaway folder, `/var/folders/nb/46t8bdcd3050lnvz_6066k_40000gn/T/tmp.QbML9dtjkf`, holding one file, `kirsch/config.toml`. The operator removes it, after checking the path, with `rm -f /var/folders/nb/46t8bdcd3050lnvz_6066k_40000gn/T/tmp.QbML9dtjkf/kirsch/config.toml`, then `rmdir /var/folders/nb/46t8bdcd3050lnvz_6066k_40000gn/T/tmp.QbML9dtjkf/kirsch /var/folders/nb/46t8bdcd3050lnvz_6066k_40000gn/T/tmp.QbML9dtjkf`.
 
 ---
 
 ## 6 · Safety-test repair for `run_command`: C30, C35, C36 (m5-d19a)
 
-**Context:** Terminal: Setup. Binary: `go test`; `kirsch` running `run_command` for hands-on step 2 (TO EXPAND). Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the hands-on launch. Key state: all key variables unset. Config state: Setup, plus the `[policy]` block that hands-on step 1 appends, which step 3 removes again, so the Setup config is restored before the section ends. The guard reruns after the append and after the restore.
+**Context:** Terminal: Setup. Binary: `go test` for the automated checks. The hands-on steps need a live model turn and were not run for m5-d19a (see *Hands-on checks*). Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the hands-on launch. Key state: all key variables unset. Config state: Setup, plus the `[policy]` block that hands-on step 1 appends, which step 3 removes again, so the Setup config is restored before the section ends. The guard reruns after the append and after the restore.
 
 **What landed**
 
-> **TO EXPAND when m5-d19a lands:** the mutant named for each rewritten C30 test, the test that fails on it, and the failing output.
+- `internal/tool/run_command_test.go`: the child's stdin is checked to be `/dev/null` (`TestRunCommandStdinIsDevNull`). A timed-out command and a cancelled command must each leave no grandchild process running (`TestRunCommandTimeoutProcessGroupDead`, `TestRunCommandCancellationProcessGroupDead`). A new test checks that lower-case names such as `my_token`, `api_key` and `db_secret` pass through, because the match is case-sensitive (`TestRunCommandLowerCaseSecretNamesPassThrough`).
+- `internal/tui/approval_unspecified_test.go` (new file): `TestApprovalUnspecifiedCardShowsRequestName` checks that the approval card shows the request's name. `TestApprovalUnspecifiedCardBlankFieldsKnownDefect` pins the current blank card for an unspecified operation and is marked as a known defect.
+- No production code changed.
+
+**Mutant check, recorded at step 3.** Each mutant was applied to a throwaway overlay, not the working tree, and the named test failed under it. These were not rerun in step 5. The verbatim output is in `.claude/memory/workspace/m5-step3-evidence.txt`, which is scratch and is archived at the next mission start.
+
+| Test | Mutant | Failing output (verbatim) |
+|---|---|---|
+| `TestRunCommandStdinIsDevNull` | `cmd.Stdin = devNull` replaced by an empty reader | `run_command_test.go:233: child stdin is not /dev/null; probe printed "STDIN_NOT_DEVNULL\n"` |
+| `TestRunCommandTimeoutProcessGroupDead` | the signal goes to `pid`, not the group `-pid` | `run_command_test.go:922: still alive 3s after the command ended: grandchild sleep(pid 83329)` |
+| `TestRunCommandCancellationProcessGroupDead` | `Setpgid: true` set to `false` | `run_command_test.go:963: still alive 3s after the command ended: grandchild sleep(pid 83373)` |
+| `TestRunCommandLowerCaseSecretNamesPassThrough` | the key is upper-cased before the strip test | `run_command_test.go:622: lower-case variable "my_token" was stripped; matching is meant to be case-sensitive` |
+| `TestApprovalUnspecifiedCardShowsRequestName` | `Description` dropped from the sent request | `approval_unspecified_test.go:94: message Description = "", want "reticulate splines"` |
+| `TestApprovalUnspecifiedCardBlankFieldsKnownDefect` | the unspecified branch fills `Subject` and `Detail` | `approval_unspecified_test.go:140: Subject = "unspecified operation"; pinned empty (known defect) - if filled, update this test` |
+
+Under the lower-case mutant, `TestRunCommandAllStripPatterns` still passed. The lower-case test is the one that catches it. Cite each test by its function name; the line numbers inside the pasted failure lines above are from `internal/tool/run_command_test.go` as it stood when the mutants ran, before a formatting fix shifted the file by two lines.
+
+**Open product defect (C36, not fixed here).** An approval request for an unspecified operation is sent with an empty subject and detail (`internal/app/app.go`, near line 2140). The card then shows blank rows and a `[d] view diff` action with no diff behind it. After the request is resolved, the collapsed line shows an empty subject (`internal/tui/cards.go:263`, read from the code, not run). It is not established whether a user can reach this path: `internal/policy/policy.go:27` says the zero value "must refuse", and `internal/app/app.go:2141` says it "should not occur in practice". Fixing it changes `internal/app/app.go`, so it is outside m5-d19a.
 
 **Waits on:** O13 (scheduling of the safety group). No other dependency (`plan/milestones/milestone-5.md:123`).
 
@@ -752,16 +932,18 @@ keycount
 
 **Automated checks**
 
-- [ ] Each C30 test fails under its named mutant and passes on the real code (`plan/milestones/milestone-5.md:1557`). The tests are `TestRunCommandTimeoutProcessGroupDead`, `TestRunCommandCancellationProcessGroupDead` and `TestRunCommandStdinIsDevNull`. Command and mutant names: `TO EXPAND`.
-- [ ] The lower-case cases assert that `my_token`, `api_key` and `db_secret` are not stripped, and the suite passes (`plan/milestones/milestone-5.md:1558`). Command: `TO EXPAND`.
-- [ ] The C36 test asserts that the blank approval card for an unspecified operation shows the operation name and no empty field (`plan/milestones/milestone-5.md:1559`). Command: `TO EXPAND`.
-- [ ] `go test ./internal/tool/ ./internal/tui/` passes (`plan/milestones/milestone-5.md:1560`).
+- [ ] Each C30 test fails under its named mutant and passes on the real code (`plan/milestones/milestone-5.md:1557`). The tests are `TestRunCommandTimeoutProcessGroupDead`, `TestRunCommandCancellationProcessGroupDead` and `TestRunCommandStdinIsDevNull`. Command (real code): `go test -count=1 ./internal/tool -run 'TestRunCommandStdinIsDevNull|TestRunCommandAllStripPatterns|TestRunCommandLowerCaseSecretNamesPassThrough|TestRunCommandTimeoutProcessGroupDead|TestRunCommandCancellationProcessGroupDead' -v`. This is the same command the operator runs in section 6 of the plain checklist, so it also runs the secret-name tests in the next box. The mutant for each test is in the table under *What landed*.
+- [ ] The lower-case cases assert that `my_token`, `api_key` and `db_secret` are not stripped, and the suite passes (`plan/milestones/milestone-5.md:1558`). Command: `go test -count=1 ./internal/tool -run 'TestRunCommandLowerCaseSecretNamesPassThrough|TestRunCommandAllStripPatterns' -v`.
+- [ ] The C36 test asserts that the blank approval card for an unspecified operation shows the operation name and no empty field (`plan/milestones/milestone-5.md:1559`). Command: `go test -count=1 ./internal/tui -run 'TestApprovalUnspecifiedCard' -v`. **This box is not met by the product.** The card still has empty fields for an unspecified operation (see the open defect under *What landed*). `TestApprovalUnspecifiedCardBlankFieldsKnownDefect` pins that blank output, so it passes now and fails once the product is fixed. Leave this box unticked until then.
+- [ ] `go test -count=1 ./internal/tool/ ./internal/tui/` passes (`plan/milestones/milestone-5.md:1560`).
 
   ```bash
-  cd /Volumes/DATA/Github/kirsch && go test ./internal/tool/ ./internal/tui/
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./internal/tool/ ./internal/tui/
   ```
 
 **Hands-on checks**
+
+_Not run for m5-d19a._ These steps need a live model turn to call `run_command`, and steps 1 and 3 change the config, which step 3 restores. No live run was done. The automated checks above cover the stripping rules with no model in the loop. They do not show what a model-driven command receives, so the `MY_TOKEN` check below remains unrun.
 
 1. Run `run_command` with `MY_TOKEN` exported in the kirsch process environment and listed in `[policy] env_passthrough`. The TOML section is `policy` (`internal/config/config.go:29`), and the key is `env_passthrough` (`internal/config/config.go:62`). Set `LANG` in the environment too (`plan/milestones/milestone-5.md:1562`). Check that `LANG` is set: `echo "$LANG"` must print a value.
 
@@ -778,7 +960,7 @@ keycount
 
 2. Expected: the child sees `LANG`, and does not see `MY_TOKEN` even though it is listed (`internal/tool/run_command.go:379–384, :386–401`). The `LANG` arrival is the control. An absent `MY_TOKEN` alone proves nothing.
 
-   > **TO EXPAND when m5-d19a lands:** how the child command is invoked without a live model turn. `milestone-5.md:1562` does not say. Until this is expanded, do not run this step with any key variable set.
+   > **Not run for m5-d19a.** Invoking the child command needs a live model turn, and none was run. `milestone-5.md:1562` does not say how to do it without one. Do not run this step with any key variable set.
 
 3. Restore the Setup config, so the later sections see the state their Context lines name. Authored here.
 
@@ -795,21 +977,50 @@ keycount
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Automated checks run on 2026-10-27 in mission-20261027-05 (step 5), after `source scripts/m5-test-env.sh`. Every automated command above exited 0 on the real code. Output: `.claude/memory/workspace/m5-step5-evidence.txt` (scratch; archived at the next mission start). The hands-on steps were not run.
 
 ---
 
 ## 7 · Doctor: dispatch, report grammar, version line, exit codes, arch entry (m5-d3a)
 
-**Context:** Terminal: Setup. Binary: `kirsch doctor` (launch command TO EXPAND). Working directory: `$T_CFG`, outside any Git repository, for the outside-repository run; /Volumes/DATA/Github/kirsch for the `go test` checks. Workspace: n/a for the outside-repository run. Key state: all key variables unset. Config state: Setup, unchanged. The broken-config run uses its own directory, set up in hands-on step 1.
+**Context:** Terminal: Setup. Binary: `bin/kirsch`, built from the checkout by `npm run build` (the build block in §2) and run by absolute path as `"$KIRSCH_BIN" doctor`. Working directory: `$T_CFG`, outside any Git repository, for the doctor runs; /Volumes/DATA/Github/kirsch for the build and the `go test` checks. Workspace: n/a for the doctor runs. Hands-on steps 1 and 5 pass `$WORKSPACE` as a `--workspace` argument, and the key-state block checks it with `git`. Key state: all key variables unset. Config state: Setup, unchanged. The broken-settings runs use a throwaway folder that is made and removed inside a subshell in hands-on step 1, so the Setup settings are not touched.
 
 **What landed**
 
-> **TO EXPAND when m5-d3a lands:** the report grammar and exit codes as O5 records them, and the `doctor` help line.
+`kirsch doctor` is a subcommand. It runs after flag parsing and before workspace detection and config load, so it still prints its report outside a project folder, and when the settings file is broken. `--help` and `--version` given with `doctor` are answered by flag handling, with the help text or the version line and no report (`cmd/kirsch/main.go`, function `run`).
+
+The report grammar and exit codes are the ones recorded as O5 and O5 detail, in *Milestone 5 — decisions recorded* in `plan/PROGRESS.md`:
+
+- The line `kirsch <version>` is printed before any check. The version is the same version that `--version` prints.
+- Each check gets a line in the form `<status>  <name>: <detail>`, with a double space after the status. The status is `ok`, `warn` or `fail`.
+- The summary line is `doctor: <n> ok, <n> warn, <n> fail`.
+- Exit status 0 when no check fails, including a run where some checks warn. Exit status 1 when any check fails. A failing run prints no extra `kirsch:` line, because the report already says what failed.
+
+There are no checks yet. Doctor prints the version line and `doctor: 0 ok, 0 warn, 0 fail`, and exits 0. The later doctor deliverables (see the Milestone 5 table in `plan/milestones/milestone-5.md`) add their checks to this report, and the m5-d3a instructions in `plan/milestones/milestone-5.md` require every later check line to use the same grammar.
+
+The help screen now reads as below. The help text in §2 is the m5-d2 text, and §2 carries a note about the change.
+
+```text
+Usage:
+  kirsch [flags]
+  kirsch resume [flags]
+  kirsch doctor
+
+Commands:
+  resume    resume the most recent session for this workspace
+  doctor    check the installation and report problems
+
+Flags:
+  --workspace <path>  workspace root (defaults to the enclosing Git repository)
+  --new               start a fresh session even when a previous session exists
+  --debug             write a structured debug log
+  --version           print the version and exit
+  --help, -h          show this help and exit
+```
 
 **Waits on:** m5-d2 (help text and flag dispatch order) and O5 (doctor design: package placement, output grammar, fail versus warn, exit codes, side-effect policy), from `plan/milestones/milestone-5.md:99`.
 
-**Key-state and repository checks, first.** Authored here. It must print `CONTROL PASS`, then `0`. The first `git` line must exit non-zero, and the last must print `true`.
+**Key-state and repository checks, first.** Authored here. Run it after `guard`, as the hands-on commands below are. It must print `CONTROL PASS`, then `0`. The first `git` line must exit non-zero, and the last must print `true`.
 
 ```bash
 # authored here
@@ -821,44 +1032,149 @@ git -C "$WORKSPACE" rev-parse --is-inside-work-tree
 
 **Automated checks**
 
-- [ ] `kirsch doctor` is dispatched ahead of `workspace.Detect` and config load (`plan/milestones/milestone-5.md:544`). Command: `TO EXPAND`.
-- [ ] The first doctor line shows the version (`plan/milestones/milestone-5.md:545`). Command: `TO EXPAND`.
-- [ ] The help output names `doctor` (`plan/milestones/milestone-5.md:546`). Command: `TO EXPAND`.
-- [ ] Exit status matches O5 for each status O5 defines (`plan/milestones/milestone-5.md:547`). Command: `TO EXPAND`.
-- [ ] The `internal/arch` test passes with the new package entry (`plan/milestones/milestone-5.md:548`). The milestone names `internal/arch/imports_test.go` but gives no command line. Command: `TO EXPAND`.
-- [ ] `plan/spec/architecture.md:31–49` names the new package (`plan/milestones/milestone-5.md:549`). Review step.
+- [✅] `kirsch doctor` is dispatched ahead of `workspace.Detect` and config load (`plan/milestones/milestone-5.md:544`). Test: `TestRunDoctorBeforeWorkspaceAndConfig`, which runs doctor in a folder that is not a repository with a broken settings file, and checks that the plain run fails on the same settings file. Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./cmd/kirsch/ -run 'TestRunDoctorBeforeWorkspaceAndConfig' -v
+  ```
+
+- [✅] The version line shows the version (`plan/milestones/milestone-5.md:545`). Test: `TestRunDoctorSkeletonReport`, which pins the whole report while no probe exists. Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./cmd/kirsch/ -run 'TestRunDoctorSkeletonReport' -v
+  ```
+
+- [✅] The help output names `doctor` (`plan/milestones/milestone-5.md:546`). Test: `TestRunHelp`, which asserts the Commands entry in `cmd/kirsch/main_test.go`. Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./cmd/kirsch/ -run 'TestRunHelp' -v
+  ```
+
+- [✅] Exit status matches O5 (`plan/milestones/milestone-5.md:547`). Tests: `TestRunDoctorExitSentinel` (a failing result returns the doctor sentinel after the report, and a result that only warns returns no error) and `TestFailed` in `internal/doctor`. Commands:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./cmd/kirsch/ -run 'TestRunDoctorExitSentinel' -v
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./internal/doctor/ -run 'TestFailed' -v
+  ```
+
+  The exit status 1 itself is set in `main`, which no test calls. No probe can fail yet, so no hands-on step in this section can produce exit status 1 from the binary.
+
+- [✅] The `internal/arch` test passes with the new package entry (`plan/milestones/milestone-5.md:548`). Test: `TestImportRules`. The milestone names `internal/arch/imports_test.go` but gives no command line; this is the command used:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./internal/arch/ -v
+  ```
+
+- [✅] `plan/spec/architecture.md` names the new package (`plan/milestones/milestone-5.md:549`). Checked by grep, below. The review of that line is an `@apone` step, and this section does not claim it.
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n 'internal/doctor' plan/spec/architecture.md
+  ```
 
 **Hands-on checks**
 
-1. Run `kirsch doctor` outside a repository and with a broken `config.toml`. Expected: it reports both, and it does not exit before reporting (`plan/milestones/milestone-5.md:536`). The broken config goes in its own directory, so the Setup config is untouched:
+The hands-on commands below were run in zsh, after the Setup and the Guard functions. The automated commands were run in zsh with no setup, because they need none. The verbatim output is in `.claude/memory/workspace/m7d-step9-evidence.txt`. If the file has moved, it is under `.claude/memory/workspace/`, because the workspace is archived at the next mission start. To find it, run `find .claude/memory/workspace -name m7d-step9-evidence.txt`.
+
+1. Outside a repository, with a broken settings file (authored here; it covers `plan/milestones/milestone-5.md:536`). Doctor still prints the report and exits 0. The plain run with the same settings file refuses to start and exits 1. The settings file is made in a throwaway folder inside the subshell, so the Setup settings are untouched, and the folder is removed when the subshell ends:
 
    ```bash
    # authored here
-   export T_BROKEN=$(mktemp -d)
-   mkdir -p "$T_BROKEN/kirsch"
-   printf '[session\nstorage_dir = "%s"\n' "$T_STATE/sessions" > "$T_BROKEN/kirsch/config.toml"
    cd "$T_CFG"
+   ( d=$(mktemp -d); mkdir -p "$d/kirsch"; printf '[session\nstorage_dir = "%s"\n' "$T_STATE/sessions" > "$d/kirsch/config.toml"; XDG_CONFIG_HOME="$d" "$KIRSCH_BIN" doctor; echo "exit=$?"; XDG_CONFIG_HOME="$d" "$KIRSCH_BIN" --workspace "$WORKSPACE"; echo "exit=$?"; rm -f "$d/kirsch/config.toml"; rmdir "$d/kirsch" "$d" )
    ```
 
-   Launch doctor with `XDG_CONFIG_HOME="$T_BROKEN"` set on that same command. The launch command is TO EXPAND. Run the guard afterwards.
+   Expected: the report, then `exit=0`. Then a line starting `kirsch: parse`, which names the `config.toml` in the throwaway folder and `toml: line 2: expected '.' or ']' to end table name`, then `exit=1`. The folder path differs on each run. Observed, with the folder path shortened to `…`:
 
-   > **TO EXPAND when O5 is recorded:** the commands to run, the expected lines, and the exit status for each.
+   ```text
+   kirsch 0.1.0-dev
+   doctor: 0 ok, 0 warn, 0 fail
+   exit=0
+   kirsch: parse …/kirsch/config.toml: toml: line 2: expected '.' or ']' to end table name, but got '\n' instead
+   exit=1
+   ```
+
+2. From the kirsch folder, which is inside a repository (authored here):
+
+   ```bash
+   # authored here
+   cd /Volumes/DATA/Github/kirsch
+   "$KIRSCH_BIN" doctor
+   echo "exit=$?"
+   ```
+
+   Expected: `kirsch 0.1.0-dev`, `doctor: 0 ok, 0 warn, 0 fail`, then `exit=0`.
+
+3. From `$T_CFG`, which is outside any repository (authored here). This is the same command run from the test folder:
+
+   ```bash
+   # authored here
+   cd "$T_CFG"
+   "$KIRSCH_BIN" doctor
+   echo "exit=$?"
+   ```
+
+   Expected: the same report as step 2, then `exit=0`. The git check in the key-state block above prints its fatal message from this folder. That message is the expected outcome, and it is not a failure of doctor.
+
+4. The help screen (authored here):
+
+   ```bash
+   # authored here
+   cd "$T_CFG"
+   "$KIRSCH_BIN" --help | grep -n doctor
+   ```
+
+   Expected, exactly:
+
+   ```text
+   4:  kirsch doctor
+   8:  doctor    check the installation and report problems
+   ```
+
+5. Flags given with `doctor` (authored here; it checks an assumption behind the carried items below):
+
+   ```bash
+   # authored here
+   cd "$T_CFG"
+   "$KIRSCH_BIN" doctor --workspace "$WORKSPACE"; echo "exit=$?"
+   ```
+
+   Expected: the same report as step 2, then `exit=0`. In this run the `--workspace` value, which names an existing folder, did not change the report. The step tries an existing folder only.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Run for mission-20261028-03, step 9, on 2026-10-28, in zsh 5.9 from the kirsch folder, after `source scripts/m5-test-env.sh`. The `guard` function printed `GUARD PASS` before the runs and after them. The binary was built by `npm run build` (exit 0) from a checkout whose HEAD is `7244c58` with uncommitted changes, so the version line reads `kirsch 0.1.0-dev`.
+
+- Hands-on 1 matched: the report, `exit=0`, then the refusal from the plain run and `exit=1`.
+- Hands-on 2 and 3 matched: the same report in each folder, each ending with `exit=0`.
+- Hands-on 4 matched: the grep lines above.
+- Hands-on 5 matched the report, with `exit=0`. In that run the `--workspace` value did not change the report. The step has no control, so it does not show that the flag is ignored in general.
+- The automated commands above were run in zsh, exactly as printed, with `-v`. Each `-run` command printed `--- PASS` for every test it names, and each package printed `ok`. The `internal/arch` command has no `-run`, so it ran every test in that package; `TestImportRules` and `TestGuardedPackagesAreReal` both passed. The `grep` line printed line 45 of `plan/spec/architecture.md`. Step 10a re-ran these commands, the key-state block and the hands-on commands; the command text and the output are in `.claude/memory/workspace/m7d-step9-evidence.txt`, as Block 6 (step 10a).
+- Not run: a failing check. No probe can fail yet, so the exit status 1 from the binary is not observed in this section.
+
+Carried to m5-d3b. The fix-before-lifting items are in *Carried from Milestone 5 planning* in `plan/PROGRESS.md`, under the m5-d3b entry. They are named here, lettered (a) to (d) as the *Carried from Milestone 5 planning* entry in `plan/PROGRESS.md` letters them:
+
+- *(a) The changes-nothing test* (`TestRunDoctorChangesNothing`) is vacuous as written. It needs a write mutant, controls in each root, walk errors surfaced, and the size and mtime of each file recorded.
+- *(b) The forward-looking comments* at `cmd/kirsch/main.go:76–77`, `cmd/kirsch/main.go:158–160` and `internal/arch/imports_test.go:43–44`.
+- *(c) The unknown `Status`* fails open (DIR-002). `doctor.Failed` counts only `StatusFail`, and `doctor.Report` counts no unknown status, so an unknown status is left out of the summary and does not fail the run. This is read from the code, not run.
+- *(d) The suggestions*: a subprocess exit test, which runs the built binary and checks exit status 1; in the one run of hands-on 5, a `--workspace` value given with `doctor` did not change the report (that run had no control, so it does not show that the flag is ignored in general); and the usage line `kirsch doctor` has no `[flags]`; multi-line details are not handled by the line grammar; the arch mutant for `internal/doctor` has not been run.
 
 ---
 
 ## 8 · Composer paste path and caret rows (m5-d6)
 
-**Context:** Terminal: Terminal.app and iTerm2, each after rerunning Setup in that window. Binary: `go test` for the automated checks; `kirsch` for the paste check (TO EXPAND). Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the paste launch. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Terminal.app and iTerm2, each after rerunning Setup in that window, for the hands-on step. The automated checks run in any terminal where `source scripts/m5-test-env.sh` has been run. Binary: `go test` for the automated checks; `"$KIRSCH_BIN"` for the hands-on step. Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the hands-on launch. Key state: all key variables unset; the hands-on step sends no message, so no model is called. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d6 lands:** the O10 choice (scroll to the caret, or wrap) and the clamp changes it required.
+- `Composer.rows` scrolls when the input has more lines than the composer has rows. The composer's height limit is the clamp in `contentLines`.
+- The window is worked out from the caret's line alone, with no stored scroll position. While the caret is on a line in the top window, the window shows the top lines. Past that, the window shows the lines ending on the caret's line, so the caret sits on the bottom row and the window moves by as many lines as the caret does. With no caret (unfocused, or busy) the window shows the top lines.
+- The `>` prompt shows only while line 0 is in the window. A full window drops the dim hint, so the caret row is never what gives way.
+- `view.go` is unchanged. O10 chose scroll, not wrap.
+- The tests are in `internal/tui/paste_path_test.go`: `TestPasteLandsVerbatim`, `TestLargePasteConfirmAcceptAndDecline`, `TestMultiLinePasteStartingWithSlashIsNotACommand`, `TestComposerScrollsToTheCaret`, `TestComposerWindowFollowsTheCaretLineByLine`, `TestComposerWindowStaysAtTheTopWithoutACaret`, `TestComposerHintYieldsToAFullWindow`.
 
-**Waits on:** O10 (composer past five rows: scroll to the caret, or wrap) and m5-d1 for file ownership of `view.go` only if O10 is wrap, from `plan/milestones/milestone-5.md:104`.
+**Known, operator decision (W1):** a pasted tab becomes spaces, because the textarea's sanitiser rewrites a tab. Space indentation lands verbatim. Tab indentation does not. The milestone's acceptance says indentation lands verbatim. The crew has not resolved this. It is for the operator to decide, and it is carried in `plan/PROGRESS.md` under m5-d6.
+
+**Waits on:** O10 (decided: scroll) and m5-d1 for `view.go`, which m5-d6 leaves alone because O10 is not wrap.
 
 **Key-state check, first.** Authored here. Run it before any kirsch launch in this section. It must print `CONTROL PASS`, then `0`.
 
@@ -870,21 +1186,98 @@ keycount
 
 **Automated checks**
 
-- [ ] A multi-line paste with indentation lands verbatim (`plan/milestones/milestone-5.md:772`). Command: `TO EXPAND`.
-- [ ] A paste over 8 KB shows the y/n prompt. Accept and decline are both tested (`plan/milestones/milestone-5.md:773`). Command: `TO EXPAND`.
-- [ ] A pasted multi-line text starting with `/` is not a command (`plan/milestones/milestone-5.md:774`). Command: `TO EXPAND`.
-- [ ] A 12-line paste leaves the caret row visible (`plan/milestones/milestone-5.md:775`). Command: `TO EXPAND`.
-- [ ] Existing composer tests pass (`plan/milestones/milestone-5.md:776`). Command: `TO EXPAND`.
+Run by the crew at step 17 of mission-20261028-03, in zsh after `source scripts/m5-test-env.sh`. The full output is in `.claude/memory/workspace/m6d-step17-auto.txt`.
+
+- [✅] A space-indented multi-line paste lands verbatim (`TestPasteLandsVerbatim`) (plan/milestones/milestone-5.md:772). Command:
+
+  ```bash
+  # authored here
+  go test -count=1 ./internal/tui/ -run '^TestPasteLandsVerbatim$' -v
+  ```
+
+- [ ] Tab indentation lands verbatim — not met: tabs become spaces (operator decision, W1). Milestone cite: plan/milestones/milestone-5.md:772.
+
+- [✅] A paste over 8 KB shows the y/n prompt, and accept and decline are tested. Test: `TestLargePasteConfirmAcceptAndDecline`, with subtests `accept` and `decline` (plan/milestones/milestone-5.md:773). Command:
+
+  ```bash
+  # authored here
+  go test -count=1 ./internal/tui/ -run '^TestLargePasteConfirmAcceptAndDecline$' -v
+  ```
+
+- [✅] A multi-line paste starting with `/` is not a command (plan/milestones/milestone-5.md:774). Test: `TestMultiLinePasteStartingWithSlashIsNotACommand`. Command:
+
+  ```bash
+  # authored here
+  go test -count=1 ./internal/tui/ -run '^TestMultiLinePasteStartingWithSlashIsNotACommand$' -v
+  ```
+
+- [✅] A 12-line paste leaves the caret row visible (plan/milestones/milestone-5.md:775). Tests: `TestComposerScrollsToTheCaret` and `TestComposerWindowFollowsTheCaretLineByLine`. Command:
+
+  ```bash
+  # authored here
+  go test -count=1 ./internal/tui/ -run '^(TestComposerScrollsToTheCaret|TestComposerWindowFollowsTheCaretLineByLine)$' -v
+  ```
+
+  The test passes. Whether the real binary behaves the same is open; see the hands-on step below.
+
+- [✅] Existing composer tests pass (plan/milestones/milestone-5.md:776). Command:
+
+  ```bash
+  # authored here
+  go test -count=1 ./internal/tui/
+  ```
+
+- [✅] With no caret the window stays at the top, and the hint yields to a full window. Tests: `TestComposerWindowStaysAtTheTopWithoutACaret` and `TestComposerHintYieldsToAFullWindow`. Command:
+
+  ```bash
+  # authored here
+  go test -count=1 ./internal/tui/ -run '^(TestComposerWindowStaysAtTheTopWithoutACaret|TestComposerHintYieldsToAFullWindow)$' -v
+  ```
 
 **Hands-on checks**
 
-1. (operator) Paste a 20-line trace in Terminal.app and in iTerm2. Expected: newlines are kept and nothing acts as a key (`plan/milestones/milestone-5.md:777`). Run Setup in each window first.
+1. (operator) Paste a 20-line trace in Terminal.app and in iTerm2. Expected: newlines are kept, nothing acts as a key, and the typing area shows the last lines with the cursor after the last line. Pressing Up moves the window up a line at a time until the top line shows; after that the window holds while the caret moves inside it. Run Setup in each window before starting. Sample text to copy: `for i in {1..20}; do printf '  trace %02d\n' "$i"; done`, pasted into the kirsch typing area with Cmd-V and not submitted with Enter. Esc clears the typing area when no turn is in progress.
 
-   > **TO EXPAND when m5-d6 lands:** the trace to paste, and what the operator records for each terminal.
+   **Not pre-run.** The crew could not run this step; it needs your real Terminal. A pseudo-terminal pre-run was attempted inside a 25-minute time-box, and it did not establish the result. Keys reached kirsch: a typed `a` before the paste echoed in attempts 6 to 8. After a 12-line or 20-line bracketed paste (attempts 2, 3, 4, 6 and 8), the last output the probe captured showed the top five pasted lines, `trace 01` to `trace 05`, and no later line. That frame is recorded directly for attempts 2 and 3, which list `trace 01` to `trace 05` by name. For attempts 4, 6 and 8 it is inferred: five trace tokens were recorded, with `trace 01` present and `trace 10` absent. Attempt 1 is not counted: it started before the banner, and its controls failed. That window is what a caret at or above line 4 gives, and it is also what a composer that never scrolled would show. The tests expect the last lines (for example `trace 07` to `trace 11` for 12 lines), so the evidence fits both a scroll that does not engage in the real binary after a real paste and a harness artefact. The output was 914 to 915 bytes after a 12-line or 20-line paste (attempts 2, 3, 4, 6 and 8), and 933 bytes after a 5-line paste (attempt 7). In attempt 3, 14 of the 15 Up presses produced no output, and the fifteenth produced 84 bytes that include `trace 05`. A typed `Z` after the paste did not appear in attempts 4, 6 and 8, and did appear after a 5-line paste in attempt 7. SIGTERM did not stop the child in attempts 2, 3 and 8. It did in attempts 4, 6 and 7. Attempt 5 ended before the kill step. The probe drains output in bounded windows (`.claude/memory/workspace/m6d-paste-probe.py`). The mission-20261028-03 step 18 review, reading the probe code, found no obvious buffer-block cause. One possible harness cause is that nothing answers terminal queries; that is a hypothesis, not a finding. The check that settles it is this step in your real Terminal. The cause is unresolved. The attempts and their output are in `.claude/memory/workspace/m6d-step17-paste-attempts.txt`. The operator's plain steps are in section 8 of `plan/testing/manual/user-testing/milestone-5-donovan.md`.
+
+   Tab note, in plain words: if your pasted text used tabs, they show as spaces. That is known and waiting for your decision (W1).
+
+   Recovery, in plain words: If kirsch stops responding after the paste (keys do nothing), close this Terminal tab or window, then write what you saw in section 8 of the operator checklist under *Anything odd?* and tell Bishop. Nothing in this step touches a model or your files.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Automated checks, run by the crew at step 17. The lines below are verbatim from the `-run 'Paste|Composer'` run in `.claude/memory/workspace/m6d-step17-auto.txt`:
+
+```text
+--- PASS: TestHistoryUpInMiddleOfComposer (0.00s)
+--- PASS: TestPasteLandsVerbatim (0.01s)
+--- PASS: TestLargePasteConfirmAcceptAndDecline (0.02s)
+--- PASS: TestMultiLinePasteStartingWithSlashIsNotACommand (0.01s)
+--- PASS: TestComposerScrollsToTheCaret (0.01s)
+--- PASS: TestComposerWindowFollowsTheCaretLineByLine (0.01s)
+--- PASS: TestComposerWindowStaysAtTheTopWithoutACaret (0.00s)
+--- PASS: TestComposerHintYieldsToAFullWindow (0.01s)
+--- PASS: TestPendingCardT6Paste (0.00s)
+--- PASS: TestGAndCapitalGAreLiteralInTheComposer (0.00s)
+--- PASS: TestComposerCtrlGRePins (0.02s)
+--- PASS: TestQuestionMarkIsLiteralInComposer (0.00s)
+--- PASS: TestSubmitHandsComposerTextToCallback (0.00s)
+PASS
+ok  	github.com/djm56/kirsch/internal/tui	0.331s
+```
+
+The whole package, run in the same script: `ok  	github.com/djm56/kirsch/internal/tui	6.760s`.
+
+Key-state check, run in the same shell, from the same script:
+
+```text
+CONTROL PASS: a planted key line counts as 1
+0
+```
+
+`keycount` exits with status 1 when it counts 0, because `grep -c` does that. The printed `0` is the result.
+
+Hands-on step 1: not run by the crew. The pseudo-terminal attempts are recorded above, under *Hands-on checks*.
 
 ---
 
@@ -894,7 +1287,12 @@ _Empty. Fill at run._
 
 **What landed**
 
-> **TO EXPAND when m5-d10a lands:** the wrapper's behaviour with no argument, as O4 records it.
+- `scripts/build.sh` (new). Its header, `scripts/build.sh:1-29`, is the authority for the rules. An argument is stamped as the bare version after one leading `v` is removed. The value must match `X.Y.Z`, optionally followed by `-suffix` or `+suffix`, or the script exits 2. More than one argument exits 2.
+- With no argument, the script stamps only when git is present, the repository is the script's own, `git status --porcelain` succeeds and is empty, and HEAD is exactly on a `v` tag of that shape. Otherwise it builds unstamped (`scripts/build.sh:55-69`).
+- An unstamped build reports `0.1.0-dev`, unless Go's build info records a clean release tag. That fallback is `resolveVersion` (`cmd/kirsch/main.go:43-59`), and it is O4(b): an unstamped `go install` build reports its module version with the leading `v` removed (`plan/PROGRESS.md`, *Milestone 5 — decisions recorded*). O4 does not describe the checkout stamping above. That rule comes from the script.
+- Milestone tags such as `m3` and `m4` are never stamped (`scripts/build.sh:25–26`).
+- `package.json:9` (`build`) is now `bash scripts/build.sh`.
+- The operator copy is section 9 of `plan/testing/manual/user-testing/milestone-5-donovan.md`. Its steps were run on 2026-10-27; see *Notes / evidence*.
 
 **Waits on:** m5-d2 (the ldflags variable) and O4, from `plan/milestones/milestone-5.md:109`.
 
@@ -922,7 +1320,13 @@ keycount
 
   The review step confirms that `package.json:9` (`build`) now points at `bash scripts/build.sh` (`plan/milestones/milestone-5.md:975–976`).
 
-- [ ] With no argument, the version falls back the way O4 records (`plan/milestones/milestone-5.md:982`). Command: `TO EXPAND` (no-argument run, once O4 is recorded).
+- [ ] With no argument, the script stamps only on a clean exact `v` release tag on HEAD. Otherwise the binary reports `0.1.0-dev` unless Go's build info records a clean release tag (`plan/milestones/milestone-5.md:982`; `scripts/build.sh:1-29`; `cmd/kirsch/main.go:43-59`). Command, from the kirsch folder:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && npm run build && bin/kirsch --version
+  ```
+
+  On a tree with changes and no tag on HEAD, the expected output is `kirsch 0.1.0-dev`. On a clean exact `v` release tag, it shows that tag's version. `--version` cannot tell a stamped build from an unstamped one on the same tag; the distinguishing check is listed under *Notes / evidence*.
 
 **Hands-on checks**
 
@@ -933,35 +1337,85 @@ keycount
    cd "$T_CFG" && /Volumes/DATA/Github/kirsch/bin/kirsch --version; echo "exit=$?"
    ```
 
+   Expected output, after *Before you start* and a normal build (step 4 of section 9 in the operator copy), from an unstamped checkout:
+
+   ```
+   kirsch 0.1.0-dev
+   exit=0
+   ```
+
+   On an exact release tag with no changes, the first line shows that tag's version instead.
+
 **Notes / evidence**
 
-_Empty. Fill at run._
+Operator-step run, 2026-10-27, mission-20261027-08. Every step of section 9 in the operator copy was run in zsh after *Before you start*, in one shell session. The commands and verbatim output are in `.claude/memory/workspace/m8-step3-runs.txt`. The key-state check printed `CONTROL PASS`, then `0`. The stamped runs printed `kirsch 9.9.9` and `kirsch 9.9.8`. The bad shape printed `build.sh: version argument '1.2' is not X.Y.Z[-suffix|+suffix]`, then `result: 2`. The normal build printed `kirsch 0.1.0-dev`. The `-ldflags` count printed `0`. The hands-on command printed `kirsch 0.1.0-dev` and `exit=0`. Both runs, with their verbatim output, are in `.claude/memory/workspace/m8-step3-runs.txt` under `step 4a run`. These files are workspace evidence of mission-20261027-08; after the next mission starts, find them with `ls .claude/memory/workspace/archive-mission-*/m8-step2a-evidence.txt`.
+
+Developer proofs. They are in the workspace, so they go to the archive at the next mission start.
+
+- **Clean exact-tag case.** `.claude/memory/workspace/m8-step2a-evidence.txt`, section b (lines 62–77). The distinguishing artefact is `go version -m bin/kirsch | grep -- -ldflags`. A stamped build prints `build -ldflags="-X main.version=0.1.0"` (line 70). A plain `go build` on the same tag prints `kirsch 0.1.0` with no `-ldflags` line (lines 74–76), because `resolveVersion` reads the tag from build info. So `--version` alone cannot tell the two apart.
+- **Bad-shape refusals.** Section g of the same file (lines 132–156). Accepted shapes, including `v1.2.3` and `1.2.3-rc.1`: section h (lines 158–173). Empty argument: `.claude/memory/workspace/m8-step3-runs.txt`, extra block (lines 66–68). `bash scripts/build.sh ''` prints `build.sh: version argument '' is not X.Y.Z[-suffix|+suffix]` and exits 2.
+- **Nested checkout.** Section j (lines 193–214). The script builds unstamped inside a checkout that sits in a repository tagged `v9.9.9` (line 198).
+- **Git absent.** Section k (lines 216–243). With no `git` on PATH the build is unstamped. The control on the same clone with the real PATH stamps `0.1.0` (lines 232–237).
+- **Git status failure.** Section a (lines 28–60). The script prints `build.sh: git status failed; building unstamped` (line 45), and with `GOFLAGS=-buildvcs=false` the build is unstamped (lines 43–48). Without that flag, Go's own VCS stamping stops the build with exit 1 (lines 51–56). This is carried item (a) in `plan/PROGRESS.md`.
+- **Several `v` tags on HEAD.** Section e (lines 106–116). This is carried item (b).
+- **`--help` gets a shape error.** Section g (lines 142–144). This is carried item (c).
+- **A tracked change or an untracked file stops stamping.** Section c (lines 79–92), and `m8-step1-evidence.txt` lines 27–35.
+- **Milestone tags and other non-version tags.** `m8-step1-evidence.txt` lines 16–41 (`m3`, `m4`), section d (lines 94–104, `m9` ignored), and section f (lines 118–130, `v1-notes`).
 
 ---
 
 ## 10 · goreleaser config and target-compile check (m5-d10b)
 
-**Context:** Terminal: Setup. Binary: none for the automated checks; `goreleaser` for the snapshot run (operator). Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: none; the target check builds into a temporary folder under `bin/` and removes it. The goreleaser snapshot is operator-owned and was not run here. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: not used, because no kirsch is launched in this section. Config state: Setup, unchanged. Shell for every run in *Notes / evidence*: zsh 5.9.
 
 **What landed**
 
-> **TO EXPAND when m5-d10b lands:** the `.goreleaser.yaml` as written, the CI target-check method O20 chose, and each target's compile result.
+- `.goreleaser.yaml` (new). Its header comments are the authority. It uses goreleaser's version 2 schema, which needs goreleaser v2.6 or later (`archives.formats`). It builds `./cmd/kirsch` only, with `CGO_ENABLED=0`, for the `goos` and `goarch` lines in the file. Its ldflags set `main.version` to `{{.Version}}`. Archives are tar.gz with goreleaser's default name template. Checksums are sha256. The changelog comes from git.
+- `scripts/ci.sh targets`, also `npm run ci:targets`. It reads its targets from the `goos` and `goarch` lines of `.goreleaser.yaml`. Before it reads them, `check_goreleaser_shape` refuses some file shapes it cannot model. That check is a denylist, not an allowlist (see the carried items). It compiles `./cmd/kirsch` for each target and prints `target os/arch: ok` or `FAILED`. It fails on any failure and on zero targets. An EXIT trap removes its temporary folder under `bin/`.
+- The `targets` job in `.github/workflows/ci.yml` runs `bash scripts/ci.sh targets`. `bash scripts/ci.sh all` includes the same job.
+- goreleaser was not installed on this machine on 2026-10-28. The snapshot run is operator-owned; see the hands-on check below.
 
-**Waits on:** m5-d2 (ldflags variable), O2 (goreleaser shape), O4 (version string), O20 (target-compile method), from `plan/milestones/milestone-5.md:110`. The target list is at `plan/spec/kirsch-plan.md:481`. Compilation is unverified until the check runs.
+**Waits on:** m5-d2 (ldflags variable), O2 (goreleaser shape), O4 (version string), O20 (target-compile method), from the m5-d10b row of the deliverable table in `plan/milestones/milestone-5.md`. The target list is the Release bullet in `plan/spec/kirsch-plan.md`, matched by its text `Release via **goreleaser**` (line 482 on 2026-10-28). The milestone file's cites to the spec were one line low (it said :481 for this bullet), and step 14a swept them to the live lines. Spec line numbers can move again, so the bullet's text is the stable key: it names the four targets. The check has run on this machine, with the result in *Notes / evidence*. Nothing was pushed in this step, so the GitHub run has not happened.
 
 **Automated checks**
 
-- [ ] `.goreleaser.yaml` builds only `./cmd/kirsch`, with `CGO_ENABLED=0` and `-X main.version={{.Version}}` (`plan/milestones/milestone-5.md:1017`). Command: `TO EXPAND`.
-- [ ] Every target listed at `plan/spec/kirsch-plan.md:481` compiles. The step report lists each target and its result (`plan/milestones/milestone-5.md:1019`). Command: `TO EXPAND`, per O20. The O20 option is a loop of the form `GOOS=… GOARCH=… go build` (`plan/milestones/milestone-5.md:82`), or `goreleaser build --snapshot`.
-- [ ] A forced failure in one target makes the CI check exit non-zero. The forced failure is reverted and recorded (`plan/milestones/milestone-5.md:1018`). Command: `TO EXPAND`.
+- [✅] `.goreleaser.yaml` builds only `./cmd/kirsch`, with `CGO_ENABLED=0` and `-X main.version={{.Version}}` (`plan/milestones/milestone-5.md`, m5-d10b acceptance). Run in mission-20261028-03 step 13 from zsh; output in `.claude/memory/workspace/m10b-step13-evidence.txt`, sections C and C2; the control runs for this block are in section J (step 14a). Command, from the kirsch folder:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n '^ *main:' .goreleaser.yaml
+  cd /Volumes/DATA/Github/kirsch && grep -n -E 'CGO_ENABLED|main.version' .goreleaser.yaml
+  # Control: a copy with one probe build line added under `main: ./cmd/kirsch`. The count must be above 0.
+  cd /Volumes/DATA/Github/kirsch && CTRL=.claude/memory/workspace/m10b-goreleaser-probe-control.yaml && awk '{print} /^    main: \.\/cmd\/kirsch$/{print "    main: ./cmd/kirsch-probe"}' .goreleaser.yaml > "$CTRL" && awk '/^builds:/{f=1;next} /^[^[:space:]#]/{f=0} f' "$CTRL" | grep -v '^[[:space:]]*#' | grep -c kirsch-probe
+  # Real check: must print 0.
+  cd /Volumes/DATA/Github/kirsch && awk '/^builds:/{f=1;next} /^[^[:space:]#]/{f=0} f' .goreleaser.yaml | grep -v '^[[:space:]]*#' | grep -c kirsch-probe
+  ```
+
+  Expected: the `main: ./cmd/kirsch` line; the `CGO_ENABLED=0` line and the `-X main.version={{.Version}}` line (the `CGO_ENABLED|main.version` grep also prints a comment line that mentions `main.version`, which is expected); the control line prints a number above 0; and `0` from the probe count. That count is the number of lines containing `kirsch-probe` in the builds section outside comments. `grep -c` exits 1 when it counts nothing, which is expected for the probe count.
+- [✅] Every target in the Release bullet of `plan/spec/kirsch-plan.md` compiles, and the config names exactly that set (`plan/milestones/milestone-5.md`, m5-d10b acceptance). Run in mission-20261028-03 step 13 from zsh: the target lines are in `m10b-step13-evidence.txt` section A, and the set comparison is in section D. Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && bash scripts/ci.sh targets; echo "result: $?"
+  # Control: one side has an extra target, so this must print a `> darwin/386` line and `control exit=1`.
+  cd /Volumes/DATA/Github/kirsch && diff <(sed -n "$(grep -n 'Release via' plan/spec/kirsch-plan.md | cut -d: -f1)p" plan/spec/kirsch-plan.md | grep -o -E '[a-z]+/(amd64|arm64)' | sort) <(sed -n 's/^ *goos: *\[\(.*\)\] *$/\1/p' .goreleaser.yaml | tr ',' '\n' | tr -d ' ' | while read o; do sed -n 's/^ *goarch: *\[\(.*\)\] *$/\1/p' .goreleaser.yaml | tr ',' '\n' | tr -d ' ' | while read a; do echo "$o/$a"; done; done | sort; echo darwin/386); echo "control exit=$?"
+  # Real check: must print only SAME SET.
+  cd /Volumes/DATA/Github/kirsch && diff <(sed -n "$(grep -n 'Release via' plan/spec/kirsch-plan.md | cut -d: -f1)p" plan/spec/kirsch-plan.md | grep -o -E '[a-z]+/(amd64|arm64)' | sort) <(sed -n 's/^ *goos: *\[\(.*\)\] *$/\1/p' .goreleaser.yaml | tr ',' '\n' | tr -d ' ' | while read o; do sed -n 's/^ *goarch: *\[\(.*\)\] *$/\1/p' .goreleaser.yaml | tr ',' '\n' | tr -d ' ' | while read a; do echo "$o/$a"; done; done | sort) && echo "SAME SET"
+  ```
+
+  Expected: a `target os/arch: ok` line for each target in the Release bullet, then the line `ci.sh: all ... targets compile` and `result: 0`. The control `diff` prints a `> darwin/386` line and then `control exit=1`, which shows the comparison can fail. The real `diff` command prints only `SAME SET`, with no diff lines above it.
+- [✅] A forced failure in one target makes the CI check exit non-zero. The forced failure is reverted and recorded (`plan/milestones/milestone-5.md`, m5-d10b acceptance). Ticked on recorded evidence, not re-run in step 13, because step 13 is docs work. `.claude/memory/workspace/m11-step12a-evidence.txt`, lines 157–171: the forced file made `target linux/arm64: FAILED` and `exit=1`. Lines 228–241 are the removal and the rerun: the `zz_` count of 0 at line 229 shows the file is gone, and `exit=0` at line 241 is the green rerun. The log does not show the `rm` command itself. No `zz_` file was in `cmd/kirsch` on 2026-10-28 (checked at step 14a). Command: none run here.
 
 **Hands-on checks**
 
-1. Record each listed target and its result in the step report (`plan/milestones/milestone-5.md:1013`).
+1. Check that the target run left no folder behind. Paste:
 
-   > **TO EXPAND when O20 is recorded:** the target list in the form the check uses, and the forced-failure method.
+   ```bash
+   cd /Volumes/DATA/Github/kirsch && mkdir bin/targets.control && find bin -maxdepth 1 -name 'targets.*' -print; rmdir bin/targets.control; echo "control done"
+   cd /Volumes/DATA/Github/kirsch && find bin -maxdepth 1 -name 'targets.*' -print; echo "leftover check done"
+   ```
 
-2. (operator) `goreleaser release --snapshot --clean` produces `dist/` with archives and a checksums file, and the native binary reports its version (`plan/milestones/milestone-5.md:1020`). `dist/` is gitignored (`.gitignore:10`, `milestone-5.md:996`).
+   Expected: the control line prints `bin/targets.control` before `control done`, which shows the search can see a leftover folder. The real check prints no path before `leftover check done`. The EXIT trap in `scripts/ci.sh` removes the folder after each run, so a path in the real check means the trap did not run.
+
+2. (operator) `goreleaser release --snapshot --clean` produces `dist/` with archives and a checksums file, and the native binary reports its version (`plan/milestones/milestone-5.md`, m5-d10b operator box). `dist/` is gitignored (`.gitignore:10`). The snapshot also shows whether the stamped version is bare. Confirming which ldflags were used, and whether goreleaser's default ldflags are replaced, needs `go version -m` on the built binary (the command is under m5-d22 in `plan/milestones/milestone-5.md`). Those points are unverified until it runs (see the carried items). Not run here: goreleaser was not installed on 2026-10-28, and this step may not install anything. In step 13 `command -v goreleaser` printed nothing and returned 1 (evidence section F2). The snapshot is owed at m5-d22, the operator's final release check.
 
    ```bash
    cd /Volumes/DATA/Github/kirsch && goreleaser release --snapshot --clean
@@ -969,7 +1423,24 @@ _Empty. Fill at run._
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Crew run, 2026-10-28, mission-20261028-03 step 13, zsh 5.9, from /Volumes/DATA/Github/kirsch. The commands above, with their verbatim output and exit status, are in `.claude/memory/workspace/m10b-step13-evidence.txt`, sections A, B, C, C2, D, E, F, F2 and H (section H holds the commands as they were printed at step 13). The control runs for the blocks above, and the run of the checklist's section 10 commands after `source scripts/m5-test-env.sh`, are in section J (step 14a). After the next mission starts, find it with `ls .claude/memory/workspace/archive-mission-*/m10b-step13-evidence.txt`.
+
+Recorded by @hicks at mission-20261028-03 steps 11 and 12a. Not re-run in step 13.
+
+Step 14a (docs fix round 1, 2026-10-28): the checklist's section 10 commands were run in zsh after `source scripts/m5-test-env.sh`, and again without it. Setup made no difference to their output or exit codes; the only extra lines are Setup's own `Ready.` block (evidence section J4). The declaration of Setup in the checklist's section 10 is kept.
+
+- Forced failure and removal: `.claude/memory/workspace/m11-step12a-evidence.txt`, lines 157–171 (forced failure) and 228–241 (the removal, shown by the `zz_` count of 0 at line 229, and the green rerun). After the next mission starts, `ls .claude/memory/workspace/archive-mission-*/m11-step12a-evidence.txt`.
+- Mutants for the shape refusals and the zero-target guard, and the trap checks: `.claude/memory/workspace/m11-step12a-evidence.txt`. After the next mission starts, `ls .claude/memory/workspace/archive-mission-*/m11-step12a-evidence.txt`.
+
+Snapshot run: not run, and why. Goreleaser was not installed on this machine on 2026-10-28, and no install was allowed in step 13. The snapshot is owed at m5-d22.
+
+Carried items. Each is recorded in `plan/PROGRESS.md` under *Carried from Milestone 5 planning*, in the m5-d10b entry. Items (a) and (b) are warnings. Items (c) to (e) are notes, not warnings.
+
+- (a) The shape check is a denylist, not an allowlist. A `- ignore:` written with a list dash passes it, and so do a bare `-` entry in `builds:` and build keys the check does not name. The direction is an allowlist.
+- (b) The awk that reads `.goreleaser.yaml` is untested on CI's awk.
+- (c) A custom ldflags line drops goreleaser's default `-s -w`. Noted, not a defect.
+- (d) `.Version` in snapshot builds is unverified until the operator's snapshot run.
+- (e) The operator's snapshot run is owed at m5-d22.
 
 ---
 
@@ -1170,28 +1641,109 @@ _Empty. Fill at run. Record the run URL and the release page, not any credential
 
 ## 16 · Key-coverage test (S36) (m5-d13b)
 
-**Context:** Terminal: Setup. Binary: `go test`. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged. The removal-and-revert edits `doc/configuration.md`, not the config.
+**Context:** Terminal: Setup. Binary: none (no kirsch launch; the checks run `go test`). Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged. The removal control edits a copy of `doc/configuration.md`, never the real page.
 
 **What landed**
 
-> **TO EXPAND when m5-d13b lands:** the test name, and the key list it derives from `config.go:57–80` and `config.go:219–259`.
+m5-d13b adds the test file `internal/config/key_coverage_test.go`. It changes no product code, and it does not change `doc/configuration.md`: the step 1 diff lists that test file alone, and the page is byte-identical to its pre-step copy (the evidence is under *Notes / evidence* below). The file holds these tests:
 
-**Waits on:** m5-d13a (the page the test reads), from `plan/milestones/milestone-5.md:114`.
+- `TestKeyCoverage_PageDocumentsEveryKey` fails, naming each item, for every settings section and every key in the code that `doc/configuration.md` does not list. It reads the page from the module root, which `moduleRoot` finds by walking up to `go.mod`.
+- `TestKeyCoverage_DerivedListsAreSane` is the positive control. It fails if the derived lists are empty, if a known section (`policy`, `telemetry`) or one key from each extraction route is missing, or if the matcher accepts a page that is empty or that names a key only in prose. A table row is accepted.
+
+The keys come from the sources below, read by `documentedKeys`:
+
+- `reflect` over `Config`: each section's `toml` tag, and each tagged field of its struct (for example `policy.env_passthrough`, from `PolicyConfig`).
+- `go/ast` over `ProviderConfig.UnmarshalTOML`, because the provider keys are decoded by hand. The `case` labels give the endpoint fields (`provider.<name>.base_url`), and the `key ==` comparison gives `provider.default`.
+
+"Documented" has the exact meaning `missingFromPage` gives it: a section needs a heading ``### `[section]` `` on the page, and a key needs a table row beginning ``| `dotted.key` |``. A key named in a paragraph does not count.
+
+The section structs sit within `config.go:57–80`: `PolicyConfig` starts at `:57` and `TelemetryConfig` at `:78`. `Config` starts at `:27`. The provider decoder is `ProviderConfig.UnmarshalTOML`, which starts at `config.go:176`; its endpoint `switch fkey` runs `config.go:219–259`. This section cites symbols, and the test reads symbols, not line numbers.
+
+**Done:** m5-d13a (the page the test reads) is done in mission-20261027-06, so the page exists. Source of the dependency: `plan/milestones/milestone-5.md:114`.
 
 **Automated checks**
 
-- [ ] The test passes against the current page. The output is pasted into the step report (`plan/milestones/milestone-5.md:1178`). Command: `TO EXPAND`. The milestone names `internal/config/key_coverage_test.go` and gives no command line.
-- [ ] Removing one key from `doc/configuration.md` makes the test fail. The removal is demonstrated once and reverted (`plan/milestones/milestone-5.md:1179`). Command: `TO EXPAND`.
+- [✅] The test passes against the current page. Acceptance source: `plan/milestones/milestone-5.md:1178`. Command: `go test -count=1 ./internal/config -run KeyCoverage -v` (run from the module root). The milestone names `internal/config/key_coverage_test.go` and gives no command line; the command is authored here. Output of the run in mission-20261027-07 step 3, 2026-10-27:
+
+  ```
+  === RUN   TestKeyCoverage_DerivedListsAreSane
+  --- PASS: TestKeyCoverage_DerivedListsAreSane (0.00s)
+  === RUN   TestKeyCoverage_PageDocumentsEveryKey
+  --- PASS: TestKeyCoverage_PageDocumentsEveryKey (0.00s)
+  PASS
+  ok  	github.com/djm56/kirsch/internal/config	0.605s
+  ```
+
+- [ ] Removing one key from `doc/configuration.md` makes the test fail. Acceptance source: `plan/milestones/milestone-5.md:1179`. The control was recorded in mission-20261027-07 step 1 (the removal run is in the hands-on item below). It was not re-run in mission-20261027-07 step 3, so this box stays unticked until it is.
 
 **Hands-on checks**
 
-1. The removal-and-revert control (`plan/milestones/milestone-5.md:1175`).
+1. The removal-and-revert control (`plan/milestones/milestone-5.md:1175`). Recorded in mission-20261027-07 step 1, not re-run in step 3.
+   - **Key removed:** `policy.env_passthrough`. The page names it only in its table row, so deleting that row is the whole edit. The key appears on one line of the page, that row (the `grep` is under *Notes / evidence*).
+   - **Exact edit:** in a copy of `doc/configuration.md`, delete the one line that begins ``| `policy.env_passthrough` |``. Nothing else changes.
+   - **Run and result** (recorded in mission-20261027-07 step 1, control 1; the copy was a scratch page, not the real one):
 
-   > **TO EXPAND when m5-d13b lands:** which key is removed, the exact edit, and the revert. Record both runs.
+     ```
+     === RUN   TestKeyCoverage_DerivedListsAreSane
+     --- PASS: TestKeyCoverage_DerivedListsAreSane (0.00s)
+     === RUN   TestKeyCoverage_PageDocumentsEveryKey
+         key_coverage_test.go:202: doc/configuration.md does not document:
+               key policy.env_passthrough
+     --- FAIL: TestKeyCoverage_PageDocumentsEveryKey (0.00s)
+     FAIL
+     FAIL	github.com/djm56/kirsch/internal/config	0.219s
+     FAIL
+     exit=1
+     ```
+
+     The removal is a page fault, not an extraction fault: `TestKeyCoverage_DerivedListsAreSane` passes in the same run, as its line above shows.
+   - **Revert:** the removal was made in a scratch copy, so the real page was never edited. Control 3 restored the scratch copy, checked it against the repo page with `cmp`, and ran the tests (recorded in mission-20261027-07 step 1):
+
+     ```
+     page identical to repo page
+     === RUN   TestKeyCoverage_DerivedListsAreSane
+     --- PASS: TestKeyCoverage_DerivedListsAreSane (0.00s)
+     === RUN   TestKeyCoverage_PageDocumentsEveryKey
+     --- PASS: TestKeyCoverage_PageDocumentsEveryKey (0.00s)
+     PASS
+     ok  	github.com/djm56/kirsch/internal/config	0.212s
+     exit=0
+     ```
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+- The automated check output is in the Automated checks block above. It is from the run in mission-20261027-07 step 3.
+- Evidence for *What landed*, taken in mission-20261027-07 step 5 on 2026-10-27:
+
+  `git status --short -- internal cmd doc`:
+
+  ```
+   M doc/README.md
+   M doc/usage.md
+   M internal/tool/run_command_test.go
+   M internal/tui/styles.go
+   M internal/tui/view_smoke_test.go
+  ?? doc/configuration.md
+  ?? internal/config/key_coverage_test.go
+  ?? internal/tui/approval_unspecified_test.go
+  ?? internal/tui/styles_test.go
+  ```
+
+  Only `internal/config/key_coverage_test.go` is this milestone's work in that list. The step 1 diff has one file header, for that test file. The other entries predate mission-20261027-07's steps. `doc/configuration.md` is untracked from m5-d13a (mission-20261027-06).
+
+  `cmp doc/configuration.md` against the copy taken before step 1 of this mission reports the two files identical.
+
+  `grep -n env_passthrough doc/configuration.md`:
+
+  ```
+  128:| `policy.env_passthrough` | `[]` | A list of variable names | Global | Extra environment variables passed to commands the agent runs, on top of `PATH`, `HOME`, and `LANG`. Names ending in `_TOKEN`, `_KEY`, or `_SECRET`, and names starting with `AWS_`, are removed even when listed. The match is case-sensitive: only the upper-case forms are matched, so a listed `my_token` reaches the command, and other secret-looking names, such as `GITHUB_PAT`, are not matched either. |
+  ```
+
+  The key therefore appears only on that line, the table row.
+- Step 1 also ran a removal of the `provider.<name>.thinking` row together with the `[telemetry]` heading, and mutants of the extraction and of the matcher (a broken extraction that yields no sections, an AST route that drops the endpoint case labels, and a matcher that accepts any line containing the key). Those runs are not reproduced in this manual, and nothing here relies on them.
+- An early expected result for the removal run said the key is also named in prose. That was wrong: the page names it only in its table row, so the run above shows the page fault alone. The prose-rescue property is checked by the prose-only control in `TestKeyCoverage_DerivedListsAreSane` (`key_coverage_test.go:180–183`), not by the removal run.
+- The gates `npm run check`, `npm run fmt:check` and `npm run lint` were run in step 1 and are not repeated here.
+- The optional operator demonstration (a throwaway copy with one row removed, run by the operator) is not in the operator checklist. It was not run first in this step, and the checklist does not include steps that have not been run.
 
 ---
 
@@ -1576,7 +2128,7 @@ _Empty. Fill at run._
    cd /Volumes/DATA/Github/kirsch && ls plan/adr/
    ```
 
-2. Record the judgement for each "0001–0007" site (DIR-004). The milestone lists `plan/spec/kirsch-plan.md:391`, `plan/README.md:25` and `AGENTS.md:21`, plus `plan/adr/README.md:64`, which may stay as written. `CHANGELOG.md:21` is history and stays.
+2. Record the judgement for each "0001–0007" site (DIR-004). The milestone lists `plan/spec/kirsch-plan.md:392`, `plan/README.md:25` and `AGENTS.md:21`, plus `plan/adr/README.md:64`, which may stay as written. `CHANGELOG.md:21` is history and stays.
 
 **Notes / evidence**
 
@@ -2026,7 +2578,7 @@ _Empty. Fill at run._
 
 **What landed**
 
-> **TO EXPAND when m5-d21f lands, or record "no step":** the §7 lines amended in `plan/spec/kirsch-plan.md` (`:340–357`), and the session events listed.
+> **TO EXPAND when m5-d21f lands, or record "no step":** the §7 lines amended in `plan/spec/kirsch-plan.md` (`:340–359`), and the session events listed.
 
 **Waits on:** m5-d20 (the C43 and C46 decisions), and m5-d5 (file ownership of §7), from `plan/milestones/milestone-5.md:131`.
 

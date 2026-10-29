@@ -36,8 +36,9 @@ func TestUnknownModelFallback(t *testing.T) {
 	}
 }
 
-// TestMinimaxM3 verifies that minimax-m3 is a known model with PricingFlat
-// and the configured fallback dimensions of 128000 context and 4096 output.
+// TestMinimaxM3 verifies that minimax-m3 (the opencode default model) is a
+// known model with PricingFlat and the configured fallback dimensions of
+// 128000 context and 4096 output.
 func TestMinimaxM3(t *testing.T) {
 	m := LookupModel("minimax-m3")
 
@@ -55,9 +56,9 @@ func TestMinimaxM3(t *testing.T) {
 	}
 }
 
-// TestMinimaxM2_7 verifies that minimax-m2.7 (the opencode default model) is
-// a known model with PricingFlat and the configured fallback dimensions of
-// 128000 context and 4096 output.
+// TestMinimaxM2_7 verifies that minimax-m2.7 is a known model with
+// PricingFlat and the configured fallback dimensions of 128000 context and
+// 4096 output.
 func TestMinimaxM2_7(t *testing.T) {
 	m := LookupModel("minimax-m2.7")
 

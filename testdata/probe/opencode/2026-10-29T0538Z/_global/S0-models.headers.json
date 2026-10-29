@@ -1,0 +1,35 @@
+{
+  "Access-Control-Allow-Headers": [
+    "Content-Type, Authorization, X-Api-Key, X-Opencode-Org-Id"
+  ],
+  "Access-Control-Allow-Methods": [
+    "GET, OPTIONS"
+  ],
+  "Access-Control-Allow-Origin": [
+    "*"
+  ],
+  "Cache-Control": [
+    "no-store"
+  ],
+  "Cf-Placement": [
+    "remote-IAD"
+  ],
+  "Cf-Ray": [
+    "a51fd581ead9c35d-EWR"
+  ],
+  "Connection": [
+    "keep-alive"
+  ],
+  "Content-Type": [
+    "application/json"
+  ],
+  "Date": [
+    "Thu, 29 Oct 2026 05:38:26 GMT"
+  ],
+  "Server": [
+    "cloudflare"
+  ],
+  "X-Opencode-Log-Id": [
+    "01a1862a-ad35-78f2-b5d2-831e5cc6c861"
+  ]
+}

@@ -3,12 +3,15 @@ package app
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/djm56/kirsch/internal/agent"
 	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/provider"
 	"github.com/djm56/kirsch/internal/session"
 	"github.com/djm56/kirsch/internal/telemetry"
@@ -246,5 +249,275 @@ func userToolResultMessage(callID, content string, isErr bool) agent.Message {
 				IsError: isErr,
 			},
 		}},
+	}
+}
+
+// clearGrantsApp builds an App whose state root is under tmp, so two Apps built
+// in turn see the same session files.
+func clearGrantsApp(t *testing.T, tmp string) *App {
+	t.Helper()
+	cfg := config.Defaults()
+	cfg.Session.StorageDir = filepath.Join(tmp, "sessions")
+	return testAppWithConfig(t, cfg, newCollector(0))
+}
+
+// currentSessionLog returns the path of a's open session log.
+func currentSessionLog(a *App) string {
+	return session.SessionPath(a.layout.Root, a.layout.Workspace, a.currentSessionID)
+}
+
+// resumeGrants resumes the last session in a fresh App and returns the grants
+// it restored.
+func resumeGrants(t *testing.T, tmp string) []string {
+	t.Helper()
+	a := clearGrantsApp(t, tmp)
+	defer a.Close()
+	if err := a.ResumeLastSession(); err != nil {
+		t.Fatalf("ResumeLastSession: %v", err)
+	}
+	return a.Grants()
+}
+
+// TestClearGrantsRoundTripAndEvent drives App.ClearGrants on a session with a
+// recorded grant. It checks that the log gains an approval.scopes_cleared line
+// and that resuming restores no grants. The grant is recorded the way the
+// approval path records it (policy.Grant plus Store.RecordScopeGranted), not
+// through the approval dialog. A control read of the log with
+// session.LoadGrants before the clear shows the grant is in the log, so it
+// would otherwise be restored.
+func TestClearGrantsRoundTripAndEvent(t *testing.T) {
+	tmp := t.TempDir()
+	a := clearGrantsApp(t, tmp)
+	if err := a.StartNewSession(); err != nil {
+		t.Fatalf("StartNewSession: %v", err)
+	}
+	if err := a.pol.Grant(policy.OperationCommand, []string{"go", "test"}); err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+	a.store.RecordScopeGranted("run_command", "go test")
+	if err := a.store.Flush(); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+	logPath := currentSessionLog(a)
+
+	// Positive control: before the clear, the log holds the grant. LoadGrants
+	// is the function resume uses to read grants back, called here directly on
+	// the log file; no second App is started.
+	before, err := session.LoadGrants(logPath)
+	if err != nil || len(before) != 1 {
+		t.Fatalf("control LoadGrants = %v, %v; want one grant", before, err)
+	}
+
+	a.ClearGrants()
+	if got := a.Grants(); len(got) != 0 {
+		t.Fatalf("Grants() after clear = %v, want none", got)
+	}
+	a.Close()
+
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"type":"approval.scopes_cleared"`) {
+		t.Fatalf("session log lacks approval.scopes_cleared:\n%s", data)
+	}
+	if got := resumeGrants(t, tmp); len(got) != 0 {
+		t.Fatalf("grants after resume = %v, want none", got)
+	}
+}
+
+// TestClearGrantsAfterResumeBeforeAnyTurn resumes a session holding a grant,
+// calls ClearGrants before any turn runs, closes, and resumes again. The
+// resumed store is open for append, so the clear must land in the same file.
+func TestClearGrantsAfterResumeBeforeAnyTurn(t *testing.T) {
+	tmp := t.TempDir()
+	a := clearGrantsApp(t, tmp)
+	if err := a.StartNewSession(); err != nil {
+		t.Fatalf("StartNewSession: %v", err)
+	}
+	a.store.RecordScopeGranted("run_command", "go test")
+	a.Close()
+
+	// Control: the grant is restored on the first resume.
+	b := clearGrantsApp(t, tmp)
+	if err := b.ResumeLastSession(); err != nil {
+		t.Fatalf("ResumeLastSession: %v", err)
+	}
+	if got := b.Grants(); len(got) != 1 || got[0] != "go test" {
+		t.Fatalf("grants after first resume = %v, want [go test]", got)
+	}
+	b.ClearGrants()
+	b.Close()
+
+	if got := resumeGrants(t, tmp); len(got) != 0 {
+		t.Fatalf("grants after clear and second resume = %v, want none", got)
+	}
+}
+
+// jsonlFiles walks root and returns every .jsonl file under it. A walk error
+// fails the test.
+func jsonlFiles(t *testing.T, root string) []string {
+	t.Helper()
+	var found []string
+	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(p, ".jsonl") {
+			found = append(found, p)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("WalkDir %s: %v", root, err)
+	}
+	return found
+}
+
+// TestClearGrantsWithoutStoreCreatesNoSession verifies that a clear with no
+// open session writes no session file. The absence check is paired with a
+// positive control: StartNewSession on the same App, walked over the same
+// root, produces exactly one .jsonl file.
+func TestClearGrantsWithoutStoreCreatesNoSession(t *testing.T) {
+	tmp := t.TempDir()
+	a := clearGrantsApp(t, tmp)
+	defer a.Close()
+	a.ClearGrants()
+	if a.store != nil {
+		t.Fatal("ClearGrants created a store")
+	}
+	if found := jsonlFiles(t, tmp); len(found) != 0 {
+		t.Fatalf("ClearGrants created session files: %v", found)
+	}
+
+	// Positive control: creating the session does produce a file, so the walk
+	// above can see one when there is one.
+	if err := a.StartNewSession(); err != nil {
+		t.Fatalf("StartNewSession: %v", err)
+	}
+	if err := a.store.Flush(); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+	if found := jsonlFiles(t, tmp); len(found) != 1 {
+		t.Fatalf("after StartNewSession found %v, want exactly one .jsonl", found)
+	}
+}
+
+// TestClearGrantsIsDurableWithoutClose records a grant, calls ClearGrants and,
+// without calling Close, reads the session file. ClearGrants must have flushed
+// the approval.scopes_cleared line itself rather than leaving it queued for
+// the ticker or Close. Control: before the clear, the file already holds the
+// grant line and not the cleared line.
+func TestClearGrantsIsDurableWithoutClose(t *testing.T) {
+	tmp := t.TempDir()
+	a := clearGrantsApp(t, tmp)
+	defer a.Close()
+	if err := a.StartNewSession(); err != nil {
+		t.Fatalf("StartNewSession: %v", err)
+	}
+	if err := a.pol.Grant(policy.OperationCommand, []string{"go", "test"}); err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+	a.store.RecordScopeGranted("run_command", "go test")
+	if err := a.store.Flush(); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+	logPath := currentSessionLog(a)
+
+	before, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(before), `"type":"approval.scope_granted"`) ||
+		strings.Contains(string(before), `"type":"approval.scopes_cleared"`) {
+		t.Fatalf("control: log before clear should hold the grant only:\n%s", before)
+	}
+
+	a.ClearGrants()
+	// No Close and no explicit Flush here: only what ClearGrants made durable.
+	after, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(after), `"type":"approval.scopes_cleared"`) {
+		t.Fatalf("log lacks approval.scopes_cleared before Close:\n%s", after)
+	}
+}
+
+// grantViaResolve drives the real approval path: Request registers a pending
+// command approval and Resolve(id, ApprovalOutcomeSession) grants it, which
+// records approval.scope_granted through the store. It returns the outcome and
+// grant error Request returned.
+func grantViaResolve(t *testing.T, a *App) (ApprovalOutcome, error) {
+	t.Helper()
+	const id = 1
+	type result struct {
+		out ApprovalOutcome
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		out, err := a.Request(a.rootCtx, ApprovalRequest{
+			ID:          id,
+			Description: "run go test",
+			Operation:   policy.OperationCommand,
+			Argv:        []string{"go", "test"},
+		})
+		done <- result{out, err}
+	}()
+	// Wait for Request to register the pending approval before resolving it.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		a.approveMu.Lock()
+		_, ok := a.approvals[id]
+		a.approveMu.Unlock()
+		if ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Request never registered the approval")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	a.Resolve(id, ApprovalOutcomeSession)
+	select {
+	case r := <-done:
+		return r.out, r.err
+	case <-time.After(2 * time.Second):
+		t.Fatal("Request did not return after Resolve")
+		return 0, nil
+	}
+}
+
+// TestResolveSessionGrantThenClearNotRestored grants through the real path
+// (Request plus Resolve with ApprovalOutcomeSession), then calls ClearGrants
+// and Close, and resumes in a fresh App. A control run does the same without
+// the clear and must restore the grant.
+func TestResolveSessionGrantThenClearNotRestored(t *testing.T) {
+	run := func(t *testing.T, clear bool) []string {
+		tmp := t.TempDir()
+		a := clearGrantsApp(t, tmp)
+		if err := a.StartNewSession(); err != nil {
+			t.Fatalf("StartNewSession: %v", err)
+		}
+		out, err := grantViaResolve(t, a)
+		if err != nil || out != ApprovalOutcomeSession {
+			t.Fatalf("Request = %v, %v; want ApprovalOutcomeSession, nil", out, err)
+		}
+		if got := a.Grants(); len(got) != 1 || got[0] != "go test" {
+			t.Fatalf("Grants() after Resolve = %v, want [go test]", got)
+		}
+		if clear {
+			a.ClearGrants()
+		}
+		a.Close()
+		return resumeGrants(t, tmp)
+	}
+
+	if got := run(t, false); len(got) != 1 || got[0] != "go test" {
+		t.Fatalf("control (no clear): resumed grants = %v, want [go test]", got)
+	}
+	if got := run(t, true); len(got) != 0 {
+		t.Fatalf("resumed grants after clear = %v, want none", got)
 	}
 }

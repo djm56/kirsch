@@ -331,11 +331,13 @@ started with `/new`, starts with none.
 
 ## When colour or Unicode is not available
 
-Set `NO_COLOR`, run under `TERM=dumb`, or pipe the output somewhere that is not
-a terminal, and Kirsch emits **no escape sequences at all** — not merely no
-visible colour. The layout is identical: same rows, same columns, same box
-positions. Every state is identified by its glyph rather than by its colour, so
-nothing becomes ambiguous.
+Set `NO_COLOR` to a non-empty value, run under `TERM=dumb`, or pipe the output
+somewhere that is not a terminal, and Kirsch emits **no colour codes and no
+style sequences** — not merely no visible colour. An empty `NO_COLOR`
+(`NO_COLOR=`) is treated as unset, as the no-color.org convention asks, so it
+does not turn colour off by itself. The layout is identical: same rows, same
+columns, same box positions. Every state is identified by its glyph rather
+than by its colour, so nothing becomes ambiguous.
 
 Where the locale is not UTF-8, every glyph falls back to an ASCII form of the
 same width — `>` for `▸`, `[ok]` for `✓`, `...` for `⋯`, `+-|` for box drawing,

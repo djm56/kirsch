@@ -19,6 +19,9 @@ type GrantRecord struct {
 // LoadGrants reads approval.scope_granted events from the JSONL session log at
 // path and returns the recorded grants in order.
 //
+// An approval.scopes_cleared event discards every grant read before it; grants
+// recorded after the clear still count.
+//
 // A torn or invalid JSON line is treated as the end of the log, matching the
 // repair-on-load behaviour of Store.New. This keeps grant restoration
 // consistent with conversation reconstruction in Resume.
@@ -45,6 +48,10 @@ func LoadGrants(path string) ([]GrantRecord, error) {
 		if err := json.Unmarshal(line, &base); err != nil {
 			// Torn or invalid line marks the end of the durable log.
 			break
+		}
+		if base.Type == eventTypeApprovalScopesCleared {
+			grants = nil
+			continue
 		}
 		if base.Type != eventTypeApprovalScopeGranted {
 			continue

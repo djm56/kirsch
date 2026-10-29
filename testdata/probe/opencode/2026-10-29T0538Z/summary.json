@@ -1,0 +1,294 @@
+{
+  "auth": "x-api-key",
+  "models": 1,
+  "results": {
+    "minimax-m3": {
+      "S1-text": {
+        "redacted_thinking": 0,
+        "session": "b3b4a7412a32b7dfa4e719b093e24d31",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 1133,
+        "ttfb_ms": 1126,
+        "usage": {
+          "cache_read_input_tokens": 170,
+          "cost": 0,
+          "input_tokens": 13,
+          "opencode": {
+            "allowance": 0.000022,
+            "billing_source": "go-plus",
+            "list_cost": 0.0000165,
+            "tokens": {
+              "cache_read": 170,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 13,
+              "output": 2,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 2
+        }
+      },
+      "S2-tool-call": {
+        "redacted_thinking": 0,
+        "session": "f01b3b10e41a9cd76a2efd467895bd4e",
+        "status": 200,
+        "stop_reason": "tool_use",
+        "thinking_blocks": 0,
+        "tool_use_ok": true,
+        "total_ms": 4474,
+        "ttfb_ms": 862,
+        "usage": {
+          "cache_read_input_tokens": 128,
+          "cost": 0,
+          "input_tokens": 284,
+          "opencode": {
+            "allowance": 0.00016864,
+            "billing_source": "go-plus",
+            "list_cost": 0.00012648,
+            "tokens": {
+              "cache_read": 128,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 284,
+              "output": 28,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 28
+        }
+      },
+      "S3-tool-result": {
+        "redacted_thinking": 0,
+        "session": "f01b3b10e41a9cd76a2efd467895bd4e",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 2673,
+        "ttfb_ms": 830,
+        "usage": {
+          "cache_read_input_tokens": 128,
+          "cost": 0,
+          "input_tokens": 330,
+          "opencode": {
+            "allowance": 0.00016464,
+            "billing_source": "go-plus",
+            "list_cost": 0.00012348,
+            "tokens": {
+              "cache_read": 128,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 330,
+              "output": 14,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 14
+        }
+      },
+      "S4-cache-1": {
+        "redacted_thinking": 0,
+        "session": "5e05869ffb9a202b44df0915f84f69e7",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 1064,
+        "ttfb_ms": 1014,
+        "usage": {
+          "cache_read_input_tokens": 128,
+          "cost": 0,
+          "input_tokens": 5586,
+          "opencode": {
+            "allowance": 0.00226064,
+            "billing_source": "go-plus",
+            "list_cost": 0.00169548,
+            "tokens": {
+              "cache_read": 128,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 5586,
+              "output": 10,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 10
+        }
+      },
+      "S4-cache-2": {
+        "redacted_thinking": 0,
+        "session": "5e05869ffb9a202b44df0915f84f69e7",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 2690,
+        "ttfb_ms": 2637,
+        "usage": {
+          "cache_read_input_tokens": 5632,
+          "cost": 0,
+          "input_tokens": 82,
+          "opencode": {
+            "allowance": 0.00049936,
+            "billing_source": "go-plus",
+            "list_cost": 0.00037452,
+            "tokens": {
+              "cache_read": 5632,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 82,
+              "output": 10,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 10
+        }
+      },
+      "S5a-no-thinking": {
+        "redacted_thinking": 0,
+        "session": "ef79613eef4a028eac322c67ed48f821",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 949,
+        "ttfb_ms": 941,
+        "usage": {
+          "cache_read_input_tokens": 128,
+          "cost": 0,
+          "input_tokens": 59,
+          "opencode": {
+            "allowance": 0.00003704,
+            "billing_source": "go-plus",
+            "list_cost": 0.00002778,
+            "tokens": {
+              "cache_read": 128,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 59,
+              "output": 2,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 2
+        }
+      },
+      "S5b-between-tools": {
+        "redacted_thinking": 0,
+        "session": "b8bb825ed8d1616318a99823d2d03d13",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 3273,
+        "ttfb_ms": 3173,
+        "usage": {
+          "cache_read_input_tokens": 193,
+          "cost": 0,
+          "input_tokens": 16,
+          "opencode": {
+            "allowance": 0.00002664,
+            "billing_source": "go-plus",
+            "list_cost": 0.00001998,
+            "tokens": {
+              "cache_read": 193,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 16,
+              "output": 3,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 3
+        }
+      },
+      "S5c-disabled": {
+        "redacted_thinking": 0,
+        "session": "839490d5bf1de3999db81aaaa9b240cf",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 807,
+        "ttfb_ms": 800,
+        "usage": {
+          "cache_read_input_tokens": 128,
+          "cost": 0,
+          "input_tokens": 59,
+          "opencode": {
+            "allowance": 0.00003704,
+            "billing_source": "go-plus",
+            "list_cost": 0.00002778,
+            "tokens": {
+              "cache_read": 128,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 59,
+              "output": 2,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 2
+        }
+      },
+      "S5d-enabled": {
+        "redacted_thinking": 0,
+        "session": "bc62debdd3e29cf8d6984308ff228234",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 1,
+        "total_ms": 1191,
+        "ttfb_ms": 938,
+        "usage": {
+          "cache_read_input_tokens": 208,
+          "cost": 0,
+          "input_tokens": 1,
+          "opencode": {
+            "allowance": 0.00007144,
+            "billing_source": "go-plus",
+            "list_cost": 0.00005358,
+            "tokens": {
+              "cache_read": 208,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 1,
+              "output": 34,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 34,
+          "output_tokens_details": {
+            "thinking_tokens": 30
+          }
+        }
+      },
+      "S6-no-version-header": {
+        "redacted_thinking": 0,
+        "session": "0e282de96cf744eeb475d21c92846ed5",
+        "status": 200,
+        "stop_reason": "end_turn",
+        "thinking_blocks": 0,
+        "total_ms": 805,
+        "ttfb_ms": 796,
+        "usage": {
+          "cache_read_input_tokens": 182,
+          "cost": 0,
+          "input_tokens": 1,
+          "opencode": {
+            "allowance": 0.00001816,
+            "billing_source": "go-plus",
+            "list_cost": 0.00001362,
+            "tokens": {
+              "cache_read": 182,
+              "cache_write_1h": 0,
+              "cache_write_5m": 0,
+              "input": 1,
+              "output": 2,
+              "reasoning": 0
+            }
+          },
+          "output_tokens": 2
+        }
+      }
+    }
+  },
+  "scenarios": 11,
+  "timestamp": "2026-10-29T05:38:55Z"
+}

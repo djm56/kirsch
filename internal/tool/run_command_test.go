@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -194,17 +195,19 @@ func TestRunCommandNotAllowedRequiresApproval(t *testing.T) {
 	}
 }
 
-// TestRunCommandStdinIsDevNull verifies that a command reading from stdin fails
-// immediately rather than hanging. We verify by timing the execution.
+// TestRunCommandStdinIsDevNull verifies that the child process's standard
+// input is the /dev/null device itself, not merely "something that ends".
+//
+// The child is /bin/sh running `[ /dev/stdin -ef /dev/null ]`; -ef is true when
+// both paths name the same device and inode. A stdin supplied any other way
+// (an os/exec pipe, a file, the terminal) names a different file and the child
+// prints STDIN_NOT_DEVNULL instead. The old version of this test ran `cat` and
+// checked only that it returned, which also passes when stdin is a closed pipe.
 //
 // Known limitation: Go's os/exec treats a nil cmd.Stdin identically to an
-// explicit *os.File opened on os.DevNull (see os/exec's Cmd.Stdin doc), so
-// this black-box test cannot discriminate "RunCommand explicitly opens
-// /dev/null" from "RunCommand leaves Stdin nil" — both produce the same
-// observable behaviour. What it does prove, and the reason it exists, is the
-// actual regression it guards: a command that reads from stdin must never
-// hang the tool. That contract is real and worth keeping even though it
-// doesn't pin the specific code path.
+// explicit *os.File opened on os.DevNull (see os/exec's Cmd.Stdin doc), so this
+// test cannot tell "Invoke opens /dev/null" from "Invoke leaves Stdin nil".
+// It does fail for every other stdin, which is the property that matters.
 func TestRunCommandStdinIsDevNull(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
@@ -214,27 +217,22 @@ func TestRunCommandStdinIsDevNull(t *testing.T) {
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
 
-	// Use 'cat' which will read from stdin and EOF immediately since stdin is /dev/null.
-	// The important test here is that the command completes quickly, not hanging waiting for input.
 	input := runCommandInput{
-		Argv: []string{"cat"},
-		Cwd:  ".",
+		Argv: []string{
+			"/bin/sh", "-c",
+			"if [ /dev/stdin -ef /dev/null ]; then echo STDIN_IS_DEVNULL; else echo STDIN_NOT_DEVNULL; fi",
+		},
+		Cwd:            ".",
+		TimeoutSeconds: 5,
 	}
 	raw, _ := json.Marshal(input)
 
-	// Time the execution with a 2-second timeout to ensure it doesn't hang.
-	done := make(chan Result, 1)
-	go func() {
-		done <- tool.Invoke(ctx, raw)
-	}()
-
-	select {
-	case res := <-done:
-		// Command completed quickly. This is what we want - it read /dev/null and exited.
-		// The exact exit status doesn't matter, the point is it didn't hang.
-		_ = res
-	case <-time.After(2 * time.Second):
-		t.Fatalf("command hung when reading from stdin; /dev/null redirection is not working")
+	res := tool.Invoke(ctx, raw)
+	if !res.OK {
+		t.Fatalf("stdin probe failed: %+v", res.Error)
+	}
+	if !strings.Contains(res.Content, "STDIN_IS_DEVNULL") {
+		t.Fatalf("child stdin is not /dev/null; probe printed %q", res.Content)
 	}
 }
 
@@ -580,6 +578,54 @@ func TestRunCommandAllStripPatterns(t *testing.T) {
 	}
 }
 
+// envHasVar reports whether `env` output contains a line that is exactly
+// name=value.
+func envHasVar(output, name, value string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.TrimRight(line, "\r") == name+"="+value {
+			return true
+		}
+	}
+	return false
+}
+
+// TestRunCommandLowerCaseSecretNamesPassThrough pins that secret-name stripping
+// is case-sensitive: my_token, api_key and db_secret are lower-case versions of
+// names that TestRunCommandAllStripPatterns shows are stripped, and they reach
+// the child because buildEnvironment tests suffixes with strings.HasSuffix
+// against "_TOKEN", "_KEY" and "_SECRET" (run_command.go:395-401), which does not
+// fold case. Each name is listed in EnvPassthrough, so the only thing that can
+// remove it is the strip rule; its arrival as name=test_value is the positive
+// control for the same path. A change to case-insensitive matching fails this
+// test and so needs an explicit decision.
+func TestRunCommandLowerCaseSecretNamesPassThrough(t *testing.T) {
+	names := []string{"my_token", "api_key", "db_secret"}
+	for _, name := range names {
+		t.Setenv(name, "test_value")
+	}
+
+	ctx := context.Background()
+	ws := newTestWorkspace(t)
+	conf := config.Defaults()
+	conf.Policy.EnvPassthrough = names
+	pol := policy.New(true, true, true)
+	approver := newFakeApprover(policy.DecisionAllow)
+
+	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
+
+	raw, _ := json.Marshal(runCommandInput{Argv: []string{"env"}, Cwd: "."})
+	result := tool.Invoke(ctx, raw)
+	if !result.OK {
+		t.Fatalf("env command failed: %+v", result.Error)
+	}
+
+	for _, name := range names {
+		if !envHasVar(result.Content, name, "test_value") {
+			t.Errorf("lower-case variable %q was stripped; matching is meant to be case-sensitive", name)
+		}
+	}
+}
+
 // TestRunCommandCommandFailureReturnsError verifies that a command with non-zero exit
 // returns KindCommandFailed with the output.
 func TestRunCommandCommandFailureReturnsError(t *testing.T) {
@@ -763,9 +809,95 @@ func TestRunCommandTimeoutWithinDeadline(t *testing.T) {
 	}
 }
 
-// TestRunCommandTimeoutProcessGroupDead verifies that the process is actually
-// dead after timeout, not merely detached. We verify by attempting to send
-// signal 0 to the pid, which should return ESRCH (no such process).
+// groupProbeScript starts a long-lived grandchild (sleep 60) under a shell and
+// then waits on it. The shell writes "<shell pid> <grandchild pid>" to the file
+// named by $1, via a rename so a reader never sees a partial line. The
+// grandchild is the process that survives when only the shell is killed, which
+// is what makes it a probe for the group kill rather than the single-process
+// kill.
+const groupProbeScript = `sleep 60 &
+echo "$$ $!" > "$1.tmp"
+mv "$1.tmp" "$1"
+wait
+`
+
+// startGroupProbe writes groupProbeScript to a temp dir and returns the argv
+// that runs it plus the path of the pid file it will create. It registers a
+// cleanup that SIGKILLs the shell and grandchild if either is still alive, so a
+// failing run (or a mutant) does not leave a 60-second sleep behind.
+func startGroupProbe(t *testing.T) (argv []string, pidFile string) {
+	t.Helper()
+	dir := t.TempDir()
+	script := filepath.Join(dir, "probe.sh")
+	if err := os.WriteFile(script, []byte(groupProbeScript), 0o755); err != nil {
+		t.Fatalf("write probe script: %v", err)
+	}
+	pidFile = filepath.Join(dir, "pids")
+	t.Cleanup(func() {
+		data, err := os.ReadFile(pidFile)
+		if err != nil {
+			return
+		}
+		var shellPid, childPid int
+		if _, err := fmt.Sscanf(string(data), "%d %d", &shellPid, &childPid); err != nil {
+			return
+		}
+		for _, pid := range []int{shellPid, childPid} {
+			if pid > 0 && syscall.Kill(pid, 0) == nil {
+				_ = syscall.Kill(pid, syscall.SIGKILL)
+			}
+		}
+	})
+	return []string{"/bin/sh", script, pidFile}, pidFile
+}
+
+// readGroupProbePids polls for the pid file written by groupProbeScript and
+// returns the shell and grandchild pids. It fails the test if the file does not
+// appear within the wait, rather than skipping: a missing pid file means the
+// probe never started and the test proved nothing.
+func readGroupProbePids(t *testing.T, pidFile string, wait time.Duration) (shellPid, childPid int) {
+	t.Helper()
+	deadline := time.Now().Add(wait)
+	for time.Now().Before(deadline) {
+		if data, err := os.ReadFile(pidFile); err == nil {
+			if _, err := fmt.Sscanf(string(data), "%d %d", &shellPid, &childPid); err == nil && shellPid > 0 && childPid > 0 {
+				return shellPid, childPid
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("probe pid file %s did not appear within %v", pidFile, wait)
+	return 0, 0
+}
+
+// requireProcessesDead fails the test unless every named pid is gone (kill
+// signal 0 returns ESRCH) within the wait. It polls because a killed process
+// can linger as a zombie for a moment before its parent or init reaps it.
+func requireProcessesDead(t *testing.T, wait time.Duration, names map[string]int) {
+	t.Helper()
+	deadline := time.Now().Add(wait)
+	for {
+		alive := ""
+		for name, pid := range names {
+			if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+				alive += fmt.Sprintf(" %s(pid %d)", name, pid)
+			}
+		}
+		if alive == "" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("still alive %v after the command ended:%s", wait, alive)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// TestRunCommandTimeoutProcessGroupDead verifies that a timeout kills the whole
+// process group: both the shell the tool started and the sleep grandchild the
+// shell started. A kill aimed only at the shell leaves the grandchild alive,
+// and this test fails on that. The pids come from a file the script writes (the
+// timeout result carries no output, so they cannot be read from Content).
 func TestRunCommandTimeoutProcessGroupDead(t *testing.T) {
 	ctx := context.Background()
 	ws := newTestWorkspace(t)
@@ -775,22 +907,8 @@ func TestRunCommandTimeoutProcessGroupDead(t *testing.T) {
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
 
-	// We need to capture the process PID. Create a simple script that reports its PID.
-	scriptPath := filepath.Join(t.TempDir(), "test_report_pid.sh")
-	pidReportScript := `#!/bin/bash
-echo "PID=$BASHPID"
-sleep 60`
-
-	if err := os.WriteFile(scriptPath, []byte(pidReportScript), 0o755); err != nil {
-		t.Skipf("could not create test script: %v", err)
-	}
-
-	// Run the script with a 1-second timeout.
-	input := runCommandInput{
-		Argv:           []string{"/bin/bash", scriptPath},
-		Cwd:            ".",
-		TimeoutSeconds: 1,
-	}
+	argv, pidFile := startGroupProbe(t)
+	input := runCommandInput{Argv: argv, Cwd: ".", TimeoutSeconds: 1}
 	raw, _ := json.Marshal(input)
 
 	result := tool.Invoke(ctx, raw)
@@ -802,35 +920,17 @@ sleep 60`
 		t.Fatalf("expected timeout error, got %s", result.Error.Kind)
 	}
 
-	// Extract the PID from the output if available.
-	// The script writes "PID=<pid>" to stdout before sleeping.
-	var pidValue int
-	_, err := fmt.Sscanf(result.Content, "PID=%d", &pidValue)
-	if err != nil || pidValue <= 0 {
-		t.Logf("could not extract PID from output: %q", result.Content)
-		// This test requires the PID; if we can't get it, skip the verification.
-		return
-	}
-
-	// Give a brief grace period for process cleanup.
-	time.Sleep(50 * time.Millisecond)
-
-	// Send signal 0 (no-op) to the process. If it's dead, this should fail with ESRCH.
-	err = syscall.Kill(pidValue, 0)
-	if err == nil {
-		t.Fatalf("process %d should be dead, but signal 0 succeeded", pidValue)
-	}
-
-	// Verify the error is ESRCH (no such process).
-	if !strings.Contains(err.Error(), "no such process") {
-		t.Fatalf("expected 'no such process' error for dead PID, got: %v", err)
-	}
+	shellPid, childPid := readGroupProbePids(t, pidFile, time.Second)
+	requireProcessesDead(t, 3*time.Second, map[string]int{"shell": shellPid, "grandchild sleep": childPid})
 }
 
-// TestRunCommandCancellationProcessGroupDead verifies that a cancelled context
-// causes the process group to die, not just the parent.
+// TestRunCommandCancellationProcessGroupDead verifies that cancelling the
+// context kills the whole process group, not just the shell the tool started.
+// It waits for the probe's pid file before cancelling, so the grandchild is
+// known to exist, then requires both the shell and the grandchild to be gone.
 func TestRunCommandCancellationProcessGroupDead(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	ws := newTestWorkspace(t)
 	conf := config.Defaults()
 	pol := policy.New(true, true, true)
@@ -838,11 +938,8 @@ func TestRunCommandCancellationProcessGroupDead(t *testing.T) {
 
 	tool := &RunCommand{WS: ws, Config: &conf, Policy: pol, Approver: approver}
 
-	// Start a long-running command in a goroutine.
-	input := runCommandInput{
-		Argv: []string{"sleep", "60"},
-		Cwd:  ".",
-	}
+	argv, pidFile := startGroupProbe(t)
+	input := runCommandInput{Argv: argv, Cwd: "."}
 	raw, _ := json.Marshal(input)
 
 	resultChan := make(chan Result, 1)
@@ -850,11 +947,9 @@ func TestRunCommandCancellationProcessGroupDead(t *testing.T) {
 		resultChan <- tool.Invoke(ctx, raw)
 	}()
 
-	// Let it start, then cancel after a brief delay.
-	time.Sleep(100 * time.Millisecond)
+	shellPid, childPid := readGroupProbePids(t, pidFile, 2*time.Second)
 	cancel()
 
-	// Wait for the result (with a timeout to prevent hang).
 	select {
 	case result := <-resultChan:
 		if result.OK {
@@ -863,9 +958,11 @@ func TestRunCommandCancellationProcessGroupDead(t *testing.T) {
 		if result.Error.Kind != KindCancelled {
 			t.Fatalf("expected KindCancelled, got %s", result.Error.Kind)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatalf("command cancellation timed out; process may not be dead")
 	}
+
+	requireProcessesDead(t, 3*time.Second, map[string]int{"shell": shellPid, "grandchild sleep": childPid})
 }
 
 // TestRunCommandGracefulShutdown verifies that SIGTERM is sent first and the

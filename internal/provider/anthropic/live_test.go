@@ -93,7 +93,7 @@ func TestLiveOpencodeSmoke(t *testing.T) {
 // response must still contain a tool call. If no level returns a thinking
 // block, no echo was exercised and the test skips rather than passes. The
 // final log line states how many levels returned a thinking block and how many
-// had their echo accepted. The default model is minimax-m2.7.
+// had their echo accepted.
 func TestLiveThinkingRoundTrip(t *testing.T) {
 	ep := config.Defaults().Provider.Endpoints["opencode"]
 	key, source := ep.ResolveKey(os.Getenv)

@@ -219,7 +219,7 @@ default = "opencode"
 base_url = "https://opencode.ai/inference/go/anthropic/v1"
 auth = "x-api-key"
 api_key_env = "OPENCODE_API_KEY"
-model = "minimax-m2.7"
+model = "minimax-m3"
 prompt_caching = true
 thinking = "off"            # "off" | "low" | "medium" | "high"
 
@@ -268,8 +268,8 @@ API key resolution: each endpoint names its key variable in `api_key_env`. Kirsc
 | `claude-opus-5-5` | `anthropic` | 1M | 128K | 4 | 20 | 5 |
 | `claude-fable-5-1` | `anthropic` | 1M | 128K | 10 | 50 | 12.5 |
 | `claude-haiku-4-5-20251001` (retirement not sooner than 2026-10-15) | `anthropic` | 200K | 64K | 1 | 5 | 1.25 |
-| `minimax-m2.7` (`opencode` default) | `opencode` | — | — | flat rate | flat rate | flat rate |
-| `minimax-m3` | `opencode` | — | — | flat rate | flat rate | flat rate |
+| `minimax-m2.7` | `opencode` | — | — | flat rate | flat rate | flat rate |
+| `minimax-m3` (`opencode` default) | `opencode` | — | — | flat rate | flat rate | flat rate |
 
 Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview and the pricing page, read 2026-10-02. Cache reads are billed at 10% of the input price (5% on `claude-opus-5-5`, 2.5% on `claude-fable-5-1`). The cache-write column is not read from a price sheet: it is derived as 1.25× the input price and is unverified. Confirm it against current pricing before relying on `cost_usd` for cache-heavy sessions (`CacheWritePerMTok` in `internal/provider/models.go` carries the same caveat). The legacy `claude-sonnet-5` and `claude-opus-5` are not listed. OpenCode Go publishes per-token prices that count against a flat monthly allowance, but no context window or output limit (opencode.ai/docs/go, read 2026-10-05), so its size columns stay `—`. Until then the unknown-model fallback applies. **Do not guess figures.** An unknown model ID falls back to a conservative default (128k context, 4k output reserve, cost rendered as `?`) and logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
 
@@ -330,7 +330,7 @@ Compaction is itself a model call, which has consequences worth pinning down:
 - persisted to JSONL as `assistant.thinking` (with its signature) so resume rebuilds a valid message array;
 - excluded from compaction summaries — dropped, not summarised.
 
-`off` maps to `thinking: {type: "between_tools"}` and `output_config: {effort: "high"}` only for a model in `betweenToolsModels` (`internal/provider/anthropic/encode.go`), matched exactly. `claude-sonnet-5-5` is the verified member, and it rejects `"disabled"` and `"enabled"` with `budget_tokens`. Every other model gets neither field at `off` (amendment 87). `low | medium | high` are mapped at Milestone 3 against the documentation and apply to every model. On `minimax-m3` (amendment 80; no longer the `opencode` default, amendment 83), thinking blocks appear only when a request asks for thinking. Kirsch sends no thinking field at `off`, so none arrive from that setting.
+`off` maps to `thinking: {type: "between_tools"}` and `output_config: {effort: "high"}` only for a model in `betweenToolsModels` (`internal/provider/anthropic/encode.go`), matched exactly. `claude-sonnet-5-5` is the verified member, and it rejects `"disabled"` and `"enabled"` with `budget_tokens`. Every other model gets neither field at `off` (amendment 87). `low | medium | high` are mapped at Milestone 3 against the documentation and apply to every model. On `minimax-m3` (amendment 80; the `opencode` default again from amendment 90, after amendment 83 replaced it), thinking blocks appear only when a request asks for thinking. Kirsch sends no thinking field at `off`, so none arrive from that setting.
 
 ---
 
@@ -350,6 +350,7 @@ One event per line, append-only, schema versioned:
 {"v":1,"type":"approval.requested","id":"toolu_01...","action":"apply_patch","detail":{}}
 {"v":1,"type":"approval.resolved","id":"toolu_01...","granted":true,"scope":"once"}
 {"v":1,"type":"approval.scope_granted","action":"run_command","pattern":"go test"}
+{"v":1,"type":"approval.scopes_cleared"}
 {"v":1,"type":"tool.completed","id":"toolu_01...","tool":"read_file","ok":true,"duration_ms":4,"content":"...","truncated":false}
 {"v":1,"type":"compaction.applied","replaced_from":3,"replaced_to":98,"summary":"..."}
 {"v":1,"type":"usage","input_tokens":1234,"output_tokens":567,"cache_read":8900,"cache_write":0}
@@ -359,7 +360,7 @@ One event per line, append-only, schema versioned:
 
 **Reconstruction rule.** `assistant.delta` exists for live UI replay only. The authoritative record of what was exchanged with the model is `user.message`, `assistant.message` (carrying `tool_calls` with their provider `id`s), `assistant.thinking`, and `tool.completed` (carrying `content`). Resume rebuilds the provider message array from those alone and **never** from deltas. Every tool call carries the provider's own `id` so requests, approvals, and results correlate unambiguously — this is what makes multi-tool-call turns resumable.
 
-Rules: single writer goroutine; buffered flush with `fsync` every ~500ms and on turn completion; on load, a corrupt line truncates the session there and marks it `recovered` (never block startup on one bad file); `kirsch resume` restores transcript, pending state, and session-scoped approval grants.
+Rules: single writer goroutine; buffered flush with `fsync` every ~500ms and on turn completion; on load, a corrupt line truncates the session there and marks it `recovered` (never block startup on one bad file); `kirsch resume` restores transcript, pending state, and session-scoped approval grants. A later `approval.scopes_cleared` cancels the grants recorded before it.
 
 ### Storage layout
 
@@ -1232,9 +1233,16 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 
 89. **Milestone 5 instruction set written as small deliverables** (2026-10-24, mission-20261023-06). Research against the code (2026-10-23) mapped every §8 Milestone 5 task, and every open carried item, to one or more deliverables or to the backlog. `plan/milestones/milestone-5.md` carries a mechanical check that every item ID appears in the coverage table once. Deliverables too large for one junior mission were split with letter suffixes (for example m5-d3a and m5-d3b). m5-d20 (decisions) and m5-d22 (demo, release smoke run, tag) are operator work, and the m5-d21 follow-through is agent work conditional on m5-d20's decisions. The decisions table of `plan/milestones/milestone-5.md` lists the open decisions, and the operator records answers in `plan/PROGRESS.md`. Testing skeletons for Milestone 5 are in `plan/testing/manual/`. Section 8 and the amendments before this one are not changed.
 
+90. **The `opencode` default model is `minimax-m3` again** (2026-10-29, mission-20261029-01). This supersedes the default choice in amendment 83. Amendments 80, 83 and 87 stay as history and are not rewritten.
+    - **Evidence.** The operator's probe on 2026-10-29 returned HTTP 200 for `minimax-m3` on every scenario: S0 (`testdata/probe/opencode/2026-10-29T0538Z/_global/S0-models.status`) and S1 to S6 (`testdata/probe/opencode/2026-10-29T0538Z/minimax-m3/*.status`, including S5a to S5d and S6). The summary is `testdata/probe/opencode/2026-10-29T0538Z/SUMMARY.md`. The HTTP 403 "Model access is disabled" of 2026-10-05, which led to amendment 82, no longer occurs.
+    - **Change.** `config.Defaults` (`internal/config/config.go:92`) sets `Model: "minimax-m3"` for the `opencode` endpoint. The §5 sample and the model table's `(opencode default)` label follow it. The `minimax-m2.7` row stays as a known flat-rate model without the label.
+    - **Unchanged.** `minimax-m2.7` stays a known model. The size columns for `minimax-m3` stay `—`, because OpenCode publishes no context or output figures for it. The code's `minimax-m3` entry (`internal/provider/models.go:87`) keeps the fallback values, 128000 context and 4096 output. At thinking `off`, `minimax-m3` does no thinking, because no thinking field is sent (amendment 87). The live smoke test's 256-token allowance is unchanged. The live tests take their default from `config.Defaults()`, so they run on `minimax-m3` unless `KIRSCH_LIVE_MODEL` is set.
+    - **Test.** The partial-override test `TestGlobalBuiltInEndpointPartialOverride` (`internal/config/config_test.go`) now overrides to non-default models, `minimax-m2.7` for `opencode` and `claude-opus-5-5` for `anthropic`, and sets `want.Model` to the same value. Its model check can therefore fail. The `config_test.go:57` review item in `plan/PROGRESS.md` is resolved by this mission.
+    - **Status.** The operator's live re-run on `minimax-m3` is owed: `npm run test:live` with `OPENCODE_API_KEY` set. This amendment does not claim it.
+
 **Still open**
 
-- ~~Exact figures for the §5 model table~~ — Anthropic rows filled by amendment 79; the `opencode` default row is `minimax-m2.7` since amendment 83 (`minimax-m3` from amendment 80); its size figures stay `—` until OpenCode publishes them.
+- ~~Exact figures for the §5 model table~~ — Anthropic rows filled by amendment 79. The `opencode` default row is `minimax-m3` since amendment 90 (`minimax-m2.7` under amendment 83, `minimax-m3` under amendment 80); its size figures stay `—` until OpenCode publishes them.
 - Whether `/approvals` needs its own key binding or only the slash command.
 - ~~Whether 200 lines is the right inline cap~~ — settled by amendment 65: tool
   cards show a 10-line preview. Key detection and spinner rendering were settled

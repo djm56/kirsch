@@ -107,6 +107,11 @@ func (c *Composer) contentLines() int {
 
 // rows renders the composer to exactly lay.ComposerH lines.
 //
+// Input with more lines than rows shows a window of them, derived from the
+// caret's line alone with no stored scroll position: the top lines while the
+// caret is on one of them, otherwise the lines ending on the caret's line, which
+// puts the caret on the bottom row. No caret means the top lines.
+//
 // Three empty-composer states, which is what the screens show and what §2's
 // bare "placeholder when empty" does not distinguish:
 //
@@ -127,6 +132,7 @@ func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 
 	value := c.ta.Value()
 	var lines []string
+	caretRow := -1 // logical line the caret is on; -1 when there is no caret
 	switch {
 	case value == "" && c.Onboarding:
 		lines = []string{sty.Dim(Placeholder)}
@@ -140,6 +146,7 @@ func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 		if c.Focused {
 			row, col = c.cursor()
 			row = clamp(row, 0, len(raw)-1)
+			caretRow = row
 		}
 		lines = make([]string, len(raw))
 		for i, l := range raw {
@@ -196,13 +203,35 @@ func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 			first += strings.Repeat(" ", gap) + sty.Dim(hint)
 		}
 	}
-	out = append(out, first)
-	for _, l := range lines[1:] {
-		if len(out) >= h {
-			break
-		}
-		out = append(out, "  "+l)
+
+	// Which logical line the window starts on. Input taller than the composer
+	// (h rows, at most 5 — see contentLines) scrolls to keep the caret on screen.
+	// The window is computed afresh from caretRow on every render; nothing about
+	// the previous window is kept. While caretRow < h the window is lines 0..h-1.
+	// Once caretRow >= h the window is caretRow-h+1..caretRow: it ends on the
+	// caret's line, so the caret sits on the bottom row and the window follows
+	// it line for line rather than holding still while the caret moves inside
+	// it: caret lines r and r+1 give windows one line apart for any r >= h-1. With
+	// no caret (caretRow is -1 unless the composer is focused) the window stays
+	// at the top. When the lines fit in h rows caretRow < h and start stays 0.
+	start := 0
+	if h > 0 && caretRow >= h {
+		start = caretRow - h + 1
 	}
+
+	// The prompt belongs to line 0 alone: it is drawn on the first row only while
+	// line 0 is in the window. A `>` over a scrolled-in line would read as part
+	// of that line's text, so those rows take the same two-space indent as any
+	// continuation row.
+	for i := start; i < len(lines) && len(out) < h; i++ {
+		if i == 0 {
+			out = append(out, first)
+			continue
+		}
+		out = append(out, "  "+lines[i])
+	}
+	// The hint takes a row only when the window leaves one over. A full window
+	// (lines >= h) drops it so that the caret row is never what gives way.
 	if c.Hint != "" && len(out) < h {
 		out = append(out, sty.Dim("  "+c.Hint))
 	}

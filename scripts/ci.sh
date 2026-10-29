@@ -6,14 +6,16 @@
 #   bash scripts/ci.sh test        race tests, architecture rules, golden files
 #   bash scripts/ci.sh security    govulncheck, gosec, secret scan, fuzz corpus
 #   bash scripts/ci.sh screens     screen reference grid lint
+#   bash scripts/ci.sh targets     go build ./cmd/kirsch for every release target
+#                                  listed in .goreleaser.yaml (goos x goarch)
 #   bash scripts/ci.sh all         every job above; fails if any job fails
 #
 # The workflow's jobs call this same script (`bash scripts/ci.sh <job>`), so the
 # commands live here once and the workflow cannot drift from a local run. The
 # npm entries are `ci:local` (all) and `ci:lint`, `ci:test`, `ci:security`,
-# `ci:screens`. They are separate from `npm run ci`, which does not run every CI
-# step. `ci:lint` green is not `npm run fmt:check` green: the latter also runs
-# gofumpt and goimports, which CI does not.
+# `ci:screens`, `ci:targets`. They are separate from `npm run ci`, which does
+# not run every CI step. `ci:lint` green is not `npm run fmt:check` green: the
+# latter also runs gofumpt and goimports, which CI does not.
 #
 # Two things are pinned so a local run sees what CI sees:
 #
@@ -47,7 +49,7 @@ repo="$(dirname "$here")"
 cd "$repo"
 
 usage() {
-  echo "usage: bash scripts/ci.sh <lint|test|security|screens|all>" >&2
+  echo "usage: bash scripts/ci.sh <lint|test|security|screens|targets|all>" >&2
   exit 2
 }
 
@@ -207,12 +209,136 @@ job_screens() {
   python3 scripts/lint-screens.py
 }
 
+# Print the lines of the top-level `builds:` section of .goreleaser.yaml (up to
+# the next unindented key), without the `builds:` line itself.
+goreleaser_builds() {
+  awk '/^builds:/ {inb=1; next} /^[^[:space:]#]/ {inb=0} inb' .goreleaser.yaml
+}
+
+# Print the value list of one one-line flow key (`goos: [darwin, linux]`) from
+# the goreleaser build, space separated. Prints nothing and returns 1 unless
+# exactly one such line exists and every comma-separated token on it is
+# non-empty after trimming, so a reformatted file or `[ ]`, `[,]`, `[a,]`,
+# `[a,,b]` fails loudly instead of yielding an empty or short target list.
+goreleaser_list() {
+  local key="$1" lines
+  lines="$(sed -n "s/^[[:space:]]*$key:[[:space:]]*\[\(.*\)\][[:space:]]*\$/\1/p" .goreleaser.yaml)"
+  if [ -z "$lines" ] || [ "$(printf '%s\n' "$lines" | wc -l | tr -d ' ')" -ne 1 ]; then
+    echo "ci.sh: .goreleaser.yaml must hold exactly one line like '$key: [a, b]' (found: '$lines')" >&2
+    return 1
+  fi
+  if ! printf '%s\n' "$lines" | awk -F, '{
+        for (i = 1; i <= NF; i++) {
+          t = $i; gsub(/^[ \t]+|[ \t]+$/, "", t)
+          if (t == "" || t ~ /[ \t]/) bad = 1
+        }
+      } END { exit bad }'; then
+    echo "ci.sh: .goreleaser.yaml '$key: [$lines]' has an empty or malformed entry" >&2
+    return 1
+  fi
+  printf '%s\n' "$lines" | awk -F, '{
+    for (i = 1; i <= NF; i++) { t = $i; gsub(/^[ \t]+|[ \t]+$/, "", t); printf "%s%s", (i > 1 ? " " : ""), t }
+    print ""
+  }'
+}
+
+# Refuse a .goreleaser.yaml whose build the targets job would not mirror: an
+# ignore: list or a targets: key (both change what goreleaser builds beyond
+# goos x goarch), more than one builds entry, or a main: other than the path
+# the job compiles. The builds entry count is the number of list items at the
+# shallowest indent inside builds:; the nested env: and ldflags: items sit
+# deeper and are not counted.
+check_goreleaser_shape() {
+  local n main_lines
+  if grep -Eq '^[[:space:]]*ignore:' .goreleaser.yaml; then
+    echo "ci.sh: .goreleaser.yaml has an ignore: list; the targets job would compile targets goreleaser skips" >&2
+    return 1
+  fi
+  if goreleaser_builds | grep -Eq '^[[:space:]]*(-[[:space:]]+)?targets:'; then
+    echo "ci.sh: .goreleaser.yaml has a targets: key in builds; it overrides goos and goarch, which the targets job reads" >&2
+    return 1
+  fi
+  n="$(goreleaser_builds | awk '
+    /^[[:space:]]*-[[:space:]]/ { match($0, /^[[:space:]]*/); if (min == "" || RLENGTH < min) min = RLENGTH; len[NR] = RLENGTH }
+    END { c = 0; for (k in len) if (len[k] == min) c++; print c + 0 }')"
+  if [ "$n" -ne 1 ]; then
+    echo "ci.sh: .goreleaser.yaml builds: has $n entries; the targets job models exactly one" >&2
+    return 1
+  fi
+  main_lines="$(goreleaser_builds | grep -E '^[[:space:]]*(-[[:space:]]+)?main:' || true)"
+  if [ "$(printf '%s\n' "$main_lines" | grep -c .)" -ne 1 ] ||
+    ! printf '%s\n' "$main_lines" | grep -Eq '^[[:space:]]*(-[[:space:]]+)?main:[[:space:]]*\./cmd/kirsch[[:space:]]*$'; then
+    echo "ci.sh: .goreleaser.yaml builds: must hold exactly one 'main: ./cmd/kirsch' line, the path the targets job compiles (found: '$main_lines')" >&2
+    return 1
+  fi
+}
+
+# Directory the targets job builds into. Global so the EXIT trap can see it.
+targets_tmp=""
+
+# EXIT trap for the targets job: remove the build outputs, then the directory,
+# without recursion. Failures here are ignored so the job's own exit status
+# is the one the shell reports.
+targets_cleanup() {
+  if [ -n "$targets_tmp" ] && [ -d "$targets_tmp" ]; then
+    rm -f "$targets_tmp"/* || true
+    rmdir "$targets_tmp" || true
+  fi
+}
+
+# Compile ./cmd/kirsch for every release target. The targets are the goos x
+# goarch product read from .goreleaser.yaml (the job reads its targets from
+# that file; it does not read any other list). The file shape is checked first
+# (check_goreleaser_shape) and the job fails if it would compile zero targets.
+# Every target is attempted and reported; the job fails if any one failed.
+job_targets() {
+  use_ci_toolchain
+
+  check_goreleaser_shape || exit 1
+  local oses arches
+  oses="$(goreleaser_list goos)" || exit 1
+  arches="$(goreleaser_list goarch)" || exit 1
+
+  # bin/ is git-ignored. The EXIT trap removes the output files one by one and
+  # then the directory, so nothing recursive is needed. SIGINT and SIGTERM are
+  # turned into an exit so the trap runs on an interrupt too.
+  mkdir -p "$repo/bin"
+  local os arch out failed="" ntargets=0
+  targets_tmp="$(mktemp -d "$repo/bin/targets.XXXXXX")"
+  trap targets_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  for os in $oses; do
+    for arch in $arches; do
+      ntargets=$((ntargets + 1))
+      out="$targets_tmp/kirsch-$os-$arch"
+      if GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -o "$out" ./cmd/kirsch; then
+        echo "target $os/$arch: ok"
+      else
+        echo "target $os/$arch: FAILED"
+        failed="$failed $os/$arch"
+      fi
+      rm -f "$out"
+    done
+  done
+
+  if [ "$ntargets" -eq 0 ]; then
+    echo "ci.sh: the targets job compiled 0 targets; refusing to pass" >&2
+    exit 1
+  fi
+  if [ -n "$failed" ]; then
+    echo "ci.sh: targets that did not compile:$failed" >&2
+    exit 1
+  fi
+  echo "ci.sh: all $ntargets targets compile"
+}
+
 # Each job runs in its own bash process, not a subshell: a subshell used as an
 # `if` condition silently turns `set -e` off, and a failing step would then be
 # skipped over instead of failing its job.
 job_all() {
   local failed="" j
-  for j in lint test security screens; do
+  for j in lint test security screens targets; do
     echo
     echo "=== ci.sh $j ==="
     if ! bash "$here/ci.sh" "$j"; then
@@ -232,6 +358,7 @@ case "$job" in
   test)     job_test ;;
   security) job_security ;;
   screens)  job_screens ;;
+  targets)  job_targets ;;
   all)      job_all ;;
   *)        usage ;;
 esac

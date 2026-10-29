@@ -2102,7 +2102,7 @@ func TestCheckOnboardingMissingKeyNamesVariables(t *testing.T) {
 		{
 			name:   "opencode",
 			active: "opencode",
-			ep:     config.EndpointConfig{APIKeyEnv: "OPENCODE_API_KEY", Model: "minimax-m2.7"},
+			ep:     config.EndpointConfig{APIKeyEnv: "OPENCODE_API_KEY", Model: "minimax-m3"},
 		},
 		{
 			name:   "anthropic",
@@ -2186,7 +2186,7 @@ func TestCheckOnboardingUnknownModelFlag(t *testing.T) {
 		model       string
 		wantUnknown bool
 	}{
-		{"known default opencode model", "minimax-m2.7", false},
+		{"known default opencode model", config.Defaults().Provider.Endpoints["opencode"].Model, false},
 		{"unknown model", "no-such-model", true},
 	}
 
@@ -2233,7 +2233,7 @@ func TestCheckOnboardingEndpointKind(t *testing.T) {
 		{
 			name:   "opencode data-flow notice",
 			active: "opencode",
-			ep:     config.EndpointConfig{APIKeyEnv: "OPENCODE_API_KEY", Model: "minimax-m2.7"},
+			ep:     config.EndpointConfig{APIKeyEnv: "OPENCODE_API_KEY", Model: "minimax-m3"},
 		},
 		{
 			name:   "anthropic missing key",

@@ -21,6 +21,7 @@ import (
 
 	"github.com/djm56/kirsch/internal/app"
 	"github.com/djm56/kirsch/internal/config"
+	"github.com/djm56/kirsch/internal/doctor"
 	"github.com/djm56/kirsch/internal/session"
 	"github.com/djm56/kirsch/internal/telemetry"
 	"github.com/djm56/kirsch/internal/tui"
@@ -67,8 +68,20 @@ func buildVersion() string {
 	return resolveVersion(version, mainVersion)
 }
 
+// errDoctorFailed is returned by run when `kirsch doctor` found a failing
+// check. The report on stdout already says what failed, so main exits 1 for it
+// without the usual "kirsch: <err>" line.
+var errDoctorFailed = errors.New("doctor found a failing check")
+
+// doctorProbes gathers the results `kirsch doctor` reports. It is a variable so
+// a test can inject results; later probes are added to the function it holds.
+var doctorProbes = func() []doctor.Result { return nil }
+
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
+		if errors.Is(err, errDoctorFailed) {
+			os.Exit(1)
+		}
 		// The TUI owns the alternate screen until Run returns, so by the time
 		// we get here stderr is safe to write to again.
 		fmt.Fprintln(os.Stderr, "kirsch:", err)
@@ -80,9 +93,11 @@ func main() {
 const usageText = `Usage:
   kirsch [flags]
   kirsch resume [flags]
+  kirsch doctor
 
 Commands:
   resume    resume the most recent session for this workspace
+  doctor    check the installation and report problems
 
 Flags:
   --workspace <path>  workspace root (defaults to the enclosing Git repository)
@@ -93,8 +108,9 @@ Flags:
 `
 
 // run parses args and starts the TUI. Output goes to stdout and stderr so the
-// tests can capture it. Requests for help or the version are answered here, ahead
-// of workspace detection and config loading, and return nil.
+// tests can capture it. Requests for help or the version, and the doctor report,
+// are answered here, ahead of workspace detection and config loading. They return
+// nil, except that a doctor report with a failing check returns errDoctorFailed.
 func run(args []string, stdout, stderr io.Writer) error {
 	ver := buildVersion()
 
@@ -105,6 +121,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		switch args[0] {
 		case "resume":
 			subcommand = "resume"
+			args = args[1:]
+		case "doctor":
+			subcommand = "doctor"
 			args = args[1:]
 		default:
 			return fmt.Errorf("unknown command %q", args[0])
@@ -134,6 +153,20 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if *flagVersion {
 		_, err := fmt.Fprintf(stdout, "kirsch %s\n", ver)
 		return err
+	}
+
+	// Doctor runs ahead of workspace detection and config loading so it can
+	// report when there is no repository or the config is broken. --help and
+	// --version, handled above, still win when given with doctor.
+	if subcommand == "doctor" {
+		results := doctorProbes()
+		if err := doctor.Report(stdout, ver, results); err != nil {
+			return err
+		}
+		if doctor.Failed(results) {
+			return errDoctorFailed
+		}
+		return nil
 	}
 
 	ws, err := workspace.Detect(*flagWorkspace)

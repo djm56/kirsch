@@ -1,0 +1,29 @@
+{
+  "Cache-Control": [
+    "no-cache"
+  ],
+  "Cf-Placement": [
+    "remote-IAD"
+  ],
+  "Cf-Ray": [
+    "a51fd5dd7e4fc35d-EWR"
+  ],
+  "Connection": [
+    "keep-alive"
+  ],
+  "Content-Type": [
+    "text/event-stream"
+  ],
+  "Date": [
+    "Thu, 29 Oct 2026 05:38:43 GMT"
+  ],
+  "Server": [
+    "cloudflare"
+  ],
+  "X-Opencode-Log-Id": [
+    "01a1862a-e7a0-7671-bd49-ad46d7362e80"
+  ],
+  "X-Zen-Model": [
+    "minimax-m3"
+  ]
+}

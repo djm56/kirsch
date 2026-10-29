@@ -30,7 +30,7 @@ func TestDefaultsEndpoints(t *testing.T) {
 	}
 	oc, ok := d.Provider.Endpoints["opencode"]
 	if !ok || oc.BaseURL != "https://opencode.ai/inference/go/anthropic/v1" || oc.Auth != "x-api-key" ||
-		oc.APIKeyEnv != "OPENCODE_API_KEY" || oc.Model != "minimax-m2.7" {
+		oc.APIKeyEnv != "OPENCODE_API_KEY" || oc.Model != "minimax-m3" {
 		t.Fatalf("opencode = %+v", oc)
 	}
 	an, ok := d.Provider.Endpoints["anthropic"]
@@ -41,7 +41,7 @@ func TestDefaultsEndpoints(t *testing.T) {
 		t.Fatalf("anthropic endpoint uses the legacy model name %q", an.Model)
 	}
 	d.Provider.Endpoints["opencode"] = EndpointConfig{}
-	if Defaults().Provider.Endpoints["opencode"].Model != "minimax-m2.7" {
+	if Defaults().Provider.Endpoints["opencode"].Model != "minimax-m3" {
 		t.Fatal("Defaults shares its map between calls")
 	}
 	if err := d.Validate(); err == nil {
@@ -63,8 +63,10 @@ func TestGlobalBuiltInEndpointPartialOverride(t *testing.T) {
 		name  string
 		model string
 	}{
+		// A non-default model, so the model check below can fail if the
+		// override were ignored (Defaults() returns minimax-m3).
 		{"opencode", "minimax-m2.7"},
-		{"anthropic", "claude-sonnet-5-5"},
+		{"anthropic", "claude-opus-5-5"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -77,6 +79,7 @@ func TestGlobalBuiltInEndpointPartialOverride(t *testing.T) {
 			}
 			got := cfg.Provider.Endpoints[tc.name]
 			want := Defaults().Provider.Endpoints[tc.name]
+			want.Model = tc.model // only the model differs from the built-in
 			if got != want {
 				t.Fatalf("partial override blanked siblings:\ngot  %+v\nwant %+v", got, want)
 			}

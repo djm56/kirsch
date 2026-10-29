@@ -525,8 +525,26 @@ func (a *App) Registry() *tool.Registry { return a.reg }
 // Each grant is a space-separated command prefix.
 func (a *App) Grants() []string { return a.pol.Grants() }
 
-// ClearGrants removes all active session-scoped command grants.
-func (a *App) ClearGrants() { a.pol.ClearGrants() }
+// ClearGrants removes all active session-scoped command grants and records the
+// clear in the session log so a resumed session does not restore them.
+func (a *App) ClearGrants() {
+	a.pol.ClearGrants()
+
+	a.storeMu.Lock()
+	store := a.store
+	a.storeMu.Unlock()
+	// A nil store means no session file is open, so no grant has been recorded
+	// in this session and there is nothing to revoke on disk. ensureStore is
+	// deliberately not called: a clear must not create a session file.
+	if store != nil {
+		store.RecordScopesCleared()
+		// RecordScopesCleared only queues the line. Flush it now so a kill
+		// before the next ticker flush cannot lose the clear, which would let
+		// a resumed session restore the grants the user revoked. A failure is
+		// reported to the TUI the way turn completion reports one.
+		a.flushStore(store)
+	}
+}
 
 // GetTouchedFiles returns the list of workspace-relative paths changed by
 // successful apply_patch calls in this session. The list is ordered and

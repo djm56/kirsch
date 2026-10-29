@@ -28,31 +28,75 @@ func render(t *testing.T, caps Caps, w, h int) string {
 }
 
 // TestFrameInvariants is the "no visual corruption" check: the frame is exactly
-// as tall as the terminal and never wider, at every size in ui-spec §2.2.
+// as tall as the terminal and never wider, at every size in ui-spec §2.2. It
+// sweeps each size with no overlay, with a modal open and with a confirm prompt
+// open. The overlay is opened after the WindowSizeMsg through openModal and
+// askConfirm, the same calls the golden and header tests use.
+//
+// The row-count and width checks alone are satisfied by a frame that never drew
+// the overlay, so at 80x24 and larger — sizes where the box is drawn as a box —
+// each overlay's own text must also appear in the frame: the sentinel, the first
+// body line of the modal, and the prompt for the confirm. Those presence
+// assertions are the positive controls. Each frame must also lack the other
+// overlays' text; the "none" frame, which draws no overlay, must lack both.
 func TestFrameInvariants(t *testing.T) {
 	widths := []int{200, 120, 80, 79, 60, 59, 40, 39, 38, 20, 2, 1, 0, -1}
 	heights := []int{60, 24, 11, 10, 9, 6, 5, 4, 2, 1, 0, -1}
-	for _, w := range widths {
-		for _, h := range heights {
-			out := render(t, Caps{Unicode: true}, w, h)
-			if w <= 0 || h <= 0 {
-				if out != "" {
-					t.Errorf("%dx%d: want empty string, got %d bytes", w, h, len(out))
+	overlays := []struct {
+		name string
+		open func(m *Model)
+		text string // drawn at 80x24 and larger; "" for no overlay
+	}{
+		{"none", func(m *Model) {}, ""},
+		{"modal", func(m *Model) {
+			m.openModal(ModalState{Kind: ModalHelp, Title: "help", Lines: append([]string{overlaySentinel}, helpLines()...)})
+		}, overlaySentinel},
+		{"confirm", func(m *Model) {
+			m.askConfirm(ConfirmState{Prompt: "Discard the running turn?", Action: ConfirmNewSession})
+		}, "Discard the running turn?"},
+	}
+	for _, ov := range overlays {
+		for _, w := range widths {
+			for _, h := range heights {
+				m := NewWithFixture(Options{Version: fixtureVersion, Caps: Caps{Unicode: true}})
+				mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+				m = mm.(Model)
+				ov.open(&m)
+				out := m.View()
+				if w <= 0 || h <= 0 {
+					if out != "" {
+						t.Errorf("%s %dx%d: want empty string, got %d bytes", ov.name, w, h, len(out))
+					}
+					continue
 				}
-				continue
-			}
-			lines := strings.Split(out, "\n")
-			if len(lines) != h {
-				t.Errorf("%dx%d: %d rows, want %d", w, h, len(lines), h)
-			}
-			for i, l := range lines {
-				if cw := cellWidth(l); cw > w {
-					t.Errorf("%dx%d row %d: %d cols, want <= %d", w, h, i+1, cw, w)
+				lines := strings.Split(out, "\n")
+				if len(lines) != h {
+					t.Errorf("%s %dx%d: %d rows, want %d", ov.name, w, h, len(lines), h)
+				}
+				for i, l := range lines {
+					if cw := cellWidth(l); cw > w {
+						t.Errorf("%s %dx%d row %d: %d cols, want <= %d", ov.name, w, h, i+1, cw, w)
+					}
+				}
+				if w >= 80 && h >= 24 {
+					flat := collapseSpace(out)
+					if ov.text != "" && !strings.Contains(flat, ov.text) {
+						t.Errorf("%s %dx%d: overlay text %q not drawn", ov.name, w, h, ov.text)
+					}
+					for _, other := range overlays {
+						if other.text != "" && other.name != ov.name && strings.Contains(flat, other.text) {
+							t.Errorf("%s %dx%d: contains the %s overlay's text %q", ov.name, w, h, other.name, other.text)
+						}
+					}
 				}
 			}
 		}
 	}
 }
+
+// overlaySentinel is a line no other part of the frame renders, so finding it
+// proves the modal box itself was drawn.
+const overlaySentinel = "overlay-sentinel-line"
 
 // TestNoColourEmitsNoEscapes is one half of the ui-spec §13 escape property:
 // with colour off, not a single escape byte is written.

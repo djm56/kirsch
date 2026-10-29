@@ -1,0 +1,46 @@
+# GoReleaser config for kirsch: one tar.gz per target plus a sha256 checksums
+# file, with the changelog taken from git log. Decisions are recorded in
+# plan/PROGRESS.md, rows O2 and O2 detail (scope, targets, archive and checksum
+# defaults) and O20 (the target-compile check in scripts/ci.sh).
+#
+# Valid for goreleaser v2.6 and later (`archives.formats` is the plural key,
+# added in v2.6). `version: 2` selects the v2 schema.
+#
+# The goos and goarch lines are one-line flow lists on purpose: scripts/ci.sh
+# `targets` reads them with sed to decide which targets it compiles, so the job
+# takes its targets from this file. Keep them on one line each with no empty
+# entries. The job refuses this file if the build has an `ignore:` list, a
+# `targets:` key, a second builds entry, or a `main:` other than ./cmd/kirsch.
+
+version: 2
+
+project_name: kirsch
+
+builds:
+  - id: kirsch
+    # Only the CLI ships. cmd/kirsch-probe is a second main package and is
+    # deliberately not built here.
+    main: ./cmd/kirsch
+    binary: kirsch
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    # Sets main.version from goreleaser's {{.Version}}. Whether this replaces
+    # goreleaser's default ldflags and whether the leading v is stripped from
+    # the tag is not verified here; the operator's snapshot run confirms what
+    # `kirsch --version` prints.
+    ldflags:
+      - -X main.version={{.Version}}
+
+archives:
+  - id: kirsch
+    # No Windows target, so every archive is tar.gz. name_template is left at
+    # goreleaser's default.
+    formats: [tar.gz]
+
+checksum:
+  algorithm: sha256
+
+changelog:
+  use: git

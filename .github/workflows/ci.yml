@@ -76,6 +76,23 @@ jobs:
       - name: security
         run: bash scripts/ci.sh security
 
+  targets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Cross-compiles ./cmd/kirsch for every goos/goarch pair that
+      # .goreleaser.yaml lists, so a release target that stops compiling fails
+      # here rather than when a tag is cut. Every target is attempted and
+      # reported before the job fails.
+      - name: targets
+        run: bash scripts/ci.sh targets
+
   screens:
     name: screen reference lint
     runs-on: ubuntu-latest

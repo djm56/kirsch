@@ -42,6 +42,7 @@ internal/workspace          root detection, containment, denylist, ignore, detec
 internal/session            JSONL event store: append, load, resume, repair
 internal/config             global + project config, env-only secrets
 internal/telemetry          structured debug log; token/cost tracking (M4)
+internal/doctor             kirsch doctor: report format and exit status (probes come later in Milestone 5)
 plan/                       build instructions (this file, spec, ADRs, UI spec)
 doc/                        end-user documentation (Milestone 5)
 testdata/                   fixture repositories (Milestone 1)

@@ -40,6 +40,13 @@ var forbidden = map[string][]string{
 		"internal/workspace",
 		"internal/agent",
 	},
+	// Doctor only reports. Its later probes may use config, workspace, session,
+	// tool and provider, but never the UI or the agent loop.
+	"internal/doctor": {
+		"internal/tui",
+		"internal/app",
+		"internal/agent",
+	},
 	"internal/session": {
 		"internal/tui",
 		"internal/provider",
@@ -110,5 +117,8 @@ func TestGuardedPackagesAreReal(t *testing.T) {
 	// deliberately pre-registered for later milestones.
 	if !exists["internal/tui"] {
 		t.Error("internal/tui not found; the rule table or the module path is wrong")
+	}
+	if !exists["internal/doctor"] {
+		t.Error("internal/doctor not found; the rule table or the module path is wrong")
 	}
 }
