@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/mattn/go-runewidth"
@@ -162,33 +163,108 @@ func fill(r string, w int) string {
 	return strings.Repeat(r, w/rw)
 }
 
-// wrap soft-wraps s to w cells, breaking on spaces where possible and hard-
-// breaking words longer than the line. There is no horizontal scrolling in
-// v0.1, so everything that does not fit wraps. ui-spec §7.3.
+// wrap soft-wraps s to w cells, preserving spacing. There is no horizontal
+// scrolling in v0.1, so everything that does not fit wraps. ui-spec §3.1,
+// §3.2 and §7.3.
+//
+// Leading spaces and runs of interior spaces are kept exactly. A line breaks
+// at a space where one fits; only a word wider than w is hard-broken (at w
+// cells, by runewidth). Choices the spec does not fix:
+//
+//   - Break space: at a break point the whole run of spaces is consumed, so
+//     no continuation line starts with a space (including spaces the writer
+//     put there), and no output line ends with a trailing space. The same
+//     holds at the end of s: trailing spaces are dropped.
+//   - Continuation lines get no hanging indent; only the first line keeps
+//     the leading indentation. A word that does not fit after the indent
+//     moves to a fresh line at column 0 (the indent-only line is discarded,
+//     not emitted).
+//   - A line that is only whitespace becomes a single empty row.
+//   - Leading indentation of w cells or more is clamped to w-1 cells, so at
+//     least one cell remains for text.
+//
+// Before splitting, tabs are expanded to 4-column stops (expandTabs, §7.1)
+// and every other character unicode.IsSpace accepts (newline, CR, NBSP,
+// U+3000, ...) becomes one plain space, so the space measured is the space
+// drawn: U+3000, which measures 2 cells, becomes a single 1-cell space.
+// wrap does not strip escapes or other control characters; it relies on its
+// callers passing text that went through Sanitize (the transcript text paths
+// store SanitizeLines output, including streamed text via
+// Transcript.AppendText). ErrorCard.Message and notice text reach wrap
+// unsanitised, as they did before this mission.
+//
+// Every output line is at most w cells, except when w is smaller than a
+// single rune's width (w=1 and a double-width rune): that rune is emitted
+// alone rather than looping forever. w <= 0 and "" return {""}.
 func wrap(s string, w int) []string {
-	if w <= 0 {
+	if w <= 0 || s == "" {
 		return []string{""}
 	}
-	if s == "" {
-		return []string{""}
-	}
+	s = strings.Map(func(r rune) rune {
+		if r != ' ' && unicode.IsSpace(r) {
+			return ' '
+		}
+		return r
+	}, expandTabs(s))
+
 	var out []string
-	for _, word := range strings.Fields(s) {
-		switch {
-		case len(out) == 0:
-			out = append(out, word)
-		case cellWidth(out[len(out)-1])+1+cellWidth(word) <= w:
-			out[len(out)-1] += " " + word
-		default:
-			out = append(out, word)
+	var cur string   // the line being built
+	curW := 0        // cell width of cur
+	hasText := false // cur holds more than the leading indentation
+
+	rest := strings.TrimLeft(s, " ")
+	if indent := len(s) - len(rest); indent > 0 {
+		if indent > w-1 {
+			indent = w - 1
 		}
+		cur, curW = strings.Repeat(" ", indent), indent
+	}
+
+	for rest != "" {
+		// The run of spaces before the next word, then the word itself.
+		afterRun := strings.TrimLeft(rest, " ")
+		gap := len(rest) - len(afterRun)
+		end := strings.IndexByte(afterRun, ' ')
+		if end < 0 {
+			end = len(afterRun)
+		}
+		word := afterRun[:end]
+		rest = afterRun[end:]
+		if word == "" { // trailing spaces: dropped
+			break
+		}
+
+		ww := cellWidth(word)
+		if curW+gap+ww <= w {
+			cur += strings.Repeat(" ", gap) + word
+			curW += gap + ww
+			hasText = true
+			continue
+		}
+
+		// Break here. The gap is consumed; an indent-only line is dropped.
+		if hasText {
+			out = append(out, cur)
+		}
+		cur, curW, hasText = "", 0, false
+
 		// Hard-break anything still over width (a URL, a minified line).
-		for cellWidth(out[len(out)-1]) > w {
-			line := out[len(out)-1]
-			head := runewidth.Truncate(line, w, "")
-			out[len(out)-1] = head
-			out = append(out, strings.TrimPrefix(line, head))
+		for ww > w {
+			head := runewidth.Truncate(word, w, "")
+			if head == "" {
+				_, size := utf8.DecodeRuneInString(word)
+				head = word[:size]
+			}
+			out = append(out, head)
+			word = word[len(head):]
+			ww = cellWidth(word)
 		}
+		if word != "" {
+			cur, curW, hasText = word, ww, true
+		}
+	}
+	if hasText {
+		out = append(out, cur)
 	}
 	if len(out) == 0 {
 		return []string{""}

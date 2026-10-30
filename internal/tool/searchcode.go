@@ -113,8 +113,9 @@ func (t *SearchCode) Invoke(ctx context.Context, raw json.RawMessage) Result {
 	return OKResult(b.String(), summary, truncated)
 }
 
-// Backend reports which implementation a search would use. Surfaced by
-// `kirsch doctor` in M5 and by the differential test.
+// Backend reports which implementation a search would use. `kirsch doctor`
+// prints it on its backend line (internal/doctor, backendResult), and the
+// differential test uses it too.
 func (t *SearchCode) Backend() string {
 	if t.ForcePureGo || !ripgrepAvailable() {
 		return "pure-go"

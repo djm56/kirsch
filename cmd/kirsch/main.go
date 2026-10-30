@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"regexp"
 	"runtime/debug"
 	"strings"
@@ -73,9 +74,11 @@ func buildVersion() string {
 // without the usual "kirsch: <err>" line.
 var errDoctorFailed = errors.New("doctor found a failing check")
 
-// doctorProbes gathers the results `kirsch doctor` reports. It is a variable so
-// a test can inject results; later probes are added to the function it holds.
-var doctorProbes = func() []doctor.Result { return nil }
+// doctorProbes runs the checks `kirsch doctor` reports: doctor.Run, which probes
+// git, rg, the repository and the config file, then reports the API key, the
+// search_code backend, the model and the project-context file, from the options
+// run builds. It is a variable so a test can inject an Outcome in its place.
+var doctorProbes = doctor.Run
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -93,7 +96,7 @@ func main() {
 const usageText = `Usage:
   kirsch [flags]
   kirsch resume [flags]
-  kirsch doctor
+  kirsch doctor [flags]
 
 Commands:
   resume    resume the most recent session for this workspace
@@ -109,8 +112,9 @@ Flags:
 
 // run parses args and starts the TUI. Output goes to stdout and stderr so the
 // tests can capture it. Requests for help or the version, and the doctor report,
-// are answered here, ahead of workspace detection and config loading. They return
-// nil, except that a doctor report with a failing check returns errDoctorFailed.
+// are answered here, before the workspace is detected and the config loaded for a
+// session; doctor does its own detection and loading. They return nil, except
+// that a doctor report with a failing check returns errDoctorFailed.
 func run(args []string, stdout, stderr io.Writer) error {
 	ver := buildVersion()
 
@@ -155,15 +159,24 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	// Doctor runs ahead of workspace detection and config loading so it can
-	// report when there is no repository or the config is broken. --help and
-	// --version, handled above, still win when given with doctor.
+	// Doctor runs ahead of this function's own workspace detection and config
+	// loading, because it does both itself inside doctor.Run and reports a
+	// failure of either as a line instead of returning it. The environment reads
+	// stay here and go in through doctor.Options. --help and --version, handled
+	// above, still win when given with doctor.
 	if subcommand == "doctor" {
-		results := doctorProbes()
-		if err := doctor.Report(stdout, ver, results); err != nil {
+		home, _ := os.UserHomeDir()
+		outcome := doctorProbes(doctor.Options{
+			WorkspaceFlag:    *flagWorkspace,
+			GlobalConfigPath: config.GlobalPath(os.Getenv("XDG_CONFIG_HOME"), home),
+			HomeDir:          home,
+			LookPath:         exec.LookPath,
+			Getenv:           os.Getenv,
+		})
+		if err := doctor.Report(stdout, ver, outcome.Results); err != nil {
 			return err
 		}
-		if doctor.Failed(results) {
+		if doctor.Failed(outcome.Results) {
 			return errDoctorFailed
 		}
 		return nil

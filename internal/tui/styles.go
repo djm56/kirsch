@@ -19,7 +19,6 @@ const (
 	SpinnerFrame    = 100 * time.Millisecond // 10fps reads as smooth, costs little
 	StreamCoalesce  = 50 * time.Millisecond  // or on newline, whichever comes first
 	CmdOutCoalesce  = 100 * time.Millisecond // output is chunkier than tokens
-	PasteDebounce   = 20 * time.Millisecond  // one update per paste
 	DoubleInterrupt = time.Second            // double Ctrl+C window
 )
 

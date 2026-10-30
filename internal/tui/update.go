@@ -386,6 +386,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		id := m.appendBlock(Item{Kind: KindAssistant, Text: &TextBlock{
+			Raw:       msg.Delta,
 			Lines:     SanitizeLines(msg.Delta),
 			Streaming: true,
 		}})
@@ -400,7 +401,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			id := m.appendBlock(Item{Kind: KindThinking, Thinking: &ThinkingCard{
 				Tokens: len(strings.Fields(msg.Delta)),
-				Body:   []string{msg.Delta},
+				Raw:    msg.Delta,
 			}})
 			m.thinkingBlocks[msg.BlockID] = id
 		}
@@ -439,6 +440,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			it := &m.tr.Items()[i]
 			if it.Kind == KindAssistant && it.Text != nil && it.Text.Streaming {
 				it.Text.Streaming = false
+				it.Text.Raw = "" // Lines holds the sanitised text; with Streaming false, AppendText refuses the block before it would read or seed Raw
 			}
 		}
 		m.textBlocks = map[int64]ItemID{}
@@ -459,6 +461,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			it := &m.tr.Items()[i]
 			if it.Kind == KindAssistant && it.Text != nil && it.Text.Streaming {
 				it.Text.Streaming = false
+				it.Text.Raw = "" // as in TurnCompleteMsg
 			}
 		}
 		m.textBlocks = map[int64]ItemID{}
@@ -1383,6 +1386,7 @@ func (m Model) cancelTurn() Model {
 		}
 		if it.Kind == KindAssistant && it.Text.Streaming {
 			it.Text.Streaming = false
+			it.Text.Raw = "" // as in TurnCompleteMsg
 			it.Text.Cancelled = true
 		}
 	}

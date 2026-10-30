@@ -138,7 +138,7 @@ The 10 enums and their constant counts:
 - `Kind` — 14 constants, with block comment `// The full plan §3.3 set…` (`internal/tool/tool.go:20`)
 - `ProjectType` — 4 constants, with block comment `// The four kinds v0.1 recognises.` (`internal/workspace/detect.go:11`)
 
-**Trailing comments on tuning constants:** Beyond enums, six exported constants carry trailing comments that document their purpose or value: `MaxFileBytes` (file read limit), and five timing constants (`SpinnerFrame`, `StreamCoalesce`, `CmdOutCoalesce`, `PasteDebounce`, `DoubleInterrupt`). These are not enum members but follow the same trailing-comment pattern as a standard Go idiom for explaining tuning values. All are in `internal/tool/readfile.go` and `internal/tui/styles.go`.
+**Trailing comments on tuning constants:** Beyond enums, some exported constants carry trailing comments that document their purpose or value: `MaxFileBytes` (file read limit), and the timing constants in `internal/tui/styles.go` (for example `SpinnerFrame`, `StreamCoalesce`, `CmdOutCoalesce`, `DoubleInterrupt`). These are not enum members but follow the same trailing-comment pattern as a standard Go idiom for explaining tuning values. `MaxFileBytes` is in `internal/tool/readfile.go`; the timing constants are in `internal/tui/styles.go`.
 
 **Comment form:** A doc comment opens with the identifier's own name, is a full sentence or clause, and ends with a full stop.
 

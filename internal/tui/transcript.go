@@ -78,7 +78,18 @@ func (s CardState) Terminal() bool { return s >= StateOK }
 
 // TextBlock is a user or assistant message. Lines are stored unwrapped —
 // wrapping is a function of the current width, and the width changes on resize.
+//
+// Raw is the unsanitised text accumulated by streaming deltas. It is empty for
+// a block built from Lines directly, until its first delta seeds it with those
+// already-sanitised Lines (see AppendText), and for every block finished
+// outside tests: cancelTurn and the TurnCompleteMsg and TurnErrorMsg handlers
+// clear Streaming and empty Raw together, so only Lines outlives the stream. (The test-only fake stream driver clears Streaming and
+// leaves Raw; outside tests, only AppendText reads Raw, and it refuses a block
+// once Streaming is false.) While streaming, Lines is always recomputed from
+// the whole of Raw, never per delta, because an escape sequence, a CRLF or a
+// multi-byte rune can be split across two deltas.
 type TextBlock struct {
+	Raw       string
 	Lines     []string
 	Streaming bool // assistant only: render a trailing caret
 	Cancelled bool // partial text from a cancelled turn stays, marked
@@ -207,9 +218,25 @@ type ErrorCard struct {
 type NoticeCard struct{ Text string }
 
 // ThinkingCard is collapsed and dimmed throughout. Default off in v0.1.
+//
+// Raw is the unsanitised text accumulated by streaming deltas; Body is the
+// sanitised text of a card built directly (the resume path), empty for a
+// streamed card. Read the text through BodyLines, which picks whichever is set.
+// renderThinking shows only Tokens; the text itself is never drawn.
 type ThinkingCard struct {
 	Tokens int
+	Raw    string
 	Body   []string
+}
+
+// BodyLines returns the card's text as sanitised lines. A streamed card keeps
+// only Raw, so the sanitising happens here, per call, over all of Raw — not per
+// delta. A card built from Body returns Body unchanged.
+func (c *ThinkingCard) BodyLines() []string {
+	if c.Raw != "" {
+		return SanitizeLines(c.Raw)
+	}
+	return c.Body
 }
 
 // Transcript is the ordered list of items, plus an ID allocator and a revision
@@ -269,10 +296,11 @@ func (t *Transcript) Find(id ItemID) (Item, int, bool) {
 // the guard by hand, and it skips t.rev — which costs nothing today only
 // because nothing reads t.rev.
 //
-// Text has the same shape and one less method. cancelTurn and the scripted
-// turn helper both clear it.Text.Streaming in the open because AppendText only
-// appends; there is no guarded way to end a stream, so that flag has no seam
-// at all.
+// Text has the same shape and one less method. cancelTurn, the TurnComplete
+// and TurnError handlers and the scripted turn helper all clear
+// it.Text.Streaming in the open, and the first three also empty it.Text.Raw;
+// AppendText only appends, so there is no guarded way to end a stream and that
+// flag has no seam at all.
 func (t *Transcript) MutateTool(id ItemID, fn func(*ToolCard)) bool {
 	it, _, ok := t.Find(id)
 	if !ok || it.Kind != KindTool || it.Tool.State.Terminal() {
@@ -283,32 +311,48 @@ func (t *Transcript) MutateTool(id ItemID, fn func(*ToolCard)) bool {
 	return true
 }
 
-// AppendText appends to a streaming text block. Used by the fake stream driver
-// and by the real assistant text delta path.
+// AppendText appends to a streaming text block and refuses any other. Used by
+// the fake stream driver and by the real assistant text delta path. The delta
+// is added to the block's Raw text and Lines is recomputed with SanitizeLines
+// over all of Raw, so the result equals sanitising the whole text at once,
+// however the deltas split it. A streaming block that has Lines but no Raw
+// (built directly with Lines, as the fake stream driver does) is seeded from
+// its Lines. A finished block never reaches the seeding: every path that
+// empties Raw also clears Streaming, and the Streaming check refuses it first.
+// The recompute is linear in the text so far, per delta.
 func (t *Transcript) AppendText(id ItemID, s string) bool {
 	it, _, ok := t.Find(id)
 	if !ok || it.Text == nil || !it.Text.Streaming {
 		return false
 	}
-	lines := it.Text.Lines
-	if len(lines) == 0 {
-		it.Text.Lines = []string{s}
-	} else {
-		lines[len(lines)-1] += s
+	raw := it.Text.Raw
+	if raw == "" {
+		raw = strings.Join(it.Text.Lines, "\n")
 	}
+	it.Text.Raw = raw + s
+	it.Text.Lines = SanitizeLines(it.Text.Raw)
 	t.rev++
 	return true
 }
 
-// AppendThinking appends a fragment to an open thinking card. The card's token
-// count is approximated from the fragment so the collapsed card can show a
-// plausible total; the exact usage arrives separately via UsageMsg.
+// AppendThinking appends a fragment to an open thinking card. The fragment is
+// added to Raw and nothing is sanitised here: BodyLines sanitises all of Raw
+// when something reads it, for the same split-sequence reason as AppendText. A
+// card that has Body but no Raw is seeded from Body, which is then cleared so
+// Raw is the single source. The card's token count is approximated from the
+// fragment so the collapsed card can show a plausible total; the exact usage
+// arrives separately via UsageMsg.
 func (t *Transcript) AppendThinking(id ItemID, s string) bool {
 	it, _, ok := t.Find(id)
 	if !ok || it.Thinking == nil {
 		return false
 	}
-	it.Thinking.Body = append(it.Thinking.Body, s)
+	raw := it.Thinking.Raw
+	if raw == "" {
+		raw = strings.Join(it.Thinking.Body, "\n")
+		it.Thinking.Body = nil
+	}
+	it.Thinking.Raw = raw + s
 	it.Thinking.Tokens += len(strings.Fields(s))
 	t.rev++
 	return true
@@ -453,11 +497,14 @@ var ansiRe = regexp.MustCompile(
 // Sanitize makes captured output safe to render. ui-spec §7.1, applied in this
 // order.
 //
-// This runs once, when an item is created — never at render time. View() runs
-// on every keystroke and every stream tick, so re-stripping a 4,000-line output
-// each time would be pure waste; more importantly, output stored clean means
-// the renderer *cannot* leak an escape, which makes the property provable
-// rather than merely tested.
+// Callers run this when text is stored, never at render time. Most items are
+// sanitised once, when created; streamed assistant text is re-sanitised over
+// all of its Raw on every delta (AppendText), and streamed thinking text over
+// all of its Raw each time BodyLines is called. View() runs on every keystroke
+// and every stream tick, so re-stripping a 4,000-line output each time would
+// be pure waste; more importantly, output stored clean means the renderer
+// *cannot* leak an escape, which makes the property provable rather than
+// merely tested.
 func Sanitize(s string) string {
 	s = ansiRe.ReplaceAllString(s, "")
 

@@ -33,6 +33,8 @@
     "lint": "bash scripts/go-tool.sh golangci-lint run",
     "lint:fix": "bash scripts/go-tool.sh golangci-lint run --fix",
     "screens": "python3 scripts/lint-screens.py",
+    "plan:status": "bash scripts/plan-status.sh",
+    "test:plan-status": "bash scripts/plan-status-test.sh",
 
     "tools": "bash scripts/install-tools.sh",
     "ci": "npm run check && npm run security && npm run test:race",

@@ -11,7 +11,7 @@ This folder holds the per-milestone instruction sets for building Kirsch — one
 | 2 | Patches, commands, approvals | Executed | Complete. See [`../PROGRESS.md`](../PROGRESS.md) for deliverable status and task breakdown. |
 | 3 | Provider + agent loop | Executed | Complete. Written before Milestone 2 landed; see [`../PROGRESS.md`](../PROGRESS.md) for deliverable status. |
 | 4 | Real task loop + sessions | Executed | Complete and operator-accepted 2026-10-23 (tag `m4`). The narrow-width status-bar fallback, carried to Milestone 5 as m5-d1, was resolved on 2026-10-27 as a wrong expectation, not a code defect (see [`../PROGRESS.md`](../PROGRESS.md)). |
-| 5 | Polish + release (v0.1.0) | Executable | Instruction set and testing skeletons written 2026-10-23–24 (mission-20261023-06). Complete definition is in `milestone-5.md`. Live status is in [`../PROGRESS.md`](../PROGRESS.md). (See section below.) |
+| 5 | Polish + release (v0.1.0) | Executable | Instruction set and testing skeletons written 2026-10-23–24 (mission-20261023-06). In progress. Which deliverables are done and which await operator testing is in [`../PROGRESS.md`](../PROGRESS.md), the live status file. Complete definition is in `milestone-5.md`. (See section below.) |
 
 Live status for each milestone lives in [`../PROGRESS.md`](../PROGRESS.md).
 
@@ -31,7 +31,7 @@ The instruction set is written (mission-20261023-06). [`milestone-5.md`](milesto
 
 Each milestone carries a **Deliverables section** listing the discrete pieces of work, what each owns, and their dependencies. That section is *static definition* — it describes the structure and does not carry status or owner information.
 
-Live status — who is working what, what is done, what is blocked — lives in [`../PROGRESS.md`](../PROGRESS.md), the single source of truth for current state.
+Live status — who is working what, what is done, what is blocked — lives in [`../PROGRESS.md`](../PROGRESS.md), the single source of truth for current state. From Milestone 6, its tick counts come from [`scripts/plan-status.sh`](../../scripts/plan-status.sh).
 
 When you claim a deliverable:
 
@@ -41,3 +41,5 @@ When you claim a deliverable:
 4. When your deliverable's "done when" statement is fully satisfied, edit `PROGRESS.md`: change `Status` to `done`.
 
 The Deliverables table carries no status or owner and is not edited to record progress. Changing the split itself is a plan change, agreed between both developers, not an individual edit.
+
+**From Milestone 6** (ADR 0009, 2026-10-29), a milestone page holds only its goal, its scope and a deliverables table. The tasks for each deliverable sit in a small file per deliverable. The exact file names are settled when Milestone 6 is planned. Milestones 0 to 5 keep their current layout. The claim procedure above still applies, and the Owner and Status cells in `PROGRESS.md` stay hand-kept. Details are in [`../adr/0009-planning-layout-from-m6.md`](../adr/0009-planning-layout-from-m6.md).

@@ -73,7 +73,7 @@ This forgets the test setup in this window. It also prints one line starting `rm
 | 17 | The install guide |
 | 18 | Fresh machine, no API key check |
 | 19 | Starting a new session with `/new` (only if you choose to do it) |
-| 20 | The doctor command: key, backend and model lines |
+| 20 | The doctor command: key, backend, model and project notes lines |
 | 21 | Marker for cut text in the typing area |
 | 22 | The usage guide corrections |
 | 23 | The front page and progress tracker are current |
@@ -258,6 +258,8 @@ Flags:
 - [✅] I saw the help screen
 
 > **Note, 2026-10-28 (m5-d3a):** Since 2026-10-28 (m5-d3a) the help screen also shows a `kirsch doctor` line under Usage and a `doctor` line under Commands. Your tick above was for the help screen before that change. Section 7 checks the new lines.
+
+> **Note, 2026-10-29 (m5-d3b):** The usage line now reads `  kirsch doctor [flags]`, because m5-d3b added `[flags]`. The help text quoted in Step 4 is the m5-d2 text, as the note above says. Your tick above stands for the help screen you tested before this change.
 
 **Step 5 — Check the help screen finishes cleanly.**
 Paste:
@@ -695,6 +697,27 @@ ok  	github.com/djm56/kirsch/internal/arch	1.601s
 (The times will differ.)
 - [✅] I saw `ok` on each of those lines
 
+> **Note, 2026-10-29 (m5-d3b):** Doctor now runs checks for git, rg, the repository and the settings file, so some lines in this section have changed. The ticks above stand for what you tested before this change, and they are not edited.
+> - Step 2 and Step 4: the report now has check lines for git, rg, repository and config, before the summary. The sentence "every count is 0" is the m5-d3a text. On a Mac with git and rg installed, inside the kirsch folder, Step 2 ends `doctor: 4 ok, 0 warn, 0 fail`.
+> - Step 4 is outside any project, so the repository check now fails. It prints `fail  repository: not in a Git repository`, the summary reads `doctor: 3 ok, 0 warn, 1 fail`, and the result is `result: 1`. That is correct: without `--workspace`, kirsch does not start outside a repository.
+> - Step 5: the first doctor run now prints a `fail` line for config, and its result is `result: 1`, not `result: 0`. The plain kirsch run after it still refuses to start, with `result: 1`.
+> - Step 4 leaves you in `$T_CFG`, which is outside any project, so Step 5 runs outside a repository too. The report therefore also has a repository fail, and it has two fails in all. Run from that folder on 2026-10-29, the first doctor command printed this, with the folder path shortened and the git and rg paths as they were on that Mac:
+>
+>   ```text
+>   kirsch 0.1.0-dev
+>   ok  git: found at /opt/local/bin/git
+>   ok  rg: found at /opt/homebrew/bin/rg
+>   fail  repository: not in a Git repository
+>   fail  config: parse …/kirsch/config.toml: toml: line 2: expected '.' or ']' to end table name, but got '\n' instead
+>   doctor: 2 ok, 0 warn, 2 fail
+>   result: 1
+>   ```
+>
+>   The plain run after it printed `kirsch: parse …/kirsch/config.toml: toml: line 2: expected '.' or ']' to end table name, but got '\n' instead`, then `result: 1`. That run left its cleanup line out, so the throwaway folder it made is still there. Your own run will show the same lines, with different folder names.
+> - Step 6: the usage line now reads `  kirsch doctor [flags]`, so the first line the grep prints is `4:  kirsch doctor [flags]`.
+> - `--workspace` given with `doctor` now applies. Section 12 shows it.
+> - **Dated note, 2026-10-29 (m5-d4a):** since m5-d4a, `kirsch doctor` also prints `key`, `backend`, `model` and `context` lines after the config line, and the summary counts them. So the summary lines in the samples above, and the summaries in Steps 2 and 4, are out of date. The check lines and the results in this section are unchanged. Measured on 2026-10-29 from the kirsch folder, with no key set and an empty settings folder, Step 2 now ends `doctor: 7 ok, 1 warn, 0 fail`, and its one warning is the `key` line. Measured outside a repository with no flag, the summary reads `doctor: 5 ok, 2 warn, 1 fail`, and the result is `result: 1`. Your own settings may name a model kirsch does not list, and that adds one warning. The runs are in `.claude/memory/workspace/m20261029-06-step3b-runs.txt` (parts 4 and 6, scratch, archived at the next mission start).
+
 **Anything odd?** Write it here:
 
 _(nothing yet)_
@@ -907,19 +930,265 @@ Not ready yet. This section will be written in the same step-by-step style when 
 
 ## 12 · The doctor command: tools and project checks (m5-d3b)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d3b is finished.
+**What this checks:** the `kirsch doctor` command now checks the two tools kirsch uses (git and rg), the folder kirsch works in, and your settings file. Each check prints one line. A line that says `fail` means kirsch will not start. A line that says `warn` means kirsch starts, but some things are switched off. Nothing here calls a model or uses an API key.
+
+**Before this section:** do *Before you start* in this Terminal window. Setup B must have said `Ready.`.
+
+You start in the kirsch folder. Some steps below make throwaway folders. A tidy-up line at the end of this section removes them, or you can leave them for later.
+
+> **Note, 2026-10-29 (m5-d4a):** Since m5-d4a, `kirsch doctor` prints more lines after the config line: `key`, `backend`, `model` and `context`. The summary line counts them too, so the summaries written in steps 2 to 6 below are out of date and read differently now. The check lines, the `repository` and `config` results, and the exit statuses those steps name are unchanged. Here is what step 2 prints now, from the kirsch folder, with no API key set. Paths differ on your Mac. The `context` size is the size of `AGENTS.md` on 2026-10-29, and it changes when that file changes. The model line names the default model, `minimax-m3`, because this sample was taken with an empty settings folder; your own settings may name another model.
+> ```
+> kirsch 0.1.0-dev
+> ok  git: found at /opt/local/bin/git
+> ok  rg: found at /opt/homebrew/bin/rg
+> ok  repository: /Volumes/DATA/Github/kirsch
+> ok  config: settings valid
+> warn  key: endpoint opencode: no key found (set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY); kirsch starts but cannot send a prompt
+> ok  backend: search_code uses ripgrep
+> ok  model: endpoint opencode, model minimax-m3: context window 128000 tokens
+> ok  context: AGENTS.md, 6687 bytes
+> doctor: 7 ok, 1 warn, 0 fail
+> exit=0
+> ```
+> Run steps 2 to 6 as written. The `key` warning is expected when no key is set. It is a warning, not a failure, and the run still ends `exit=0`. Write what you see under *Anything odd?* if a check line starts `fail` where this section says it should not, or if an exit status differs from the one a step names.
+
+**Step 1 — Build kirsch.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+npm run build
+```
+You should see lines starting with `>`, like these (that is npm saying what it is doing):
+```
+> kirsch@0.1.0-dev build
+> bash scripts/build.sh
+```
+Lines starting `go: downloading` or `npm notice` are also fine. Anything else means something went wrong.
+- [ ] Done, no errors
+
+**Step 2 — Ask for the report from inside the project.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+"$KIRSCH_BIN" doctor; echo "exit=$?"
+```
+You should see the version line, then the check lines for `git`, `rg`, `repository` and `config`, then a summary line, then `exit=0`. The check lines start with `ok`, in this order: `git`, `rg`, `repository`, `config`. The repository line shows your kirsch folder. The summary reads `doctor: 4 ok, 0 warn, 0 fail`, as it did before m5-d4a. Since m5-d4a it reads `doctor: 7 ok, 1 warn, 0 fail` with no key set (measured 2026-10-29, see the note above).
+If rg is not installed on your Mac, its line starts with `warn` instead. The summary then reads `3 ok, 1 warn`, and `exit=0` still. A warning does not make doctor fail.
+> **Dated note, 2026-10-29 (m5-d4a, step 3c):** the `3 ok, 1 warn` above is out of date. With `rg` off PATH, the `rg` line warns and the `backend` line warns too, and the summary counts both. Measured from the kirsch folder with no key set, under a PATH that holds only `git`, the run prints `warn  rg: not found on PATH; search_code uses the pure-Go fallback` and `warn  backend: search_code uses pure-go (rg is not on PATH)`. The summary reads `doctor: 5 ok, 3 warn, 0 fail`, and the run ends `exit=0`. The `key` warning is there because no key is set in that run. A warning still does not make doctor fail. The runs are in `.claude/memory/workspace/m20261029-06-step3c-runs.txt`, parts 7 and 8 (scratch, archived at the next mission start).
+- [ ] I saw the check lines, the summary, and `exit=0`
+
+**Step 3 — A folder outside any project, with `--workspace`.**
+Paste:
+```
+d3=$(mktemp -d)
+cd "$d3"
+git -C "$d3" rev-parse --is-inside-work-tree; echo "exit=$?"
+"$KIRSCH_BIN" doctor --workspace "$d3"; echo "exit=$?"
+cd /Volumes/DATA/Github/kirsch
+```
+You should see `fatal: not a git repository` and `exit=128`. That shows the new folder is not inside a Git project. Then the report: the git and rg lines start with `ok`, and the repository line starts with `warn`. The repository line names your new folder and says it is not a Git repository. It also says kirsch starts, but the Git features are off, such as `/diff` and the branch display. The config line starts with `ok`. The summary reads one warning and no failures, and it ends with `exit=0`. The `--workspace` value tells kirsch which folder to check.
+If rg is not installed on your Mac, the rg line starts with `warn` instead. The summary then reads two warnings and no failures, and `exit=0` still. This step's folder is named `$d3`, and the tidy-up line at the end of this section removes it.
+- [ ] I saw the `warn` line for repository and `exit=0`
+
+**Step 4 — The same kind of folder, with no `--workspace`.**
+Paste:
+```
+d4=$(mktemp -d)
+cd "$d4"
+"$KIRSCH_BIN" doctor; echo "exit=$?"
+cd /Volumes/DATA/Github/kirsch
+```
+You should see the repository line start with `fail` and say `not in a Git repository`. The summary reads one failure, and it ends with `exit=1`. Without `--workspace`, kirsch needs a Git project to start, so this is a failure. Step 3 and step 4 check each other: the folder is the same kind, and the only difference is the `--workspace` value. This step's folder is named `$d4`, and the tidy-up line at the end of this section removes it.
+- [ ] I saw the `fail` line for repository and `exit=1`
+
+**Step 5 — A settings file that does not read.**
+Paste:
+```
+c5=$(mktemp -d)
+mkdir -p "$c5/kirsch"
+printf '[session\n' > "$c5/kirsch/config.toml"
+cd /Volumes/DATA/Github/kirsch
+XDG_CONFIG_HOME="$c5" "$KIRSCH_BIN" doctor; echo "exit=$?"
+XDG_CONFIG_HOME="$c5" "$KIRSCH_BIN" --workspace /Volumes/DATA/Github/kirsch; echo "exit=$?"
+```
+You should see the report. The git, rg and repository lines start with `ok`. The config line starts with `fail  config: parse`, names a `config.toml` file, and includes `toml: line 2`. The summary reads one failure, and it ends with `exit=1`. The report still prints every line, because doctor reports the broken file and carries on.
+Then the second command, which is kirsch itself with the same file, prints a line starting `kirsch: parse` that names the same file. It ends with `exit=1`. Kirsch refuses to start with this file, and doctor told you why. This step's folder is named `$c5`, and the tidy-up line at the end of this section removes it.
+- [ ] Doctor printed a `fail` line for config, and plain kirsch also gave `exit=1`
+
+**Step 6 — A settings file with a key kirsch does not know.**
+Paste:
+```
+c6=$(mktemp -d)
+mkdir -p "$c6/kirsch"
+printf 'bogus_setting = 1\n' > "$c6/kirsch/config.toml"
+cd /Volumes/DATA/Github/kirsch
+XDG_CONFIG_HOME="$c6" "$KIRSCH_BIN" doctor; echo "exit=$?"
+```
+You should see a line starting `warn  config:`. It names the file and says `unknown key "bogus_setting" (ignored)`. The next config line starts with `ok` and says `settings valid`. The summary reads one warning and no failures, and it ends with `exit=0`. The unknown key is ignored, so kirsch still starts. This step's folder is named `$c6`, and the tidy-up line at the end of this section removes it.
+- [ ] I saw the `warn` line for config and `exit=0`
+
+**Step 7 — Run the automatic tests for this piece.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -list '^(TestRunDoctor.*|TestDoctorBinaryExitStatus|TestRun(RGMissing|GitMissing|NonGitWorkspaceVersusNoFlag|NotInRepositoryRunsOtherChecks|WorkspaceMissingDirectory|BrokenGlobalConfig|BrokenProjectConfig|InvalidConfigValues|UnknownConfigKey|ProjectConfigIgnoredKeyWarns|ConfigLoadedRecord|MultiLineConfigErrorStaysOnOneLine|DefaultLookPathUsesPATH|NeverReturnsUnknownStatus)|TestFailed|TestReport.*)$' ./cmd/kirsch ./internal/doctor | grep -c '^Test'
+go test -count=1 -run '^(TestRunDoctor.*|TestDoctorBinaryExitStatus|TestRun(RGMissing|GitMissing|NonGitWorkspaceVersusNoFlag|NotInRepositoryRunsOtherChecks|WorkspaceMissingDirectory|BrokenGlobalConfig|BrokenProjectConfig|InvalidConfigValues|UnknownConfigKey|ProjectConfigIgnoredKeyWarns|ConfigLoadedRecord|MultiLineConfigErrorStaysOnOneLine|DefaultLookPathUsesPATH|NeverReturnsUnknownStatus)|TestFailed|TestReport.*)$' ./cmd/kirsch ./internal/doctor; echo "exit $?"
+```
+You should see two results, in this order.
+
+1. The first command prints one number: how many tests the pattern selects. Expect a number that is not `0`. If it prints `0`, the pattern selected no tests, so the step has not run. Do not tick the box.
+2. The second command runs those tests. Expect one `ok` line for `./cmd/kirsch` and one `ok` line for `./internal/doctor`, with no line starting `FAIL` and no compiler error. The last line reads `exit 0`. If any line starts `FAIL`, if a compiler error appears, or if the last line is not `exit 0`, do not tick the box.
+
+- [ ] The first command printed a number that is not `0`, and the second command ended with `exit 0`.
+
+**Optional — tidy up the test folders from this section.** Each step that made a folder gave it its own name (`$d3`, `$d4`, `$c5` and `$c6`), so no name is reused. When you have finished this section, this line removes them:
+```
+rm -r "$d3" "$d4" "$c5" "$c6"
+```
+The names exist only in the terminal where you pasted the steps. If you closed that terminal, the folders stay in the system temporary area until you remove them.
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
+
+---
 
 ---
 
 ## 13 · Wrapping long lines on screen (m5-d7a)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d7a is finished.
+**What this checks:** long lines of text on the screen wrap onto the next line without losing their indentation or their double spaces, and a reply that is still arriving is cleaned as each piece comes in. It also checks that the reference-screens file has not changed. None of these steps starts kirsch or needs an API key.
+
+**Before this section:** do *Before you start* in this Terminal window.
+
+You start in the kirsch folder. Every step below works from there.
+
+**Step 1 — Run the wrapping tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 ./internal/tui -run 'TestWrap|TestTranscriptKeepsIndentAndSpaceRuns|TestTranscriptWrapsIndentedLines'
+```
+You should see one line starting with `ok` and ending with a time, like:
+```
+ok  	github.com/djm56/kirsch/internal/tui	0.3s
+```
+(The time will differ. Lines starting `go: downloading` are also fine; Go prints them the first time it fetches something. There must be no line starting with `FAIL`.)
+- [ ] I saw `ok` and no `FAIL`
+
+**Step 2 — Run the tests for reply text that arrives in pieces.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 ./internal/tui -run 'Streamed|AppendText|AppendThinking|StreamEndReleasesRaw|ThinkingBodyLines'
+```
+You should see one line starting with `ok` and ending with a time, like:
+```
+ok  	github.com/djm56/kirsch/internal/tui	0.3s
+```
+(The time will differ. Lines starting `go: downloading` are also fine. There must be no line starting with `FAIL`.)
+- [ ] I saw `ok` and no `FAIL`
+
+**Step 3 — Check that the reference-screens file has not changed, and that the screen tests and the screen check pass.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git diff --stat 686d3c4 -- plan/spec/kirsch-ui-screens.md
+git diff --stat 686d3c4 -- internal/tui/view.go
+npm run screens
+go test -count=1 ./internal/tui
+```
+You should see:
+- The first command prints nothing at all. That means the reference-screens file has no changes since commit `686d3c4`, the pre-mission baseline commit.
+- The second command prints one line that names `internal/tui/view.go`, then a summary line. This line is a control: it shows the same command does report a changed file. It compares with `686d3c4` too, so it stays the same after your commits.
+- The third command prints two lines that start with `>` (that is npm saying what it is running), then `kirsch-ui-screens.md: grids OK, content OK`. Lines starting `npm notice` are also fine. Anything else means something went wrong.
+- The fourth command prints `ok` and the package path with a time. It is the check that proves the screens still match, because it runs the whole `internal/tui` package, golden tests included. Lines starting `go: downloading` are also fine. There must be no line starting with `FAIL`.
+
+If the first command prints anything, do not tick; write what you saw under *Anything odd?* and tell Bishop, because a later piece may have changed the reference-screens file.
+
+- [ ] I saw nothing from the first command, `grids OK, content OK` from the third, `ok` with no `FAIL` from the fourth, and the second command printed a line naming `view.go`
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 
 ## 14 · Paste delay (m5-d8)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d8 is finished.
+**What this checks:** the paste delay setting has been removed from the code and from the spec, because pasting already arrives as one piece when your Terminal sends it that way. You will check that the old setting is gone, that the new automatic paste tests exist and pass, and you will read the limits that apply to some Terminals. No kirsch session starts, no model is called and no API key is used.
+
+**Before this section:** do *Before you start* in this Terminal window.
+
+You start in the kirsch folder. Every step here runs from there. The first test run can take a minute, and lines starting `go: downloading` are fine.
+
+**Step 1 — Check the old setting is gone from the code.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -rn PasteDebounce internal/; echo "exit $?"
+```
+You should see only one line: `exit 1`. There must be nothing above it. (`1` means the search found nothing, which is what we want.)
+- [ ] Nothing above `exit 1`
+
+**Step 2 — Check the spec no longer names the old setting.**
+Paste:
+```
+grep -n 'Paste debounce' plan/spec/ui-spec-v0.1.md; echo "exit $?"
+```
+You should see only one line: `exit 1`. There must be nothing above it.
+- [ ] Nothing above `exit 1`
+
+**Step 3 — Check the committed copies from before the change still have the old setting.**
+This proves the checks above can fail. The copies are old on purpose. They come from commit `686d3c4`, the last commit before the change, so they do not move.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch && git show 686d3c4:internal/tui/styles.go | grep -n PasteDebounce; echo "exit $?"
+cd /Volumes/DATA/Github/kirsch && git show 686d3c4:plan/spec/ui-spec-v0.1.md | grep -n 'Paste debounce'; echo "exit $?"
+```
+You should see this, in order:
+```
+22:	PasteDebounce   = 20 * time.Millisecond  // one update per paste
+exit 0
+565:- **Paste debounce** (§11) so a large paste is one update, not thousands.
+758:| Paste debounce | 20ms | One update per paste |
+exit 0
+```
+Do not tick the box below if the lines on screen differ from these. A different line means the command or the commit is wrong, and the check has not been run.
+- [ ] The first command prints the line starting `22:` then `exit 0`, and the second prints the lines starting `565:` and `758:` then `exit 0`
+
+**Step 4 — List and count the new paste tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -list '^TestUnbracketed' ./internal/tui | grep '^TestUnbracketed'
+go test -list '^TestUnbracketed' ./internal/tui | grep -c '^TestUnbracketed'; echo "exit $?"
+```
+You should see two test names, then a number on its own line, then `exit 0`. The two names must be exactly `TestUnbracketed5KBPasteLandsWholeThroughKeyMessages` and `TestUnbracketedMultiLinePasteCurrentBehaviour`. The number after them must not be `0`. If no names appear, or the number is `0`, the tests were not found, and the step has not passed. Step 5 runs the tests these names come from.
+- [ ] The two names on screen are the two listed above, and the number after them is not `0`
+
+**Step 5 — Run the paste tests.**
+Paste:
+```
+go test -count=1 -run '^TestUnbracketed' ./internal/tui; echo "exit $?"
+```
+It runs the tests named in Step 4, and every one of them must pass.
+You should see a line starting `ok` and, as the very last line, `exit 0`. A line with `FAIL` in it means something is wrong.
+- [ ] The last line says `exit 0`, and no line says `FAIL`
+
+**Step 6 — Read the limits that apply to some Terminals.** Nothing to paste in this step. Do not start kirsch.
+
+Normally your Terminal sends a paste to kirsch as one block, and long text lands whole. Some Terminals do not do that. Then kirsch reads the paste as if you had typed each key, and these things can go wrong:
+
+1. **Text with line breaks.** Only the first line reaches kirsch, and kirsch sends it as your message. The rest of the paste is dropped while kirsch is busy. This is a known problem and is not fixed. The crew has written it down. Whether it is acceptable for version 0.1, or needs a fix, is your decision. It is open in `plan/PROGRESS.md`, under *Open from m5-d8*. The crew checked this with a test that feeds Enter key messages to kirsch's code, without a real terminal. The test does not run the library's reader; that a line break arrives as Enter is read from the library's source.
+2. **Tabs.** A tab in your text arrives as the Tab key. What you would see: if the typing line holds a slash command name that matches exactly one command, Tab finishes the name. If the name matches several commands, or none, Tab does nothing and the rest of the paste is typed in as normal. Otherwise Tab moves the focus up to the transcript (the messages and cards above the typing line), and the line at the bottom of the screen changes. After that, the rest of the paste does not appear in the typing line. Its letters act on the transcript: `d` opens a detail view, `g` and `G` move the view, and `?` opens help. A second Tab in the same paste moves focus back to the typing line, and the text after it is typed in again, so one paste can end up split between the two. The crew read the Tab key's arrival from Bubble Tea's source and what kirsch does with it from kirsch's code. Neither was run. It is recorded in `plan/PROGRESS.md`, under *Open from m5-d8*.
+3. **A rare accented or non-English letter** can be lost if the paste is cut at a terminal read boundary. The cause is in the library kirsch uses to read the keyboard, so kirsch cannot fix it alone. The crew read this from the library's source and did not test it.
+
+- [ ] I have read the limits above
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 
@@ -980,15 +1249,193 @@ Not ready yet. This section will be written in the same step-by-step style when 
 
 ---
 
-## 20 · The doctor command: key, backend and model lines (m5-d4a)
+## 20 · The doctor command: key, backend, model and project notes lines (m5-d4a)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d4a is finished.
+**What this checks:** `kirsch doctor` now also tells you which API key it found, by name only, whether it can use `rg` (the fast search tool), which model your settings name, and which project notes file kirsch will read. It never shows your key, and it never sends a message to a model. No API key is used: the one key check in this section sets a dummy value for a single command, and nothing is kept.
+
+**Before this section:** do *Before you start* in this Terminal window. Setup B must have said `Ready.`.
+
+You start in the kirsch folder. The steps below run doctor from there, because the project notes line reads `AGENTS.md` from the kirsch folder.
+
+**Step 1 — Build kirsch.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+npm run build
+```
+You should see lines starting with `>`, like these (that is npm saying what it is doing):
+```
+> kirsch@0.1.0-dev build
+> bash scripts/build.sh
+```
+Lines starting `go: downloading` or `npm notice` are also fine. Anything else means something went wrong.
+- [ ] Done, no errors
+
+**Step 2 — No key is set.** Setup B cleared the key variables, so this run has no key.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+"$KIRSCH_BIN" doctor; echo "exit=$?"
+```
+You should see the version line, then the check lines. Three of them matter here:
+- A line starting `warn  key:` that ends with `kirsch starts but cannot send a prompt`. It names both `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY`. That is correct: no key is set, so kirsch starts, but it cannot send a message yet.
+- A line starting `ok  model:` with the default model, `minimax-m3`, and its context window in tokens.
+- A line starting `ok  context: AGENTS.md,` followed by a size in bytes. The size is the file's size today, so it may differ from the example you see.
+
+With `rg` installed, the summary line reports warnings and no failure: no line starts `fail`, and the run ends `exit=0`. The `key` line is the warning, because no key is set. A warning does not stop doctor. If `rg` is not installed on your Mac, the `rg` line and the `backend` line both start with `warn` (the `backend` line says `pure-go`), and the run still ends `exit=0`.
+- [ ] I saw the `warn  key:` line naming both variables, the `ok  model:` line, the `ok  context: AGENTS.md` line, and `exit=0`
+
+**Step 3 — Your own settings.** This run does not use the test settings folder, so it reads the settings you normally use.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+env -u XDG_CONFIG_HOME "$KIRSCH_BIN" doctor; echo "exit=$?"
+```
+You should see one `model:` line for the model your own settings name. If kirsch knows that model, the line starts with `ok`. If it does not, the line starts with `warn  model:` and says `not in the table; conservative fallback`. That is a warning, not a failure: kirsch then uses a conservative context size for a model it does not know. On the run Bishop made, the settings named `claude-haiku-5-5`, which kirsch does not list, so this line warned. If yours names the same model, expect the same warning.
+The run ends `exit=0`.
+- [ ] I saw the `model:` line for my own model, and `exit=0`
+
+**Step 4 — A dummy key, for one command at a time.** This step uses a dummy value, not your key. Each line below sets the dummy for that one command only, so nothing stays set in this Terminal window. Do not type your own key here, and do not paste one into this file or into a chat.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+KIRSCH_OPENCODE_API_KEY=dummy-not-a-key "$KIRSCH_BIN" doctor | grep "key:"
+KIRSCH_OPENCODE_API_KEY=dummy-not-a-key "$KIRSCH_BIN" doctor | grep -c dummy-not-a-key
+KIRSCH_OPENCODE_API_KEY=dummy-not-a-key "$KIRSCH_BIN" doctor | grep -c KIRSCH_OPENCODE_API_KEY
+```
+You should see three results, in this order.
+1. One line starting `ok  key:`. It ends with `key found in KIRSCH_OPENCODE_API_KEY`. The variable's name is on that line, and the dummy value is not.
+2. `0`. The dummy value does not appear anywhere in doctor's output.
+3. `1`. This proves the search works: the check finds the variable's name once, so the `0` above means the search ran and found nothing to leak.
+
+If the second result is not `0`, the value appears in doctor's output. Do not tick the box; tell Bishop the section and step.
+- [ ] The key line ends with `KIRSCH_OPENCODE_API_KEY`, the second result is `0`, and the third is `1`
+
+**Step 5 — Confirm no key is set.** This command unsets the key variables and then counts any that are still set. The check must pass before any later section.
+Paste:
+```
+unset ANTHROPIC_API_KEY KIRSCH_ANTHROPIC_API_KEY OPENCODE_API_KEY KIRSCH_OPENCODE_API_KEY
+keycount_control
+keycount
+```
+You should see `CONTROL PASS: a planted key line counts as 1`, then `0`. The `CONTROL PASS` line shows that the counter works, and the `0` shows that no key variable is still set.
+- [ ] I saw `CONTROL PASS` and `0`
+
+**Step 6 — Run the automatic tests for this piece.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+PAT='^(TestKeyLineNamesWinner|TestKeyLineNilGetenvIsEmptyEnvironment|TestKeyValueNeverPrinted|TestKeyLineWithholdsNonNameAPIKeyEnv|TestModelLine|TestContextLine|TestBackendLineUnderPathShim|TestResolvedLinesSkippedWhenConfigDidNotLoad|TestContextLineSkippedWithoutWorkspace|TestResolvedLinesNeverFail|TestRunDoctorKeyLine|TestRunDoctorModelLine|TestRunDoctorContextLine|TestRunDoctorBackendLine|TestRunDoctorSkippedLinesWhenConfigDidNotLoad|TestIsolatedEnvClearsKeyVariables|TestAllowedIsExact|TestImportRules)$'
+printf '%s\n' "$PAT" | grep -o 'Test[A-Za-z0-9_]*' | wc -l
+go test -list "$PAT" ./internal/doctor ./cmd/kirsch ./internal/arch | grep -c '^Test'
+go test -count=1 -run "$PAT" ./internal/doctor ./cmd/kirsch ./internal/arch; echo "exit $?"
+```
+You should see the following, in this order.
+
+1. The first two commands each print one number. The first is how many test names the pattern carries. The second is how many tests `go test -list` selects from it. The two numbers must be equal. This manual does not write the number down, so no number is expected in advance. If they differ, the pattern selects a different set of tests from the names it carries, so do not tick the box. A `0` means it selected no tests at all, so the step has not run.
+2. The third command runs those tests. Expect one `ok` line for each of `./internal/doctor`, `./cmd/kirsch` and `./internal/arch`, no line starting `FAIL`, and the last line reads `exit 0`. If any line starts `FAIL`, if a compiler error appears, or if the last line is not `exit 0`, do not tick the box.
+
+- [ ] The first two commands printed the same number, and the third command ended with `exit 0`.
+
+**Step 7 — A pattern that selects nothing (on screen, nothing to save).** This shows why the count in step 6 comes first. Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 -run '^NoSuchTestXYZ$' ./internal/doctor; echo "exit $?"
+```
+You should see one line starting `ok` that ends `[no tests to run]`, and then `exit 0`. The test command ends `exit 0` even though it ran no test, because Go counts "no tests to run" as a success. The count in step 6 is what catches that.
+- [ ] I saw `[no tests to run]` on the `ok` line and `exit 0` at the end
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
+
+---
 
 ---
 
 ## 21 · Marker for cut text in the typing area (m5-d7b)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d7b is finished.
+**What this checks:** a line you type in kirsch's typing area that is too long for the window ends in `⋯` where it is cut, so you can see that it was cut. A line that fits is not marked.
+
+**Before this section:** do *Before you start* in this Terminal window. Setup B must have said `Ready.`.
+
+You start in the kirsch folder. The steps before the last one run tests and checks from there. The last step starts kirsch, and it needs no model and sends nothing.
+
+**Step 1 — Build kirsch.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+npm run build; echo "exit $?"
+```
+You should see a line starting with `>` (that is npm saying what it is running). Lines starting `go: downloading` or `npm notice` are also fine. The last line must be `exit 0`. If it is `exit` followed by any other number, the build failed: do not tick, write what you saw under *Anything odd?* at the end of the section, and tell Bishop. Anything else means something went wrong.
+- [ ] Done, no errors
+
+**Step 2 — Check that the marker tests exist.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -list 'TestComposerCut|TestComposerFit|TestComposerBusyFirst|TestComposerCaretOver' ./internal/tui | grep '^Test'
+```
+You should see test names, one per line, each starting with `Test`, for example `TestComposerCutRowsEndInMarkerAt40`. An empty list means the names have changed, and you should tell Bishop.
+
+Then paste the same command with a count at the end:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -list 'TestComposerCut|TestComposerFit|TestComposerBusyFirst|TestComposerCaretOver' ./internal/tui | grep -c '^Test'
+```
+You should see a number that is not 0. (`grep -c` finishes with a non-zero code when the number is 0, so read the number, not the code.)
+- [ ] I saw test names, and the number was not 0
+
+**Step 3 — Run the marker tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 -run 'TestComposerCut|TestComposerFit|TestComposerBusyFirst|TestComposerCaretOver' ./internal/tui; echo "exit $?"
+```
+You should see a line starting with `ok` and ending with a time, then:
+```
+exit 0
+```
+If you see `FAIL` and `exit 1`, do not tick. Write what you saw under *Anything odd?* at the end of the section.
+If you see `[no tests to run]` anywhere in the output, do not tick, even with `exit 0`. That wording means the name filter matched no test, so no marker test ran. Write what you saw under *Anything odd?* and tell Bishop.
+- [ ] I saw `ok` and `exit 0`
+
+**Step 4 — Check the reference screens against the committed copy from before this work.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git diff --stat 686d3c4 -- plan/spec/kirsch-ui-screens.md
+git diff --stat 686d3c4 -- internal/tui/composer.go
+npm run screens; echo "result: $?"
+```
+You should see nothing from the first command. The second command is a control: it should print two lines. The first names `internal/tui/composer.go` with its count of changed lines, because that file did change after commit `686d3c4`. The second is git's summary line. If it prints nothing, the comparison is not working, and do not tick; tell Bishop. The third command prints `kirsch-ui-screens.md: grids OK, content OK`, then `result: 0`.
+Nothing printed by the first command means the saved screens are the same as commit `686d3c4`. Any line printed means they changed, so do not tick, and tell Bishop. If the third command prints anything other than `grids OK, content OK`, or ends with a result other than `0`, do not tick, either.
+- [ ] Nothing printed by git, and I saw `grids OK, content OK` and `result: 0`
+
+**Step 5 — Start kirsch and type a long line. Do not press Enter.** *The crew could not run this step; it needs your real Terminal.*
+Make the Terminal window 40 columns wide. Then paste:
+```
+stty size
+```
+You should see two numbers, rows then columns (for example `24 40`). The second number must be from 40 to 47 for this step. Below 40 columns kirsch shows `terminal too narrow` instead of its screen; if that happens, widen the window to 40 and run `stty size` again. If the second number is 48 or more, narrow the window to 40 and run `stty size` again.
+
+Then paste:
+```
+"$KIRSCH_BIN" --workspace "$WORKSPACE"
+```
+You should see kirsch's screen, with the typing area near the bottom. At this width the empty typing area is not blank. It shows the dim placeholder, cut to the window: `> Ask anything (Enter to send, /help ⋯`, with `⋯` as its last character. Check that before you type. In a window 48 or more columns wide the placeholder shows whole instead, as `> Ask anything (Enter to send, /help for help)`; this step does not use that width, but the typed-line check below still applies to it. Nothing calls a model unless you press Enter on a message, and you will not press Enter in this section.
+Type one line of letters that is longer than the window, for example a run of `a` about twice as long as the window is wide. Do not press Enter.
+You should see the line stop at the right edge of the typing area, with `⋯` as its last character. The `⋯` sits one column in from the window's right edge, not on it.
+Press Esc once. The typing area should empty and show the same dim `> Ask anything (Enter to send, /help ⋯` line again, with the `>` at the left.
+Only when the typing area shows the dim `Ask anything` line again, type `/quit` and press Enter. You should see your Terminal prompt again.
+Known limit: when a line is cut, the cursor after the cut is not on screen. kirsch does not scroll sideways in v0.1, so this is expected and is not a defect in this section.
+- [ ] The long line ends in `⋯` at the right edge of the typing area
+- [ ] Esc emptied the typing area
+- [ ] `/quit` closed kirsch, and I am back at my Terminal prompt
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 

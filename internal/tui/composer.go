@@ -121,6 +121,19 @@ func (c *Composer) contentLines() int {
 //
 // A placeholder that persists behind a pending approval reads as an invitation
 // to type into a composer that is deliberately not accepting input.
+//
+// Post-condition: a returned row whose text is wider than lay.ContentW is cut to
+// at most ContentW cells and ends in the truncation glyph (g.Trunc, in the
+// warning style). The cut is exactly ContentW cells unless a wide rune cannot
+// land on the limit, in which case it is one cell short. That covers the
+// prompt row, continuation rows, the placeholder, the busy first row and the
+// hint row. A row whose text fits is returned unchanged and unmarked, with one
+// exception: when the caret sits at end-of-input on text exactly filling
+// ContentW, the row is ContentW+1 cells wide because of the caret's own cell.
+// It is not marked; the frame's hard edge (exactly, in View) drops that one
+// cell, which is the caret's, so no typed character is hidden. A caret drawn
+// mid-text never gets that allowance: over a zero-width cluster it still
+// takes a cell of its own, so a row that grows past ContentW is cut and marked.
 func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 	h := lay.ComposerH
 	out := make([]string, 0, h)
@@ -132,7 +145,8 @@ func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 
 	value := c.ta.Value()
 	var lines []string
-	caretRow := -1 // logical line the caret is on; -1 when there is no caret
+	caretRow := -1  // logical line the caret is on; -1 when there is no caret
+	caretExtra := 0 // cells the caret adds past its line's text: end-of-input only; see overstrike
 	switch {
 	case value == "" && c.Onboarding:
 		lines = []string{sty.Dim(Placeholder)}
@@ -185,9 +199,14 @@ func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 			// the glyph.
 			at := clamp(col, 0, utf8.RuneCountInString(l))
 			head, cluster, tail := splitAtCursor(l, at)
-			lines[i] = styled(sty.Text, head) +
-				sty.Dim(overstrike(caretFor(g, cluster), cluster)) +
-				styled(sty.Text, tail)
+			cell := overstrike(caretFor(g, cluster), cluster)
+			if cluster == "" {
+				// End of input only: the caret's cell is the last one in the
+				// row. Mid-text the caret cell sits inside the row, so it is
+				// never the cell the hard edge may drop.
+				caretExtra = cellWidth(cell)
+			}
+			lines[i] = styled(sty.Text, head) + sty.Dim(cell) + styled(sty.Text, tail)
 		}
 	}
 
@@ -223,7 +242,15 @@ func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 	// line 0 is in the window. A `>` over a scrolled-in line would read as part
 	// of that line's text, so those rows take the same two-space indent as any
 	// continuation row.
+	//
+	// caretOut is the index in out of the row the caret was drawn into, or -1.
+	// While busy line 0 is drawn from the plain value and carries no caret, so
+	// that row is never caretOut.
+	caretOut := -1
 	for i := start; i < len(lines) && len(out) < h; i++ {
+		if i == caretRow && (!busy || i != 0) {
+			caretOut = len(out)
+		}
 		if i == 0 {
 			out = append(out, first)
 			continue
@@ -238,7 +265,32 @@ func (c *Composer) rows(lay Layout, sty *Styles, g Glyphs, busy bool) []string {
 	for len(out) < h {
 		out = append(out, "")
 	}
-	return out[:h]
+	out = out[:h]
+	// The composer does not wrap, so any row whose text is wider than the content
+	// width is cut here, with the truncation marker, before View's exactly
+	// applies its marker-less hard edge. Rows that fit are returned untouched by
+	// truncEnd. The marker takes the warning style (ui-spec §10 palette); a caret
+	// or text beyond the cut is dropped with the rest of the row.
+	//
+	// The fit test measures the text and not the caret's own cell, but only for
+	// the caret at end-of-input (caretExtra is 0 everywhere else). There the
+	// caret is an extra cell past the last character, so a row whose text exactly
+	// fills ContentW is ContentW+1 cells wide with it. That row is not cut and not
+	// marked: it is left for exactly, whose hard edge drops only the caret cell,
+	// so every typed character stays visible. A caret mid-text, over a zero-width
+	// cluster included, is inside the row and gets no such allowance.
+	marker := sty.Warning(g.Trunc)
+	for i := range out {
+		extra := 0
+		if i == caretOut {
+			extra = caretExtra
+		}
+		if cellWidth(out[i])-extra <= lay.ContentW {
+			continue
+		}
+		out[i] = truncEnd(out[i], lay.ContentW, marker)
+	}
+	return out
 }
 
 // splitAtCursor cuts line into the text before the cursor's grapheme cluster,

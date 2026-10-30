@@ -40,8 +40,12 @@ var forbidden = map[string][]string{
 		"internal/workspace",
 		"internal/agent",
 	},
-	// Doctor only reports. Its later probes may use config, workspace, session,
-	// tool and provider, but never the UI or the agent loop.
+	// Doctor only reports. The rule forbids the UI, the app and the agent loop,
+	// and leaves session, tool and provider open for its probes. Because the
+	// match is by prefix, "internal/agent" also covers internal/agent/prompt;
+	// doctor's one exception, listed in allowed below, is internal/agent/prompt
+	// itself (the project-context loader). internal/agent and every other
+	// package under it stay forbidden.
 	"internal/doctor": {
 		"internal/tui",
 		"internal/app",
@@ -54,6 +58,23 @@ var forbidden = map[string][]string{
 		"internal/policy",
 		"internal/workspace",
 	},
+}
+
+// allowed lists, per guarded package, imports that a prefix in forbidden would
+// otherwise ban. Each entry is matched exactly: allowing internal/agent/prompt
+// does not allow internal/agent or any other package under it.
+var allowed = map[string][]string{
+	"internal/doctor": {"internal/agent/prompt"},
+}
+
+// isAllowed reports whether pkg may import dep despite a forbidden prefix.
+func isAllowed(pkg, dep string) bool {
+	for _, a := range allowed[pkg] {
+		if dep == a {
+			return true
+		}
+	}
+	return false
 }
 
 // TestImportRules fails if any forbidden edge exists.
@@ -85,6 +106,9 @@ func TestImportRules(t *testing.T) {
 			if dep == imp {
 				continue // not one of ours
 			}
+			if isAllowed(pkg, dep) {
+				continue
+			}
 			for _, b := range banned {
 				if dep == b || strings.HasPrefix(dep, b+"/") {
 					t.Errorf("illegal import: %s must not import %s\n\n"+
@@ -100,6 +124,29 @@ func TestImportRules(t *testing.T) {
 		t.Fatal("no guarded package was inspected; the go list invocation is probably wrong")
 	}
 	t.Logf("checked %d guarded package(s) of %d rules", checked, len(forbidden))
+}
+
+// TestAllowedIsExact pins the one exception to the doctor rule: doctor may
+// import internal/agent/prompt and nothing else under internal/agent, and no
+// other guarded package gains the exception. Called directly, because the
+// subpackages that must stay forbidden do not exist to import.
+func TestAllowedIsExact(t *testing.T) {
+	for _, tc := range []struct {
+		pkg, dep string
+		want     bool
+	}{
+		{"internal/doctor", "internal/agent/prompt", true},
+		{"internal/doctor", "internal/agent", false},
+		{"internal/doctor", "internal/agent/prompt/sub", false},
+		{"internal/doctor", "internal/agent/other", false},
+		{"internal/doctor", "internal/agent/promptx", false},
+		{"internal/tui", "internal/agent/prompt", false},
+		{"internal/session", "internal/agent/prompt", false},
+	} {
+		if got := isAllowed(tc.pkg, tc.dep); got != tc.want {
+			t.Errorf("isAllowed(%q, %q) = %v, want %v", tc.pkg, tc.dep, got, tc.want)
+		}
+	}
 }
 
 // TestGuardedPackagesAreReal keeps the rule table honest: a typo in a package

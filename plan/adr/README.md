@@ -58,6 +58,7 @@ Make this distinction crisp: an ADR records a decision about *how the system is 
 | 0006 | [Session-scoped approval grants](0006-session-scoped-approvals.md) |
 | 0007 | [Tool output is untrusted input](0007-untrusted-tool-output.md) |
 | 0008 | [One Messages-format adapter, two configured endpoints](0008-provider-endpoints.md) |
+| 0009 | [Planning layout from Milestone 6](0009-planning-layout-from-m6.md) |
 
 ## Status Update
 

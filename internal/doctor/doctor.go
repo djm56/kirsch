@@ -2,13 +2,18 @@
 //
 // Doctor only checks and never changes anything: it creates no folders, takes
 // no lock and makes no network calls. This package holds the report grammar and
-// the pass/fail rule. A probe is any code that returns []Result; the caller
-// gathers the results from its probes and hands them to Report.
+// the pass/fail rule (doctor.go) and the probes (probes.go): git, rg, the
+// repository and the config file, then the lines that read the resolved
+// configuration: the API key, the model and the project-context file, which the
+// loaded config feeds, and the search_code backend, which takes no config. The
+// caller hands Run its environment values, then passes the results to Report and
+// Failed.
 package doctor
 
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
 // Status is the outcome of one check.
@@ -47,21 +52,39 @@ type Result struct {
 	Detail string
 }
 
-// Failed reports whether any result has StatusFail. Warnings do not count.
+// Failed reports whether any result is not OK and not Warn. Warnings do not
+// count. A Status outside the three known values counts as a failure: a result
+// whose meaning is unknown must not let the run pass.
 func Failed(results []Result) bool {
 	for _, r := range results {
-		if r.Status == StatusFail {
+		if r.Status != StatusOK && r.Status != StatusWarn {
 			return true
 		}
 	}
 	return false
 }
 
+// oneLine collapses s onto a single line. Every line break (LF, CR or CRLF)
+// becomes "; ", and the pieces are trimmed with empty ones dropped, so a
+// multi-line error cannot split a report line in two.
+func oneLine(s string) string {
+	parts := strings.FieldsFunc(s, func(r rune) bool { return r == '\n' || r == '\r' })
+	kept := parts[:0]
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			kept = append(kept, p)
+		}
+	}
+	return strings.Join(kept, "; ")
+}
+
 // Report writes the doctor report to w and returns the first write error.
 //
 // The first line is "kirsch <version>". Each result then gets one line,
-// "<status>  <name>: <detail>", with two spaces after the status word. The last
-// line is "doctor: <n> ok, <n> warn, <n> fail".
+// "<status>  <name>: <detail>", with two spaces after the status word. A name or
+// detail that spans several lines is joined onto one with "; " (see oneLine).
+// The last line is "doctor: <n> ok, <n> warn, <n> fail"; a result with an
+// unknown status is counted under fail, matching Failed.
 func Report(w io.Writer, version string, results []Result) error {
 	if _, err := fmt.Fprintf(w, "kirsch %s\n", version); err != nil {
 		return err
@@ -73,10 +96,10 @@ func Report(w io.Writer, version string, results []Result) error {
 			ok++
 		case StatusWarn:
 			warn++
-		case StatusFail:
+		default:
 			fail++
 		}
-		if _, err := fmt.Fprintf(w, "%s  %s: %s\n", r.Status, r.Name, r.Detail); err != nil {
+		if _, err := fmt.Fprintf(w, "%s  %s: %s\n", r.Status, oneLine(r.Name), oneLine(r.Detail)); err != nil {
 			return err
 		}
 	}

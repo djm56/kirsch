@@ -42,7 +42,7 @@ internal/workspace          root detection, containment, denylist, ignore, detec
 internal/session            JSONL event store: append, load, resume, repair
 internal/config             global + project config, env-only secrets
 internal/telemetry          structured debug log; token/cost tracking (M4)
-internal/doctor             kirsch doctor: report format and exit status (probes come later in Milestone 5)
+internal/doctor             kirsch doctor: report format and exit status; git, rg, repository and config probes; key, backend, model and project-context lines
 plan/                       build instructions (this file, spec, ADRs, UI spec)
 doc/                        end-user documentation (Milestone 5)
 testdata/                   fixture repositories (Milestone 1)
@@ -90,6 +90,8 @@ Rules 1 and 2 are **enforced by a test**, not by review — see
 [milestone-1.md](../milestones/milestone-1.md) Task 10. The test exists before the packages it
 guards, because the day `internal/provider` first appears is precisely the day
 nobody is thinking about import rules.
+
+**The `internal/doctor` exception.** `internal/doctor` may not import `internal/agent` or any package under it, with one exception: `internal/agent/prompt`, which it imports to load the project-context file with the same inputs the app gives it. `internal/arch/imports_test.go` names that exception in its `allowed` list, and `TestAllowedIsExact` pins it, so no other package gains it and no other `internal/agent` package is opened. Doctor only reads. O5 (*Milestone 5 — decisions recorded* in `plan/PROGRESS.md`) rules out creating a folder, taking a lock and any network call; `TestRunDoctorChangesNothing` in `cmd/kirsch/main_test.go` checks that the run changes no file.
 
 ### Why `internal/app` exists
 

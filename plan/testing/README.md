@@ -77,6 +77,16 @@ Assign one developer to run security and fuzz on every PR that could affect path
 
 A deliverable's "done when" statement is checked by its owner at handover — that is individual verification. The milestone's final acceptance checklist (Task 9 in each instruction set) is run **once**, at the end of the milestone, by whoever closes the milestone. It is not checked per deliverable.
 
+## From Milestone 6 — Living Checklists and Results
+
+From Milestone 6 (ADR 0009, 2026-10-29), manual testing works in these parts:
+
+- **One living checklist per feature area.** It holds no ticks. It replaces the per-milestone master and operator copy.
+- **One dated results file per test run.** Before a run, the crew copies the checklist sections for that run into a new results file, with every box unticked. The results file keeps the operator's evidence apart from the checklist.
+- **Only the operator ticks.** No agent ticks a box in a checklist or a results file.
+
+The exact file names are settled when Milestone 6 is planned. The walkthrough convention below is the record for Milestones 0 to 5. The full layout is in [`../adr/0009-planning-layout-from-m6.md`](../adr/0009-planning-layout-from-m6.md).
+
 ## The Walkthrough Convention — How We Keep Records
 
 The master walkthrough (`manual/milestone-N.md`) is always blank — it is the template. Completed runs are saved with the developer's name.

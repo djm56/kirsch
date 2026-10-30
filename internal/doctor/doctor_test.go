@@ -22,6 +22,9 @@ func TestFailed(t *testing.T) {
 		{"warn present", []Result{ok, warn, ok}, false},
 		{"fail present", []Result{ok, fail, warn}, true},
 		{"fail first", []Result{fail, ok}, true},
+		// An unknown status must not fail open (DIR-002).
+		{"unknown status alone", []Result{{Status(9), "d", "?"}}, true},
+		{"unknown status among ok", []Result{ok, {Status(-1), "d", "?"}, warn}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -95,5 +98,51 @@ func TestStatusString(t *testing.T) {
 		if got := s.String(); got != want {
 			t.Errorf("Status(%d) = %q, want %q", int(s), got, want)
 		}
+	}
+}
+
+// TestReportCountsUnknownStatusAsFail: a result with an out-of-range status is
+// printed with the word "unknown" and counted under fail, so the summary agrees
+// with Failed. The control is the known statuses, counted as before.
+func TestReportCountsUnknownStatusAsFail(t *testing.T) {
+	results := []Result{
+		{StatusOK, "a", "fine"},
+		{StatusWarn, "b", "meh"},
+		{Status(9), "c", "odd"},
+	}
+	var buf bytes.Buffer
+	if err := Report(&buf, "v", results); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"unknown  c: odd\n", "doctor: 1 ok, 1 warn, 1 fail\n"} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("report lacks %q:\n%s", want, buf.String())
+		}
+	}
+	if !Failed(results) {
+		t.Error("Failed = false with an unknown status")
+	}
+}
+
+// TestReportKeepsEachResultOnOneLine feeds details (and a name) that span lines
+// in every break style and checks the report keeps the grammar: one line per
+// result, pieces joined with "; ", empty pieces dropped.
+func TestReportKeepsEachResultOnOneLine(t *testing.T) {
+	var buf bytes.Buffer
+	err := Report(&buf, "v", []Result{
+		{StatusFail, "config", "first\n\nsecond\r\nthird\rfourth\n"},
+		{StatusWarn, "na\nme", "x"},
+		{StatusOK, "plain", "unchanged detail"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "kirsch v\n" +
+		"fail  config: first; second; third; fourth\n" +
+		"warn  na; me: x\n" +
+		"ok  plain: unchanged detail\n" +
+		"doctor: 1 ok, 1 warn, 1 fail\n"
+	if buf.String() != want {
+		t.Errorf("report =\n%q\nwant\n%q", buf.String(), want)
 	}
 }

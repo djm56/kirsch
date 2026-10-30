@@ -76,7 +76,7 @@ A deliverable named in a *Blocks* cell cannot start until its decision is record
 | O14 | Fresh-machine acceptance: does "no key gives onboarding" include "not in a repo" (stderr text when this was written, 2026-10-23), and where it lives, given `smoke-test.sh` requires a key. | — | — | m5-d16 | `plan/spec/kirsch-plan.md:488`; `plan/spec/ui-spec-v0.1.md:597`; `scripts/smoke-test.sh:16–22` |
 | O15 | Operator-only carried decisions: C24 (clip the 400 debug log at a byte bound the operator records with the choice, or disclose), C34 (stdin box wording), C40 (ULID dependency), C43 (§7 flattening), C46 (`session.started`/`session.resumed`), C29 (the 500 ms box: tighten or relax). | — | — | m5-d19b (C29); m5-d20 (record) | `plan/PROGRESS.md:138, :148, :153, :170, :186, :194` |
 | O16 | The help footer's `docs: doc/usage.md` for installed binaries (X8). | — | — | m5-d20 (decision); m5-d21b (follow-through) | `internal/tui/modal.go:308` |
-| O17 | Composer rows cut at the frame edge: show a marker, or end the row in `⋯`. | Marker `⋯` at the cut; or wrap the row and show no marker. | — | m5-d7b | `plan/spec/ui-spec-v0.1.md:565–571`; `internal/tui/view.go:602–613` |
+| O17 | Composer rows cut at the frame edge: show a marker, or end the row in `⋯`. | Marker `⋯` at the cut; or wrap the row and show no marker. | Marker `⋯` at the cut (the spec's first option). Accepted by the operator 2026-10-29; see `plan/PROGRESS.md`, *Milestone 5 — decisions recorded*. | m5-d7b | `plan/spec/ui-spec-v0.1.md:565–571`; `internal/tui/view.go:602–613` |
 | O18 | Empty `NO_COLOR`: before m5-d9 the code treated an empty value as set; the no-color.org convention treats it as unset. Record which behaviour is pinned. | Keep the code (empty is set, colour off); or treat empty as unset (colour on, if the other conditions allow). | — | m5-d9 | `internal/tui/styles.go:44–63` (`LookupEnv` at `:48` before m5-d9; `Getenv` at `:53` now); no-color.org convention (external) |
 | O19 | No-key check method: the flow is interactive, so the script must drive a pseudo-terminal or an equivalent. | A pseudo-terminal driver the script starts (for example `script(1)`, or a small pty helper in the repository's language). A manual run is not an option: the check runs inside the temporary repository that the script creates (m5-d16, instruction 3). | — | m5-d16 | `scripts/smoke-test.sh:16–22`; `internal/app/app.go:1298–1324` |
 | O20 | m5-d10b CI-check method: a snapshot build of every target through goreleaser, or a `GOOS=… GOARCH=… go build` loop over the target list. | `goreleaser build --snapshot` (needs goreleaser on CI); or a plain `go build` loop (no extra tool). | — | m5-d10b | `plan/spec/kirsch-plan.md:482`; `.github/workflows/ci.yml` |
@@ -147,7 +147,7 @@ Research grouping is followed except where it does not sit cleanly. The notes be
 8. **m5-d19 is split into m5-d19a and m5-d19b.** m5-d19a holds test-only work. It depends on O13 only because O13 can defer the whole safety group. m5-d19b holds C29, which needs O15.
 9. **m5-d20 is split into an operator gate, the m5-d21 deliverables and m5-d22.** m5-d20 records the operator's decisions. The m5-d21 deliverables carry the agent follow-through for each decision, one deliverable per outcome. m5-d22 holds the operator's demo, release run and tag.
 10. **m5-d3 is split into m5-d3a and m5-d3b.** m5-d3a takes the dispatch, the report grammar, the exit codes and the help line, and it shares `main.go` with m5-d2. m5-d3b takes the probes that read the environment, the repository and the config. Those probes need the report grammar from m5-d3a, so they sit one wave later.
-11. **m5-d7 is split into m5-d7a and m5-d7b.** m5-d7a changes `wrap()`, which every card and the onboarding text pass through, and it moves the most fences. m5-d7b changes the composer cut in `exactly`, which needs O17 and the composer work from m5-d6. Splitting them keeps the wide-moving change in its own review.
+11. **m5-d7 is split into m5-d7a and m5-d7b.** m5-d7a changes `wrap()`, which every card and the onboarding text pass through, and it moves the most fences. m5-d7b changes the composer cut in `(*Composer).rows`, which needs O17 and the composer work from m5-d6. Splitting them keeps the wide-moving change in its own review. (Corrected 2026-10-29: the cut is in `(*Composer).rows`; `exactly` in `view.go` carries no marker.)
 12. **m5-d10 is split into m5-d10a and m5-d10b.** m5-d10a is the local build wrapper and needs only the ldflags variable from m5-d2. m5-d10b is the goreleaser configuration and the target-compile check, which need O2 and O20 and touch CI. Splitting them lets the local wrapper land in wave 2 without waiting on the release decisions.
 13. **m5-d14 is split into m5-d14a and m5-d14b.** m5-d14a corrects `doc/usage.md` against the code, after the narrow-bar, grant, paste and wrap outcomes (waves 1 to 4). m5-d14b writes `doc/troubleshooting.md` from the doctor lines and links the install page, so it waits for the doctor steps and m5-d13c, which run in waves 1 to 5. Each page's dependencies then sit in earlier waves.
 
@@ -542,9 +542,9 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Acceptance:**
 - [✅] `kirsch doctor` is dispatched ahead of `workspace.Detect` and config load (test). Ticked: `TestRunDoctorBeforeWorkspaceAndConfig` passed in `go test -count=1 ./cmd/kirsch/ -run 'Doctor|TestRunHelp' -v` (mission-20261028-03, step 9).
-- [✅] The first doctor line shows the version (test). Ticked: `TestRunDoctorSkeletonReport` passed in the same run (step 9). The line checked is the `kirsch <version>` line.
+- [✅] The first doctor line shows the version (test). Ticked: `TestRunDoctorSkeletonReport` passed in the same run (step 9). The line checked is the `kirsch <version>` line. Dated correction, 2026-10-29 (m5-d3b): `TestRunDoctorSkeletonReport` was removed at m5-d3b, so the name above selects no test. The version line is now checked by `TestRunDoctorBeforeWorkspaceAndConfig`, which compares the first line of the report with `kirsch <version>`.
 - [✅] The help output names `doctor` (test in `cmd/kirsch/main_test.go`). Ticked: `TestRunHelp` passed in the same run (step 9).
-- [✅] Exit status matches O5 for each status O5 defines (test). Ticked: `TestRunDoctorExitSentinel` passed in the same run (step 9), and `TestFailed` in `internal/doctor` passed in `go test -count=1 ./internal/doctor/ ./internal/arch/ -v` (step 9). Caveat: the exit status 1 itself is set by `os.Exit(1)` in `main` (`cmd/kirsch/main.go:82–84`), which no test runs. This tick covers the sentinel and the `Failed` rule, not the binary's exit code (the same caveat is in `plan/testing/manual/milestone-5.md` §7).
+- [✅] Exit status matches O5 for each status O5 defines (test). Ticked: `TestRunDoctorExitSentinel` passed in the same run (step 9), and `TestFailed` in `internal/doctor` passed in `go test -count=1 ./internal/doctor/ ./internal/arch/ -v` (step 9). Caveat: the exit status 1 itself is set by `os.Exit(1)` in `main` (`cmd/kirsch/main.go:82–84`), which no test runs. This tick covers the sentinel and the `Failed` rule, not the binary's exit code (the same caveat is in `plan/testing/manual/milestone-5.md` §7). Dated correction, 2026-10-29 (m5-d3b): the caveat above is no longer true. `TestDoctorBinaryExitStatus` in `cmd/kirsch/main_test.go` builds the binary and runs `kirsch doctor` as a subprocess, so the exit status is checked there. The §7 caveat in the manual is dated the same way.
 - [✅] The `internal/arch` test passes with the new package entry. Ticked: `TestImportRules` and `TestGuardedPackagesAreReal` passed in `go test -count=1 ./internal/doctor/ ./internal/arch/ -v` (step 9).
 - [✅] `plan/spec/architecture.md:31–49` names the new package. Ticked by grep: `internal/doctor` is on the layout block of `plan/spec/architecture.md` (step 9). The review of that line is a separate `@apone` step.
 
@@ -585,14 +585,14 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 6. The missing-tool tests use a PATH shim (DIR-009): a temporary directory holding symlinks to every executable on the original PATH except the tool under test. Do not empty PATH. The control: under the same shim PATH, `LookPath("git")` succeeds in the `rg` test, and `LookPath("rg")` still fails.
 
 **Acceptance:**
-- [ ] With the PATH shim lacking `rg`, doctor prints a warn line that names the pure-Go fallback (test).
-- [ ] With the PATH shim lacking `git`, doctor prints a git-missing line and not "not in a Git repository" (test).
-- [ ] Outside a repository, doctor prints "not in a Git repository" and every check that does not need one (test).
-- [ ] A broken `config.toml` produces a line naming the file and the parse error, and doctor does not exit on it (test).
-- [ ] An unknown config key produces a warn line (test).
-- [ ] `--workspace` is honoured (test).
+- [✅] With the PATH shim lacking `rg`, doctor prints a warn line that names the pure-Go fallback (test). Ticked: `TestRunDoctorRGMissing` and `TestRunDefaultLookPathUsesPATH` passed in mission-20261029-03, step 3 (`plan/testing/manual/milestone-5.md` §12). Mutant evidence, reported by @hicks at step 1 of mission-20261029-03: mutant m1, which reports a missing `rg` as OK, fails `TestRunDoctorRGMissing` and `TestRunRGMissing`. Reported by @hicks; no saved output; not re-run in step 3a. The overlays and the runner are in `.claude/memory/workspace/m3b-mut/` and `.claude/memory/workspace/m3b-run.sh` (scratch, archived at the next mission start).
+- [✅] With the PATH shim lacking `git`, doctor prints a git-missing line and not "not in a Git repository" (test). Ticked: `TestRunDoctorGitMissing` (through `run`, with the shim) and `TestRunGitMissing` passed in mission-20261029-03, step 3. Mutant evidence, reported by @hicks at step 1: mutant m2, which reports a missing git as the not-in-repository case, fails `TestRunDoctorGitMissing` and `TestRunGitMissing`. Reported by @hicks; no saved output; not re-run.
+- [✅] Outside a repository, doctor prints "not in a Git repository" and every check that does not need one (test). Ticked: `TestRunDoctorOutsideRepository` and `TestRunNotInRepositoryRunsOtherChecks` passed in mission-20261029-03, step 3. This is the no-flag case. An explicit `--workspace` to a non-Git folder is a warning, not a failure, by the O5 detail row (`TestRunNonGitWorkspaceVersusNoFlag`). Mutant evidence, reported by @hicks at step 1: mutant m3, which returns early after a repository failure, fails `TestRunDoctorOutsideRepository` and `TestRunNotInRepositoryRunsOtherChecks`. Reported by @hicks; no saved output; not re-run.
+- [✅] A broken `config.toml` produces a line naming the file and the parse error, and doctor does not exit on it (test). Ticked: `TestRunDoctorBrokenConfigDoesNotExitEarly`, `TestRunBrokenGlobalConfig` and `TestRunBrokenProjectConfig` passed in mission-20261029-03, step 3. Mutant evidence, reported by @hicks at step 1: mutant m4, which does not report the config error, fails `TestRunDoctorBrokenConfigDoesNotExitEarly` and `TestRunBrokenGlobalConfig`. Reported by @hicks; no saved output; not re-run.
+- [✅] An unknown config key produces a warn line (test). Ticked: `TestRunDoctorUnknownConfigKeyWarns` and `TestRunUnknownConfigKey` passed in mission-20261029-03, step 3. Mutant evidence, reported by @hicks at step 1: mutant m5, which drops the unknown-key warnings, fails `TestRunDoctorUnknownConfigKeyWarns` and `TestRunUnknownConfigKey`. Reported by @hicks; no saved output; not re-run.
+- [✅] `--workspace` is honoured (test). Ticked: `TestRunDoctorHonoursWorkspaceFlag` and `TestRunNonGitWorkspaceVersusNoFlag` passed in mission-20261029-03, step 3. Mutant evidence, reported by @hicks at step 1: mutant m6, which ignores `--workspace`, fails `TestRunDoctorHonoursWorkspaceFlag`. Reported by @hicks; no saved output; not re-run. All the test names in these boxes are listed by `go test -list` as at 2026-10-29 (step 3a, run 12, in `.claude/memory/workspace/m3b-step3a-runs.txt`, scratch and archived at the next mission start).
 
-**Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d3b (Walkthrough).
+**Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d3b (§12), and section 12 of the plain checklist `plan/testing/manual/user-testing/milestone-5-donovan.md`.
 
 **Must-know-before:**
 - m5-d3a is complete.
@@ -630,13 +630,13 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 4. Project-context line: doctor calls `prompt.LoadProjectContext` (`internal/agent/prompt/loader.go:50`), which takes an Engine. Build the Engine the way the app builds it. The brief names that construction after reading `internal/app/app.go:724–750`. Print the file and its size, or `none`. If config did not load, print `skipped: config did not load`.
 
 **Acceptance:**
-- [ ] The key line names the winning variable or says none, and never prints the key value (a test sets a known value and asserts the output does not contain it).
-- [ ] With `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY` each set and unset, the key line names the winner or says none (test).
-- [ ] A model id not in the table prints `not in the table` and the conservative fallback (test).
-- [ ] With `AGENTS.md` present, the context line names it and its size; with it absent, the line says `none` (test).
-- [ ] The backend line reads `ripgrep` with `rg` on PATH and `pure-go` without, under the PATH shim (test).
-- [ ] With config not loaded, the key, model and context lines each read `skipped: config did not load` (test).
-- [ ] The comments describe doctor lines that exist, and the two files change only in comments. The check compares each file with its saved copy. Every changed content line must match `^[-+][[:space:]]*//`. The first two commands print nothing on a pass. The last two print a count, and each count must be at least 1, because the edit changes both files.
+- [✅] The key line names the winning variable or says none, and never prints the key value (a test sets a known value and asserts the output does not contain it). Ticked: `TestKeyValueNeverPrinted` and `TestKeyLineWithholdsNonNameAPIKeyEnv` passed in mission-20261029-06, step 3, with `go test -count=1 ./internal/doctor -run`. The dummy value is absent from the binary's output (`grep -c` gives `0`, `.claude/memory/workspace/m20261029-06-step3-runs.txt`).
+- [✅] With `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY` each set and unset, the key line names the winner or says none (test). Ticked: `TestKeyLineNamesWinner` (each combination) and `TestKeyLineNilGetenvIsEmptyEnvironment` passed in mission-20261029-06, step 3.
+- [✅] A model id not in the table prints `not in the table` and the conservative fallback (test). Ticked: `TestModelLine`, subtest `not in the table`, passed in mission-20261029-06, step 3. The `known` subtest also passes, and an overlay that changes its format string fails it (`.claude/memory/workspace/m20261029-06-step3-runs.txt`).
+- [✅] With `AGENTS.md` present, the context line names it and its size; with it absent, the line says `none` (test). Ticked: `TestContextLine` (its subtests cover present, absent and the refused and unreadable cases) passed in mission-20261029-06, step 3.
+- [✅] The backend line reads `ripgrep` with `rg` on PATH and `pure-go` without, under the PATH shim (test). Ticked: `TestBackendLineUnderPathShim` passed in mission-20261029-06, step 3. A binary run under a shim with only `git` on PATH printed the `pure-go` warning.
+- [✅] With config not loaded, the key, model and context lines each read `skipped: config did not load` (test). Ticked: `TestResolvedLinesSkippedWhenConfigDidNotLoad` and `TestRunDoctorSkippedLinesWhenConfigDidNotLoad` passed in mission-20261029-06, step 3.
+- [✅] The comments describe doctor lines that exist, and the two files change only in comments. The check compares each file with its saved copy (the comparison is corrected below). Ticked: every changed content line of both files is a `//` comment, and the control line is reported, on the run in `.claude/memory/workspace/m20261029-06-step3-runs.txt` (section `runs-06`). Every changed content line must match `^[-+][[:space:]]*//`. The first two commands print nothing on a pass. The last two print a count, and each count must be at least 1, because the edit changes both files.
 
   ```bash
   PRE=/Volumes/DATA/Github/kirsch/.claude/memory/workspace
@@ -650,7 +650,11 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
   CTRL=$(mktemp); cp "$PRE/m5-d4a-app.pre.go" "$CTRL"; printf 'var controlProbe = 1\n' >> "$CTRL"; check_comments "$PRE/m5-d4a-app.pre.go" "$CTRL"; rm -f "$CTRL"
   ```
 
-  The control's `check_comments` must print `+var controlProbe = 1`. The reviewer confirms that the hunks sit at `searchcode.go:116–117` and `app.go:520–521` in the saved copies.
+  The control's `check_comments` must print `+var controlProbe = 1`. The reviewer confirms that the hunks sit at the `Backend` comment in `searchcode.go` and the `Registry` comment in `app.go`, in the saved copies.
+
+  **Dated correction, 2026-10-29 (mission-20261029-06, step 3; heading marker added in step 3b).** The comparison runs against commit `686d3c4`, not against the saved copies. Those copies are archived at the next mission start, and the commit does not move. The baseline commands are `git show 686d3c4:internal/tool/searchcode.go` and `git show 686d3c4:internal/app/app.go`, written to a temporary folder; the master manual's §20 has them in full. In the current files the hunks sit at the same two comments, the `Backend` comment in `searchcode.go` and the `Registry` comment in `app.go`, and the comment lines have grown since the first edit. The property is what the check tests: every changed line of both files is a `//` comment, and each file has at least one changed line. The counts are not recorded here, because they move with every comment edit; the run that shows the property is named in the master manual's §20 *Notes / evidence*. Line numbers are not recorded here, because they move with every edit; find the comments with `grep -n` on the names above.
+
+**Dated note, 2026-10-29 (mission-20261029-06, step 3a).** The runs cited in the acceptance items above, `.claude/memory/workspace/m20261029-06-step3-runs.txt` and `.claude/memory/workspace/m20261029-06-step3a-runs.txt`, are scratch. They are archived at the next mission start. Step 3a edited this item. Its change is in `.claude/memory/workspace/m20261029-06-step3b-3a-delta-milestone.diff` (scratch, archived at the next mission start), a diff from the step 3a pre copy to the result of step 3a. Two sentences changed, and a dated note was appended: the control sentence now names the `Backend` and `Registry` comments in place of line numbers, and the dated correction names the same comments in place of line numbers. The heading marker on the dated correction was added in step 3b, not in step 3a. No acceptance box was ticked or unticked in step 3a. The pre-3a copy, `.claude/memory/workspace/m20261029-06-step3a-pre/milestone-5.md`, is unhashed. The only earlier hash of this file is the pre-step-3 one in `.claude/memory/workspace/m20261029-06-step3-pre-hashes.txt` (line 3), which is the state before step 3, not the state step 3a started from. Its sha256 as it stands is `7a376980280551a0d25e87b7cf1ff68a29e41609312e13dff389d12fc3ca8606` (step 3c, `.claude/memory/workspace/m20261029-06-step3c-runs.txt`, part 5). That is a hash of the copy, not a check against the file before step 3a.
 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d4a (Walkthrough).
 
@@ -809,11 +813,11 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 4. Change the golden fences that move, as O23 records, by the procedure in *Golden mechanism and regeneration procedure*. Save the pre-change copy of `plan/spec/kirsch-ui-screens.md` first, and record which fences moved.
 
 **Acceptance:**
-- [ ] A pasted 200-column indented trace keeps its indentation in the transcript (test).
-- [ ] Runs of interior spaces survive in the transcript (test).
-- [ ] `wrap` has direct tests in `internal/tui/wrap_test.go`, and they pass.
-- [ ] Every golden that moved is listed in the step report.
-- [ ] (operator) A human reviews the golden diff before the step closes.
+- [ ] A pasted 200-column indented trace keeps its indentation in the transcript (test). Unticked: no test drives a 200-column line through the transcript. What is tested: `TestWrapIndentedTrace200` checks an indented line wider than 200 columns, wrapped at 200, 80 and 33 columns, at the `wrap` level; `TestTranscriptWrapsIndentedLines` checks indentation through `appendBlock` and `View` on a shorter line, at a 40-column frame. Runs: `.claude/memory/workspace/m7a-step4a-runs.txt`.
+- [x] Runs of interior spaces survive in the transcript (test). Evidence: `TestWrapKeepsInteriorSpaceRuns` and `TestTranscriptKeepsIndentAndSpaceRuns`.
+- [x] `wrap` has direct tests in `internal/tui/wrap_test.go`, and they pass. Evidence: every `TestWrap*` test, with `TestTranscriptKeepsIndentAndSpaceRuns` and `TestTranscriptWrapsIndentedLines`, passes (`go test -count=1 -v ./internal/tui -run 'TestWrap|TestTranscriptKeepsIndentAndSpaceRuns|TestTranscriptWrapsIndentedLines'`, no `FAIL`). The streamed-text tests (`TestStreamed*`, `TestAppendText*`, `TestStreamEndReleasesRaw`) pass as well.
+- [x] Every golden that moved is listed in the step report. Evidence: none moved. `plan/spec/kirsch-ui-screens.md` is byte-identical to its pre-change copy (`cmp`, runs file), `go test -count=1 ./internal/tui` (the whole package, golden tests included) prints `ok`, and `npm run screens` prints `grids OK, content OK`.
+- [ ] (operator) A human reviews the golden diff before the step closes. Not ticked: no fence moved, so there is no golden diff to review. The operator's review is section 13, step 3 of the plain checklist (`plan/testing/manual/user-testing/milestone-5-donovan.md`): the reference-screens file has no changes.
 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d7a (Walkthrough).
 
@@ -821,6 +825,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - m5-d1 and m5-d6 are complete.
 - The spec's "verbatim, soft-wrapped" and "preserve indentation exactly" (ui-spec §3.1:227, §3.2:232–234) are the reference. The code disagrees.
 - Goldens move. A human review is part of the acceptance, not optional.
+- Dated note, 2026-10-29 (mission-20261029-02): in the event no golden moved, the review above has no diff to read. No golden moved in this step. The sentence above is kept as the plan wrote it; the operator's check is step 3 of section 13 in the plain checklist.
 
 ---
 
@@ -842,15 +847,15 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 2. `@apone` — review of step 1.
 
 **Instruction items:**
-1. Record O17: the cut marker, or wrap.
-2. Make each composer row that is cut show the marker O17 records, at the cut in `exactly` (`view.go:602–613`, `:610`).
+1. Record O17: the cut marker, or wrap. Recorded 2026-10-29: the `⋯` marker.
+2. Make each composer row that is cut show the marker O17 records. The cut is made in `(*Composer).rows` (`internal/tui/composer.go`), before the hard edge in `exactly` (`internal/tui/view.go`), which carries no marker.
 3. Add a test at 40 columns that asserts no cut row lacks the marker.
 4. Change the golden fences that move, as O23 records, by the procedure in *Golden mechanism and regeneration procedure*. Record which fences moved.
 
 **Acceptance:**
-- [ ] At 40 columns no composer row is cut without the marker O17 records (test).
-- [ ] Every golden that moved is listed in the step report.
-- [ ] (operator) A human reviews the golden diff before the step closes.
+- [x] At 40 columns no composer row is cut without the marker O17 records (test). Ticked 2026-10-29: `go test -count=1 -run 'TestComposerCut|TestComposerFit|TestComposerBusyFirst|TestComposerCaretOver' ./internal/tui` exits 0; the full `go test -count=1 ./internal/tui` exits 0. Failure case saved: the same selection with the marker emptied in a copy, through `-overlay`, exits 1.
+- [x] Every golden that moved is listed in the step report. Ticked 2026-10-29: no golden moved. `git diff --stat 686d3c4 -- plan/spec/kirsch-ui-screens.md` prints nothing.
+- [ ] (operator) A human reviews the golden diff before the step closes. Not ticked: no fence moved, so there is no golden diff to read. Section 21 of the operator checklist (step 4, the screens check against 686d3c4) is the review.
 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d7b (Walkthrough).
 
@@ -886,8 +891,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 4. Add a test for whichever branch was chosen.
 
 **Acceptance:**
-- [ ] O9 is recorded in `plan/PROGRESS.md`.
-- [ ] Implement branch: a test with runes arriving within 20 ms inserts once. Amend branch: `grep -rn PasteDebounce internal/` prints nothing, and `grep -n 'Paste debounce' plan/spec/ui-spec-v0.1.md` prints nothing. The pattern is case-sensitive on purpose. `grep -n -i debounce` also matches the unrelated "Never debounced" row. Controls, run on the saved copies before the edit:
+- [✅] O9 is recorded in `plan/PROGRESS.md`. Evidence: the *Milestone 5 — decisions recorded* table, O9 row, 2026-10-29: change the spec, do not build the 20 ms joining.
+- [✅] Amend branch (the implement branch was not taken, so there is no 20 ms test). Evidence, mission-20261029-04: `grep -rn PasteDebounce internal/` and `grep -n 'Paste debounce' plan/spec/ui-spec-v0.1.md` each print nothing and exit 1. The pattern is case-sensitive on purpose. `grep -n -i debounce` also matches the unrelated "Never debounced" row. Controls, run on the saved copies before the edit (superseded 2026-10-29 by the note below; not to be run as written):
 
   ```bash
   PRE=/Volumes/DATA/Github/kirsch/.claude/memory/workspace
@@ -895,10 +900,12 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
   grep -n 'Paste debounce' "$PRE/m5-d8-ui-spec.pre.md"
   ```
 
-  The first prints one line, the declaration, in the form `<n>:<text>`. The second prints two lines, both containing `Paste debounce`: one in §7.2 and one in §11. Neither prints the "Never debounced" row.
-- [ ] With bracketed paste off, a 5 KB paste lands whole (test).
+  The first prints the declaration, in the form `<n>:<text>`. The second prints the lines containing `Paste debounce`, one in §7.2 and one in §11. Neither prints the "Never debounced" row.
 
-**Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d8 (Walkthrough): bracketed paste off, paste 5 KB, and the UI stays responsive (operator).
+  Dated note, 2026-10-29 (mission-20261029-04, step 3a): this note amends the *Before any edit* paragraph and the controls above. The controls now run against the committed baseline `686d3c4`, not the saved copies, because the copies sit in the workspace and are archived at the next mission start. The current form is `git show 686d3c4:internal/tui/styles.go | grep -n PasteDebounce; echo "exit $?"` and `git show 686d3c4:plan/spec/ui-spec-v0.1.md | grep -n 'Paste debounce'; echo "exit $?"`. The acceptance box compares against `686d3c4`. The saved copies remain as the pre-edit record.
+- [✅] With bracketed paste off, a 5 KB paste lands whole, for single-line text only: words, spaces and a two-byte character, with no tabs. Evidence: `TestUnbracketed5KBPasteLandsWholeThroughKeyMessages` (`internal/tui/paste_nobracket_test.go`) passes at each chunk size in its loop (one rune per message, three runes per message, and no cutting); the text is fed to `Model.Update` as key messages, so Bubble Tea's own reader is not exercised. Not covered: multi-line text. A multi-line paste with bracketed paste off sends its first line to the model and drops the rest while the turn is busy. `TestUnbracketedMultiLinePasteCurrentBehaviour` pins that current behaviour and feeds Enter key messages; that a pasted newline arrives as Enter is read from Bubble Tea's source, not run. The fix-or-accept decision is open in `plan/PROGRESS.md`, *Open from m5-d8*. Not covered by test: a tab in the pasted text. A tab arrives as the Tab key (`tea.KeyTab`, `keyHT` in Bubble Tea's `key.go`, read from source and not run); it completes a unique slash-command name or moves focus to the transcript, and a later Tab in the same paste moves focus back (`keyComposing` and `keyBrowsing`, `internal/tui/update.go`, read and not tested). Not covered by test: a multi-byte rune split across a terminal read, a full read or a short one. That limit is read from Bubble Tea's source and is not tested. Runs: `.claude/memory/workspace/m8-step3a-runs.txt` (scratch, archived at the next mission start).
+
+**Manual test hook:** `plan/testing/manual/milestone-5.md` §14, hands-on check 1 (master only; not in the operator checklist): bracketed paste off, paste 5 KB, and the UI stays responsive (operator, optional, and only if the terminal can turn bracketed paste off).
 
 **Must-know-before:**
 - O9 is the blocker.

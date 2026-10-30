@@ -8,9 +8,11 @@ Get your bearings in this order. Stop here if you just want to understand what K
 
 1. **[../README.md](../README.md)** — What Kirsch is and why. Read the first three sections; you can skip the Milestone Map if you only want the executive summary.
 
-2. **[PROGRESS.md](PROGRESS.md)** — Where we are right now. The milestone status table and current deliverables table. This is the single source of truth for what is in progress and what you can start next.
+2. **[PROGRESS.md](PROGRESS.md)** — Where we are right now. The milestone status table and current deliverables table. This is the single source of truth for what is in progress and what you can start next. From Milestone 6, its tick counts come from [`scripts/plan-status.sh`](../scripts/plan-status.sh).
 
 3. **[README.md](README.md)** — The build index. The folder structure, what each document is for, and the rules for builders. Especially rule 3: "The UI spec is law."
+
+**From Milestone 6** (ADR 0009, 2026-10-29), do not type tick counts or a "where you are" narrative by hand. Run `bash scripts/plan-status.sh FILE...` (or `npm run plan:status -- FILE...`) instead. Testing moves to one living checklist per feature area and one dated results file per run, as set out in [`testing/README.md`](testing/README.md). Milestones 0 to 5 keep their existing text as the record. See [`adr/0009-planning-layout-from-m6.md`](adr/0009-planning-layout-from-m6.md).
 
 ## Understanding the Full Plan
 
@@ -34,7 +36,7 @@ Kirsch's instruction set is big, so this section shows you what to read and what
 
 - **[testing/README.md](testing/README.md)** — How to verify Kirsch. The commands and which to run before you commit. Includes pointers to the manual walkthroughs and the security tooling.
 
-- **[adr/](adr/)** — Seven architecture decision records. *45–75 lines each.* Why specific decisions were made. Read one when you encounter a "why?" that the plan doesn't answer.
+- **[adr/](adr/)** — Architecture decision records. Why specific decisions were made. Read one when you encounter a "why?" that the plan doesn't answer.
 
 ## Loading Files Into Your Assistant
 
@@ -97,7 +99,7 @@ When using an AI coding tool, hand this prioritized list to it as context. Load 
 - **[plan/](.)** — Everything needed to **build** Kirsch. Three markdown files at the root (`README.md`, `START-HERE.md`, `PROGRESS.md`) and five directories (`spec/`, `adr/`, `milestones/`, `process/`, `testing/`). Scaffolding for the builder.
 - **[../doc/](../doc/)** — Everything needed to **use** Kirsch: installation, configuration, troubleshooting. `usage.md` written now (about 360 lines, documenting layout, key bindings, slash commands, and the approval model); `configuration.md` is written (m5-d13a); `install.md` and `troubleshooting.md` arrive later in Milestone 5.
 - **[spec/](spec/)** — The locked v0.1 specification: what Kirsch is and how it must behave. See [`spec/README.md`](spec/README.md) for the index of the four specification documents.
-- **[adr/](adr/)** — Seven architecture decision records explaining the big choices.
+- **[adr/](adr/)** — Architecture decision records explaining the big choices.
 - **[testing/](testing/)** — Manual walkthroughs, test suite reference, security tooling.
 - **[milestones/](milestones/)** — Per-milestone instruction sets. Read the current one before you code.
 - **[process/](process/)** — Shared development practices: how two developers divide work and stay out of each other's files.

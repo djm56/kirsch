@@ -562,7 +562,7 @@ and **never sent to the model**. `Tab` completes a unique prefix.
 
 - **Bracketed paste**: pasted text is literal, never interpreted as keys;
   newlines preserved. Paste over 8KB warns before inserting.
-- **Paste debounce** (§11) so a large paste is one update, not thousands.
+- **A paste is one update.** With bracketed paste on (the normal case), the terminal sends a paste as one message, so the composer takes it in one update and no debounce is needed (§11). With bracketed paste off, a paste reaches kirsch as key presses, and these limits apply. Each is current behaviour, not a fix: a multi-line paste sends its first line to the model as a message and drops the rest while a turn is busy; a tab arrives as the Tab key (`tea.KeyTab`), which in the typing area (`keyComposing`, `internal/tui/update.go`) completes a unique slash-command name, does nothing when the typing area holds a slash name that matches several commands or none, and otherwise moves focus to the transcript. When focus has moved, the rest of the paste is read as browsing keys (`keyBrowsing`), not typed into the composer, and a later Tab in the same paste moves focus back to the typing area (`keyBrowsing` handles `tea.KeyTab` and calls `setBase(BaseComposing)`), so the pasted text is split between the two; a multi-byte character (for example `é`) that falls on a terminal read boundary can be lost. That a tab arrives as `tea.KeyTab` is read from Bubble Tea's source (`keyHT`, `key.go`, bubbletea v1.3.10) and is not run; what kirsch does with it is read from `internal/tui/update.go` and is not tested. Status, test provenance and the open operator decision are in `plan/PROGRESS.md`, *Open from m5-d8*.
 
 ### 7.3 Rendering
 
@@ -572,7 +572,18 @@ and **never sent to the model**. `Tab` completes a unique prefix.
   it was shortened. `View()`'s final bound on the frame is a hard edge rather
   than an elision and carries no marker, so anything whose width is not a
   constant — a build-time version string, a project name, a branch — is
-  truncated by its own renderer before it reaches that bound.
+  truncated by its own renderer before it reaches that bound. A row whose text
+  fits is not a cut row: when the caret sits at the end of its line, with no
+  character under it, the caret's own cell can make the row one cell wider, and
+  the hard edge drops that cell with no marker. A caret over a zero-width
+  character mid-text takes a cell of its own, so a row that holds one can be cut
+  and marked even though its text fits. Read from the code, not measured: in
+  `internal/tui/composer.go` the extra cell is counted only when the cluster
+  under the caret is empty. The measured evidence is
+  `TestComposerCaretOverWideAndZeroWidthAtTheBoundary` in
+  `internal/tui/composer_cut_test.go`, which passes in both Unicode and ASCII
+  modes. *Pending the operator's ratification
+  (m5-d7b; `plan/PROGRESS.md`, Open from m5-d7b).*
 - **No-color fallback**: `NO_COLOR` set to a non-empty value (an empty value is
   treated as unset), `TERM=dumb`, or not a TTY → styling degrades to plain
   prefixes (`+`/`-`, `[ok]`, `[err]`); layout identical.
@@ -755,7 +766,7 @@ Collected here so they are not scattered magic numbers.
 | Spinner frame | 100ms | 10fps reads as smooth, costs little |
 | Stream repaint coalescing | 50ms, or on newline | Below perceptible lag, above thrash |
 | Command output coalescing | 100ms | Output is chunkier than tokens |
-| Paste debounce | 20ms | One update per paste |
+| Paste (bracketed) | none | One update per paste; no delay is added (§7.2) |
 | Double `Ctrl+C` window | 1000ms | Long enough to be deliberate |
 | Cancel → composer usable | < 1000ms (target) | Tested, not eyeballed (plan §8 M3) |
 | Approval card appearance | immediate | Never debounced |

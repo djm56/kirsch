@@ -517,8 +517,10 @@ func New(ws *workspace.Workspace, cfg config.Config, log *telemetry.Logger) *App
 	return a
 }
 
-// Registry exposes the tool registry. Used by `kirsch doctor` in M5 and by
-// tests; the TUI never sees it.
+// Registry exposes the tool registry. Used by main's start-up log (the tool
+// names) and by tests; the TUI never sees it. `kirsch doctor` does not use it:
+// it builds a zero-value tool.SearchCode for its backend line (internal/doctor,
+// backendResult).
 func (a *App) Registry() *tool.Registry { return a.reg }
 
 // Grants returns the list of active session-scoped command grants.

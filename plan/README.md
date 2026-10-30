@@ -18,11 +18,11 @@ Using → `doc/`.
 | Document | Purpose |
 |---|---|
 | [`START-HERE.md`](START-HERE.md) | Your entry point — read this first. Routes you through the documents in the right order. |
-| [`PROGRESS.md`](PROGRESS.md) | Live status — who is working what, what is blocked, what is done. The single source of truth for "where are we". |
+| [`PROGRESS.md`](PROGRESS.md) | Live status — who is working what, what is blocked, what is done. The single source of truth for "where are we". From Milestone 6, its tick counts come from [`scripts/plan-status.sh`](../scripts/plan-status.sh). |
 | [`spec/`](spec/) | The locked v0.1 specification — contract, architecture, TUI spec, and screen reference. What Kirsch is and how it must behave. See [`spec/README.md`](spec/README.md) for the index and what each document answers. |
 | [`process/`](process/) | Shared development practices — working agreements for divided work, and code standards for Go. See [`process/README.md`](process/README.md) for the index. |
 | [`testing/`](testing/) | How to verify Kirsch — manual walkthroughs per milestone, what the automated suite covers, and the security tooling. See [`testing/README.md`](testing/README.md) for detail. |
-| [`adr/`](adr/) | Architecture decision records 0001–0007, documenting why major design decisions were made. See [`adr/README.md`](adr/README.md) for the index and what an ADR is. |
+| [`adr/`](adr/) | Architecture decision records, documenting why major design decisions were made. See [`adr/README.md`](adr/README.md) for the index and what an ADR is. |
 | [`milestones/`](milestones/) | Per-milestone instruction sets. See [`milestones/README.md`](milestones/README.md) for the confidence levels and how milestones map to shipped code. |
 
 ## Milestone Instruction Sets
@@ -48,6 +48,8 @@ amend rather than work around a mismatch.
 ## Live Status
 
 Live status — who is working what, what is blocked, what is done — lives in [`PROGRESS.md`](PROGRESS.md). It is the single place to look for "where are we", and it is edited one cell at a time as work actually changes rather than batch-updated at the end of a milestone.
+
+**From Milestone 6** (ADR 0009, 2026-10-29), the tick counts and the "where are we" narrative are built by `bash scripts/plan-status.sh FILE...` (also `npm run plan:status -- FILE...`), not typed by hand. `PROGRESS.md` keeps its deliverables table, with the Owner and Status cells used for claiming work, and the claim procedure is unchanged. Milestones 0 to 5 keep their existing status text as the record. The layout is set out in [`adr/0009-planning-layout-from-m6.md`](adr/0009-planning-layout-from-m6.md).
 
 A milestone is **Complete** only when every box in its instruction set's final
 acceptance checklist is ticked, `go test ./...` is green, and CI is green. Not
