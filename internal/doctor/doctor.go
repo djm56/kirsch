@@ -1,13 +1,17 @@
 // Package doctor implements the report behind `kirsch doctor`.
 //
-// Doctor only checks and never changes anything: it creates no folders, takes
-// no lock and makes no network calls. This package holds the report grammar and
-// the pass/fail rule (doctor.go) and the probes (probes.go): git, rg, the
-// repository and the config file, then the lines that read the resolved
+// Doctor only checks and never changes anything: it creates no files or
+// folders and makes no network calls. Its only lock activity is a momentary,
+// non-blocking shared attempt on an existing .lock file. A holder is never
+// disturbed by it, but a kirsch that starts in that instant is refused the lock
+// and starts in concurrent-instance mode (no resume, no session grants); two
+// doctors at once share the lock harmlessly. This package holds the report
+// grammar and the pass/fail rule (doctor.go) and the probes (probes.go): git,
+// rg, the repository and the config file, then the lines that read the resolved
 // configuration: the API key, the model and the project-context file, which the
-// loaded config feeds, and the search_code backend, which takes no config. The
-// caller hands Run its environment values, then passes the results to Report and
-// Failed.
+// loaded config feeds, and the search_code backend, which takes no config; then
+// the state folder and the lock (state.go). The caller hands Run its
+// environment values, then passes the results to Report and Failed.
 package doctor
 
 import (

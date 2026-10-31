@@ -12,6 +12,11 @@ This folder holds the per-milestone instruction sets for building Kirsch — one
 | 3 | Provider + agent loop | Executed | Complete. Written before Milestone 2 landed; see [`../PROGRESS.md`](../PROGRESS.md) for deliverable status. |
 | 4 | Real task loop + sessions | Executed | Complete and operator-accepted 2026-10-23 (tag `m4`). The narrow-width status-bar fallback, carried to Milestone 5 as m5-d1, was resolved on 2026-10-27 as a wrong expectation, not a code defect (see [`../PROGRESS.md`](../PROGRESS.md)). |
 | 5 | Polish + release (v0.1.0) | Executable | Instruction set and testing skeletons written 2026-10-23–24 (mission-20261023-06). In progress. Which deliverables are done and which await operator testing is in [`../PROGRESS.md`](../PROGRESS.md), the live status file. Complete definition is in `milestone-5.md`. (See section below.) |
+| 6 | More than one model (v0.2.0) | Executable | Written 2026-10-30 (mission-20261030-05) from [`../build-plan-v0.2-v0.6.md`](../build-plan-v0.2-v0.6.md). Not started. Definition: [`milestone-6.md`](milestone-6.md). Start: [`milestone-6-start-here.md`](milestone-6-start-here.md). |
+| 7 | More than one wire (v0.3.0) | Executable | Written 2026-10-30 (mission-20261030-05) from [`../build-plan-v0.2-v0.6.md`](../build-plan-v0.2-v0.6.md). Not started. Definition: [`milestone-7.md`](milestone-7.md). |
+| 8 | Headless (v0.4.0) | Executable | Written 2026-10-30 (mission-20261030-05) from [`../build-plan-v0.2-v0.6.md`](../build-plan-v0.2-v0.6.md). Not started. Definition: [`milestone-8.md`](milestone-8.md). |
+| 9 | Front ends and machines (v0.5.0) | Executable | Written 2026-10-30 (mission-20261030-05) from [`../build-plan-v0.2-v0.6.md`](../build-plan-v0.2-v0.6.md). Not started. Definition: [`milestone-9.md`](milestone-9.md). |
+| 10 | Review and memory (v0.6.0) | Executable | Written 2026-10-30 (mission-20261030-05) from [`../build-plan-v0.2-v0.6.md`](../build-plan-v0.2-v0.6.md). Not started. Definition: [`milestone-10.md`](milestone-10.md). |
 
 Live status for each milestone lives in [`../PROGRESS.md`](../PROGRESS.md).
 

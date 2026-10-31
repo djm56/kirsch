@@ -62,7 +62,14 @@ type Options struct {
 	WorkspaceFlag string
 	// GlobalConfigPath is the global config file location; empty means none.
 	GlobalConfigPath string
-	// HomeDir is used for ~ expansion in the config; empty disables it.
+	// HomeDir is the home directory. It has two uses: config.Load expands a
+	// leading ~ in session.storage_dir with it (the only key it expands), and
+	// the state and lock lines need it to find the state folder for every
+	// storage_dir, empty, ~ and absolute alike. Empty turns off that ~
+	// expansion, and the state line then fails and the lock line warns, each
+	// with a detail starting "cannot work out the state folder: home directory
+	// unknown", for every storage_dir, absolute included (unless the config did
+	// not load or no workspace was found, when both lines are skipped).
 	HomeDir string
 	// LookPath finds an executable on PATH for the git and rg presence probes
 	// only. Nil means exec.LookPath.
@@ -96,18 +103,27 @@ type Outcome struct {
 
 // Run performs the environment, repository and config probes: git, rg, the
 // repository and the config file, then the key, search_code backend, model and
-// project-context lines (resolvedResults). It never stops at the first failure; every
-// check that can run does run. It only reads: it creates nothing, takes no lock
-// and uses no network.
+// project-context lines (resolvedResults), then the state-folder and lock lines
+// (stateResults). It never stops at the first failure; every check that can run
+// does run. It only reads: it creates no file or folder and uses no network. Its
+// only lock activity is one momentary, non-blocking shared lock attempt on an
+// existing .lock file (session.ProbeLock), which it drops at once. It never
+// disturbs a kirsch that already holds the lock, but a kirsch starting in that
+// moment is refused the lock and starts in concurrent-instance mode (no resume,
+// no session grants). Two doctors at once share the lock harmlessly.
 //
 // The pass/fail rule is O5: a check fails when the problem would stop kirsch
 // starting, and warns when kirsch still starts but works less well. "Would stop
-// kirsch starting" is read off the start-up steps of main.run that come before
-// the TUI is built: workspace.Detect, config.Load and Config.Validate. Those are
-// the only failing outcomes here (the git line fails only in the case where
-// Detect would fail for want of git). main.run can also return an error from
-// flag parsing, an unknown command, startupPostAttach and the program itself;
-// doctor does not probe those.
+// kirsch starting" is read off the steps of main.run that can return an error
+// before the program runs. Three come before the TUI is built:
+// workspace.Detect, config.Load and Config.Validate (the git line fails only in
+// the case where Detect would fail for want of git). The fourth is
+// startupPostAttach, after the TUI is built and before p.Run: its session start
+// (initSession → App.StartNewSession → createSessionStore) fails on a state
+// folder kirsch cannot use, so the state line fails for those; its
+// App.AcquireLock never returns an error, so the lock line never fails (see
+// stateResults). main.run can also return an error from flag parsing, an
+// unknown command and the program itself; doctor does not probe those.
 func Run(o Options) Outcome {
 	lookPath := o.LookPath
 	if lookPath == nil {
@@ -155,6 +171,7 @@ func Run(o Options) Outcome {
 	}
 	out.Results = append(out.Results, loadConfig(&out, o, projectPath)...)
 	out.Results = append(out.Results, resolvedResults(out, o.Getenv)...)
+	out.Results = append(out.Results, stateResults(out, o.HomeDir)...)
 	return out
 }
 

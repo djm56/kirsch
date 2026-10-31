@@ -189,7 +189,9 @@ func TestRunNonGitWorkspaceVersusNoFlag(t *testing.T) {
 	notRepo := t.TempDir()
 	chdirOutsideRepo(t, notRepo)
 
-	flagged := Run(Options{WorkspaceFlag: notRepo, LookPath: lookWithout()})
+	// HomeDir is a fixture home so the state line has a state folder to check;
+	// with no home it fails, which is not what this test is about.
+	flagged := Run(Options{WorkspaceFlag: notRepo, LookPath: lookWithout(), HomeDir: t.TempDir()})
 	fr := find(flagged.Results, "repository")
 	if len(fr) != 1 || fr[0].Status != StatusWarn {
 		t.Fatalf("--workspace non-repository: repository results = %+v, want one warn", fr)
@@ -372,7 +374,8 @@ func TestRunProjectConfigIgnoredKeyWarns(t *testing.T) {
 	root := gitRepo(t)
 	path := filepath.Join(root, ".kirsch", "config.toml")
 	writeFile(t, path, "[telemetry]\ndebug_log = true\n")
-	out := Run(Options{WorkspaceFlag: root, LookPath: lookWithout()})
+	// HomeDir as in TestRunNonGitWorkspaceVersusNoFlag: the state line needs one.
+	out := Run(Options{WorkspaceFlag: root, LookPath: lookWithout(), HomeDir: t.TempDir()})
 	var warns []Result
 	for _, r := range find(out.Results, "config") {
 		if r.Status == StatusWarn {

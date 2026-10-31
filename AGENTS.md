@@ -19,6 +19,7 @@ This is now a shared repository. [`plan/process/working-agreement.md`](plan/proc
 | What should the UI *look* like? | [`plan/spec/kirsch-ui-screens.md`](plan/spec/kirsch-ui-screens.md) — literal character grids |
 | How do I verify it? | [`plan/testing/`](plan/testing/) — walkthroughs, suite reference, security |
 | Why was X decided? | [`plan/adr/`](plan/adr/) — ADRs 0001–0007 |
+| What comes after v0.1? | [`plan/build-plan-v0.2-v0.6.md`](plan/build-plan-v0.2-v0.6.md) — the post-v0.1.0 milestones and the ADRs and amendments filed with them |
 
 ## Five rules
 

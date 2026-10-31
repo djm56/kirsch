@@ -2,7 +2,7 @@
 
 Kirsch Milestone 5 is polish and release: the narrow-width status bar, the `kirsch doctor` command, `--version` and `--help`, the release tooling (build wrapper, goreleaser configuration, release workflow), the repository files, the user documentation under `doc/`, and the operator decisions that gate the conditional follow-through. The deliverables are defined in `plan/milestones/milestone-5.md`.
 
-> **Status: skeleton.** This document was written at planning time (mission-20261023-06, 2026-10-23). It is expanded as each deliverable lands. Section 1's commands were run in mission-20261027-03, and the operator passed section 1 of the plain checklist on 2026-10-27. Section 2's commands were run in mission-20261026-01, and the operator passed section 2 of the plain checklist on 2026-10-27. Section 4's commands were run in mission-20261027-04, and the operator passed section 4 of the plain checklist on 2026-10-27, with a note (see the carried item under *Carried from Milestone 5 planning* in `plan/PROGRESS.md`). Section 5's commands were run in mission-20261027-06 (step 7) on 2026-10-27, and the operator passed section 5 of the plain checklist on 2026-10-28. Section 6's automated commands were run in mission-20261027-05 (step 5) on 2026-10-27, and the operator passed section 6 of the plain checklist on 2026-10-28; its hands-on steps need a live model turn and have not been run, and the operator checklist's section 6 has only automated steps. Section 9's commands were run in mission-20261027-08 on 2026-10-27, and the operator passed section 9 of the plain checklist on 2026-10-28. Section 16's automated check was run in mission-20261027-07 (step 3) on 2026-10-27; its removal control is recorded in mission-20261027-07 step 1, and the operator passed section 16 of the plain checklist on 2026-10-28. Section 3's automated checks were run in mission-20261028-03 (step 5) on 2026-10-28, from zsh after `source scripts/m5-test-env.sh`, and the output is in `.claude/memory/workspace/m5d5-step5-evidence.txt`; its hands-on step needs a live model turn and an API key. No key-free route was found in a 25-minute attempt (mission-20261028-03 step 6a), so the step has not been run; the operator tested section 3 of the plain checklist on 2026-10-29, and that checklist's quit-and-reopen check is checked at the final release check (section 37 of the checklist). Section 7's automated checks and hands-on commands were run in mission-20261028-03 (step 9) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m7d-step9-evidence.txt`; the operator tested section 7 of the plain checklist on 2026-10-29. Section 10's automated commands were run in mission-20261028-03 (step 13) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m10b-step13-evidence.txt`; the goreleaser snapshot was not run (goreleaser is not installed, and no install was allowed in that step), and the operator tested section 10 of the plain checklist on 2026-10-29. Section 8's automated checks were run in mission-20261028-03 (step 17) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m6d-step17-auto.txt`; the operator tested section 8 of the plain checklist on 2026-10-29, and its hands-on paste step has not been pre-run. Section 13's automated commands and golden check were run in mission-20261029-02 (step 4) on 2026-10-29, from zsh, and the output is in `.claude/memory/workspace/m7a-step4-runs.txt`. The fix round after the step 5 review (mission-20261029-02, step 4a) reran them, and its output is in `.claude/memory/workspace/m7a-step4a-runs.txt`; the operator has not yet tested section 13 of the plain checklist. Section 12's automated and hands-on commands were run in mission-20261029-03 (step 3) on 2026-10-29, from zsh, and the output is in `.claude/memory/workspace/m3b-step3-runs.txt`; the operator has not yet tested section 12 of the plain checklist. Every block marked `TO EXPAND` is a placeholder, and the expansion belongs to the step that lands the deliverable. The operator runs tests from the plain checklist `plan/testing/manual/user-testing/milestone-5-donovan.md`, set up with `source scripts/m5-test-env.sh`; see [`milestone-5-start-here.md`](../../milestones/milestone-5-start-here.md).
+> **Status: skeleton.** This document was written at planning time (mission-20261023-06, 2026-10-23). It is expanded as each deliverable lands. Section 1's commands were run in mission-20261027-03, and the operator passed section 1 of the plain checklist on 2026-10-27. Section 2's commands were run in mission-20261026-01, and the operator passed section 2 of the plain checklist on 2026-10-27. Section 4's commands were run in mission-20261027-04, and the operator passed section 4 of the plain checklist on 2026-10-27, with a note (see the carried item under *Carried from Milestone 5 planning* in `plan/PROGRESS.md`). Section 5's commands were run in mission-20261027-06 (step 7) on 2026-10-27, and the operator passed section 5 of the plain checklist on 2026-10-28. Section 6's automated commands were run in mission-20261027-05 (step 5) on 2026-10-27, and the operator passed section 6 of the plain checklist on 2026-10-28; its hands-on steps need a live model turn and have not been run, and the operator checklist's section 6 has only automated steps. Section 9's commands were run in mission-20261027-08 on 2026-10-27, and the operator passed section 9 of the plain checklist on 2026-10-28. Section 16's automated check was run in mission-20261027-07 (step 3) on 2026-10-27; its removal control is recorded in mission-20261027-07 step 1, and the operator passed section 16 of the plain checklist on 2026-10-28. Section 3's automated checks were run in mission-20261028-03 (step 5) on 2026-10-28, from zsh after `source scripts/m5-test-env.sh`, and the output is in `.claude/memory/workspace/m5d5-step5-evidence.txt`; its hands-on step needs a live model turn and an API key. No key-free route was found in a 25-minute attempt (mission-20261028-03 step 6a), so the step has not been run; the operator tested section 3 of the plain checklist on 2026-10-29, and that checklist's quit-and-reopen check is checked at the final release check (section 37 of the checklist). Section 7's automated checks and hands-on commands were run in mission-20261028-03 (step 9) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m7d-step9-evidence.txt`; the operator tested section 7 of the plain checklist on 2026-10-29. Section 10's automated commands were run in mission-20261028-03 (step 13) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m10b-step13-evidence.txt`; the goreleaser snapshot was not run (goreleaser is not installed, and no install was allowed in that step), and the operator tested section 10 of the plain checklist on 2026-10-29. Section 8's automated checks were run in mission-20261028-03 (step 17) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m6d-step17-auto.txt`; the operator tested section 8 of the plain checklist on 2026-10-29, and its hands-on paste step has not been pre-run. Section 13's automated commands and golden check were run in mission-20261029-02 (step 4) on 2026-10-29, from zsh, and the output is in `.claude/memory/workspace/m7a-step4-runs.txt`. The fix round after the step 5 review (mission-20261029-02, step 4a) reran them, and its output is in `.claude/memory/workspace/m7a-step4a-runs.txt`; the operator has not yet tested section 13 of the plain checklist. Section 12's automated and hands-on commands were run in mission-20261029-03 (step 3) on 2026-10-29, from zsh, and the output is in `.claude/memory/workspace/m3b-step3-runs.txt`; the operator has not yet tested section 12 of the plain checklist. Section 24's automated commands were run in mission-20261030-01 (step 4c) on 2026-10-30, from zsh; the doctor runs are in `.claude/memory/workspace/m20261030-01-step4c-doctor-run.txt` and the test output in `.claude/memory/workspace/m20261030-01-step4c-runs.txt`. The step 3 files are superseded and not relied on. Its hands-on steps need a second live kirsch and have not been run. Section 24 of the plain checklist is ready for the operator to test, and the operator has not yet tested it. Every block marked `TO EXPAND` is a placeholder, and the expansion belongs to the step that lands the deliverable. The operator runs tests from the plain checklist `plan/testing/manual/user-testing/milestone-5-donovan.md`, set up with `source scripts/m5-test-env.sh`; see [`milestone-5-start-here.md`](../../milestones/milestone-5-start-here.md).
 
 ## How to read this document
 
@@ -1073,7 +1073,7 @@ git -C "$WORKSPACE" rev-parse --is-inside-work-tree
 
 **Hands-on checks**
 
-**Changed 2026-10-29 by m5-d3b.** Any expectation below that quotes the m5-d3a report is stale, and the current results are in §12. That covers the summary counts, the exit statuses, the usage line and the `--workspace` run. Hands-on 1 now prints a `fail` line for config and exits 1 for the broken settings file, where it expected exit 0; the plain run still exits 1. Hands-on 1 also prints `fail  repository: not in a Git repository`, because `$T_CFG` is outside any repository, and its summary reads `doctor: 2 ok, 0 warn, 2 fail` (run 9 of step 3a in `.claude/memory/workspace/m3b-step3a-runs.txt`, a scratch file archived at the next mission start). The operator's section 7 note shows the same lines. Hands-on 3 now exits 1 outside a repository, because the repository check fails there. Hands-on 4 now reads `4:  kirsch doctor [flags]`. Hands-on 5 expected a `--workspace` value not to change the report; with m5-d3b it does. The steps and their expected text are kept as they were at m5-d3a. The carried item (d) in the Notes below is the m5-d3a finding. **Dated note, 2026-10-29 (mission-20261029-06, step 3b):** the summary counts quoted in this section are out of date since m5-d4a as well, because the summary counts the key, backend, model and context lines. Measured on 2026-10-29, from the kirsch folder with no key set and an empty settings folder, the summary reads `doctor: 7 ok, 1 warn, 0 fail` (`.claude/memory/workspace/m20261029-06-step3b-runs.txt`, part 4, scratch). The count outside a repository with no flag is `doctor: 5 ok, 2 warn, 1 fail` (part 6). The same applies to §11 hands-on 1 and 2, whose summary lines are older still.
+**Changed 2026-10-29 by m5-d3b.** Any expectation below that quotes the m5-d3a report is stale, and the current results are in §12. That covers the summary counts, the exit statuses, the usage line and the `--workspace` run. Hands-on 1 now prints a `fail` line for config and exits 1 for the broken settings file, where it expected exit 0; the plain run still exits 1. Hands-on 1 also prints `fail  repository: not in a Git repository`, because `$T_CFG` is outside any repository, and its summary reads `doctor: 2 ok, 0 warn, 2 fail` (run 9 of step 3a in `.claude/memory/workspace/m3b-step3a-runs.txt`, a scratch file archived at the next mission start). The operator's section 7 note shows the same lines. Hands-on 3 now exits 1 outside a repository, because the repository check fails there. Hands-on 4 now reads `4:  kirsch doctor [flags]`. Hands-on 5 expected a `--workspace` value not to change the report; with m5-d3b it does. The steps and their expected text are kept as they were at m5-d3a. The carried item (d) in the Notes below is the m5-d3a finding. **Dated note, 2026-10-29 (mission-20261029-06, step 3b):** the summary counts quoted in this section are out of date since m5-d4a as well, because the summary counts the key, backend, model and context lines. Measured on 2026-10-29, from the kirsch folder with no key set and an empty settings folder, the summary reads `doctor: 7 ok, 1 warn, 0 fail` (`.claude/memory/workspace/m20261029-06-step3b-runs.txt`, part 4, scratch). The count outside a repository with no flag is `doctor: 5 ok, 2 warn, 1 fail` (part 6). The same applies to §11 hands-on 1 and 2, whose summary lines are older still. **Dated note, 2026-10-30 (m5-d4b, step 4g):** the summary counts quoted in the paragraph above, `5 ok, 2 warn, 1 fail` and `7 ok`, are stale and are not the current figures. The current figures from the step 4c doctor runs (`.claude/memory/workspace/m20261030-01-step4c-doctor-run.txt`) are `doctor: 9 ok, 1 warn, 0 fail` for run B, with the kirsch folder as workspace and a writable state folder, and `doctor: 5 ok, 4 warn, 1 fail` for run E, outside a repository with no flag. See the notes at `plan/testing/manual/milestone-5.md:1098` and `plan/testing/manual/milestone-5.md:1109`.
 
 The hands-on commands below were run in zsh, after the Setup and the Guard functions. The automated commands were run in zsh with no setup, because they need none. The verbatim output is in `.claude/memory/workspace/m7d-step9-evidence.txt`. If the file has moved, it is under `.claude/memory/workspace/`, because the workspace is archived at the next mission start. To find it, run `find .claude/memory/workspace -name m7d-step9-evidence.txt`.
 
@@ -1095,7 +1095,7 @@ The hands-on commands below were run in zsh, after the Setup and the Guard funct
    exit=1
    ```
 
-   **Dated note, 2026-10-29 (mission-20261029-06, step 3b):** the `doctor: 0 ok` line in the block above is the output of an earlier doctor that ran no checks, the version that operator section 7 describes. It is kept as recorded. The summary has counted real checks since m5-d3b, so it is no longer the current result.
+   **Dated note, 2026-10-29 (mission-20261029-06, step 3b):** the `doctor: 0 ok` line in the block above is the output of an earlier doctor that ran no checks, the version that operator section 7 describes. It is kept as recorded. The summary has counted real checks since m5-d3b, so it is no longer the current result. **Dated note, 2026-10-30 (m5-d4b, step 4e):** since m5-d4b the summary also counts the `state` and `lock` lines, so the `doctor: 0 ok` sample above, and the `doctor: 2 ok, 0 warn, 2 fail` figure in the m5-d3b notes, are out of date. This broken-settings run was not measured again after m5-d4b, so no current figure is given for it here. The run measured at step 4c outside a repository with no flag (run E, `.claude/memory/workspace/m20261030-01-step4c-doctor-run.txt`) reads `doctor: 5 ok, 4 warn, 1 fail`, with settings that read, so it is a different run.
 
 2. From the kirsch folder, which is inside a repository (authored here):
 
@@ -1106,7 +1106,7 @@ The hands-on commands below were run in zsh, after the Setup and the Guard funct
    echo "exit=$?"
    ```
 
-   Expected: `kirsch 0.1.0-dev`, `doctor: 0 ok, 0 warn, 0 fail`, then `exit=0`. **Dated note, 2026-10-29 (mission-20261029-06, step 3b):** this count is out of date. Since m5-d3b and m5-d4a the summary counts every check line, and the current run from this folder with no key set reads `doctor: 7 ok, 1 warn, 0 fail` (`.claude/memory/workspace/m20261029-06-step3b-runs.txt`, part 4).
+   Expected: `kirsch 0.1.0-dev`, `doctor: 0 ok, 0 warn, 0 fail`, then `exit=0`. **Dated note, 2026-10-29 (mission-20261029-06, step 3b):** this count is out of date. Since m5-d3b and m5-d4a the summary counts every check line, and the current run from this folder with no key set reads `doctor: 7 ok, 1 warn, 0 fail` (`.claude/memory/workspace/m20261029-06-step3b-runs.txt`, part 4). **Dated note, 2026-10-30 (m5-d4b, step 4e):** with the `state` and `lock` lines counted, the same run with `--workspace` set to the kirsch folder, with no key set and a writable state folder, reads `doctor: 9 ok, 1 warn, 0 fail` (step 4c, run B, `.claude/memory/workspace/m20261030-01-step4c-doctor-run.txt`).
 
 3. From `$T_CFG`, which is outside any repository (authored here). This is the same command run from the test folder:
 
@@ -1165,7 +1165,7 @@ Carried to m5-d3b. The fix-before-lifting items are in *Carried from Milestone 5
 **Status of the carried items, dated 2026-10-29 (m5-d3b, mission-20261029-03, step 3a).** The items above are kept as they were written, except item (b). Item (b) was rewritten to cite symbols instead of line numbers; its original cites were `cmd/kirsch/main.go:76–77`, `cmd/kirsch/main.go:158–160` and `internal/arch/imports_test.go:43–44`. This is what the source and the runs in `.claude/memory/workspace/m3b-step3a-runs.txt` show (scratch, archived at the next mission start):
 
 - (a) Closed in part. `TestRunDoctorChangesNothing` now has a positive control and a comparison control in each root, and its snapshot records size, mtime and a checksum. A write mutant (`mw`) was reported by @hicks at step 1 to fail the test; no saved output; not re-run. That part stays open until a saved run exists.
-- (b) Closed in `cmd/kirsch/main.go`: the comments on `doctorProbes` and in `run` now describe the probes. Open in the `internal/doctor` entry of `internal/arch/imports_test.go`, whose comment still says the probes are still to come. That stays true until m5-d4a and m5-d4b land.
+- (b) Closed in `cmd/kirsch/main.go`: the comments on `doctorProbes` and in `run` now describe the probes. Open in the `internal/doctor` entry of `internal/arch/imports_test.go`, whose comment still says the probes are still to come. That stays true until m5-d4a and m5-d4b land. **Dated note, 2026-10-30 (m5-d4b, step 4c):** this has closed. The comment above the `internal/doctor` entry in `internal/arch/imports_test.go` now describes the import rule and its one exception, `internal/agent/prompt`, and does not say the probes are still to come. That was closed by m5-d4a, so the condition "until m5-d4a and m5-d4b land" is met. The text above is kept as it was written.
 - (c) Closed. `Failed` and `Report` count a status outside the three known values as a failure. `TestReportCountsUnknownStatusAsFail` and `TestRunNeverReturnsUnknownStatus` cover it.
 - (d) Closed, except for one item. `TestDoctorBinaryExitStatus` is the subprocess exit test. `TestRunDoctorHonoursWorkspaceFlag` covers `--workspace`. The usage line reads `kirsch doctor [flags]`. `TestRunDoctorMultiLineConfigErrorIsOneLine` covers multi-line details. Open: the arch mutant for `internal/doctor` was reported by @hicks at step 1 to fail `TestImportRules` only when the run sets `GOFLAGS=-overlay=…`. A plain `-overlay` run passes, because `TestImportRules` shells out to `go list`, which does not read the overlay. The saved runner `.claude/memory/workspace/m3b-run.sh` (scratch, archived at the next mission start) uses plain `-overlay`, so it does not reproduce the failure. No saved output of the failing run exists; not re-run.
 
@@ -2368,8 +2368,8 @@ Run on 2026-10-29 by mission-20261029-06, from the agent's Bash tool, in two pas
 - Comment check: the diff of both files against `686d3c4` changes at least one line in each file, and every changed line is a `//` comment. The control line is reported as `+var controlProbe = 1`. The counts are not written here, because they move with each comment edit. The step 3b run of this check is `.claude/memory/workspace/m20261029-06-step3b-comments-runs.txt` (scratch, archived at the next mission start); parts 9a and 9b show that no changed line is a non-comment, parts 9c and 9d show at least one changed line in each file, and part 9e is the control.
 - Key-state check, last: not run in the agent shell, because the Setup functions (`keycount` and `keycount_control`) are not loaded there. The step 3a run script counted the exported key variables after its `unset`, and the count printed `0` (a count only; no value was read or printed). The check itself is for the operator's Setup terminal.
 - **Step 3b (docs fix round 2, 2026-10-29, mission-20261029-06).** Measured with a fresh build, `go build -o .claude/memory/workspace/m20261029-06-step3b-kirsch ./cmd/kirsch` (unstamped, so the version line reads `kirsch 0.1.0-dev`). The script is `.claude/memory/workspace/m20261029-06-step3b-run.zsh` and its output is `.claude/memory/workspace/m20261029-06-step3b-runs.txt` (scratch, archived at the next mission start). Each kirsch run used an empty settings folder under the workspace, not the Setup settings file (the `go test` runs read no settings):
-  - Hands-on 1 shape, from the kirsch folder, no key set (part 4): `doctor: 7 ok, 1 warn, 0 fail`, and `exit=0`. The one warning is the `key` line. The `context` line reads `AGENTS.md, 6687 bytes`, the size of that file on the day of the run.
-  - Outside a repository with no flag, in a folder under the workspace with the git ceiling set to the workspace root (part 6): `doctor: 5 ok, 2 warn, 1 fail`, and `exit=1`. The fail is the repository line. The warnings are the `key` line and `context: skipped: no workspace`.
+  - Hands-on 1 shape, from the kirsch folder, no key set (part 4): `doctor: 7 ok, 1 warn, 0 fail`, and `exit=0`. The one warning is the `key` line. The `context` line reads `AGENTS.md, 6687 bytes`, the size of that file on the day of the run. **Dated note, 2026-10-30 (m5-d4b, step 4c):** since m5-d4b the summary also counts the `state` and `lock` lines, so this sample now reads `doctor: 9 ok, 1 warn, 0 fail` with a writable state folder (step 4c, run B, in `.claude/memory/workspace/m20261030-01-step4c-doctor-run.txt`, with a scratch settings folder). The count moves with the key, `rg` on PATH, the state folder and the lock.
+  - Outside a repository with no flag, in a folder under the workspace with the git ceiling set to the workspace root (part 6): `doctor: 5 ok, 2 warn, 1 fail`, and `exit=1`. The fail is the repository line. The warnings are the `key` line and `context: skipped: no workspace`. **Dated note, 2026-10-30 (m5-d4b, step 4c):** measured again at step 4c (run E, `.claude/memory/workspace/m20261030-01-step4c-doctor-run.txt`), with the `state` and `lock` lines counted, this run reads `doctor: 5 ok, 4 warn, 1 fail` and `exit=1`. The two new warnings are `warn  state: skipped: no workspace` and `warn  lock: skipped: no workspace`. The fail is still the repository line.
   - Hands-on 9 (part 7): the count is `18`, and the run ends `exit 0` across the three packages. Hands-on 10 (part 8): the pattern selects nothing, and it prints `[no tests to run]` with `exit 0`.
 - **Settings folders for the step 3a runs, corrected in step 3b.** Hands-on 7 ran with the empty settings folder (`cfg-empty`). Hands-on 6 did not: it ran with its own settings folders (`cfg-ctx` and `cfg-nopf`), which name `project_files`. Neither used the Setup settings file. The §20 hands-on steps above now say which folder each command uses.
 - **Pre-edit copy of this file, step 3a (W9).** Step 3a's pre copy of this file was overwritten during step 3a, because its basename matched the milestone file's, and it was rebuilt by reversal. The rebuilt copy, `.claude/memory/workspace/m20261029-06-step3a-pre/plan_testing_manual_milestone-5.md`, has sha256 `226f3c3e80a37ad6363496b3fc5ccb953f264e593e8cff0dfb1fbc504cb55488` (recomputed with `shasum -a 256` in step 3c, `.claude/memory/workspace/m20261029-06-step3c-runs.txt`, part 5). No hash of this file was recorded before step 3a edited it, so that rebuild is not verified against a pre-3a value. The only earlier hash of this file in the workspace is `567bd2dabba5818475364ee92ed0de85b14b925bb16ee0177f4e7825691184a2`, in `.claude/memory/workspace/m20261029-06-step3-pre-hashes.txt` (line 7, for `m20261029-06-step3-pre/plan_testing_manual_milestone-5.md`). That copy was taken before step 3, not before step 3a, so it does not verify the rebuild, and the rebuilt copy does not match it. No hash of the state after step 3 was found in the workspace. From step 3b on, the pre-edit hash of this file is recorded before the first edit, in `.claude/memory/workspace/m20261029-06-step3b-pre-hashes.txt`: `f7b581d621335a99ae9deb12971f44a9fbd1475c6b5a4b63e3e8f85bddff4889`, which is the state after step 3a.
@@ -2587,13 +2587,70 @@ _Empty. Fill at run._
 
 ## 24 · Doctor: state directory and lock state (m5-d4b)
 
-**Context:** Terminal: Setup (instance 1), and a second terminal that shares instance 1's `$T_CFG` and `$T_STATE`. The second terminal copies the paths from the first and does not rerun the `mktemp` lines, because a fresh scratch directory has no shared lock. Binary: `kirsch doctor` (launch command TO EXPAND). Working directory: `$T_CFG`. Workspace: `--workspace "$WORKSPACE"` on each kirsch launch. Key state: all key variables unset in both terminals. Config state: Setup, unchanged.
+**Context:** Terminal: Setup (instance 1), and a second terminal that shares instance 1's `$T_CFG` and `$T_STATE`. The second terminal copies the paths from the first and does not rerun the `mktemp` lines, because a fresh scratch directory has no shared lock. Binary: `"$KIRSCH_BIN"`, built by `npm run build` (the build block in §2). Instance 1 runs `"$KIRSCH_BIN" --workspace "$WORKSPACE"`, and each check runs `"$KIRSCH_BIN" doctor --workspace "$WORKSPACE"`. Working directory: `$T_CFG`. Workspace: `--workspace "$WORKSPACE"` on each kirsch launch. Key state: all key variables unset in both terminals. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d4b lands:** the state-directory probe and the lock report, as O5 allows them to run.
+After the `context` line, `kirsch doctor` prints two lines, `state` and then `lock`. They are the last two lines of the report. The test `TestStateAndLockLinesFollowContext` pins that order. Both use the grammar from m5-d3a, `<status>  <check>: <detail>`. The code is `internal/doctor/state.go` (`stateRootFor`, `stateResults`, `stateResult`, `sessionDirResult`, `rootProblem`, `indexProblem`, `lockResult`, `lockLine`, `errText`), `internal/doctor/access_unix.go` and `access_other.go` (the writability checks), and `internal/session/lockprobe.go` (`ProbeLock`), with `lockstate.go` for the three outcomes and `lockprobe_other.go` for platforms that do not enforce the lock. The lines below are as the binary prints them. Each row says whether it was seen in a measured run (*Notes / evidence*) or read from the code.
 
-**Waits on:** m5-d4a and O5 (side-effect policy and lock method), from `plan/milestones/milestone-5.md:102`. `session.Acquire` creates the session directory and `.lock` (`internal/session/lock.go:34, :42`), so calling it has side effects.
+What doctor does, and does not do:
+
+- It creates no file and no folder. Writability is checked with `access(2)` (write, and search for a folder), which writes nothing. There is no write probe (`internal/doctor/access_unix.go`).
+- For the lock it opens an existing `.lock` read-only and makes one non-blocking shared `flock` attempt, then releases it at once (`internal/session/lockprobe.go`). A missing `.lock` reads free. Doctor never waits and never takes the exclusive lock.
+
+The path shown is `<root>/sessions/<hash>`. The root comes from `[session] storage_dir` with a trailing `sessions` removed. That is the same rule as the unexported `App.stateRoot` (`internal/app/app.go:851`, doc comment from `:845`), and the comment on `stateRootFor` (`internal/doctor/state.go:43–54`) names the two as a pair. Dated correction, 2026-10-30 (m5-d4b, step 4c): the earlier cites `app.go:831–855` and `state.go:24–35` were stale. A leading `~` is expanded with the home directory.
+
+| Check | Line as printed | When | Evidence |
+|---|---|---|---|
+| state | `ok  state: <dir> exists and is writable` | the session folder exists and `access(2)` allows writing (`state.go:161`) | measured, run B (step 4c) |
+| state | `ok  state: <dir> does not exist yet; kirsch will create it (<anc> is writable)` | the folder is missing; `<anc>` is its nearest existing ancestor, and that is writable (`state.go:180`) | measured, run A (step 4c) |
+| state | `fail  state: <dir> is not writable; kirsch cannot create a new session, so any start that needs one fails until this is fixed` | the session folder exists and is not writable (`state.go:159`) | read from the code; `TestStateLineStatuses`, subtest `non-writable directory is fail` |
+| state | `fail  state: <dir> is not a folder; kirsch cannot start until this is fixed` | a file is where the folder should be (`state.go:152`) | read from the code; `TestStateLineStatuses`, subtest `file where the directory should be is fail` |
+| state | `fail  state: <dir> does not exist and <anc> is not writable; kirsch cannot start until this is fixed` | the folder is missing and its ancestor is not writable (`state.go:178`) | read from the code; `TestStateLineStatuses`, subtest `missing with non-writable ancestor is fail` |
+| state | `fail  state: <dir> does not exist and <anc> is not a folder; kirsch cannot start until this is fixed` | the ancestor is a file (`state.go:174`) | read from the code; defensive; tested through the stat seam (`TestStateResultAncestorNotAFolder`) |
+| state | `fail  state: <dir> does not exist and <anc> cannot be read: <error>; kirsch cannot start until this is fixed` | `stat` of the ancestor fails for a reason other than not-exist (`state.go:184`) | read from the code; defensive; tested through the stat seam (`TestStateResultAncestorCannotBeRead`) |
+| state | `fail  state: cannot read <dir>: <error>; kirsch cannot start until this is fixed` | `stat` of the folder fails for a reason other than not-exist, for example when the storage root sits under a file (`state.go:163`) | read from the code; `TestStateResultCannotRead` |
+| state | `fail  state: <root> is not writable, so index.json cannot be updated; kirsch cannot create a new session, so any start that needs one fails until this is fixed` | the state root (the folder that holds `index.json`) exists and is not writable (`state.go:215`) | measured, run C (step 4c); `TestStateRootNotWritable` |
+| state | `fail  state: <root> is not a folder; kirsch cannot start until this is fixed` | the state root is a file (`state.go:208`) | read from the code; defensive; tested through the stat seam (`TestStateRootDefensiveBranches`, subtest `root is not a folder`) |
+| state | `fail  state: cannot read <root>: <error>; kirsch cannot start until this is fixed` | `stat` of the state root fails for a reason other than not-exist (`state.go:206`) | read from the code; defensive; tested through the stat seam (`TestStateRootDefensiveBranches`, subtest `root cannot be read`) |
+| state | `fail  state: <index> is not readable; kirsch cannot start until this is fixed` | `index.json` fails `access(2)` for read (`state.go:244`) | read from the code; `TestStateIndexNotReadable`, subtest `not readable` |
+| state | `fail  state: <index> is a folder, not a file; kirsch cannot start until this is fixed` | `index.json` is a folder (`state.go:237`) | read from the code; `TestStateIndexNotReadable`, subtest `a folder` |
+| state | `fail  state: cannot read <index>: <error>; kirsch cannot start until this is fixed` | `stat` of `index.json` fails for a reason other than not-exist (`state.go:235`) | read from the code; defensive; tested through the stat seam (`TestStateRootDefensiveBranches`, subtest `index cannot be read`) |
+| state | `warn  state: <dir> exists; writability not checked on this platform` | a platform without the access check (`state.go:157`) | read from the code; not testable here |
+| state | `warn  state: <dir> does not exist yet; writability of <anc> not checked on this platform` | the same, for a missing folder (`state.go:176`) | read from the code; not testable here |
+| state | `warn  state: <root> exists; writability not checked on this platform` | the same, for the state root (`state.go:213`) | read from the code; not testable here |
+| state | `warn  state: <index> exists; readability not checked on this platform` | the same, for `index.json` (`state.go:242`) | read from the code; not testable here |
+| state | `warn  state: skipped: config did not load` | the settings did not load (`state.go:96`) | read from the code; `TestStateAndLockSkipped` |
+| state | `warn  state: skipped: no workspace` | no workspace was found (`state.go:98`) | read from the code; `TestStateAndLockSkipped` |
+| state | `fail  state: cannot work out the state folder: home directory unknown; kirsch cannot start until this is fixed` | there is no home directory (`state.go:105–107`) | read from the code; `TestStateNeedsHome` |
+| lock | `ok  lock: free (no lock file yet)` | there is no `.lock` file (`state.go:298`) | measured, runs A to D (step 4c) |
+| lock | `ok  lock: free` | the `.lock` file exists and the shared attempt succeeds (`state.go:276`, `:303`) | read from the code; `TestLockLineHeldThenFree`, after the release |
+| lock | `warn  lock: held by another kirsch in this workspace; a new start would skip resume and session grants` | another process holds the lock (`state.go:274`) | read from the code; `TestLockLineHeldThenFree`. Live check: hands-on steps 2 and 3 |
+| lock | `warn  lock: free, but <path> is not writable; the single-instance guard will be off` | the `.lock` file exists, is free, and the user cannot write it (`state.go:301`) | read from the code; `TestLockLineNotWritable` (skips as root) |
+| lock | `warn  lock: could not check the lock: <error>` | the probe fails (`state.go:272`) | read from the code; `TestLockResultProbeError` |
+| lock | `warn  lock: not checked on this platform` | a platform without the lock check (`state.go:278`) | read from the code; `TestLockLineNotCheckedHere` |
+| lock | `warn  lock: cannot work out the state folder: home directory unknown` | there is no home directory (`state.go:108`) | read from the code; `TestStateNeedsHome` |
+| lock | `warn  lock: skipped: config did not load` and `warn  lock: skipped: no workspace` | as for the state line (`state.go:96`, `:98`) | read from the code; `TestStateAndLockSkipped` |
+
+**Status, by the O5 rule.** The state line can be `fail`, and it fails where a start would stop. The start-up path is `startupPostAttach` (`cmd/kirsch/main.go:320`), then `initSession` (the callback from `chooseSessionInit`, `cmd/kirsch/main.go:277`), then `App.StartNewSession` (`internal/app/app.go:909`), `createSessionStore` (`app.go:917`) and `Layout.CreateSession`. Two endings are used. `kirsch cannot start until this is fixed` is used where the resume path breaks too, so every start fails. `kirsch cannot create a new session, so any start that needs one fails until this is fixed` is used for a session folder or state root that is not writable (`state.go:159`, `:215`). A resume can still reopen an existing session file in such a folder, so a start that resumes may work, and the ending says only what is certain. A `fail` makes doctor exit 1. The lock line is only `ok` or `warn`: `App.AcquireLock` returns nil on every path (`internal/app/app.go:777–805`), so no lock problem stops a start. Measured on 2026-10-30: run C (state root not writable) ends `exit=1`, and runs A, B and D end `exit=0` with the key warning only. An `ok` state line does not guarantee that a start works (see *Known limits*, W2 and W3).
+
+**What a held lock means.** A held lock means another kirsch is running in this workspace. A kirsch that starts now would run in concurrent-instance mode: no resume, no session grants, and the status "another Kirsch is running here" (`internal/app/app.go:792–798`).
+
+**The probe and a starting kirsch.** The probe holds the shared lock for a few system calls. A kirsch that starts in that same instant is refused the exclusive lock and starts in concurrent-instance mode, as above. The window is narrow. The probe never waits, and two probes at once share the lock and do not affect each other (`ProbeLock` docblock, `internal/session/lockprobe.go`). Do not start kirsch in the same moment as a doctor run.
+
+**Decisions for the operator.** Both points are recorded as Bishop's *O5 detail (m5-d4b)* in `plan/PROGRESS.md`, *Milestone 5 — decisions recorded*, and open in *Open from m5-d4b*. (1) O5 says doctor takes no lock: it "only checks and never changes anything (no folders created, no lock taken)" (row O5). This probe takes the shared lock for a moment, to tell held from free. The alternative is a lock line that reads "not checked". (2) The state line reads O5's "would stop kirsch starting" to include a start that needs a new session, even where a resume could still reopen the existing session file (the `cannot create a new session` ending). If the rule means every start, those two cases should be `warn`. Neither point is decided.
+
+**Known limits, carried and not fixed in m5-d4b.**
+
+- `stateRootFor` is a hand-kept copy of `App.stateRoot`, because doctor cannot call the unexported function. No test ties the two together. A shared helper would need an edit to `internal/app`, which is outside this deliverable (`internal/doctor/state.go:43–54`; the function is at `:55–81`).
+- The `HomeDir` comment (`internal/doctor/probes.go:65–73`) says "a leading ~", but `config.ExpandHome` (`internal/config/config.go:509–517`) expands only `~` and `~/`. So `~user` is not expanded, and the comment is wider than the code. An empty `storage_dir` cannot arrive through `Run`, because the config fills in the default (`internal/config/config.go:113`), so the empty case in that comment is also wider than the code. Optional tightening.
+- Windows: `GOOS=windows go build ./internal/session` and `GOOS=windows go vet ./internal/session` both succeed, so `lockprobe_other.go` compiles there. `internal/doctor` does not build for Windows today, because it imports `internal/tool`, and `internal/tool/run_command.go` uses Unix-only calls (`:184`, `:353`, `:361`, `:369`). That file is not part of m5-d4b, so `access_other.go` is not compiled there. Neither non-Unix file has a test.
+- **W1 (step 4b review, carried to the operator, not fixed; read from the code, not run).** When the session folder is not writable, the lock line still reads `ok  lock: free (no lock file yet)`, because `lockResult` returns that line before it checks the folder (`internal/doctor/state.go:298`). A real start could not create `.lock` in that folder, so `App.AcquireLock` would log "lock unavailable" and carry on with the single-instance guard off. The state line fails in that case, so the lock line's `ok` is not a claim that a start works.
+- **W2 (carried, not fixed; read from the code, not run).** A corrupt `index.json` stops a start, because `ReadIndex` fails inside `Layout.CreateSession` and on the resume path. Doctor checks access only and never parses the file (`internal/doctor/state.go:226–228`), so a corrupt file reads ok on the state line.
+- **W3 (carried, not fixed; read from the code, not run).** The root check tests write and search, not read (`internal/doctor/state.go:200–218`). `WriteIndex` opens the state root read-only to fsync it (`internal/session/persist.go:78–82`). A root with mode `-wx` should therefore read ok in doctor and still stop a start.
+- **W4 (carried, not fixed).** No test drives the resume path to the two endings. The `cannotStart` and `cannotStartNew` wording for a start is checked against a helper that mirrors the start-up path, and that helper does not include the resume path (`App.ResumeLastSession`, `internal/app/app.go:1026`). The wording on that path rests on review.
+
+**Waited on, both done:** m5-d4a and O5 (side-effect policy and lock method), from `plan/milestones/milestone-5.md:102`. `session.Acquire` creates the session directory and `.lock` (`internal/session/lock.go:34, :42`), so the probe does not call it. It uses `session.ProbeLock` (`internal/session/lockprobe.go`) instead.
 
 **Key-state and repository checks, first.** Authored here. It must print `CONTROL PASS`, then `0`. The first `git` line must exit non-zero, and the last must print `true`.
 
@@ -2607,11 +2664,25 @@ git -C "$WORKSPACE" rev-parse --is-inside-work-tree
 
 **Automated checks**
 
-- [ ] A non-writable state directory is flagged, and the test restores the directory mode afterwards (`plan/milestones/milestone-5.md:687`). Command: `TO EXPAND`.
-- [ ] While the test holds the lock with `session.Acquire`, doctor reports held. After the release, doctor reports free (`plan/milestones/milestone-5.md:688`). Command: `TO EXPAND`.
-- [ ] The held lock is still held after the doctor run, so the live instance is not disturbed (`plan/milestones/milestone-5.md:689`). Command: `TO EXPAND`.
-- [ ] The probe path printed is `<root>/sessions/<hash>` for a fixture root (`plan/milestones/milestone-5.md:690`). Command: `TO EXPAND`.
-- [ ] With config not loaded, both lines read `skipped: config did not load` (`plan/milestones/milestone-5.md:691`). Command: `TO EXPAND`.
+Each box below is ticked only on the run named in it. Box 1 skips as root, because access(2) grants write to root, so run it as an ordinary user. A `--- SKIP` line in the output means the box was not tested.
+
+Count check first (authored here). Its two numbers must be equal. A pattern that selects too few tests would otherwise pass with `ok` and no failure.
+
+```bash
+# authored here
+cd /Volumes/DATA/Github/kirsch
+PAT='^(TestStateLineStatuses|TestLockLineHeldThenFree|TestLockLineFreeLeavesNoLock|TestStatePathPrinted|TestStateAndLockSkipped|TestProbeLock|TestProbeLockFreeLeavesNoLock)$'
+printf '%s\n' "$PAT" | grep -o 'Test[A-Za-z0-9_]*' | wc -l
+go test -list "$PAT" ./internal/doctor ./internal/session | grep -c '^Test'
+```
+
+The two numbers were both `7` on the step 4c run (`.claude/memory/workspace/m20261030-01-step4c-runs.txt`, part 1). If they differ, do not tick the boxes below.
+
+- [✅] A non-writable state directory is flagged, and the test restores the directory mode afterwards (`plan/milestones/milestone-5.md:691`). Test: `TestStateLineStatuses`, subtest `non-writable directory is fail`; the test sets mode 0o500, expects the fail line with the `cannot create a new session` ending, then restores 0o700 and checks that the directory reads ok again. Command: `go test -count=1 -v -run '^TestStateLineStatuses$' ./internal/doctor`. Output: `--- PASS: TestStateLineStatuses/non-writable_directory_is_fail`, no `--- SKIP` line, and `ok` for `./internal/doctor`. Measured in mission-20261030-01, step 4c, with exit 0 (`.claude/memory/workspace/m20261030-01-step4c-runs.txt`, part 2, scratch). The box says the folder is "flagged": it still is, now as `fail` where the step 3 wording read `warn`, so the box is met on the new wording. The step 3 run (`m20261030-01-step3-box1-run.txt`) tested the earlier wording and is superseded.
+- [✅] While the test holds the lock with `session.Acquire`, doctor reports held. After the release, doctor reports free (`plan/milestones/milestone-5.md:692`). Test: `TestLockLineHeldThenFree`, one process. Command: `go test -count=1 -v -run '^TestLockLineHeldThenFree$' ./internal/doctor`. Output: `--- PASS: TestLockLineHeldThenFree` and `ok` for `./internal/doctor`.
+- [✅] The held lock is still held after the doctor run, so the live instance is not disturbed (`plan/milestones/milestone-5.md:693`). Tests: `TestLockLineHeldThenFree` asserts that a second `session.Acquire` still returns `ErrLockHeld` after the doctor run. In `internal/session`, `TestProbeLock`, subtest `held lock is held, and stays held`, probes twice and then asserts the same. The free side is covered by `TestLockLineFreeLeavesNoLock` and `TestProbeLockFreeLeavesNoLock`, which assert that a free probe leaves no lock behind. Commands: `go test -count=1 -v -run '^(TestLockLineHeldThenFree|TestLockLineFreeLeavesNoLock)$' ./internal/doctor` and `go test -count=1 -v -run '^(TestProbeLock|TestProbeLockFreeLeavesNoLock)$' ./internal/session`. Output: a `--- PASS` line for each name and an `ok` line for each package.
+- [✅] The probe path printed is `<root>/sessions/<hash>` for a fixture root (`plan/milestones/milestone-5.md:694`). Test: `TestStatePathPrinted`, with subtests `plain root`, `trailing sessions`, `tilde`, `tilde alone` and `unclean`. Command: `go test -count=1 -v -run '^TestStatePathPrinted$' ./internal/doctor`. Output: a `--- PASS` line for the test and each subtest, and `ok` for `./internal/doctor`.
+- [✅] With config not loaded, both lines read `skipped: config did not load` (`plan/milestones/milestone-5.md:695`). Test: `TestStateAndLockSkipped`, which runs doctor with a broken settings file and asserts that both lines are warn with that detail. Command: `go test -count=1 -v -run '^TestStateAndLockSkipped$' ./internal/doctor`. Output: `--- PASS: TestStateAndLockSkipped` and `ok` for `./internal/doctor`.
 
 **Hands-on checks**
 
@@ -2629,13 +2700,127 @@ unset ANTHROPIC_API_KEY KIRSCH_ANTHROPIC_API_KEY OPENCODE_API_KEY KIRSCH_OPENCOD
 
 Then paste the whole Guard functions block from *Setup* (it defines `storage_ok`, `keycount`, `keycount_control` and `guard`), and run `guard`. It must print `GUARD PASS`.
 
-1. (operator) A second live instance is run by the operator (`plan/milestones/milestone-5.md:693`).
+These steps need two terminals, and both use the scratch paths from Setup. Instance 1 is the Setup terminal. Instance 2 is a second terminal that shares its paths. Do not run Setup again in the second terminal: it would make new folders, and the lock would not be shared. The lock is per workspace, so both launches use `--workspace "$WORKSPACE"`.
 
-   > **TO EXPAND when m5-d4b lands:** the terminal steps, the expected doctor output, and the state of the first instance's lock.
+1. **Instance 1 starts, with no key (operator; the Setup terminal).** Working directory: `$T_CFG`. Workspace: `--workspace "$WORKSPACE"`. Key state: unset.
+
+   ```bash
+   cd "$T_CFG"
+   "$KIRSCH_BIN" --workspace "$WORKSPACE"
+   ```
+
+   Expected: kirsch's screen opens and keeps running. With no key set, it shows the no-key notice and does not stop. That is read from the code, not run: `App.CheckOnboarding` sends `NoAPIKey` to the screen (`internal/app/app.go:1318–1333`), and `keyResult` (`internal/doctor/probes.go`) records that kirsch starts. Opening the screen creates `$T_STATE/sessions/<hash>` and its `.lock` (`internal/session/lock.go:34, :42`). Leave this terminal open until step 4.
+
+2. **Instance 2 reads the lock (operator; the second terminal, after the attach block above).** Working directory: `$T_CFG`. Workspace: `--workspace "$WORKSPACE"`.
+
+   ```bash
+   cd "$T_CFG"
+   "$KIRSCH_BIN" doctor --workspace "$WORKSPACE"; echo "exit=$?"
+   ```
+
+   Expected: a line `warn  lock: held by another kirsch in this workspace; a new start would skip resume and session grants`, a line starting `ok  state:` that names `$T_STATE/sessions/<hash>` and ends `exists and is writable`, and `exit=0`. The held wording is read from the code (`internal/doctor/state.go:274`, corrected at step 4e from the stale `:170`) and tested by `TestLockLineHeldThenFree`. This step is its live check, and it has not been run live by the agent, which cannot start a second live instance.
+
+3. **Instance 1 is not disturbed (operator; the second terminal, then the first).** Paste the step 2 command again in the second terminal. Expected: the same `warn  lock:` line. Then look at the first terminal: kirsch's screen is still open. Type nothing in the first terminal.
+
+4. **Quit instance 1, then the lock reads free (operator; the first terminal, then the second).** In the first terminal, type `/quit` and press Enter. kirsch closes. In the second terminal, paste the step 2 command again. Expected: `ok  lock: free` and `exit=0`. The `.lock` file stays on disk after kirsch closes. That is normal: the release unlocks and closes the file (`internal/session/lock.go:63–76`) and does not delete it. That is why the line reads `free` and not `free (no lock file yet)`. The release happens when the app closes (`internal/app/app.go:827–829`).
+
+5. **The state folder is the test folder (operator; the second terminal).**
+
+   ```bash
+   ls "$T_STATE/sessions"
+   ```
+
+   Expected: the folder name listed matches the name at the end of the path on the `ok  state:` line from step 2.
+
+6. **Optional: an unwritable state folder (second terminal, after step 4 has closed instance 1).** This changes the mode of `$T_STATE` only, and the same block puts the mode back. Authored here; no key is used.
+
+   ```bash
+   # authored here
+   cd "$T_CFG"
+   M=$(stat -f %Lp "$T_STATE")
+   chmod 500 "$T_STATE"
+   "$KIRSCH_BIN" doctor --workspace "$WORKSPACE"; echo "exit=$?"
+   chmod "$M" "$T_STATE"
+   ls -ld "$T_STATE"
+   ```
+
+   Expected: a line `fail  state: <T_STATE> is not writable, so index.json cannot be updated; kirsch cannot create a new session, so any start that needs one fails until this is fixed`, then `doctor: 8 ok, 1 warn, 1 fail` (the key line is the one warning), `exit=1`, and a last line starting `drwx`. Run C in *Notes / evidence* is the same check, on a scratch layout, measured on 2026-10-30.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Run on 2026-10-30 by mission-20261030-01, step 4c, from the agent's Bash tool, after step 4a changed the state line. The binary is an unstamped build from the current tree: `go build -o .claude/memory/workspace/m20261030-01-step4c-kirsch ./cmd/kirsch`, and its version line reads `kirsch 0.1.0-dev`. The settings are a scratch folder, `.claude/memory/workspace/m20261030-01-step4c-area`, with `XDG_CONFIG_HOME` set to its `cfg` folder, `XDG_STATE_HOME` to its `state` folder, and `storage_dir` to `state/kr`. All four key variables and `KIRSCH_LIVE_MODEL` were unset for each command. The paths below are the agent's, and the operator's will differ. The script is `.claude/memory/workspace/m20261030-01-step4c-run.sh`. Every run, with its command line, `ls -la` listings and `exit=` line, is in `.claude/memory/workspace/m20261030-01-step4c-doctor-run.txt` (scratch, archived at the next mission start). The lines below are quoted from that file.
+
+**Dated correction, 2026-10-30 (step 4c).** The step 3 version of this block called its run 1 "verbatim". The saved step 3 file did not hold that text: its run 1 reads `exists and is writable`, not the `does not exist yet` line quoted here, and it holds no directory listing. The step 3 binary also predates the step 4a fail wording. Those step 3 runs are not relied on below.
+
+Run A, with the session folder absent (run A in the file; the state root `kr` did not exist, and the `ls -la` listings before and after show nothing created):
+
+```
+kirsch 0.1.0-dev
+ok  git: found at /opt/local/bin/git
+ok  rg: found at /opt/homebrew/bin/rg
+ok  repository: /Volumes/DATA/Github/kirsch
+ok  config: settings valid
+warn  key: endpoint opencode: no key found (set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY); kirsch starts but cannot send a prompt
+ok  backend: search_code uses ripgrep
+ok  model: endpoint opencode, model minimax-m3: context window 128000 tokens
+ok  context: AGENTS.md, 6687 bytes
+ok  state: /Volumes/DATA/Github/kirsch/.claude/memory/workspace/m20261030-01-step4c-area/state/kr/sessions/70102b6770d0 does not exist yet; kirsch will create it (/Volumes/DATA/Github/kirsch/.claude/memory/workspace/m20261030-01-step4c-area/state is writable)
+ok  lock: free (no lock file yet)
+doctor: 9 ok, 1 warn, 0 fail
+exit=0
+```
+
+Run B, with the session folder made by `mkdir -p` and writable: the state line reads `ok  state: …/state/kr/sessions/70102b6770d0 exists and is writable`, the lock line reads `ok  lock: free (no lock file yet)`, the summary reads `doctor: 9 ok, 1 warn, 0 fail`, and the run ends `exit=0`.
+
+Run C, with the state root `kr` (the folder that holds `index.json`) made non-writable by `chmod 500`, the session folder still present and writable:
+
+```
+kirsch 0.1.0-dev
+ok  git: found at /opt/local/bin/git
+ok  rg: found at /opt/homebrew/bin/rg
+ok  repository: /Volumes/DATA/Github/kirsch
+ok  config: settings valid
+warn  key: endpoint opencode: no key found (set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY); kirsch starts but cannot send a prompt
+ok  backend: search_code uses ripgrep
+ok  model: endpoint opencode, model minimax-m3: context window 128000 tokens
+ok  context: AGENTS.md, 6687 bytes
+fail  state: /Volumes/DATA/Github/kirsch/.claude/memory/workspace/m20261030-01-step4c-area/state/kr is not writable, so index.json cannot be updated; kirsch cannot create a new session, so any start that needs one fails until this is fixed
+ok  lock: free (no lock file yet)
+doctor: 8 ok, 1 warn, 1 fail
+exit=1
+```
+
+The file's `ls -ld` shows `dr-x------` before and after the run. The `chmod 755` restore then shows `drwxr-xr-x`.
+
+Run D, after the restore: the state line reads `ok  state: …/state/kr/sessions/70102b6770d0 exists and is writable`, the summary reads `doctor: 9 ok, 1 warn, 0 fail`, and the run ends `exit=0`.
+
+Run E, outside any repository with no `--workspace`, from a folder under the workspace with `GIT_CEILING_DIRECTORIES` set to the repository root, the same settings:
+
+```
+kirsch 0.1.0-dev
+ok  git: found at /opt/local/bin/git
+ok  rg: found at /opt/homebrew/bin/rg
+fail  repository: not in a Git repository
+ok  config: settings valid; project file not read (no workspace)
+warn  key: endpoint opencode: no key found (set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY); kirsch starts but cannot send a prompt
+ok  backend: search_code uses ripgrep
+ok  model: endpoint opencode, model minimax-m3: context window 128000 tokens
+warn  context: skipped: no workspace
+warn  state: skipped: no workspace
+warn  lock: skipped: no workspace
+doctor: 5 ok, 4 warn, 1 fail
+exit=1
+```
+
+The automated commands in *Automated checks* were run again at step 4c, on the same date. Their output is `.claude/memory/workspace/m20261030-01-step4c-runs.txt`: part 1 is the count check, which reads `7` and `7`; parts 2 to 6 are the verbose runs of the boxes, each ending `exit=0` with no `--- SKIP` line; part 7 is the doctor and session packages, `ok`, `exit=0`. The step 3 files `m20261030-01-step3-runs.txt` and `m20261030-01-step3-box1-run.txt` are superseded and not relied on. Scratch, archived at the next mission start.
+
+Not run here, and why:
+
+- The held line and the free-with-lock line need a second live kirsch, which the agent cannot start. Both are read from the code and covered by `TestLockLineHeldThenFree` and `TestLockLineFreeLeavesNoLock`. Hands-on steps 2 to 4 are the live check.
+- kirsch's screen with no key needs a terminal. It is read from the code (hands-on step 1).
+- The Windows build of `internal/doctor` is not possible today (see *Known limits*).
+- The optional hands-on step 6 is run here as run C, with the same binary and a scratch folder. The operator's copy of that step, on the test area, has not been run.
+- Operator step 8 (the `chmod 500` block, section 24; step 7 before the build step was added at the start of section 24 at step 4g) was not run as written at step 4e: the agent's Bash call for it was denied. An earlier call did run, with the wrong block: it ran section 9's build block (`npm run build`), not the step 8 block. The run file `.claude/memory/workspace/m20261030-01-step4e-step7-run.txt` is that error run, and it is not evidence for this section. Its output for the step 8 block will be cited here once it exists.
 
 ---
 

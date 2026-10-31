@@ -63,3 +63,13 @@ Make this distinction crisp: an ADR records a decision about *how the system is 
 ## Status Update
 
 ADRs 0001–0007 were written during planning, and most still carry the status "Accepted (planning phase; no code yet)". That parenthetical is now stale, because Milestones 0–4 have shipped. Whether to update it is the operator's decision, not an agent's. One status has changed, at the operator's direction on 2026-10-02: ADR 0003 now records that ADR 0008 supersedes it in part.
+
+## ADR Index — filed with the build plan (2026-10-30)
+
+This index lists the ADRs filed with the build plan, added below the existing sections so that line references to this file stay valid while Milestone 5 is in test.
+
+| # | Title |
+|---|---|
+| 0010 | [Model catalog and roles](0010-model-catalog-and-roles.md) |
+| 0011 | [Wire-format adapters](0011-wire-format-adapters.md) |
+| 0012 | [Execution seam](0012-execution-seam.md) |

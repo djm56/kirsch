@@ -29,6 +29,8 @@ Using → `doc/`.
 
 Kirsch is built in five milestones. Live status lives in [`PROGRESS.md`](PROGRESS.md). The milestone instruction sets, their confidence levels, and the links to each milestone's document live in [`milestones/README.md`](milestones/README.md).
 
+The milestones after Milestone 5 are planned in [`build-plan-v0.2-v0.6.md`](build-plan-v0.2-v0.6.md), filed 2026-10-30 together with its amendments and ADRs, and drafted ahead at the operator's request, as earlier milestones were under amendment 50. They start after Milestone 5 closes and `v0.1.0` is tagged.
+
 Milestone instruction sets are normally written **one at a time**, each authored
 after the previous milestone lands, because detail written three milestones
 ahead is usually wrong by the time anyone reads it.
