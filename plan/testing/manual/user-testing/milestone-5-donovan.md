@@ -1236,7 +1236,115 @@ _(nothing yet)_
 
 ## 17 · The install guide (m5-d13c)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d13c is finished.
+**What this checks:** the install guide tells you how to install Kirsch and how to check the install. These steps try the install routes that can run on this Mac, and they check that the version lines and the doctor output match what the guide shows.
+
+**Before this section:** do *Before you start* in this Terminal window.
+
+You start in the kirsch folder, and every step works from there.
+
+**Step 1 — Build kirsch.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+npm run build
+```
+You should see lines starting with `>` (that is npm saying what it is running). Lines starting `go: downloading` or `npm notice` are also fine. Anything else means something went wrong.
+- [✅] Done, no errors
+
+**Step 2 — Read the install guide.**
+Paste:
+```
+open doc/install.md
+```
+(If you would rather read it in the Terminal, paste `less doc/install.md` instead, and press `q` to leave.)
+Read the guide from the top. The part about installing from a release archive is checked at the final release check (section 37 of this checklist), not here. Read the rest now.
+- [✅] I read the install guide
+
+**Step 3 — Check the guide has no planning words.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n -i -w -E 'milestones?|ADRs?' doc/install.md
+printf 'an ADR\nADRs\nmilestones\nheadroom\n' | grep -i -w -E 'milestones?|ADRs?'
+```
+The first command should print nothing. That is the pass. The second command prints test words, so you can see the check works:
+```
+an ADR
+ADRs
+milestones
+```
+It must not print `headroom`. The words it looks for are project planning words, which should not appear in a guide for users.
+- [✅] I saw no output from the first command, and the test words from the second, without `headroom`
+
+**Step 4 — Install with `go install` into a throwaway folder.**
+Paste:
+```
+GOBIN="$T_CFG/gobin" go install github.com/djm56/kirsch/cmd/kirsch@latest
+"$T_CFG/gobin/kirsch" --version
+```
+This needs the internet. It downloads the source from Go's module proxy, and it sends nothing to a model. Lines starting `go: downloading` are fine. You should see:
+```
+kirsch 0.1.0-dev
+```
+
+Once Kirsch has a release, the version line shows that release instead, for example `kirsch 0.1.0`. That also counts as a match.
+
+It says `0.1.0-dev` while Kirsch has no release, and a build of the public code without a release tag reports that development version.
+- [✅] I saw `kirsch 0.1.0-dev` (or the release version, as above)
+
+**Step 5 — Build from source, in a throwaway copy.**
+Paste:
+```
+git clone -q /Volumes/DATA/Github/kirsch "$T_CFG/src"
+bash "$T_CFG/src/scripts/build.sh"
+"$T_CFG/src/bin/kirsch" --version
+```
+The build prints nothing when it works. The copy holds only what is committed in the kirsch folder, so a file that is not committed yet is not in it. That is fine for this step, because it checks the build route, not your working files. You should see:
+```
+kirsch 0.1.0-dev
+```
+
+Once Kirsch has a release, this line shows that release instead, for example `kirsch 0.1.0`, but only if the latest commit in the kirsch folder is exactly that release's tag. On any other commit it still shows `kirsch 0.1.0-dev`. Either counts as a match.
+
+- [✅] I saw `kirsch 0.1.0-dev` (or the release version, as above)
+
+**Step 6 — Run the doctor check.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+"$KIRSCH_BIN" doctor; echo "exit=$?"
+```
+Doctor only looks. It makes no network calls and sends nothing to a model. You should see these lines, in this order:
+```
+kirsch 0.1.0-dev
+ok  git: found at <the path to git on your Mac>
+ok  rg: found at <the path to rg on your Mac>
+ok  repository: <the path of the kirsch folder>
+ok  config: settings valid
+warn  key: endpoint opencode: no key found (set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY); kirsch starts but cannot send a prompt
+ok  backend: search_code uses ripgrep
+ok  model: endpoint opencode, model minimax-m3: context window 128000 tokens
+ok  context: AGENTS.md, 6854 bytes
+ok  state: <a folder inside the sessions folder Setup B named> does not exist yet; kirsch will create it (<the nearest folder that already exists> is writable)
+ok  lock: free (no lock file yet)
+doctor: 9 ok, 1 warn, 0 fail
+exit=0
+```
+
+Once Kirsch has a release, the first line (`kirsch 0.1.0-dev`) shows that release instead, for example `kirsch 0.1.0`, but only if the kirsch folder was exactly on that release's tag, with no uncommitted changes, when Step 1 built it. Otherwise it still shows `kirsch 0.1.0-dev`. Either counts as a match.
+
+The lines in angle brackets depend on your Mac, so read them as descriptions, not exact text. The paths will differ. The `git` and `rg` paths are where those programs live on your Mac. The `state` line names a folder inside the sessions folder that Setup B printed as "Sessions will be saved in:". The folder in brackets is the nearest one that already exists. If you have already started kirsch inside the kirsch folder in this test setup, the line reads `exists and is writable` instead, and the `lock` line may read `free` without `(no lock file yet)`. Kirsch started in the practice project is a different project and does not count. Either way the line is `ok`. The `context` line names `AGENTS.md`, and its byte count changes if that file changes. If ripgrep is not installed, the `rg` and `backend` lines read `warn`, and the last count line changes. The guide says a warning does not make doctor fail. The `key` line reads `warn` here because this test window has no key set, as the guide's example shows.
+- [✅] I saw the first line `kirsch 0.1.0-dev` (or the release version, as above), the `key` line as `warn`, the same lines in the same order, and the last line `exit=0`, apart from the differences named above
+
+**Optional — tidy up the throwaway folders.**
+```
+rm -rf "${T_CFG:?}/gobin" "${T_CFG:?}/src"
+```
+This removes only the throwaway folders made by the install steps above. The other test folders are covered by `m5_done`, as the top of this file says.
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 
@@ -1444,7 +1552,158 @@ _(nothing yet)_
 
 ## 22 · The usage guide corrections (m5-d14a)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d14a is finished.
+**What this checks:** the usage guide, the page `doc/usage.md`. The steps check that the old debug commands and the claim about a missing warning are gone, that the guide does not use planning words or code references, that the start-up commands match what kirsch prints, and that a sentence about approvals was replaced. Then you read the parts of the guide that changed. No model is called and no API key is used.
+
+**Before this section:** do *Before you start* in this Terminal window. Setup B must have said `Ready.`.
+
+You start in the kirsch folder. Step 1 goes there, and every other step works from there. Step 5 shows kirsch's help screen, which starts nothing. Step 8 starts kirsch so you can compare its screen with the guide, and sends it no message.
+
+**Step 1 — Go to the kirsch folder.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+```
+You should see your prompt again, with no message.
+- [✅] Done
+
+**Step 2 — The old debug commands are gone.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep '/read <path>\|/ls \[path\]\|/search <query>\|/gitstatus\|/gitdiff' doc/usage.md
+printf '/read <path>\n' | grep -n '/read <path>\|/ls \[path\]\|/search <query>\|/gitstatus\|/gitdiff'
+```
+You should see nothing from the first command. The second command shows this line, which proves the search does find a command when it is there:
+```
+1:/read <path>
+```
+- [✅] Nothing from the first command, and `1:/read <path>` from the second
+
+**Step 3 — No planning words or code references in the guide.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -i -w -E 'milestones?|ADRs?' doc/usage.md
+printf 'two milestones\nan ADR\nheadroom\n' | grep -n -i -w -E 'milestones?|ADRs?'
+grep -E 'internal/|cmd/kirsch/|Sources?:' doc/usage.md
+printf 'see internal/tui\nSource: x\nplain\n' | grep -n -E 'internal/|cmd/kirsch/|Sources?:'
+```
+You should see nothing from the first command, then the lines from the second. The word `headroom` is not printed:
+```
+1:two milestones
+2:an ADR
+```
+Then nothing from the third command, then the lines from the fourth. The word `plain` is not printed:
+```
+1:see internal/tui
+2:Source: x
+```
+- [✅] Nothing from the first and third commands, and the control lines from the second and fourth
+
+**Step 4 — Build kirsch.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+npm run build
+```
+You should see lines starting with `>`, like these (that is npm saying what it is doing):
+```
+> kirsch@0.1.0-dev build
+> bash scripts/build.sh
+```
+Lines starting `go: downloading` or `npm notice` are also fine. Anything else means something went wrong.
+- [✅] Done, no errors
+
+**Step 5 — The start-up commands match the guide.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep 'kirsch resume\|kirsch --new' doc/usage.md
+"$KIRSCH_BIN" --help
+```
+You should see these grep lines. The ones under *Starting it* are the start-up commands and the lines of the paragraph just below them that mention `kirsch resume` or `kirsch --new`. The line near the top and the lines near the end are in other parts of the guide, and that is fine:
+```
+> `kirsch resume`. The layout, the key bindings, the slash commands and the
+kirsch resume                # resume the most recent session for this workspace
+kirsch --new                 # start a fresh session even when a previous session exists
+`kirsch resume` picks up the most recent session for this workspace, including
+starts a fresh session instead and says so. `kirsch --new` starts a fresh
+`kirsch resume` (or auto-resume) restores them, unless another Kirsch is already
+cleared after `kirsch resume`. A new session, including one started with
+```
+Then you should see this help screen. It names `kirsch resume` and the `--new` flag, the same names the guide uses:
+```
+Usage:
+  kirsch [flags]
+  kirsch resume [flags]
+  kirsch doctor [flags]
+
+Commands:
+  resume    resume the most recent session for this workspace
+  doctor    check the installation and report problems
+
+Flags:
+  --workspace <path>  workspace root (defaults to the enclosing Git repository)
+  --new               start a fresh session even when a previous session exists
+  --debug             write a structured debug log
+  --version           print the version and exit
+  --help, -h          show this help and exit
+```
+The `doctor` lines are checked in the doctor section, not here.
+- [✅] I saw the grep lines, and the help screen names `kirsch resume` and `--new`
+
+**Step 6 — The approval wording is changed.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep 'no setting turns that off' doc/usage.md
+grep 'Nothing consequential happens silently' doc/usage.md
+printf 'Nothing consequential happens silently.\n' | grep -n 'Nothing consequential happens silently'
+```
+You should see this line from the first command:
+```
+A patch appears as a card and waits, and no setting turns that off. A command
+```
+The second command prints nothing at all. The third prints the control line, which proves the search does find the sentence when it is there:
+```
+1:Nothing consequential happens silently.
+```
+- [✅] I saw the line from the first command, nothing from the second command, and the control line `1:Nothing consequential happens silently.` from the third
+
+**Step 7 — The missing `rg` claim is gone.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep 'missing .rg' doc/usage.md
+printf 'a missing `rg` warning\n' | grep -n 'missing .rg'
+```
+You should see nothing from the first command. The second command prints the control line, which proves the search does find the phrase when it is there:
+```
+1:a missing `rg` warning
+```
+- [✅] Nothing from the first command, and the control line ``1:a missing `rg` warning`` from the second
+
+**Step 8 — Read the guide, then compare it with kirsch.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+open doc/usage.md
+```
+The guide opens in your text viewer. Read these parts, and tick each one when you have read it:
+- [✅] *The screen*: the status bar, the composer, and *Sizes*
+- [✅] *Everywhere*: the *Pasting* paragraph
+- [✅] *The approval model*: the paragraph about session grants
+
+Then compare the guide with kirsch. Paste:
+```
+"$KIRSCH_BIN" --workspace "$WORKSPACE"
+```
+kirsch opens on the practice project. Look at the bar and the typing line, and check them against the guide. Do not paste or type a message. Type `/quit` and press Enter to close kirsch. The main area may also show a short notice about the session, for example that it is starting fresh or that it resumed. The guide does not describe these notices, and that is fine. If another kirsch is already open in this project, the bar shows a warning and the session is not resumed; write that under *Anything odd?*, then close the other kirsch. Starting kirsch does not call a model.
+- [✅] I compared the bar and the typing line with the guide, and wrote anything that differed under *Anything odd?*
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 
@@ -1506,7 +1765,7 @@ unset ANTHROPIC_API_KEY KIRSCH_ANTHROPIC_API_KEY OPENCODE_API_KEY KIRSCH_OPENCOD
 Nothing is printed. Do not paste a key anywhere.
 
 Optional check: paste `echo "$XDG_STATE_HOME"` in Terminal B. It should print the same path as the `export T_STATE=` line you pasted from Terminal A.
-- [ ] I pasted the four `export` lines and the three lines in Terminal B, and I did not run Setup B there
+- [✅] I pasted the four `export` lines and the three lines in Terminal B, and I did not run Setup B there
 
 **Step 4 — Ask doctor while kirsch is running (Terminal B).**
 
@@ -1520,18 +1779,18 @@ Among the lines doctor prints, you should see these:
 - `ok  state: <path> exists and is writable`. This means kirsch can save sessions in your test folder. Compare the start of the path with the `T_STATE` path from step 3. The path starts with that same folder, then `/sessions/`, then a short code of 12 letters and digits.
 
 A line starting `doctor:` counts the results. The very last line is `exit=0`. That means doctor found no `fail`. A `warn` still gives `exit=0`.
-- [ ] I saw the `warn  lock:` line, the `ok  state:` line in my test folder, and `exit=0`
+- [✅] I saw the `warn  lock:` line, the `ok  state:` line in my test folder, and `exit=0`
 
 **Step 5 — Check that Terminal A is not disturbed.**
 Look at Terminal A. kirsch's screen should still be open. In Terminal B, paste the step 4 command again.
 You should see the same `warn  lock:` line again.
-- [ ] kirsch in Terminal A is still open, and the lock line still says another kirsch is running
+- [✅] kirsch in Terminal A is still open, and the lock line still says another kirsch is running
 
 **Step 6 — Quit kirsch, then look again.**
 **During this step and step 8, do not start kirsch in another window.** With kirsch closed, doctor holds the lock for an instant while it looks. A kirsch started at that exact instant could start without resuming your last session.
 In Terminal A, type `/quit` and press Enter. kirsch closes and the prompt comes back. In Terminal B, paste the step 4 command again.
 You should see `ok  lock: free` and `exit=0`. The line says `free` because kirsch is closed. A small lock file stays in your test folder after kirsch closes. That is normal.
-- [ ] I saw `ok  lock: free` and `exit=0`
+- [✅] I saw `ok  lock: free` and `exit=0`
 
 **Step 7 — Check the state folder is in your test area.**
 Paste this in Terminal B:
@@ -1539,7 +1798,7 @@ Paste this in Terminal B:
 ls "$T_STATE/sessions"
 ```
 You should see a short list of names, each 12 letters and digits long. The short code at the end of the `ok  state:` path from step 4 (the part after `/sessions/`) should be one of them.
-- [ ] The folder name matches the one on the `ok  state:` line
+- [✅] The folder name matches the one on the `ok  state:` line
 
 **Step 8 — Optional: make a test folder unwritable, then put its permissions back (Terminal B, after step 6).**
 Kirsch must be closed first, so do this after step 6. The block below makes the folder `$T_STATE` read-only for a moment, runs doctor, then puts the folder's permissions back. Paste this block once only. If something interrupts it and you paste it again, the folder can stay read-only. The repair lines after the expected output fix that. Paste:
@@ -1558,7 +1817,7 @@ If the last line starts `dr-x` instead, paste these lines, and then check the la
 chmod 700 "$T_STATE"
 ls -ld "$T_STATE"
 ```
-- [ ] (optional) I saw the `fail  state:` line, `exit=1`, and the folder's mode back to `drwx`
+- [✅] (optional) I saw the `fail  state:` line, `exit=1`, and the folder's mode back to `drwx`
 
 **Anything odd?** Write it here:
 
@@ -1580,7 +1839,128 @@ Not ready yet. This section will be written in the same step-by-step style when 
 
 ## 27 · The troubleshooting guide and the list of docs pages (m5-d14b)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d14b is finished.
+**What this checks:** the troubleshooting guide explains what you see when kirsch will not start or cannot send a message, and the list of docs pages names the pages that exist. Each step makes one of those problems happen, then checks the guide's advice against what kirsch prints.
+
+**Before this section:** do *Before you start* in this Terminal window.
+
+Steps that need a particular folder start with a `cd` line. The others work from any folder, because they point kirsch at the test project with `--workspace`. Steps 7 and 8 open kirsch in a window; type `/quit` to leave it.
+
+**Step 1 — Build kirsch.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+npm run build
+```
+You should see lines starting with `>` (that is npm saying what it is running). Lines starting `go: downloading` or `npm notice` are also fine. Anything else means something went wrong.
+- [✅] Done, no errors
+
+**Step 2 — The pages have no planning words and no code references.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n -i -w -E 'milestones?|ADRs?' doc/troubleshooting.md doc/README.md
+printf 'an ADR\nADRs\nmilestones\nheadroom\n' | grep -n -i -w -E 'milestones?|ADRs?'
+grep -n -E '\.go\b|internal/|cmd/kirsch/|Sources?:' doc/troubleshooting.md doc/README.md
+printf 'cmd/kirsch/main.go:85\ninternal/doctor/probes.go:138\n*Source:* x\n' | grep -n -E '\.go\b|internal/|cmd/kirsch/|Sources?:'
+```
+The first search should print nothing, because the guide is for people using kirsch and does not talk about planning. The second command proves the search does catch those words. It prints each matching line with its line number in front: `1:an ADR`, `2:ADRs` and `3:milestones`, and no line for `headroom`. The third search should print nothing. The fourth command proves that search works too (made-up examples). It prints `1:cmd/kirsch/main.go:85`, `2:internal/doctor/probes.go:138` and `3:*Source:* x`.
+- [✅] The searches printed nothing, and the test commands printed the lines named above
+
+**Step 3 — The docs list matches the files.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+sed -n '/^| Document/,/^$/p' doc/README.md
+ls doc/
+```
+You should see the table of docs pages. Every page row has `Written` in the last column, and every file in the list other than `README.md` has a row. Every file the table names appears in the list from `ls doc/`, and so does `README.md`.
+- [✅] Every row says `Written`, and each file named in the table is there
+
+**Step 4 — No API key: kirsch says so, and the guide explains it.**
+Paste, in a window where no key is set:
+```
+keycount_control
+keycount
+"$KIRSCH_BIN" doctor --workspace "$WORKSPACE"; echo "exit=$?"
+```
+You should see `CONTROL PASS: a planted key line counts as 1`, then `0`. If the line after `CONTROL PASS` is not `0`, a key is set in this window, so stop and clear it first (the clear line at the end of this section does it).
+
+The doctor run should print a line that reads `warn  key: endpoint opencode: no key found (set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY); kirsch starts but cannot send a prompt`, and then `exit=0`. Other lines appear too, and they are fine.
+
+Then open `doc/troubleshooting.md` and find the section headed *No API key*. Its text should name `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY`.
+- [✅] I saw the `key` warning and `exit=0`, and the *No API key* section names the variables above
+
+**Step 5 — Not in a repository.**
+Paste:
+```
+cd "$T_CFG"
+git rev-parse --show-toplevel 2>/dev/null || echo "not in a repository"
+```
+The second line should print `not in a repository`. If it prints a folder path instead, stop: that folder is inside a repository, and this step cannot test the case. Then paste `cd /Volumes/DATA/Github/kirsch` to go back to the kirsch folder.
+
+If it printed `not in a repository`, paste:
+```
+"$KIRSCH_BIN"; echo "exit=$?"
+"$KIRSCH_BIN" doctor; echo "exit=$?"
+cd /Volumes/DATA/Github/kirsch
+```
+
+You should see, from the first kirsch run, `kirsch: Kirsch runs inside a Git repository.`, a blank line, `Either cd into a repository, or point Kirsch at a directory explicitly:`, `    kirsch --workspace /path/to/project`, and then `exit=1`. From doctor, you should see a line that reads `fail  repository: not in a Git repository`, then `exit=1`. Doctor prints other lines too, and they are fine. Then open *Not in a repository* in the guide. It should quote the message above and say to `cd` into a repository or to use `--workspace`.
+- [✅] I saw the message, the `repository` fail line and `exit=1` each time, and *Not in a repository* quotes the message
+
+**Step 6 — Missing ripgrep: kirsch still works, with warnings.**
+Paste:
+```
+NO_RG_PATH="$(dirname "$(command -v git)"):/usr/bin:/bin"
+PATH="$NO_RG_PATH" command -v rg || echo no-rg
+PATH="$NO_RG_PATH" "$KIRSCH_BIN" doctor --workspace "$WORKSPACE"; echo "exit=$?"
+```
+The second line should print `no-rg`. If it prints a path, stop: ripgrep sits in the folder where git lives, and this step cannot test the case.
+
+You should see these warning lines from doctor: `warn  rg: not found on PATH; search_code uses the pure-Go fallback` and `warn  backend: search_code uses pure-go (rg is not on PATH)`. Then `exit=0`.
+
+Then open *Missing ripgrep* in the guide. It should quote the warning lines above and say how to install ripgrep.
+- [✅] The warning lines appeared, `exit=0` appeared, and *Missing ripgrep* quotes them
+
+**Step 7 — (Optional) The no-key error card. The crew could not run this.**
+Paste, in a window where no key is set (check with the key count in step 4 first):
+```
+"$KIRSCH_BIN" --workspace "$WORKSPACE"
+```
+Type `hi` and press Enter. Kirsch refuses before it sends anything, so nothing reaches the provider.
+
+You should see an error card titled `auth`, reading `no API key for endpoint "opencode" (set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY)`. Type `/quit` to leave. Then open *No API key* in the guide. It should show the same card text.
+- [✅] I saw the `auth` card with the variable names shown above, and *No API key* shows the same text
+
+**Step 8 — (Optional) The rejected-key card. The crew could not run this.**
+Paste:
+```
+export OPENCODE_API_KEY=dummy-invalid-key
+"$KIRSCH_BIN" --workspace "$WORKSPACE"
+```
+Type `hi` and press Enter. This contacts the provider, which refuses the dummy key. Never put a real key here.
+
+You should see an error card titled `turn_error`. Its text includes `provider "opencode" rejected the API key (HTTP 401)`, or the same line with `HTTP 403` if the provider answers that way, and names the variables shown above. Type `/quit` to leave. Then open *401 or 403: rejected the API key* in the guide. It should show the same message and say the key is not always the cause.
+
+Then clear every key and check the count:
+```
+unset ANTHROPIC_API_KEY KIRSCH_ANTHROPIC_API_KEY OPENCODE_API_KEY KIRSCH_OPENCODE_API_KEY
+keycount_control
+keycount
+```
+You should see `CONTROL PASS: a planted key line counts as 1`, then `0`.
+- [✅] I saw the `turn_error` card with HTTP 401 or 403, the guide's *401 or 403* section matches it, and the key count reads `0`
+
+The lock case, which the guide also covers, is in section 24. It starts a second kirsch, so this section does not repeat it.
+
+**If you stopped part way through step 8 — clear the keys from this window.**
+```
+unset ANTHROPIC_API_KEY KIRSCH_ANTHROPIC_API_KEY OPENCODE_API_KEY KIRSCH_OPENCODE_API_KEY
+```
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 

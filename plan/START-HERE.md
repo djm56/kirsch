@@ -97,7 +97,7 @@ When using an AI coding tool, hand this prioritized list to it as context. Load 
 
 - **[../AGENTS.md](../AGENTS.md)** — The five working rules: milestone order, dependency constraints, UI spec authority, amendment procedures, and the plan/doc split. Required reading for all builders and reviewers.
 - **[plan/](.)** — Everything needed to **build** Kirsch. Three markdown files at the root (`README.md`, `START-HERE.md`, `PROGRESS.md`) and five directories (`spec/`, `adr/`, `milestones/`, `process/`, `testing/`). Scaffolding for the builder.
-- **[../doc/](../doc/)** — Everything needed to **use** Kirsch: installation, configuration, troubleshooting. `usage.md` written now (about 360 lines, documenting layout, key bindings, slash commands, and the approval model); `configuration.md` is written (m5-d13a); `install.md` and `troubleshooting.md` arrive later in Milestone 5.
+- **[../doc/](../doc/)** — Everything needed to **use** Kirsch: installation, configuration, troubleshooting. `usage.md` written and corrected to match the code (m5-d14a), documenting layout, key bindings, slash commands, and the approval model; `configuration.md` is written (m5-d13a); `install.md` is written (m5-d13c); `troubleshooting.md` is written (m5-d14b).
 - **[spec/](spec/)** — The locked v0.1 specification: what Kirsch is and how it must behave. See [`spec/README.md`](spec/README.md) for the index of the four specification documents.
 - **[adr/](adr/)** — Architecture decision records explaining the big choices.
 - **[testing/](testing/)** — Manual walkthroughs, test suite reference, security tooling.

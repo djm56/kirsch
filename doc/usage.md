@@ -21,9 +21,16 @@ approval model that stands between a tool and your files.
 
 ```bash
 kirsch                       # run in the enclosing Git repository
+kirsch resume                # resume the most recent session for this workspace
+kirsch --new                 # start a fresh session even when a previous session exists
 kirsch --workspace ~/code/x  # run against a directory you name
 kirsch --debug               # also write a structured debug log
 ```
+
+`kirsch resume` picks up the most recent session for this workspace, including
+its session grants. If another Kirsch is already running in the workspace, it
+starts a fresh session instead and says so. `kirsch --new` starts a fresh
+session even when a previous session exists.
 
 Kirsch works inside one directory and never outside it — the **workspace**. With
 no flag it is the enclosing Git repository; `--workspace` names one explicitly.
@@ -51,10 +58,12 @@ on without the flag.
  I found the issue in... ▌                        streaming assistant
 
  ──────────────────────────────────────────────   separator rule
- claude-sonnet-5 · ⠋ thinking · in 12.4k out 980 · $0.04   status bar
+ claude-sonnet-5 · ⠋ thinking · in 12.4k out 980 cache 8.9k/1.2k · $0.04   status bar
  ──────────────────────────────────────────────   separator rule
  > _                                              composer
 ```
+
+The `cache` figures are tokens read from the cache, then tokens written to it.
 
 **Header — two rows.** `Kirsch` stands alone on the first, with a rule running
 off to the right. The second is the session: project name, branch, a `●` if the
@@ -66,13 +75,17 @@ first row carries a rule.
 takes whatever rows the rest of the frame does not need.
 
 **Status bar.** Model, current state, session token totals and cost, and any
-active session grants. Persistent warnings — a recovered session, another
-Kirsch running in the same workspace, a missing `rg` — sit at the right and are
-the last thing dropped when the bar runs out of room.
+active session grants. Persistent warnings, for example a recovered session or
+another Kirsch running in the same workspace, sit at the right. No narrowing
+step removes them, but on a very narrow terminal a long one is cut at the right
+edge.
 
-**Composer.** One row, growing to five as you add lines, then scrolling
-internally. While a turn is running it dims and stops accepting input, and shows
-`(input disabled, Esc cancels)` at the right.
+**Composer.** One row to start, growing as you add lines up to a fixed maximum
+height. Past that maximum the composer scrolls up and down to keep the line you
+are typing on in view. A line wider than the terminal is cut at the edge with a
+`⋯` marker; the composer does not scroll sideways. While a turn is running it
+dims and stops accepting input, and shows `(input disabled, Esc cancels)` at
+the right.
 
 **The frame keeps one blank column at each side**, and none at the top or
 bottom. A terminal's rows are scarcer than its columns: the layout already
@@ -82,11 +95,13 @@ reserved rather than painted, so no row ever ends in trailing whitespace, and
 both edges show your own terminal background rather than Kirsch's.
 
 **Sizes.** Kirsch runs from 40×10 upwards. As the window narrows it drops the
-token count (below 80), then the branch (below 60), and below 40 replaces the
-transcript with a `terminal too narrow` notice rather than rendering something
-illegible. As it shortens it shrinks the composer, then drops the two separator
-rules together, then the header — both of its rows at once. Nothing panics at
-any size, and a zero-sized terminal draws nothing at all.
+status bar's token figures (below 80 columns), then the branch (below 60), and
+below 40 replaces the transcript with a `terminal too narrow` notice rather than
+rendering something illegible. Below 80 columns the status bar also shortens its
+left-hand text as the width shrinks, starting with the grant count, and keeps the
+state for as long as it can. As the height shrinks it shrinks the composer, then
+drops the two separator rules together, then the header — both of its rows at
+once. Nothing panics at any size, and a zero-sized terminal draws nothing at all.
 
 ---
 
@@ -162,7 +177,7 @@ Every other key is swallowed, and none reaches the composer. A key that is not o
 above and not a navigation key also *releases* the card: the composer shows
 `approval pending — Tab to return to the card`, and `y`, `a` and `n` do nothing until `Tab`
 or `Shift+↑` re-arms it. That is deliberate: typing a command while a card waits — the `n`
-in `/run` — must not be read as an answer. Navigation keys never release; pasted text is
+in `/new` — must not be read as an answer. Navigation keys never release; pasted text is
 dropped.
 
 ### A modal is open
@@ -181,7 +196,7 @@ pending approval puts you back at the approval, not at the composer.
 ### A confirm prompt is up
 
 One-line questions — "Discard the running turn and start a new session?",
-"Clear all session grants?", "Paste 12KB into the composer?" — appear
+"Clear 2 session grants?", "Paste 12KB into the composer?" — appear
 immediately above the composer, not over the status bar.
 
 | Key | Action |
@@ -200,9 +215,13 @@ otherwise arms a force quit. Two presses inside a second always quit, from any
 mode.
 
 **Pasting** is literal — pasted text is never interpreted as keys, and newlines
-in it are preserved. A paste over 8KB asks first. A paste that arrives while an
-overlay is open is discarded rather than queued, so text cannot appear in a
-composer you could not see it landing in.
+in it are preserved. Pasted tabs become spaces in the composer, so tab-indented
+text arrives with space indentation. A terminal that does not send a paste as
+one block delivers each tab as a Tab key press instead: the first moves focus
+to the cards, where the text that follows is read as card keys and not typed.
+A paste over 8KB asks first. A paste that arrives while an overlay is open is
+discarded rather than queued, so text cannot appear in a composer you could not
+see it landing in.
 
 ---
 
@@ -226,9 +245,8 @@ It re-pins when you:
 - submit a slash command.
 
 A slash command re-pins because it is a request and its answer belongs on
-screen. The two exceptions are the commands that answer entirely in the dim hint
-under the composer — an unknown command, and a debug command missing its
-argument. Neither puts anything in the transcript, so re-pinning would cost you
+screen. The exception is an unknown command. It answers in the dim hint under
+the composer and puts nothing in the transcript, so re-pinning would cost you
 your place to report a typo.
 
 ---
@@ -244,7 +262,7 @@ stack trace is never mistaken for one. `Tab` completes a unique prefix.
 | `/help` | The help overlay |
 | `/status` | A notice summarising the session — for example the model, endpoint, branch, dirty count, token totals and compaction level |
 | `/diff` | The unstaged working-tree diff, in a modal |
-| `/files` | A notice listing the files changed by approved patches this session |
+| `/files` | A notice listing the files changed by approved patches this session. A resumed session starts this list empty and does not rebuild it from the earlier transcript |
 | `/approvals` | Lists active session grants, and offers to clear them |
 | `/new` | Start a new session — confirms first if a turn is running |
 | `/compact` | Compact the conversation history |
@@ -253,21 +271,6 @@ stack trace is never mistaken for one. `Tab` completes a unique prefix.
 
 An unknown command produces a dim hint under the composer, never an error card,
 and is **never sent to the model**.
-
-### Debug commands — temporary
-
-Milestone 1 added five commands so a real repository can be read from inside the
-interface before the model drives the tools itself. They are labelled
-`debug (M1 only)` in the help overlay and **will be removed** once the model
-drives tools directly. Do not build a habit on them.
-
-| Command | Tool |
-|---|---|
-| `/read <path>` | `read_file` |
-| `/ls [path]` | `list_files` |
-| `/search <query>` | `search_code` |
-| `/gitstatus` | `git_status` |
-| `/gitdiff` | `git_diff` |
 
 ---
 
@@ -298,8 +301,13 @@ become a dim `·`.
 
 ## The approval model
 
-Nothing consequential happens silently. Before Kirsch writes a file or runs a
-command, the action appears as a card and waits:
+A patch appears as a card and waits, and no setting turns that off. A command
+runs without a card when it is exactly one of the built-in allowlist commands,
+with no further arguments, or when a session grant covers it. Every other
+command appears as a card and waits, unless
+`policy.require_approval_for_commands` is `false` in your configuration; shells
+and runners wait even then (see [`configuration.md`](configuration.md)). Check
+that setting when you expect a card and none appears:
 
 ```
 ┌─ approval required ─────────────────────────────┐
@@ -324,8 +332,11 @@ status bar shows a count of active grants, `/approvals` lists them, and it
 offers to clear them.
 
 Grants live and die with the session. The session log records each grant, so
-`kirsch resume` (or auto-resume) restores them. A new session, including one
-started with `/new`, starts with none.
+`kirsch resume` (or auto-resume) restores them, unless another Kirsch is already
+running in the workspace, in which case a fresh session starts. A grant you
+clear with `/approvals` is recorded in the session log as cleared, so it stays
+cleared after `kirsch resume`. A new session, including one started with
+`/new`, starts with none.
 
 ---
 

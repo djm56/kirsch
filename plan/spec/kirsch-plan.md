@@ -199,7 +199,7 @@ Scope rules for `a`:
 - `run_command` → the exact argv **prefix** shown on the card (e.g. `go test`), matched by the same engine as the allowlist. Never a bare `sh -c`, never a lone `*`.
 - `apply_patch` → **`a` is not offered.** Every patch is approved individually, always. Principle #1 is not negotiable.
 
-Session grants live in memory and in the session JSONL (`approval.scope_granted`), so `kirsch resume` restores them. They are **never** written to config — a new session starts clean. `/approvals` lists active grants and can clear them; `/status` shows the count.
+Session grants live in memory and in the session JSONL (`approval.scope_granted`), so `kirsch resume` restores them. They are **never** written to config — a new session starts clean. `/approvals` lists active grants and can clear them. A clear is recorded in the session JSONL, so a cleared grant stays cleared after `kirsch resume`; `/status` shows the count.
 
 Cancellation: kill process groups (`SIGTERM` → grace → `SIGKILL`), not just pipes.
 

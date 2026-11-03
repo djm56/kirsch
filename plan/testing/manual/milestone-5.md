@@ -2001,15 +2001,18 @@ The section structs sit within `config.go:57–80`: `PolicyConfig` starts at `:5
 
 ## 17 · `doc/install.md` (m5-d13c)
 
-**Context:** Terminal: a clean machine or container, not the Setup terminal; Setup does not apply there. Binary: `go install` build, or `bin/kirsch` (TO EXPAND). Working directory: /Volumes/DATA/Github/kirsch for the grep checks; the clean machine for hands-on step 1. Workspace: n/a. Key state: all key variables unset on the clean machine. Config state: none in the Setup terminal.
+**Context:** Terminal: the Setup terminal for the automated check and the operator runbook steps in `plan/testing/manual/user-testing/milestone-5-donovan.md`. The `go install` and clone-build steps there use throwaway folders under `T_CFG`. The clean-machine run is a clean machine or container, at the final release check, and Setup does not apply there. Binary: `bin/kirsch` from `npm run build` in the checkout, plus the `go install` binary and the clone-build binary from the runbook. Working directory: /Volumes/DATA/Github/kirsch for the grep checks; the clean machine for the clean-machine run. Workspace: n/a. Key state: all key variables unset on the clean machine. Config state: none in the Setup terminal.
 
 **What landed**
 
-> **TO EXPAND when m5-d13c lands:** the install page as written, and the `go install` version text as O4 records it.
+- The install page is `doc/install.md`. It covers the supported platforms, what Kirsch needs on the machine (Git, and ripgrep as an optional search tool), the install routes (a release archive, `go install`, and a build from source), the API key setup, and `kirsch doctor`.
+- The release-archive route is checked by the operator at the final release check (section 37 of this checklist).
+- The `go install` version text, as O4 (b) records it: a `go install` build reports its module version with the leading `v` removed when Go records a clean release tag. Otherwise it reports `0.1.0-dev`. The code is `devVersion` at `cmd/kirsch/main.go:33` and `resolveVersion` at `cmd/kirsch/main.go:52`. The decision is row O4 in `plan/PROGRESS.md`, under *Milestone 5 — decisions recorded*.
+- The module is public. `go install github.com/djm56/kirsch/cmd/kirsch@latest` resolves today to the pseudo-version `v0.0.0-20261029062614-686d3c4b6cff` (commit `686d3c4`), and that build reports `kirsch 0.1.0-dev`. That snapshot has the doctor command but none of its checks (`git ls-tree -r --name-only 686d3c4 -- internal/doctor` lists only `doctor.go` and `doctor_test.go`), and the page's doctor example is not checked against it.
 
-**Waits on:** m5-d2 (the `--version` text), m5-d10a and m5-d10b (archive names and build wrapper), O4, and O6, from `plan/milestones/milestone-5.md:115`. A `go install` build reports `0.1.0-dev` (`cmd/kirsch/main.go:27–28`) unless O4 changes it.
+**Waits on:** m5-d2 (the `--version` text), m5-d10a and m5-d10b (archive names and build wrapper), O4, and O6, from `plan/milestones/milestone-5.md:115`. The O4 (b) rule above is in effect, so a `go install` build of an untagged commit reports `0.1.0-dev`.
 
-**Key-state check, first.** Authored here. Run it before any kirsch launch in this section. It must print `CONTROL PASS`, then `0`.
+**Key-state check, first.** Authored here. Run it before any kirsch launch in this section. It must print `CONTROL PASS`, then `0`. Read the printed `0`; `keycount` exits 1 when it prints 0, because `grep -c` does.
 
 ```bash
 # authored here
@@ -2019,19 +2022,25 @@ keycount
 
 **Automated checks**
 
-- [ ] `doc/install.md` states what a `go install` build reports, as O4 records it (`plan/milestones/milestone-5.md:1211`). Command: `TO EXPAND`. Review step against the code.
-- [ ] `grep -n -i -w -E 'milestone|ADR' doc/install.md` prints nothing. Control: the printf line prints `an ADR` and not `headroom` (`plan/milestones/milestone-5.md:1212`).
+- [ ] `doc/install.md` states what a `go install` build reports, as O4 (b) records it: the leading `v` removed from a clean release tag, otherwise `0.1.0-dev` (`plan/milestones/milestone-5.md:1218`). Command: `grep -n -E '0\.1\.0-dev|without its leading' doc/install.md`. Expected: every printed line is in the `go install` section (the table and the sentence under it) or in the build-from-source section. Review step against the code: the review step checks the sentences against `devVersion` and `resolveVersion` in `cmd/kirsch/main.go`.
 
   ```bash
-  cd /Volumes/DATA/Github/kirsch && grep -n -i -w -E 'milestone|ADR' doc/install.md
-  printf 'an ADR\nheadroom\n' | grep -i -w -E 'milestone|ADR'
+  cd /Volumes/DATA/Github/kirsch && grep -n -E '0\.1\.0-dev|without its leading' doc/install.md
+  ```
+
+- [ ] `grep -n -i -w -E 'milestones?|ADRs?' doc/install.md` prints nothing. The milestone's own pattern, `'milestone|ADR'` (`plan/milestones/milestone-5.md:1219`), misses plurals, and the control below shows it. Control: the printf line prints `an ADR`, `ADRs` and `milestones`, and not `headroom`. The old pattern on the same input prints only `an ADR`.
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch && grep -n -i -w -E 'milestones?|ADRs?' doc/install.md
+  printf 'an ADR\nADRs\nmilestones\nheadroom\n' | grep -i -w -E 'milestones?|ADRs?'
+  printf 'an ADR\nADRs\nmilestones\nheadroom\n' | grep -i -w -E 'milestone|ADR'
   ```
 
 **Hands-on checks**
 
-1. (operator) Follow `doc/install.md` on a clean machine or in a container, and confirm it works (`plan/milestones/milestone-5.md:1213`).
-
-   > **TO EXPAND when m5-d13c lands:** the container or machine used, and the commands the page gives.
+1. (operator, in the Setup terminal) Work through the steps of section 17 in `plan/testing/manual/user-testing/milestone-5-donovan.md`, in order. The install steps use throwaway folders under `T_CFG`.
+2. (operator, at the final release check, section 37) The clean-machine run: on a clean machine or in a container, with no `kirsch` on its `PATH` and no API key variables set, follow `doc/install.md` from the top. This includes the release-archive route once a release exists, and the checksum commands. Record the machine or container, and the commands the page gave, in *Notes / evidence*.
 
 **Notes / evidence**
 
@@ -2437,77 +2446,244 @@ Run 2026-10-29, with m5-d7b uncommitted on top of 686d3c4.
 
 ## 22 · `doc/usage.md` corrections (m5-d14a)
 
-**Context:** Terminal: Setup. Binary: none (greps on `doc/usage.md` and the saved copy). Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: none. The checks are `grep`, `printf` and `git show b2be4ba:`. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d14a lands:** the audit headings recorded, and each correction made against the code.
+Each correction below has a check under *Automated checks*. The text was written from the review files in `.claude/memory/missions/mission-20261031-03/` (`review-step2.md` and `review-step2b.md`). Those files cite `internal/tui/statusbar.go` for the status-bar narrowing, `internal/tui/update.go` for the Tab order, `internal/policy/policy.go` for command approval, and `cmd/kirsch/main.go` for the lock.
 
-**Waits on:** m5-d1 (narrow bar), m5-d5 (grant clearing), m5-d6 (composer text), m5-d7a (wrap), O6, and O10, from `plan/milestones/milestone-5.md:116`.
+- **Starting it.** The paragraph under the start-up commands says `kirsch resume` restores the most recent session with its session grants. It also says that when another Kirsch is already running in the workspace, `kirsch resume` starts a fresh session instead and says so.
+- **The screen, Sizes.** Below 80 columns the status bar drops its token figures. As the width shrinks further, it shortens its left-hand text, starting with the grant count, and keeps the state for as long as it can. No ladder of named steps is written out.
+- **The screen, Status bar.** A persistent warning is never removed by narrowing. On a very narrow terminal a long warning is cut at the right edge.
+- **The screen, Composer.** The composer scrolls up and down to keep the line being typed in view. It does not scroll sideways. A line wider than the terminal is cut at the edge with a `⋯` marker.
+- **The screen, under the status-bar mock.** The sentence says the `cache` figures are tokens read from the cache, then tokens written to it.
+- **Pasting.** A terminal that does not send a paste as one block delivers each tab as a Tab key press. The first one moves focus to the cards, and the text after it is read as card keys.
+- **An approval is pending.** The example of a typed command is `/new`. The old `/run` example is gone.
+- **The approval model.** A patch always waits, and no setting turns that off. A command runs without a card when it is exactly one of the built-in allowlist commands, with no further arguments, or when a session grant covers it. Every other command waits unless `policy.require_approval_for_commands` is `false`, and shells and runners wait regardless. A grant cleared with `/approvals` is recorded in the session log as cleared, so it stays cleared after `kirsch resume`.
+- **Slash commands, `/files`.** The row says a resumed session starts the list empty and does not rebuild it from the earlier transcript.
+- **The debug commands section.** The heading `### Debug commands — temporary` and its table are removed.
+- **The approval sentence.** The sentence beginning "Nothing consequential happens silently" is replaced. The replacement drops that opening phrase and names the exact-match allowlist and session grants.
+- **The missing-`rg` claim.** Removed. No code in `internal/tui` or `internal/app` writes a warning for a missing `rg` (see the emitter search under *Hands-on checks*).
+- **The spec.** The session grants paragraph in `plan/spec/kirsch-plan.md` gained the sentence ending "stays cleared after `kirsch resume`".
 
 **Automated checks**
 
-- [ ] The audit names a section covering key bindings, one covering slash commands, and one covering the approval model (`plan/milestones/milestone-5.md:1259`). Command: `TO EXPAND`. Record each heading in the step report.
-- [ ] The status-bar mock at `doc/usage.md:54` shows cache read and write (`plan/milestones/milestone-5.md:1260`). Command: `TO EXPAND`.
-- [ ] The `/files` row at `doc/usage.md:247` says a resumed session starts empty, or C54 has been built and D4 is removed (`plan/milestones/milestone-5.md:1261`). Command: `TO EXPAND`.
+The line numbers in the expected output below belong to the guide as it stands at this review. They move whenever the guide is edited. The text after each number is what is checked.
+
+- [ ] The audit names a section covering key bindings, one covering slash commands, and one covering the approval model (`plan/milestones/milestone-5.md:1259`). Record each heading in the step report.
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n '^## \|^### ' doc/usage.md
+  ```
+
+  The printed list is the audit record. It must contain `## Keys` with its `### ` subsections, `## Slash commands` and `## The approval model`, and it must not contain a `### Debug commands` line. Expected output, as printed:
+
+  ```
+  20:## Starting it
+  46:## The screen
+  108:## Keys
+  113:### Composing — the default
+  142:### Browsing — after `Shift+↑` or `Tab`
+  164:### An approval is pending
+  183:### A modal is open
+  196:### A confirm prompt is up
+  211:### Everywhere
+  228:## Scrolling and pinning
+  254:## Slash commands
+  277:## Tool cards
+  302:## The approval model
+  343:## When colour or Unicode is not available
+  363:## If something looks wrong
+  ```
+
+- [ ] The status-bar mock still shows cache read and write, and the sentence after it explains the figures (`plan/milestones/milestone-5.md:1260`). Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n 'cache 8.9k/1.2k\|figures are tokens read' doc/usage.md
+  ```
+
+  Expected output, as printed (the mock line and the sentence under it):
+
+  ```
+  61: claude-sonnet-5 · ⠋ thinking · in 12.4k out 980 cache 8.9k/1.2k · $0.04   status bar
+  66:The `cache` figures are tokens read from the cache, then tokens written to it.
+  ```
+
+- [ ] The `/files` row says a resumed session starts the list empty (`plan/milestones/milestone-5.md:1261`). Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n '^| `/files`' doc/usage.md
+  ```
+
+  Expected output, as printed:
+
+  ```
+  265:| `/files` | A notice listing the files changed by approved patches this session. A resumed session starts this list empty and does not rebuild it from the earlier transcript |
+  ```
+
 - [ ] The section headed `### Debug commands — temporary` is gone, and so is its table. No `/read <path>`, `/ls [path]`, `/search <query>`, `/gitstatus` or `/gitdiff` line remains (`plan/milestones/milestone-5.md:1262`).
 
   ```bash
-  cd /Volumes/DATA/Github/kirsch && grep -n '/read <path>\|/ls \[path\]\|/search <query>\|/gitstatus\|/gitdiff' doc/usage.md
+  cd /Volumes/DATA/Github/kirsch && grep -n '/read <path>\|/ls \[path\]\|/search <query>\|/gitstatus\|/gitdiff\|### Debug commands' doc/usage.md
   printf '/read <path>\n' | grep -n '/read <path>\|/ls \[path\]\|/search <query>\|/gitstatus\|/gitdiff'
   ```
 
-  The same check as commands, which print PASS or FAIL (authored here). The real file must hold none of the lines, and the control must match the printed line once:
+  The first command prints nothing. The second prints `1:/read <path>`, which shows the search does find the command when it is present.
+
+  The same check as commands, which print PASS or FAIL (authored here). The control reads the pre-change text at `b2be4ba`:
 
   ```bash
   # authored here
-  test "$(grep -c '/read <path>\|/ls \[path\]\|/search <query>\|/gitstatus\|/gitdiff' /Volumes/DATA/Github/kirsch/doc/usage.md)" = 0 && echo "PASS real" || echo "FAIL real"
-  test "$(printf '/read <path>\n' | grep -c '/read <path>\|/ls \[path\]\|/search <query>\|/gitstatus\|/gitdiff')" = 1 && echo "PASS control" || echo "FAIL control"
+  test "$(grep -c '/read <path>\|/ls \[path\]\|/search <query>\|/gitstatus\|/gitdiff\|### Debug commands' /Volumes/DATA/Github/kirsch/doc/usage.md)" = 0 && echo "PASS real" || echo "FAIL real"
+  test "$(git -C /Volumes/DATA/Github/kirsch show b2be4ba:doc/usage.md | grep -c '/read <path>\|/ls \[path\]\|/search <query>\|/gitstatus\|/gitdiff\|### Debug commands')" -ge 1 && echo "PASS control" || echo "FAIL control"
   ```
 
-- [ ] "Starting it" names `kirsch resume` and `kirsch --new` (`plan/milestones/milestone-5.md:1263`). Command: `TO EXPAND`.
-- [ ] The sentence "Nothing consequential happens silently…" is gone. The replacement names the exact-match allowlist and session grants (`plan/milestones/milestone-5.md:1264`).
+  Expected: `PASS real` and `PASS control`.
+
+- [ ] "Starting it" names `kirsch resume` and `kirsch --new` (`plan/milestones/milestone-5.md:1263`). Command:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && sed -n '/^## Starting it/,/^## /p' doc/usage.md | grep -n 'kirsch resume\|kirsch --new'
+  ```
+
+  Expected output, as printed. The numbers count lines from the heading `## Starting it`:
+
+  ```
+  5:kirsch resume                # resume the most recent session for this workspace
+  6:kirsch --new                 # start a fresh session even when a previous session exists
+  11:`kirsch resume` picks up the most recent session for this workspace, including
+  13:starts a fresh session instead and says so. `kirsch --new` starts a fresh
+  ```
+
+- [ ] The sentence beginning "Nothing consequential happens silently" is gone. The replacement names the exact-match allowlist and session grants (`plan/milestones/milestone-5.md:1264`).
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && grep -n 'Nothing consequential happens silently' doc/usage.md
-  cd /Volumes/DATA/Github/kirsch && grep -n 'Nothing consequential happens silently' .claude/memory/workspace/m5-d14a-usage.pre.md
   ```
 
-  As commands, which print PASS or FAIL (authored here). The control reads the pre-change text, which is `HEAD`'s copy, because the saved copy is not in the workspace:
+  The same check as commands, which print PASS or FAIL (authored here). The control reads the pre-change text at `b2be4ba`:
 
   ```bash
   # authored here
   test "$(grep -c 'Nothing consequential happens silently' /Volumes/DATA/Github/kirsch/doc/usage.md)" = 0 && echo "PASS real" || echo "FAIL real"
-  test "$(git -C /Volumes/DATA/Github/kirsch show HEAD:doc/usage.md | grep -c 'Nothing consequential happens silently')" = 1 && echo "PASS control" || echo "FAIL control"
+  test "$(git -C /Volumes/DATA/Github/kirsch show b2be4ba:doc/usage.md | grep -c 'Nothing consequential happens silently')" -ge 1 && echo "PASS control" || echo "FAIL control"
   ```
 
-- [ ] The composer paragraph at `doc/usage.md:73–75` describes the behaviour O10 records (`plan/milestones/milestone-5.md:1265`). Command: `TO EXPAND`. Review step.
+  Expected: the first command prints nothing, and the PASS/FAIL lines read `PASS real` and `PASS control`.
+
+- [ ] The composer paragraph describes the behaviour O10 records (`plan/milestones/milestone-5.md:1265`). Command: below. Review step.
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n 'scrolls up and down\|does not scroll sideways' doc/usage.md
+  ```
+
+  Expected output, as printed. The first line is the sentence about scrolling up and down, and the second is the sentence about sideways scrolling:
+
+  ```
+  84:height. Past that maximum the composer scrolls up and down to keep the line you
+  86:`⋯` marker; the composer does not scroll sideways. While a turn is running it
+  ```
+
 - [ ] `doc/usage.md` makes no claim of a missing-`rg` warning (`plan/milestones/milestone-5.md:1266`).
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && grep -n 'missing .rg' doc/usage.md
-  cd /Volumes/DATA/Github/kirsch && grep -n 'missing .rg' .claude/memory/workspace/m5-d14a-usage.pre.md
   ```
 
-  As commands, which print PASS or FAIL (authored here). The control reads `HEAD`'s copy, as above:
+  The same check as commands, which print PASS or FAIL (authored here). The control reads the pre-change text at `b2be4ba`:
 
   ```bash
   # authored here
   test "$(grep -c 'missing .rg' /Volumes/DATA/Github/kirsch/doc/usage.md)" = 0 && echo "PASS real" || echo "FAIL real"
-  test "$(git -C /Volumes/DATA/Github/kirsch show HEAD:doc/usage.md | grep -c 'missing .rg')" -ge 1 && echo "PASS control" || echo "FAIL control"
+  test "$(git -C /Volumes/DATA/Github/kirsch show b2be4ba:doc/usage.md | grep -c 'missing .rg')" -ge 1 && echo "PASS control" || echo "FAIL control"
   ```
 
-- [ ] `grep -n -i -w -E 'milestone|ADR' doc/usage.md` prints nothing. Control: the printf line prints `an ADR` and not `headroom` (`plan/milestones/milestone-5.md:1267`).
+  Expected: the first command prints nothing, and the PASS/FAIL lines read `PASS real` and `PASS control`.
+
+- [ ] The plural gate. The milestone's own pattern, `'milestone|ADR'` (`plan/milestones/milestone-5.md:1267`), misses plurals, and the control below shows it. This check takes the plural forms as section 17 does. The control is a printed line with a plural in it, and the old pattern run on the same input prints only the singular line.
 
   ```bash
-  cd /Volumes/DATA/Github/kirsch && grep -n -i -w -E 'milestone|ADR' doc/usage.md
-  printf 'an ADR\nheadroom\n' | grep -i -w -E 'milestone|ADR'
+  cd /Volumes/DATA/Github/kirsch && grep -n -i -w -E 'milestones?|ADRs?' doc/usage.md
+  printf 'two milestones\nan ADR\nheadroom\n' | grep -n -i -w -E 'milestones?|ADRs?'
+  printf 'two milestones\nan ADR\nheadroom\n' | grep -n -i -w -E 'milestone|ADR'
   ```
+
+  The first command prints nothing. The second prints `1:two milestones` and `2:an ADR`, and not `headroom`. The third, the milestone's own pattern, prints only `2:an ADR`.
+
+- [ ] The source gate (authored here). The guide cites no source path and carries no source label.
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n -E 'internal/|cmd/kirsch/|Sources?:' doc/usage.md
+  printf 'see internal/tui\nSource: x\nplain\n' | grep -n -E 'internal/|cmd/kirsch/|Sources?:'
+  ```
+
+  The first command prints nothing. The second prints `1:see internal/tui` and `2:Source: x`, and not `plain`.
+
+- [ ] The spec sentence is in the session grants paragraph (`plan/spec/kirsch-plan.md`, authored here). Commands and PASS/FAIL, with the controls reading `b2be4ba`, where the sentence does not exist. The positive control runs first, and proves the old paragraph was read, so the absence control cannot pass on a failed `git show`:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n 'stays cleared after' plan/spec/kirsch-plan.md
+  # authored here
+  test "$(grep -c 'stays cleared after' /Volumes/DATA/Github/kirsch/plan/spec/kirsch-plan.md)" -ge 1 && echo "PASS real" || echo "FAIL real"
+  test "$(git -C /Volumes/DATA/Github/kirsch show b2be4ba:plan/spec/kirsch-plan.md | grep -c 'Session grants live in memory')" -ge 1 && echo "PASS control" || echo "FAIL control"
+  test "$(git -C /Volumes/DATA/Github/kirsch show b2be4ba:plan/spec/kirsch-plan.md | grep -c 'stays cleared after')" = 0 && echo "PASS control absent" || echo "FAIL control absent"
+  ```
+
+  Expected: the first command prints `202:` and the session grants line, which contains `stays cleared after` followed by `kirsch resume`. The PASS/FAIL lines read `PASS real`, `PASS control` and `PASS control absent`.
+
+- [ ] The step 2 wording is present: no setting turns the patch approval off (the approval model's first paragraph).
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n 'no setting turns that off' doc/usage.md
+  ```
+
+  Expected output, as printed:
+
+  ```
+  304:A patch appears as a card and waits, and no setting turns that off. A command
+  ```
+
+- [ ] The step 2 wording that was wrong is gone (authored here). The old phrases are in the text at `b2be4ba`, and the draft phrases were only in the draft the review read. The patterns are split, and each has its own control:
+
+  ```bash
+  # authored here
+  PAT_OLD='/run|Clear all session grants'
+  PAT_DRAFT='turned off|model family alone|spinner by itself|pending state|every width|which moves focus to the cards|carries no token figures'
+  test "$(git -C /Volumes/DATA/Github/kirsch show b2be4ba:doc/usage.md | grep -c -E "$PAT_OLD")" -ge 1 && echo "PASS control old" || echo "FAIL control old"
+  test "$(printf '%s\n' 'turned off' 'model family alone' 'spinner by itself' 'pending state' 'every width' 'which moves focus to the cards' 'carries no token figures' | grep -c -v -E "$PAT_DRAFT")" = 0 && echo "PASS control draft" || echo "FAIL control draft"
+  test "$(grep -c -E "$PAT_OLD|$PAT_DRAFT" /Volumes/DATA/Github/kirsch/doc/usage.md)" = 0 && echo "PASS real" || echo "FAIL real"
+  ```
+
+  Expected: `PASS control old`, `PASS control draft` and `PASS real`. The first control shows the old phrases match the pre-change text, and the second shows every draft phrase is matched by its pattern, so the empty result in the real file means the phrases are gone and the patterns are not broken.
+
+- [ ] The positive checks for the corrections (authored here). Each phrase prints `=> 1` when its replacement text is present in the guide, and the last phrase, which is not in the guide, prints `=> 0`:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && for p in 'the status bar also shortens' 'sit at the right. No narrowing' 'the first moves focus' '^in `/new`' 'cleared after `kirsch resume`' 'no such phrase here'; do printf '%s => ' "$p"; grep -c -- "$p" doc/usage.md; done
+  ```
+
+  Expected: `=> 1` after every phrase except the last, and `=> 0` after the last. The first line reads `the status bar also shortens => 1`.
 
 **Hands-on checks**
 
-1. Save a verbatim copy of `doc/usage.md` to `.claude/memory/workspace/m5-d14a-usage.pre.md` before any edit (`plan/milestones/milestone-5.md:1245`). The controls above run on that copy.
-2. Check the `.go` files for an emitter of the missing-`rg` warning before removing the claim (`plan/milestones/milestone-5.md:1233`). Command: `TO EXPAND`.
+1. Every control that needs the pre-change text reads it with `git show` from commit `b2be4ba`, the commit before these corrections. The other controls read text printed by the same command, except the last phrase of the positive-check loop, `no such phrase here`, which reads the working copy of the guide and must print `0` whatever the guide says. The copy in `.claude/memory/workspace/` is scratch and is archived when the next mission starts, so no control reads it.
+
+2. Emitter search for the missing-`rg` warning (`plan/milestones/milestone-5.md:1233`). Command:
+
+   ```bash
+   cd /Volumes/DATA/Github/kirsch && grep -rn -i 'rg\b\|ripgrep' internal/tui internal/app --include='*.go' | grep -v '_test\.go'
+   ```
+
+   Expected result in words: no line in `internal/tui`, where the status bar is drawn, sets, emits or prints a warning about a missing `rg`. In `internal/app/app.go`, the matches are the line that sets `HasRG` from `a.hasRG()`, the `hasRG()` function, which runs `exec.LookPath("rg")`, and the end of ordinary words such as `arg`. The match in `internal/tui` is the end of `org` in a comment. `HasRG` is defined in `internal/agent/prompt/prompt.go` and feeds only the system prompt, where `internal/agent/prompt/system.md` writes the value after `ripgrep (rg) available`. The missing-`rg` claim therefore has no status-bar emitter behind it, and the guide does not make it. Output as printed:
+
+   ```
+   internal/tui/styles.go:49:// empty NO_COLOR is treated as unset, the no-color.org convention (operator
+   internal/app/app.go:763:		HasRG:         a.hasRG(),
+   internal/app/app.go:1470:func (a *App) hasRG() bool {
+   internal/app/app.go:1471:	_, err := exec.LookPath("rg")
+   internal/app/app.go:2542:			for _, arg := range anySlice {
+   internal/app/app.go:2543:				if s, ok := arg.(string); ok {
+   ```
 
 **Notes / evidence**
 
@@ -2924,11 +3100,13 @@ _Empty. Fill at run._
 
 ## 27 · `doc/troubleshooting.md` and `doc/README.md` (m5-d14b)
 
-**Context:** Terminal: Setup. Binary: `kirsch` for the reproductions (TO EXPAND). Working directory: `$WORKSPACE`, with `--workspace "$WORKSPACE"` on each launch. Workspace: `$WORKSPACE`. Key state: all key variables unset, except a deliberately invalid dummy key for the 401 reproduction, and key entered for this live step for the 403 reproduction, if the operator decides that case needs one. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: `$KIRSCH_BIN` for the reproductions. Working directory: `$WORKSPACE`, with `--workspace "$WORKSPACE"` on each launch. Workspace: `$WORKSPACE`. Key state: all key variables unset, except a deliberately invalid dummy key for the 401 reproduction, and key entered for this live step for the 403 reproduction, if the operator decides that case needs one. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d14b lands:** the doctor lines as emitted, each with its troubleshooting section.
+`doc/troubleshooting.md` explains each line `kirsch doctor` prints and the messages for the common failures. `doc/README.md` lists the docs pages and their state. The doctor line map is under the doctor-line check below.
+
+Product finding, not a page item: the *Not a Git repository* onboarding notice is never shown. Nothing in production code sets `NotGitRepo` to true; only tests do. The guide does not quote that notice.
 
 **Waits on:** m5-d3a, m5-d3b, m5-d4a and m5-d4b (the doctor lines the page explains), m5-d13a and m5-d13c (the pages the index names), and O6, from `plan/milestones/milestone-5.md:117`.
 
@@ -2942,15 +3120,91 @@ keycount
 
 **Automated checks**
 
-- [ ] `grep -n -i -w -E 'milestone|ADR' doc/troubleshooting.md doc/README.md` prints nothing. Control: the printf line prints `an ADR` and not `headroom` (`plan/milestones/milestone-5.md:1303`, `:1308`).
+- [ ] `grep -n -i -w -E 'milestones?|ADRs?' doc/troubleshooting.md doc/README.md` prints nothing. The milestone's own pattern, `'milestone|ADR'`, misses plurals, and the control below shows the new pattern matching them. Control: the printf line prints `1:an ADR`, `2:ADRs` and `3:milestones`, and not `headroom`.
 
   ```bash
-  cd /Volumes/DATA/Github/kirsch && grep -n -i -w -E 'milestone|ADR' doc/troubleshooting.md doc/README.md
-  printf 'an ADR\nheadroom\n' | grep -i -w -E 'milestone|ADR'
+  cd /Volumes/DATA/Github/kirsch && grep -n -i -w -E 'milestones?|ADRs?' doc/troubleshooting.md doc/README.md
+  printf 'an ADR\nADRs\nmilestones\nheadroom\n' | grep -n -i -w -E 'milestones?|ADRs?'
   ```
 
-- [ ] Every doctor line that m5-d3a, m5-d3b, m5-d4a and m5-d4b emit is explained in `doc/troubleshooting.md`. The step report lists the emitted lines and the page section for each (`plan/milestones/milestone-5.md:1306`). Command: `TO EXPAND`.
-- [ ] The status lines at `doc/README.md:13`, `:14` and `:16` match the files that exist (`plan/milestones/milestone-5.md:1307`). Command: `TO EXPAND`.
+- [ ] `grep -n -E '\.go\b|internal/|cmd/kirsch/|Sources?:' doc/troubleshooting.md doc/README.md` prints nothing. Control: the printf line prints back `1:cmd/kirsch/main.go:85`, `2:internal/doctor/probes.go:138` and `3:*Source:* x`.
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n -E '\.go\b|internal/|cmd/kirsch/|Sources?:' doc/troubleshooting.md doc/README.md
+  printf 'cmd/kirsch/main.go:85\ninternal/doctor/probes.go:138\n*Source:* x\n' | grep -n -E '\.go\b|internal/|cmd/kirsch/|Sources?:'
+  ```
+
+- [ ] Every check that doctor prints has a section in `doc/troubleshooting.md`. The first command prints `section <name>` for each check name the code declares, and `NO SECTION <name>` for any name the guide has no heading for. Every line must read `section`, and the command must print at least one line. The second command is the control: it runs the same loop against `/dev/null`, so it must print `NO SECTION <name>` for every name the first command printed. The lines under each section are matched to the map below by reading, not by these commands.
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -h -E '^\s+check[A-Za-z]+\s+= "' internal/doctor/probes.go internal/doctor/state.go | sed -E 's/.*"(.*)".*/\1/' | while read c; do grep -q "^## $c\$" doc/troubleshooting.md && echo "section $c" || echo "NO SECTION $c"; done
+  cd /Volumes/DATA/Github/kirsch && grep -h -E '^\s+check[A-Za-z]+\s+= "' internal/doctor/probes.go internal/doctor/state.go | sed -E 's/.*"(.*)".*/\1/' | while read c; do grep -q "^## $c\$" /dev/null && echo "section $c" || echo "NO SECTION $c"; done
+  ```
+
+  Doctor line map. Paths are under `internal/`. Text in `<...>` is filled in at run time.
+
+  | Line as printed | Source | Page section |
+  |---|---|---|
+  | `ok  git: found at <path>` | `doctor/probes.go:138` | git |
+  | `fail  git: not found on PATH; kirsch needs git to find the repository` | `doctor/probes.go:142` | git |
+  | `warn  git: not found on PATH; kirsch starts with --workspace but the Git features are off, ...` | `doctor/probes.go:149` | git |
+  | `ok  rg: found at <path>` | `doctor/probes.go:156` | rg |
+  | `warn  rg: not found on PATH; search_code uses the pure-Go fallback` | `doctor/probes.go:158` | rg, Missing ripgrep |
+  | `ok  repository: <root>` | `doctor/probes.go:364` | repository |
+  | `fail  repository: not in a Git repository` | `doctor/probes.go:352`, detail `doctor/probes.go:50` | repository, Not in a repository |
+  | `fail  repository: <err>` (`--workspace <path>: <error>`, `... is not a directory`, `resolve workspace root <root>: <error>`) | `doctor/probes.go:354`; `workspace/workspace.go:82`, `:85`, `:108` | repository |
+  | `warn  repository: <root> is not a Git repository; kirsch starts, but ...` | `doctor/probes.go:359` | repository |
+  | `warn  config: <file>: unknown key "<key>" (ignored)` | `doctor/probes.go:385`; `config/config.go:156` | config |
+  | `warn  config: <file>: key "<key>" ignored (a project config may set only [context].project_files)` | `config/config.go:153` | config |
+  | `warn  config: <file>: context.project_files must be a list of strings; ignored` | `config/config.go:424` | config |
+  | `fail  config: read <path>: <error>` / `fail  config: parse <path>: <error>` | `config/config.go:315`, `:364` (read); `:323`, `:333`, `:372` (parse); emitted at `doctor/probes.go:389` | config |
+  | `fail  config: <file>: key "<key>" looks like a credential ...` | `config/config.go:485` | config |
+  | `fail  config: invalid settings (<consulted>): <error>` | `doctor/probes.go:394`; `no config files` at `doctor/probes.go:420` | config |
+  | `ok  config: settings valid` / `ok  config: settings valid; project file not read (no workspace)` | `doctor/probes.go:407`, `:402` | config |
+  | `ok  key: endpoint <endpoint>: key found in <variable>` | `doctor/probes.go:242` | key |
+  | `warn  key: endpoint <endpoint>: no key found (set ...); kirsch starts but cannot send a prompt` | `doctor/probes.go:236` | key, No API key |
+  | `warn  key: endpoint <endpoint>: api_key_env does not look like an environment variable name ...` | `doctor/probes.go:229` | key |
+  | `warn  key: skipped: config did not load` | `doctor/probes.go:198` | key |
+  | `ok  backend: search_code uses ripgrep` | `doctor/probes.go:254` | backend |
+  | `warn  backend: search_code uses pure-go (rg is not on PATH)` | `doctor/probes.go:256` | backend, Missing ripgrep |
+  | `ok  model: endpoint <endpoint>, model <id>: context window <tokens> tokens` | `doctor/probes.go:272` | model |
+  | `warn  model: endpoint <endpoint>, model <model>: not in the table; conservative fallback ...` | `doctor/probes.go:266` | model |
+  | `warn  model: skipped: config did not load` | `doctor/probes.go:200` | model |
+  | `ok  context: <file>, <size> bytes` / `ok  context: none; looked for <files>` / `ok  context: none; no project files configured` | `doctor/probes.go:313` | context |
+  | `warn  context: <file>, <size> bytes; project context candidate ...` / `... a candidate could not be read: ...` | `doctor/probes.go:313`; `agent/prompt/loader.go:62`, `:71`, `:74`, `:86` | context |
+  | `warn  context: skipped: no workspace` | `doctor/probes.go:289` | context |
+  | `warn  context: skipped: config did not load` | `doctor/probes.go:201` | context |
+  | `fail  state: cannot work out the state folder: home directory unknown; ...` | `doctor/state.go:106`, `:57` | state |
+  | `ok`, `warn` or `fail  state: <dir> ...` (session folder, `does not exist yet`, `is not a folder`, `is not writable`, `cannot read`) | `doctor/state.go:152` to `:184` | state |
+  | `warn  lock: cannot work out the state folder: home directory unknown` | `doctor/state.go:108` | state (the lock section does not quote it) |
+  | `ok`, `warn` or `fail  state: <root> ...` and `state: <index> ...` (storage root and `index.json`) | `doctor/state.go:206` to `:244` | state |
+  | `warn  state: skipped: config did not load` / `skipped: no workspace` | `doctor/state.go:96`, `:98` | state |
+  | `ok  lock: free` / `ok  lock: free (no lock file yet)` | `doctor/state.go:276`, `:298` | lock |
+  | `warn  lock: held by another kirsch in this workspace; ...` | `doctor/state.go:274` | lock, Lock held |
+  | `warn  lock: could not check the lock: <error>` / `not checked on this platform` | `doctor/state.go:272`, `:278` | lock |
+  | `warn  lock: free, but <lockPath> is not writable; ...` | `doctor/state.go:301` | lock |
+  | `warn  lock: skipped: ...` | `doctor/state.go:96`, `:98` | lock |
+
+  Examples of the program's own messages the guide quotes (not the whole set): `kirsch: Kirsch runs inside a Git repository.` at `workspace/workspace.go:72` (*Not in a repository*), and `no API key for endpoint "<endpoint>" (set ...)` at `app/app.go:1389` (*No API key*).
+
+  The map is kept by hand and its line numbers move with the code. Re-derive the emitting sites each run:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n 'Result{' internal/doctor/probes.go internal/doctor/state.go | grep -v 'Result{}' | grep -v -E '\[\]Result\{$|\[\]Result\{[a-z]+Result\('
+  ```
+
+  The last filter drops the lines that only open a list of results; the results in those lists are on their own lines. Every printed line must fall under a Source cell above (a range counts). A line no row covers is a gap in the map, and the guide needs a look for it.
+
+- [ ] The status lines in `doc/README.md` match the files in `doc/`. Each `doc/*.md` file other than `README.md` has a row, each row names an existing file, and no row reads anything but `Written`.
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch/doc && for f in *.md; do [ "$f" = README.md ] && continue; grep -q "^| \[\`$f\`\]" README.md && echo "row $f" || echo "NO ROW $f"; done
+  for f in $(grep -o '`[a-z-]*\.md`' README.md | tr -d '`' | sort -u); do test -f "$f" && echo "file $f" || echo "MISSING $f"; done
+  cd /Volumes/DATA/Github/kirsch && sed -n '/^| Document/,/^$/p' doc/README.md | grep '^| \[' | grep -v '| Written |'
+  cd /Volumes/DATA/Github/kirsch && sed -n '/^| Document/,/^$/p' doc/README.md | grep '^| \[' | grep -v '| NoSuchState |'
+  ```
+
+  The third command prints nothing when every row reads `Written`. The line after it is the control: no row reads `NoSuchState`, so it must print every table row. If it prints nothing, the `sed` range did not find the table and the empty result above proves nothing.
 
 **Hands-on checks**
 
@@ -2958,7 +3212,15 @@ keycount
 
    The 401 reproduction uses a deliberately invalid dummy key, never a real one. Authored here: `export OPENCODE_API_KEY=dummy-invalid-key`, then run the reproduction. It still contacts the provider, which refuses the key. The 403 reproduction needs a key the provider refuses for the model. It takes a real key only if the operator decides it must, entered with the live-key block in *Setup*. Only a step that genuinely needs the model takes a real key. The no-key case needs no key.
 
-   > **TO EXPAND when m5-d14b lands:** the failures the troubleshooting page covers, as the step report lists them, and how each is reproduced. Do not reproduce the no-key case with a key set.
+   The failures are the subsections under *Common failures* in the guide (`grep -n '^### ' doc/troubleshooting.md` lists them). The operator copy reproduces each one as follows:
+
+   - *No API key*: step 4 of the operator copy (no TUI, the crew runs it), and step 7 (TUI, optional). Do not reproduce this case with a key set.
+   - *Not in a repository*: step 5 (no TUI, the crew runs it).
+   - *Missing ripgrep*: step 6 (no TUI, the crew runs it).
+   - *401 or 403: rejected the API key*: step 8 (TUI, optional). The 401 uses the dummy key above, and the provider refuses it, usually with HTTP 401; the operator copy also accepts HTTP 403 for that key. The 403 needs a key the account cannot use with the model. It stays operator-owned and optional, and the operator copy does not carry it.
+   - *Lock held*: section 24 of the operator copy, which starts a second kirsch. This section does not repeat it.
+
+   The crew runs the non-TUI steps only. Steps 7 and 8 need a terminal window and stay with the operator.
 
    **Key-state check, last** (authored here). Remove the dummy or real key. The unset line clears every key variable. The count after the unset must print `CONTROL PASS`, then `0`.
 
