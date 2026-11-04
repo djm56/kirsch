@@ -1827,7 +1827,127 @@ _(nothing yet)_
 
 ## 25 · Project files (contributing, security, notices) and a note about reference screens (m5-d12)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d12 is finished.
+**What this checks:** the three project files that a newcomer or a person reporting a security problem reads first. `CONTRIBUTING.md` says how to build, test and check a change. `SECURITY.md` says how to report a security problem, and what kirsch does and does not protect against. `NOTICE` names the libraries kirsch uses and their licences. The section also checks the note on how the reference screens are regenerated. Step 6 changes a setting on GitHub. Step 7 runs commands on a throwaway copy of the project. Nothing else changes anything.
+
+**Before this section:** do *Before you start* in this Terminal window. Setup B must have said `Ready.`.
+
+Steps 1 to 5 work from the kirsch folder. Step 7 works from a copy in your throwaway area, and it comes back to the kirsch folder at the end.
+
+**Step 1 — Go to the kirsch folder.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+```
+You should see your prompt again, with no message.
+- [ ] Done
+
+**Step 2 — Read the three new files.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+open -t CONTRIBUTING.md
+open -t SECURITY.md
+open -t NOTICE
+```
+Each file opens in the app your Mac uses for plain text, because of the `-t` flag. You should see:
+- in `CONTRIBUTING.md`, a table of commands under *Build, test and check*;
+- in `SECURITY.md`, the headings *Reporting a vulnerability*, *Threat model* and *Known limits*;
+- in `NOTICE`, the line *Third-party software*, then a list of libraries, each with its licence.
+
+Read them. You run nothing from them yet; that starts in step 3.
+- [ ] I opened all three files and read them
+
+**Step 3 — The regeneration note names the right flag.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n 'KIRSCH_REGEN=1' CONTRIBUTING.md
+grep -n -e '-update' CONTRIBUTING.md plan/spec/kirsch-plan.md plan/spec/ui-spec-v0.1.md
+printf 'run with -update\n' | grep -n -e '-update'
+git show 0d6bbe4:plan/spec/kirsch-plan.md | grep -c -e '-update'
+git show 0d6bbe4:plan/spec/ui-spec-v0.1.md | grep -c -e '-update'
+```
+You should see:
+- The first command prints a line that contains `KIRSCH_REGEN=1`.
+- The second command prints nothing. That means no old `-update` flag is left in the three files.
+- The third command prints `1:run with -update`. It is the control: it shows the second command would have printed a line if the old flag were there.
+- The last two commands each print `1`. They read the spec as it was before this change, so the old flag was there and the check means something.
+- [ ] The first command showed `KIRSCH_REGEN=1`, the second printed nothing, the third printed `1:run with -update`, and the last two each printed `1`
+
+**Step 4 — The security notes say what they should.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n 'advisories/new' SECURITY.md
+grep -n '7 days' SECURITY.md
+grep -n 'latest release' SECURITY.md
+grep -n 'full request body' SECURITY.md
+grep -n 'An approved command' SECURITY.md
+printf 'An approved command\n' | grep -n 'An approved command'
+```
+You should see one line from each of the first four commands: the reporting link, the seven-day reply line, the line about the latest release, and the line about the full request body in the debug log. The fifth command prints nothing, because the old sentence about approved commands has gone. The sixth command is the control, and it prints `1:An approved command`. That shows the fifth command would have printed a line if the old sentence were there.
+- [ ] Four lines, nothing from the fifth command, and `1:An approved command` from the sixth
+
+**Step 5 — Every library the program uses is in NOTICE.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+awk '/^require \(/{f++} f==1&&/^\t/{print $1}' go.mod | while read m; do grep -q -F "$m" NOTICE && echo "ok $m" || echo "MISSING $m"; done
+```
+Every line should start with `ok`, followed by the name of a library. A line that starts with `MISSING` means a library kirsch uses is not in `NOTICE`. Stop there and tell Bishop the section and step number.
+
+The control plants a made-up library that `NOTICE` does not list. Paste:
+```
+printf 'require (\n\tgithub.com/example/planted v1.0.0\n)\n' > "$T_CFG/planted.mod"
+awk '/^require \(/{f++} f==1&&/^\t/{print $1}' "$T_CFG/planted.mod" | while read m; do grep -q -F "$m" NOTICE && echo "ok $m" || echo "MISSING $m"; done
+```
+It should print `MISSING github.com/example/planted`.
+- [ ] Every line from the first loop starts with `ok`, and the control prints `MISSING github.com/example/planted`
+
+**Step 6 — Turn on private vulnerability reporting (you do this on GitHub).**
+This needs your GitHub login as the owner of the repository. The crew cannot do it for you.
+1. Open the repository page, `https://github.com/djm56/kirsch`, in your browser, signed in as the owner.
+2. Click *Settings*. In the left-hand list, under *Security*, click *Advanced Security*. (GitHub moves this page from time to time. If you do not see it, look for *Code security* in the same list.)
+3. Find *Private vulnerability reporting* and click *Enable*.
+4. Check it from outside. Open a private (incognito) browser window, where you are not signed in to GitHub, and go to `https://github.com/djm56/kirsch/security`. You should see a button labelled *Report a vulnerability*. Before you turn the setting on, that button is not there, so this check shows whether the setting took effect.
+
+Until this is on, the link in `SECURITY.md` does not open the report form.
+- [ ] I turned on private vulnerability reporting, and a signed-out window shows the *Report a vulnerability* button
+
+**Step 7 — Run the commands from CONTRIBUTING on a clean copy (after you commit).**
+This step copies the project from its last commit, so commit your changes first. Changes that are not committed are not in the copy.
+
+Read these warnings before you start:
+- `npm run tools` installs the latest versions of `govulncheck`, `gosec`, `staticcheck`, `golangci-lint` and `osv-scanner` into your Go bin folder, replacing any copies already there. `npm run ci:local` does the same for `govulncheck` and `gosec`. Other programs on your Mac that use these tools get the new versions too.
+- `npm run fuzz` runs each fuzz target for about 30 seconds, so it takes several minutes in all.
+- `npm start` opens kirsch. Type `/quit` to leave. It sends nothing to a model.
+
+Run one line at a time. Wait for its `exit=` line before you paste the next one. Each must end with `exit=0`:
+```
+git clone -q /Volumes/DATA/Github/kirsch "$T_CFG/clean"; echo "exit=$?"
+cd "$T_CFG/clean"
+npm run tools; echo "exit=$?"
+npm run build; echo "exit=$?"
+npm start; echo "exit=$?"
+npm test; echo "exit=$?"
+npm run test:race; echo "exit=$?"
+npm run check; echo "exit=$?"
+npm run security; echo "exit=$?"
+npm run fuzz; echo "exit=$?"
+npm run ci:local; echo "exit=$?"
+cd /Volumes/DATA/Github/kirsch
+```
+If a line prints anything other than `exit=0`, stop and tell Bishop the section, the step and the line. `npm start` waits for you: type `/quit` to leave, and then its `exit=` line prints.
+
+Then tidy up the throwaway copy. This line is optional:
+```
+rm -rf "${T_CFG:?}/clean"
+```
+- [ ] Every command ended with `exit=0`, kirsch opened and closed on `/quit`, and I went back to the kirsch folder
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 

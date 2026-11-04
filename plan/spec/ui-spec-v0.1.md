@@ -838,9 +838,12 @@ survives into `View()`". That is false as stated: Kirsch emits its own SGR
 sequences whenever colour is on. The checkable claims are 2 and 3 — no escapes
 at all in the no-colour path, and only palette SGR in the coloured one.
 
-Golden files are regenerated with `-update` and reviewed by a human in the
-diff. CI never auto-accepts them. When a golden diff is reviewed and found
-*correct*, the screen reference has gone stale — update it in the same commit.
+Golden grids are regenerated with `KIRSCH_REGEN=1 go test ./internal/tui -run
+TestGenerateGrids`, which writes the current render to `/tmp/kirsch-grids.txt`;
+a person reconciles the grids in `kirsch-ui-screens.md` by hand, and a human
+reviews the diff. CI never auto-accepts them. When a golden diff is reviewed and
+found *correct*, the screen reference has gone stale — update it in the same
+commit.
 
 ## 14. Appendix — Open Design Risks
 

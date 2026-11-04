@@ -3002,11 +3002,15 @@ Not run here, and why:
 
 ## 25 · Repository files and golden-regeneration note (m5-d12)
 
-**Context:** Terminal: Setup. Binary: none for the greps; `npm run check` and `scripts/ci.sh` on the clean clone (operator). Working directory: /Volumes/DATA/Github/kirsch for the greps; the clean clone's location is TO EXPAND. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: none for the greps; the commands in `CONTRIBUTING.md`, including `npm run ci:local` (which runs `scripts/ci.sh all`), on the clean clone (operator). Working directory: /Volumes/DATA/Github/kirsch for the greps; the clean clone's location is `$T_CFG/clean`. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d12 lands:** the new files (`CONTRIBUTING.md`, `SECURITY.md`, `NOTICE`), and which branch O21 took for the `-update` sentences.
+- `CONTRIBUTING.md` is new. It covers the requirements, the build and check commands, how the golden screens are regenerated, the principles every change keeps, and what a pull request holds.
+- `SECURITY.md` is new. It states the supported versions, the private reporting route, the threat model and the known limits. Each claim in it has a row in the claims table, `.claude/memory/missions/mission-20261103-06/security-claims.md`, which cites the code location or test behind it.
+- `NOTICE` is new. It credits each direct require in `go.mod` with its licence, and says where the full licence text is published.
+- The new files are `CONTRIBUTING.md`, `SECURITY.md` and `NOTICE`. The check is `ls CONTRIBUTING.md SECURITY.md NOTICE`, which lists all three.
+- O21 took the branch "correct the spec", with no product change. Each of `plan/spec/kirsch-plan.md` and `plan/spec/ui-spec-v0.1.md` had one golden-regeneration sentence that named `-update`. `internal/tui/regen_test.go` defines no `-update` flag; the test is skipped unless `KIRSCH_REGEN` is set. Both sentences now name `KIRSCH_REGEN=1`. No code changed.
 
 **Waits on:** m5-d10a and m5-d10b (build commands), O7 (`SECURITY.md` reporting channel), O8 (`NOTICE` contents), O21 (the `-update` flag versus doc), and m5-d8 (file ownership of `ui-spec-v0.1.md`, amend branch), from `plan/milestones/milestone-5.md:112`.
 
@@ -3024,30 +3028,114 @@ Not run here, and why:
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && grep -n -e '-update' CONTRIBUTING.md plan/spec/kirsch-plan.md plan/spec/ui-spec-v0.1.md
+  printf 'run with -update\n' | grep -n -e '-update'
   ```
 
-  Control, as commands (authored here). The pre-change text, which is `HEAD`'s copy, must hold the old wording, so each count must be at least 1:
+  The first command must print nothing. The second is the control: it must print `1:run with -update`, which shows the grep does match the old flag.
+
+  Control, pinned to commit `0d6bbe4`, the commit before m5-d12. The pre-change text must hold the old wording, so each count must be at least 1:
 
   ```bash
-  # authored here
-  git -C /Volumes/DATA/Github/kirsch show HEAD:plan/spec/kirsch-plan.md | grep -c -e '-update'
-  git -C /Volumes/DATA/Github/kirsch show HEAD:plan/spec/ui-spec-v0.1.md | grep -c -e '-update'
+  git -C /Volumes/DATA/Github/kirsch show 0d6bbe4:plan/spec/kirsch-plan.md | grep -c -e '-update'
+  git -C /Volumes/DATA/Github/kirsch show 0d6bbe4:plan/spec/ui-spec-v0.1.md | grep -c -e '-update'
   ```
 
-- [ ] If O21 chose `-update` instead: `grep -n -e '-update' internal/tui/regen_test.go` prints the flag definition (`plan/milestones/milestone-5.md:1101`). This box replaces the one above and runs only on that branch.
-- [ ] `SECURITY.md` names the supported versions and the reporting channel O7 records (`plan/milestones/milestone-5.md:1102`). Command: `TO EXPAND`.
-- [ ] Every claim in `SECURITY.md` traces to a code location or a test (`plan/milestones/milestone-5.md:1103`). Command: `TO EXPAND`. The review step checks each one.
-- [ ] `NOTICE` credits Bubble Tea, Lip Gloss and Bubbles, and its list matches the direct requires in `go.mod` (`plan/milestones/milestone-5.md:1104`). Command: `TO EXPAND`.
+  Each count prints `1`.
+
+- [ ] If O21 chose `-update` instead: `grep -n -e '-update' internal/tui/regen_test.go` prints the flag definition (`plan/milestones/milestone-5.md:1101`). This box replaces the one above and runs only on that branch. Not run: O21 took the spec-correction branch.
+- [ ] `SECURITY.md` names the supported versions and the reporting channel O7 records (`plan/milestones/milestone-5.md:1102`).
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n 'advisories/new' SECURITY.md
+  cd /Volumes/DATA/Github/kirsch && grep -n '7 days' SECURITY.md
+  cd /Volumes/DATA/Github/kirsch && grep -n 'latest release' SECURITY.md
+  ```
+
+  Each command prints one line: the reporting link, the seven-day reply target, and the supported-versions sentence.
+
+- [ ] Every claim in `SECURITY.md` traces to a code location or a test (`plan/milestones/milestone-5.md:1103`). Command: none; this is a read-through. The claims table is `.claude/memory/missions/mission-20261103-06/security-claims.md`, and each row cites the code location or test behind its claim. Review steps 2, 2b, 4 and 6 of mission-20261103-06 checked the rows against the code.
+- [ ] `NOTICE` credits each direct require in `go.mod` (`plan/milestones/milestone-5.md:1104`). Its list is checked by name, one line per require, with a control that proves a missing name prints `MISSING`:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && awk '/^require \(/{f++} f==1&&/^\t/{print $1}' go.mod | while read m; do grep -q -F "$m" NOTICE && echo "ok $m" || echo "MISSING $m"; done
+  printf 'require (\n\tgithub.com/example/planted v1.0.0\n)\n' > "$T_CFG/planted.mod" && awk '/^require \(/{f++} f==1&&/^\t/{print $1}' "$T_CFG/planted.mod" | while read m; do grep -q -F "$m" NOTICE && echo "ok $m" || echo "MISSING $m"; done
+  ```
+
+  Every line of the first command starts with `ok`. The second command is the control: it must print `MISSING github.com/example/planted`.
+- [ ] Non-public references: the public files carry no `.go:` file references and no `plan/process` path. Control included:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && grep -n -E '\.go:[0-9]|plan/process' CONTRIBUTING.md SECURITY.md NOTICE
+  printf 'internal/x.go:3\n' | grep -n -E '\.go:[0-9]|plan/process'
+  ```
+
+  The first command must print nothing. The second must print `1:internal/x.go:3`.
 
 **Hands-on checks**
 
 1. (operator) Each command in `CONTRIBUTING.md` is run once on a clean clone and exits 0 (`plan/milestones/milestone-5.md:1099`). The milestone names `npm run check` and `scripts/ci.sh` as examples (`plan/milestones/milestone-5.md:1093`).
 
-   > **TO EXPAND when m5-d12 lands:** the full command list in `CONTRIBUTING.md`, and the clean-clone location.
+   The commands are the rows of the table in `CONTRIBUTING.md` (*Build, test and check*), in order, with `npm run tools` added from the same file's *Requirements* section, because the table does not list it and the section says to run it once:
+
+   1. `npm run tools` (installs `govulncheck`, `gosec`, `staticcheck`, `golangci-lint` and `osv-scanner` at their latest versions into the Go bin directory; `scripts/install-tools.sh`)
+   2. `npm run build`
+   3. `npm start` (opens kirsch; leave with `/quit`; sends nothing to a model)
+   4. `npm test`
+   5. `npm run test:race`
+   6. `npm run check`
+   7. `npm run security`
+   8. `npm run fuzz` (each target runs for about 30 seconds)
+   9. `npm run ci:local` (replaces `govulncheck` and `gosec` in the Go bin directory with their latest versions)
+
+   The list is checked against the table with `sed -n '/^| Task/,/^$/p' CONTRIBUTING.md`, which prints the table's rows, and every row's command is on the list above. The clean clone is `$T_CFG/clean`, made from the last commit with `git clone -q /Volumes/DATA/Github/kirsch "$T_CFG/clean"`, so the commit must come first. The operator copy's section 25, step 7, carries the same list with each command's exit code.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+**Crew run, 2026-11-03 (mission-20261103-06).** Raw output of the automated checks in this section, run from `/Volumes/DATA/Github/kirsch` against the working tree. The operator's clean-clone run (hands-on step 1) is still owed; nothing below replaces it.
+
+```
+### KIRSCH_REGEN=1 grep (CONTRIBUTING.md)
+47:   KIRSCH_REGEN=1 go test ./internal/tui -run TestGenerateGrids
+exit=0
+
+### -update grep (CONTRIBUTING.md, both spec files)
+exit=1
+
+### -update control
+1:run with -update
+exit=0
+
+### -update controls at 0d6bbe4 (pre-change text)
+1
+1
+
+### SECURITY.md greps
+15:https://github.com/djm56/kirsch/security/advisories/new
+21:We aim to reply within 7 days.
+5:Only the latest release of Kirsch receives security fixes. If you run an older
+
+### NOTICE loop (go.mod direct requires)
+ok github.com/BurntSushi/toml
+ok github.com/charmbracelet/bubbles
+ok github.com/charmbracelet/bubbletea
+ok github.com/charmbracelet/lipgloss
+ok github.com/charmbracelet/x/term
+ok github.com/go-git/go-git/v5
+ok github.com/mattn/go-runewidth
+ok github.com/muesli/cancelreader
+ok github.com/muesli/termenv
+ok github.com/rivo/uniseg
+
+### NOTICE planted control
+MISSING github.com/example/planted
+
+### Non-public references (CONTRIBUTING.md SECURITY.md NOTICE)
+exit=1
+
+### Non-public control
+1:internal/x.go:3
+exit=0
+```
 
 ---
 

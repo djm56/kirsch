@@ -1,0 +1,26 @@
+Kirsch
+Copyright (c) 2026 Donovan Maidens
+
+Kirsch is released under the MIT License. The full text is in LICENSE.
+
+Third-party software
+
+Kirsch uses the libraries below directly. Each one is listed with its import
+path and its licence. The full licence text of each module is published with its
+source, at the version in go.mod, and on pkg.go.dev: open https://pkg.go.dev/
+followed by the module path and ?tab=licenses, for example
+https://pkg.go.dev/github.com/charmbracelet/bubbletea?tab=licenses.
+
+- github.com/BurntSushi/toml — Copyright (c) 2013 TOML authors. MIT License.
+- github.com/charmbracelet/bubbles — Copyright (c) 2020-2025 Charmbracelet, Inc. MIT License.
+- github.com/charmbracelet/bubbletea — Copyright (c) 2020-2025 Charmbracelet, Inc. MIT License.
+- github.com/charmbracelet/lipgloss — Copyright (c) 2021-2023 Charmbracelet, Inc. MIT License.
+- github.com/charmbracelet/x/term — Copyright (c) 2023 Charmbracelet, Inc. MIT License.
+- github.com/go-git/go-git/v5 — Apache License, Version 2.0.
+- github.com/mattn/go-runewidth — Copyright (c) 2016 Yasuhiro Matsumoto. MIT License.
+- github.com/muesli/cancelreader — Copyright (c) 2022 Erik Geiser and Christian Muehlhaeuser. MIT License.
+- github.com/muesli/termenv — Copyright (c) 2019 Christian Muehlhaeuser. MIT License.
+- github.com/rivo/uniseg — Copyright (c) 2019 Oliver Kuederle. MIT License.
+
+Indirect dependencies, the modules that the direct ones depend on, carry their
+own licences in their modules.
