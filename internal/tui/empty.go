@@ -3,9 +3,14 @@ package tui
 // The empty-session state: the wordmark, the tagline and three example
 // prompts. ui-spec §7.5 and screens 00 and 01.
 //
-// This is onboarding, not an error — no border, no red. It is shown only while
-// the transcript is empty; it scrolls away with the first message and never
-// comes back.
+// This is onboarding, not an error — no border, no red. Whether it (or, when a
+// provider onboarding is installed, onboardingRows in its place) is drawn is
+// decided by Model.introRows, afresh for every frame: the transcript region
+// must draw a transcript (wide enough, at least one row), the transcript must
+// hold nothing but notices, and every notice row must fit below it. Otherwise
+// the normal transcript is drawn. Nothing latches the decision, so it can come
+// back: a larger window can make notices fit again, and /new empties the
+// transcript.
 
 // wordmarkUTF8 is two rows of half-blocks, 21 cells wide.
 var wordmarkUTF8 = []string{

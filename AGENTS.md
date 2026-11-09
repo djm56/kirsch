@@ -18,7 +18,7 @@ This is now a shared repository. [`plan/process/working-agreement.md`](plan/proc
 | How should the UI behave? | [`plan/spec/ui-spec-v0.1.md`](plan/spec/ui-spec-v0.1.md) — normative for everything visual |
 | What should the UI *look* like? | [`plan/spec/kirsch-ui-screens.md`](plan/spec/kirsch-ui-screens.md) — literal character grids |
 | How do I verify it? | [`plan/testing/`](plan/testing/) — walkthroughs, suite reference, security |
-| Why was X decided? | [`plan/adr/`](plan/adr/) — ADRs 0001–0007 |
+| Why was X decided? | [`plan/adr/`](plan/adr/) — ADRs 0001–0012 |
 | What comes after v0.1? | [`plan/build-plan-v0.2-v0.6.md`](plan/build-plan-v0.2-v0.6.md) — the post-v0.1.0 milestones and the ADRs and amendments filed with them |
 
 ## Five rules
@@ -41,8 +41,9 @@ This is now a shared repository. [`plan/process/working-agreement.md`](plan/proc
 4. **Amend, don't drift.** A decision that contradicts the plan goes in the
    Amendment Log (`plan/spec/kirsch-plan.md` §11), not in a commit message.
 
-5. **`plan/` is for building Kirsch; `doc/` is for using it.** `doc/` stays
-   empty until Milestone 5. Never put build notes there.
+5. **`plan/` is for building Kirsch; `doc/` is for using it.** Until Milestone 5,
+   `doc/` held only `usage.md` and its index, and the other end-user pages were
+   added during Milestone 5. Never put build notes there.
 
 ## Layout
 

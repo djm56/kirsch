@@ -1,5 +1,9 @@
 # GoReleaser config for kirsch: one tar.gz per target plus a sha256 checksums
-# file, with the changelog taken from git log. Decisions are recorded in
+# file, with the changelog taken from git log. The archive's contents are the
+# `files:` list below. It includes the redistribution notices and licence texts:
+# the binary is a redistribution of third-party code (Apache-2.0 and MIT among
+# them), and those licences require the notices to travel with it. The licence
+# texts are generated at release time, not committed. Decisions are recorded in
 # plan/PROGRESS.md, rows O2 and O2 detail (scope, targets, archive and checksum
 # defaults) and O20 (the target-compile check in scripts/ci.sh).
 #
@@ -15,6 +19,16 @@
 version: 2
 
 project_name: kirsch
+
+# Collects the third-party licence texts into build/licenses before the build.
+# The texts come from the module cache at release time and are not committed.
+# The script exits non-zero if a module has no licence file, which stops the
+# release. It writes to build/, not dist/, because `--clean` empties dist/ and
+# goreleaser's hooks documentation does not say whether `--clean` runs before
+# or after the before hooks.
+before:
+  hooks:
+    - bash scripts/third-party-licenses.sh
 
 builds:
   - id: kirsch
@@ -38,6 +52,17 @@ archives:
     # No Windows target, so every archive is tar.gz. name_template is left at
     # goreleaser's default.
     formats: [tar.gz]
+    # Listed in full: the docs do not say whether `files:` replaces goreleaser's
+    # default list, so nothing here relies on the defaults. The generated tree
+    # lands as licenses/<module path>/<file>.
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - NOTICE
+      - src: build/licenses/**/*
+        dst: licenses
+        strip_parent: false
 
 checksum:
   algorithm: sha256

@@ -96,6 +96,8 @@ func runToolTurn(t *testing.T, label, repo, toolName string, input json.RawMessa
 			},
 		},
 	}
+	// Keep session state out of the user's real ~/.local/share/kirsch.
+	cfg.Session.StorageDir = filepath.Join(t.TempDir(), "sessions")
 	a := New(ws, cfg, telemetry.Disabled())
 	defer a.Close()
 

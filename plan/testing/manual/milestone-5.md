@@ -2,7 +2,7 @@
 
 Kirsch Milestone 5 is polish and release: the narrow-width status bar, the `kirsch doctor` command, `--version` and `--help`, the release tooling (build wrapper, goreleaser configuration, release workflow), the repository files, the user documentation under `doc/`, and the operator decisions that gate the conditional follow-through. The deliverables are defined in `plan/milestones/milestone-5.md`.
 
-> **Status: skeleton.** This document was written at planning time (mission-20261023-06, 2026-10-23). It is expanded as each deliverable lands. Section 1's commands were run in mission-20261027-03, and the operator passed section 1 of the plain checklist on 2026-10-27. Section 2's commands were run in mission-20261026-01, and the operator passed section 2 of the plain checklist on 2026-10-27. Section 4's commands were run in mission-20261027-04, and the operator passed section 4 of the plain checklist on 2026-10-27, with a note (see the carried item under *Carried from Milestone 5 planning* in `plan/PROGRESS.md`). Section 5's commands were run in mission-20261027-06 (step 7) on 2026-10-27, and the operator passed section 5 of the plain checklist on 2026-10-28. Section 6's automated commands were run in mission-20261027-05 (step 5) on 2026-10-27, and the operator passed section 6 of the plain checklist on 2026-10-28; its hands-on steps need a live model turn and have not been run, and the operator checklist's section 6 has only automated steps. Section 9's commands were run in mission-20261027-08 on 2026-10-27, and the operator passed section 9 of the plain checklist on 2026-10-28. Section 16's automated check was run in mission-20261027-07 (step 3) on 2026-10-27; its removal control is recorded in mission-20261027-07 step 1, and the operator passed section 16 of the plain checklist on 2026-10-28. Section 3's automated checks were run in mission-20261028-03 (step 5) on 2026-10-28, from zsh after `source scripts/m5-test-env.sh`, and the output is in `.claude/memory/workspace/m5d5-step5-evidence.txt`; its hands-on step needs a live model turn and an API key. No key-free route was found in a 25-minute attempt (mission-20261028-03 step 6a), so the step has not been run; the operator tested section 3 of the plain checklist on 2026-10-29, and that checklist's quit-and-reopen check is checked at the final release check (section 37 of the checklist). Section 7's automated checks and hands-on commands were run in mission-20261028-03 (step 9) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m7d-step9-evidence.txt`; the operator tested section 7 of the plain checklist on 2026-10-29. Section 10's automated commands were run in mission-20261028-03 (step 13) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m10b-step13-evidence.txt`; the goreleaser snapshot was not run (goreleaser is not installed, and no install was allowed in that step), and the operator tested section 10 of the plain checklist on 2026-10-29. Section 8's automated checks were run in mission-20261028-03 (step 17) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m6d-step17-auto.txt`; the operator tested section 8 of the plain checklist on 2026-10-29, and its hands-on paste step has not been pre-run. Section 13's automated commands and golden check were run in mission-20261029-02 (step 4) on 2026-10-29, from zsh, and the output is in `.claude/memory/workspace/m7a-step4-runs.txt`. The fix round after the step 5 review (mission-20261029-02, step 4a) reran them, and its output is in `.claude/memory/workspace/m7a-step4a-runs.txt`; the operator has not yet tested section 13 of the plain checklist. Section 12's automated and hands-on commands were run in mission-20261029-03 (step 3) on 2026-10-29, from zsh, and the output is in `.claude/memory/workspace/m3b-step3-runs.txt`; the operator has not yet tested section 12 of the plain checklist. Section 24's automated commands were run in mission-20261030-01 (step 4c) on 2026-10-30, from zsh; the doctor runs are in `.claude/memory/workspace/m20261030-01-step4c-doctor-run.txt` and the test output in `.claude/memory/workspace/m20261030-01-step4c-runs.txt`. The step 3 files are superseded and not relied on. Its hands-on steps need a second live kirsch and have not been run. Section 24 of the plain checklist is ready for the operator to test, and the operator has not yet tested it. Every block marked `TO EXPAND` is a placeholder, and the expansion belongs to the step that lands the deliverable. The operator runs tests from the plain checklist `plan/testing/manual/user-testing/milestone-5-donovan.md`, set up with `source scripts/m5-test-env.sh`; see [`milestone-5-start-here.md`](../../milestones/milestone-5-start-here.md).
+> **Status: skeleton.** This document was written at planning time (mission-20261023-06, 2026-10-23). It is expanded as each deliverable lands. Section 1's commands were run in mission-20261027-03, and the operator passed section 1 of the plain checklist on 2026-10-27. Section 2's commands were run in mission-20261026-01, and the operator passed section 2 of the plain checklist on 2026-10-27. Section 4's commands were run in mission-20261027-04, and the operator passed section 4 of the plain checklist on 2026-10-27, with a note (see the carried item under *Carried from Milestone 5 planning* in `plan/PROGRESS.md`). Section 5's commands were run in mission-20261027-06 (step 7) on 2026-10-27, and the operator passed section 5 of the plain checklist on 2026-10-28. Section 6's automated commands were run in mission-20261027-05 (step 5) on 2026-10-27, and the operator passed section 6 of the plain checklist on 2026-10-28; its hands-on steps need a live model turn and have not been run, and the operator checklist's section 6 has only automated steps. Section 9's commands were run in mission-20261027-08 on 2026-10-27, and the operator passed section 9 of the plain checklist on 2026-10-28. Section 16's automated check was run in mission-20261027-07 (step 3) on 2026-10-27; its removal control is recorded in mission-20261027-07 step 1, and the operator passed section 16 of the plain checklist on 2026-10-28. Section 3's automated checks were run in mission-20261028-03 (step 5) on 2026-10-28, from zsh after `source scripts/m5-test-env.sh`, and the output is in `.claude/memory/workspace/m5d5-step5-evidence.txt`; its hands-on step needs a live model turn and an API key. No key-free route was found in a 25-minute attempt (mission-20261028-03 step 6a), so the step has not been run; the operator tested section 3 of the plain checklist on 2026-10-29, and that checklist's quit-and-reopen check is checked at the final release check (section 37 of the checklist). Section 7's automated checks and hands-on commands were run in mission-20261028-03 (step 9) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m7d-step9-evidence.txt`; the operator tested section 7 of the plain checklist on 2026-10-29. Section 10's automated commands were run in mission-20261028-03 (step 13) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m10b-step13-evidence.txt`; the goreleaser snapshot was not run (goreleaser is not installed, and no install was allowed in that step), and the operator tested section 10 of the plain checklist on 2026-10-29. Section 8's automated checks were run in mission-20261028-03 (step 17) on 2026-10-28, from zsh, and the output is in `.claude/memory/workspace/m6d-step17-auto.txt`; the operator tested section 8 of the plain checklist on 2026-10-29, and its hands-on paste step has not been pre-run. Section 13's automated commands and golden check were run in mission-20261029-02 (step 4) on 2026-10-29, from zsh, and the output is in `.claude/memory/workspace/m7a-step4-runs.txt`. The fix round after the step 5 review (mission-20261029-02, step 4a) reran them, and its output is in `.claude/memory/workspace/m7a-step4a-runs.txt`; the operator has not yet tested section 13 of the plain checklist. Section 12's automated and hands-on commands were run in mission-20261029-03 (step 3) on 2026-10-29, from zsh, and the output is in `.claude/memory/workspace/m3b-step3-runs.txt`; the operator has not yet tested section 12 of the plain checklist. Section 24's automated commands were run in mission-20261030-01 (step 4c) on 2026-10-30, from zsh; the doctor runs are in `.claude/memory/workspace/m20261030-01-step4c-doctor-run.txt` and the test output in `.claude/memory/workspace/m20261030-01-step4c-runs.txt`. The step 3 files are superseded and not relied on. Its hands-on steps need a second live kirsch and have not been run. Section 24 of the plain checklist is ready for the operator to test, and the operator has not yet tested it. Section 11's automated command was run in mission-20261105-03 (step 3) on 2026-11-05, from zsh, and its output is pasted in the section; the operator has not yet tested section 11 of the plain checklist. Section 19's automated commands were run by Bishop on 2026-11-05 (mission-20261105-04), and the raw captured output, with its `exit=` lines, is pasted in the section, including the full `go test ./internal/app/` run. The operator has not yet tested section 19 of the plain checklist. Section 26's automated commands were run by Bishop on 2026-11-05 (mission-20261105-09, after step 3), and the raw captured output, with its `exit=` lines, is pasted in the section; the section needs no live step, and the operator has not yet tested section 26 of the plain checklist. Section 28's automated commands were run by @lambert on 2026-11-05 (mission-20261105-10, step 3), and the raw output, with its `exit=` lines, is pasted in the section; the section needs no live step, and the operator has not yet tested section 28 of the plain checklist. Section 30's automated commands were run by @lambert on 2026-11-05 (mission-20261105-11, step 3), and the raw output, with its `exit=` lines, is pasted in the section; the section needs no live step, and the operator has not yet tested section 30 of the plain checklist. Section 31's automated commands were run by @lambert on 2026-11-05 (mission-20261105-12, step 3), and the raw output, with its `exit=` lines, is pasted in the section; its one hands-on step is the operator's review of the golden diff, and the operator has not yet tested section 31 of the plain checklist. Section 33's automated commands were run by @lambert on 2026-11-05 (mission-20261105-13, step 1), and the raw output, with its `exit=` lines, is pasted in the section; it has no *Hands-on checks* block; the operator's check is the grep commands in section 33 of the plain checklist, which read `SECURITY.md`, and the operator has not yet run them. Section 35's automated commands were run by @lambert on 2026-11-06 (mission-20261106-01, step 1), and the raw output, with its `exit=` lines, is pasted in the section; it has no *Hands-on checks* block; the operator's check is section 35 of the plain checklist, which reads section 7 of the spec, and the operator has not yet run it. Every block marked `TO EXPAND` is a placeholder, and the expansion belongs to the step that lands the deliverable. The operator runs tests from the plain checklist `plan/testing/manual/user-testing/milestone-5-donovan.md`, set up with `source scripts/m5-test-env.sh`; see [`milestone-5-start-here.md`](../../milestones/milestone-5-start-here.md).
 
 ## How to read this document
 
@@ -11,7 +11,7 @@ Kirsch Milestone 5 is polish and release: the narrow-width status bar, the `kirs
 - **Context.** The first line under each heading is a `**Context:**` line. Its label format is fixed by check (d) in *Mechanical checks*, which fails any Context line missing one of its labels. Run a section only in the state its Context line names. *Setup* in a Context line means the Setup terminal, or a new terminal or window that has rerun the whole Setup block, then the Guard functions block (its definitions, not only the `guard` call), then `guard`.
 - **Automated checks** are copied from the acceptance boxes in `plan/milestones/milestone-5.md`, with the line they came from. A command is quoted only where the milestone gives one. A test box with no command says `TO EXPAND`. A command the document writes itself, and does not quote from the milestone, is marked by a first-line comment `# authored here` inside its block.
 - **Hands-on checks** are numbered steps where the milestone gives enough detail. Otherwise a `TO EXPAND` block says what the operator will observe.
-- **Live checks** appear only in sections whose deliverable has a live step. Each one is marked. A provider check contacts the provider and spends tokens. A GitHub release run publishes a public release, which is one-way. Run a live check only with the key, the fork or the tag its marking names.
+- **Live checks** appear only in sections whose deliverable has a live step. Each one is marked. A provider check contacts the provider and spends tokens. A `v*` tag pushed to GitHub publishes a public release, which is one-way. A manual run of the Release workflow is a dry run and publishes nothing. Run a live check only with the key, the fork or the tag its marking names.
 - **Process-only boxes** (a decision recorded, the contents of a step report) are not repeated here. They belong to the mission brief.
 - **Checkboxes** are `- [ ]` until run. Mark `- [✅]` when a check passes and `- [❌]` when it fails, as Milestone 4 does.
 - **Placeholder convention.** `> **TO EXPAND when m5-dN lands:** …` marks every place where the detail depends on a decision that is not yet recorded (an O-number in `plan/milestones/milestone-5.md:61–85`) or on code that does not exist yet.
@@ -185,23 +185,23 @@ Sections run in wave order from `plan/milestones/milestone-5.md:327–335`. The 
 | 16 | m5-d13b Key-coverage test (S36) | 3 | Automated + Hands-on | m5-d13a |
 | 17 | m5-d13c `doc/install.md` | 3 | Automated + Operator | m5-d2, m5-d10a, m5-d10b, O4, O6 |
 | 18 | m5-d16 Fresh-machine no-key check | 3 | Automated + Operator | O14, O19, m5-d10a; m5-d2 and m5-d3a (file ownership, if O14 makes "not in a repo" a screen) |
-| 19 | m5-d17a `/new` lifecycle: C51, C52 (optional) | 3 | Automated + Hands-on | m5-d5, O13 |
+| 19 | m5-d17a `/new` lifecycle: C51, C52 (optional) | 3 | Automated | m5-d5, O13 |
 | 20 | m5-d4a Doctor: key, backend, model and project-context lines | 4 | Automated + Hands-on | m5-d3b, O5 |
 | 21 | m5-d7b Soft-wrap fidelity: composer cut marker | 4 | Automated + Hands-on + Operator | m5-d6, m5-d7a, O17, O23 |
 | 22 | m5-d14a `doc/usage.md` corrections | 4 | Automated + Hands-on | m5-d1, m5-d5, m5-d6, m5-d7a, O6, O10 |
 | 23 | m5-d15 Front-door and tracker freshness | 4 | Automated + Hands-on | m5-d1, m5-d10a, m5-d10b, m5-d13c, O22 |
 | 24 | m5-d4b Doctor: state directory and lock state | 5 | Automated + Operator | m5-d4a, O5 |
 | 25 | m5-d12 Repository files and golden-regeneration note | 5 | Automated + Operator | m5-d10a, m5-d10b, m5-d8, O7, O8, O21 |
-| 26 | m5-d17b `/new` busy state and turn fencing: C48, C49 (optional) | 5 | Automated + Hands-on + Live | m5-d8, m5-d17a, O13 |
+| 26 | m5-d17b `/new` busy state and turn fencing: C48, C49 (optional) | 5 | Automated | m5-d8, m5-d17a, O13 |
 | 27 | m5-d14b `doc/troubleshooting.md` and `doc/README.md` | 6 | Automated + Live + Operator | m5-d3a, m5-d3b, m5-d4a, m5-d4b, m5-d13a, m5-d13c, O6 |
-| 28 | m5-d18 Resume totals and compaction % (optional) | 6 | Automated + Hands-on + Live | m5-d17a (file ownership only), O13 |
+| 28 | m5-d18 Resume totals and compaction % (optional) | 6 | Automated | m5-d17a (file ownership only), O13 |
 | 29 | m5-d20 Record the operator's decisions | gate | Operator | O12, O15, O16, and the decision list |
-| 30 | m5-d21a Model table (conditional) | 7 | Automated + Hands-on | m5-d20 (X5, C9) |
+| 30 | m5-d21a Model table (conditional) | 7 | Automated | m5-d20 (X5, C9) |
 | 31 | m5-d21b Help footer and goldens (conditional) | 7 | Automated + Operator | m5-d20 (X8, O16), O23 |
 | 32 | m5-d21c Debug log clip (conditional) | 7 | Automated + Hands-on | m5-d20 (C24) |
-| 33 | m5-d21d Debug log disclosure (conditional) | 7 | Automated + Hands-on + Operator | m5-d20 (C24), m5-d12 |
+| 33 | m5-d21d Debug log disclosure (conditional) | 7 | Automated + Operator | m5-d20 (C24), m5-d12 |
 | 34 | m5-d21e ULID dependency (conditional) | 7 | Automated + Hands-on | m5-d20 (C40) |
-| 35 | m5-d21f §7 amendment (conditional) | 7 | Automated + Hands-on + Operator | m5-d20 (C43, C46), m5-d5 |
+| 35 | m5-d21f §7 amendment (conditional) | 7 | Automated + Operator | m5-d20 (C43, C46), m5-d5 |
 | 36 | m5-d21g Lock behaviour (conditional) | 7 | Automated + Hands-on | m5-d20 (C8) |
 | 37 | m5-d22 Demo, release smoke run, tag | 8 | Live + Operator + Sign-off | O12, O15, O16, m5-d21 deliverables that ran |
 
@@ -230,7 +230,7 @@ mkdir -p "$T_CFG/kirsch"
 printf '[session]\nstorage_dir = "%s"\n' "$T_STATE/sessions" > "$T_CFG/kirsch/config.toml"
 ```
 
-The unset line clears the key variables, as the m5-d16 box does (`plan/milestones/milestone-5.md:1408`), and clears `MY_TOKEN` and `T_BROKEN`. Nothing in this document sets `T_BROKEN` now: section 7 uses a throwaway folder inside a subshell and leaves nothing behind. The name stays in the unset line because `scripts/m5-test-env.sh` still names it. That is a known leftover, carried in `plan/PROGRESS.md`. `KIRSCH_LIVE_MODEL` is unset as Milestone 4 does (`plan/testing/manual/milestone-4.md:40`).
+The unset line clears the key variables, as the m5-d16 box does (`plan/milestones/milestone-5.md:1413`), and clears `MY_TOKEN` and `T_BROKEN`. Nothing in this document sets `T_BROKEN` now: section 7 uses a throwaway folder inside a subshell and leaves nothing behind. The name stays in the unset line because `scripts/m5-test-env.sh` still names it. That is a known leftover, carried in `plan/PROGRESS.md`. `KIRSCH_LIVE_MODEL` is unset as Milestone 4 does (`plan/testing/manual/milestone-4.md:40`).
 
 **Guard.** Run this after Setup, and after any section that changes the config. The first `grep` must print one line, the `storage_dir` line under `$T_STATE`. The printf control must print `0`. If the first grep prints nothing, stop. A kirsch launch would then write to the real store. The guard functions in the next block check the environment and the file together. Run that block too.
 
@@ -474,7 +474,7 @@ The `exit 1` on the control is the expected result of `diff`, which exits 1 when
 
 O4 is recorded in `plan/PROGRESS.md:346`. This is what the code now does.
 
-`--version` prints `kirsch <version>` only. It prints no commit and no date. A version stamped with `-ldflags "-X main.version=…"` is printed as given. With no stamp, a `go install …@vX.Y.Z` build reports that module version with the leading `v` removed. A plain `go build` in the checkout keeps `0.1.0-dev`, because Go stamps a pseudo-version or `+dirty` there, and those are ignored (`cmd/kirsch/main.go:50–59`, `resolveVersion`). That `go install` path is covered by `TestResolveVersion`, which feeds version strings to the function; no real `go install` from a tag has been run.
+`--version` prints `kirsch <version>` only. It prints no commit and no date. A version stamped with `-ldflags "-X main.version=…"` is printed as given. With no stamp, a `go install …@vX.Y.Z` build reports that module version with the leading `v` removed. A plain `go build` in the checkout keeps `0.1.0-dev`, because Go stamps a pseudo-version or `+dirty` there, and those are ignored (`resolveVersion` in `cmd/kirsch/main.go`). That `go install` path is covered by `TestResolveVersion`, which feeds version strings to the function; no real `go install` from a tag has been run.
 
 `--version` and `--help` are handled before workspace detection and config loading, so both work outside a Git repository. The TUI shows the same resolved version.
 
@@ -733,7 +733,7 @@ ok  	github.com/djm56/kirsch/internal/session	6.373s
 ok  	github.com/djm56/kirsch/internal/app	98.164s
 ```
 
-Hands-on step 1 was not run, and no no-model substitute was found. `/approvals` is a slash command inside the TUI (`internal/tui/update.go:1471`). `kirsch resume` runs `ResumeLastSession` as the app's startup hook (`cmd/kirsch/main.go:232–238`), and the app is the TUI. Nothing outside the TUI prints the grants, so no command-line check can show the grants a resume restores. Nothing in this section was run against a live provider.
+Hands-on step 1 was not run, and no no-model substitute was found. `/approvals` is a slash command inside the TUI (`internal/tui/update.go:1471`). `kirsch resume` runs `ResumeLastSession` as the app's startup hook (`chooseSessionInit` in `cmd/kirsch/main.go`), and the app is the TUI. Nothing outside the TUI prints the grants, so no command-line check can show the grants a resume restores. Nothing in this section was run against a live provider.
 
 ---
 
@@ -797,7 +797,7 @@ Operator run, 2026-10-27: every step of section 4 in the plain checklist passed.
 - **Timeout range.** Valid values run from 1 to 300. Startup refuses only a value of zero or less (`internal/config/config.go:652`). The 300 ceiling applies to each command (`internal/tool/run_command.go:147–160`), and a command that names no timeout takes the configured default first. A default above 300 therefore passes startup, and every command without its own timeout is then refused. The page says so in the policy section.
 - **Command approval.** `ForCommand` (`internal/policy/policy.go:91–122`) decides in this order: shells and runners always ask, matched by file name (`policy.go:258–266`); the built-in allowlist runs exact matches only (`policy.go:75–84`); `require_approval_for_commands` allows the rest when it is false; session grants apply last.
 - **File-change approval.** `require_approval_for_patches` is passed to `policy.New` (`internal/app/app.go:500`), but `ForPatch` (`internal/policy/policy.go:128`) has no caller outside the tests, and the patch approval request (`internal/tool/apply_patch.go:130`) is made whatever the setting. Every file change asks. The page says so (`doc/configuration.md:154–157`).
-- **Warnings.** Config warnings go to `log.Warn` (`cmd/kirsch/main.go:206`). That logger is disabled unless the debug log is on (`main.go:166–172`), so a warning about an ignored project key or a refused context file is shown nowhere by default. The page says so (`doc/configuration.md:208–211`).
+- **Warnings.** Config warnings go to `log.Warn` (`log.Warn("config", …)` in `run`, `cmd/kirsch/main.go`). That logger is disabled unless the debug log is on (the `debug` setting in `run`), so a warning about an ignored project key or a refused context file is shown nowhere by default. The page says so (`doc/configuration.md:208–211`).
 - **Credential names.** `checkSecrets` runs whenever a config file is read (`internal/config/config.go:326`, `:376`). It refuses a key whose last name part matches `(?i)(api_?key|token|secret|password)` (`config.go:165`, `:468`), and a refusal stops startup. So `max_tokens` stops startup. Hands-on check 3 shows it.
 - **Upper-case env strip.** `buildEnvironment` removes names ending in `_TOKEN`, `_KEY` or `_SECRET`, and names starting with `AWS_` (`internal/tool/run_command.go:398–401`, using `strings.HasSuffix` and `strings.HasPrefix`). The match is case-sensitive. `TestRunCommandLowerCaseSecretNamesPassThrough` (`internal/tool/run_command_test.go:601`) pins that a lower-case name passes through. The page's env row says so, added at step 7.
 
@@ -1461,21 +1461,42 @@ Carried items. Each is recorded in `plan/PROGRESS.md` under *Carried from Milest
 
 **What landed**
 
-> **TO EXPAND when m5-d19b lands:** the O15 C29 branch taken (tighten or relax), and the output of the branch's check.
+- **Branch taken: relax.** The operator's row `O15 (C29 only)` in `plan/PROGRESS.md` (*Milestone 5 — decisions recorded*) chose it, and that row is dated 2026-10-29, before this mission. The relaxed value is 3 s after the deadline. The row `C29 detail` in the same file records it (2026-11-05).
+- **Files changed:** `plan/milestones/milestone-2.md`, Task 9. The timeout box is relaxed and unticked, with the old text quoted beside it. The cancelled-process box keeps its tick unset and carries a note. The stdin box carries the C34 reword (row `C34`, 2026-11-03) and stays unticked. Dated Update lines were added. The plan and tracker files were updated too: `plan/PROGRESS.md`, `plan/milestones/milestone-5.md`, `plan/milestones/milestone-5-start-here.md`, and the two checklists, `plan/testing/manual/milestone-5.md` and `plan/testing/manual/user-testing/milestone-5-donovan.md`.
+- **No code and no test changed.** The tighten branch was not taken, so `internal/tool/run_command.go` and `internal/tool/run_command_test.go` are as they were.
+- **Suspected gap (read from the code, not run).** After SIGTERM, `killProcessGroup` in `internal/tool/run_command.go` (about :361–369) polls the group leader only. Once the leader is gone it returns without sending SIGKILL to the group. A child or grandchild that ignores SIGTERM may therefore survive when its leader exits on SIGTERM. No test checks this. It is listed under *Open from m5-d19b* in `plan/PROGRESS.md`. Fixing it is a code step outside the relax branch.
 
 **Waits on:** m5-d19a (same test file), O15 (the C29 decision, recorded before this step runs), O13, from `plan/milestones/milestone-5.md:124`.
 
-**Before any edit.** On the relax branch only, save a verbatim copy of `plan/milestones/milestone-2.md` to `.claude/memory/workspace/m5-d19b-milestone-2.pre.md` (DIR-020; `plan/milestones/milestone-5.md:1591`). The milestone gives no name for this copy. The name here is chosen, and the milestone's relax box is the one to edit.
+**Before any edit.** On the relax branch only, save a verbatim copy of `plan/milestones/milestone-2.md` to `.claude/memory/workspace/m5-d19b-milestone-2.pre.md` (DIR-020; `plan/milestones/milestone-5.md:1601`). The milestone gives no name for this copy. The name here is chosen, and the milestone's relax box is the one to edit. Done in mission-20261105-03: the copies are in `.claude/memory/workspace/m5-d19b-step3-pre/`, the `milestone-2.md` copy among them, and `cmp` matched each one to its source before the edit.
 
 **Automated checks**
 
-- [ ] If O15 tightens: a test with a child that ignores SIGTERM passes within 500 ms. The test output is pasted (`plan/milestones/milestone-5.md:1594`). Command: `TO EXPAND`.
-- [ ] If O15 relaxes: `plan/milestones/milestone-2.md:418–419` states the value O15 records, and no test asserts 500 ms for that case (`plan/milestones/milestone-5.md:1595`). Command: `TO EXPAND`.
-- [ ] O15's C29 decision is recorded in `plan/PROGRESS.md` before step 1 runs (`plan/milestones/milestone-5.md:1596`). Process check; reviewed, not run.
+- [ ] If O15 tightens: not taken (relax branch). No tighten command is run in this section. (`plan/milestones/milestone-5.md:1604`)
+- [ ] If O15 relaxes: `plan/milestones/milestone-2.md:422–431` states 3 s after the deadline, and no test asserts 500 ms for that case (`plan/milestones/milestone-5.md:1605`). Command, run from the kirsch folder on 2026-11-05 in mission-20261105-03. No model is called and no key is read:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && go test -count=1 ./internal/tool -run 'TestRunCommandTerminateThenKill$|TestRunCommandTimeoutWithinDeadline$' -v; echo "exit=$?"
+  ```
+
+  Real output, pasted verbatim:
+
+  ```
+  === RUN   TestRunCommandTimeoutWithinDeadline
+  --- PASS: TestRunCommandTimeoutWithinDeadline (1.02s)
+  === RUN   TestRunCommandTerminateThenKill
+  --- PASS: TestRunCommandTerminateThenKill (3.02s)
+  PASS
+  ok  	github.com/djm56/kirsch/internal/tool	4.241s
+  exit=0
+  ```
+
+  `TestRunCommandTimeoutWithinDeadline` requires the call to end 1–2 s after it started, which is within 1 s after its 1 s limit. `TestRunCommandTerminateThenKill` requires the whole call to take no more than 4 s, so with its 1 s limit, at most 3 s past it. Its child ignores SIGTERM, so the call is forced to stop about 2 s after the limit, which is the 2 s grace (`internal/tool/run_command.go`). The 3 s box has 1 s of margin on that.
+- [ ] O15's C29 decision is recorded in `plan/PROGRESS.md` before step 1 runs (`plan/milestones/milestone-5.md:1606`). Process check; reviewed, not run. The O15 row is dated 2026-10-29, before mission-20261105-03 ran this step.
 
 **Hands-on checks**
 
-1. > **TO EXPAND when O15 is recorded:** which branch was taken, and the file each branch touches (`internal/tool/run_command.go` and its test for tighten; `plan/milestones/milestone-2.md` for relax).
+1. Branch taken: relax (row `O15 (C29 only)`, 2026-10-29). The tighten branch was not taken, so `internal/tool/run_command.go` and `internal/tool/run_command_test.go` are unchanged by this mission. The relax branch touches `plan/milestones/milestone-2.md`: the timeout box at `:422–431` and the stdin box at `:439–442`. The other files it touched are listed under *What landed*. Every box in this section is unticked; ticking them is the operator's.
 
 **Notes / evidence**
 
@@ -1846,7 +1867,7 @@ keycount
 
 **Hands-on checks**
 
-1. (operator, optional, not run) Bracketed paste off, paste 5 KB, and the UI stays responsive.
+1. (operator) Optional, not run: bracketed paste off, paste 5 KB, and the UI stays responsive.
 
    **Only if your terminal can turn bracketed paste off.** Some terminals offer a setting that stops applications from turning it on. The name and place of that setting differ by terminal, and some terminals have none. If yours has none, skip this step. It is not in the operator checklist, so there is no box to tick there; if you run it, report the result to the crew.
 
@@ -1865,29 +1886,253 @@ keycount
 
 ## 15 · GitHub release workflow (m5-d11)
 
-**Context:** Terminal: Setup. Binary: none (the workflow runs on GitHub; no kirsch launch here). Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset; this block makes no model call. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: none for the workflow, which runs on GitHub; the archive checks run `npm run release:snapshot`, which writes `dist/` and publishes nothing. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset; this block makes no model call. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d11 lands:** the trigger, permissions and pinning as O3 records them, and the workflow file's `on:` block.
+- `.github/workflows/release.yml` is new. It runs when a `v*` tag is pushed, or when started by hand from the Actions tab. A tag run builds the release and publishes it. A manual run (`workflow_dispatch`) builds a snapshot, publishes nothing, and uploads the archives and checksums as an artifact named `release-dry-run`. On a tag push, a step named `tagged commit is on main` runs first. It fetches `main` and fails the run, before anything is built or published, unless the tagged commit is on `main`. A manual run skips that step.
+- `scripts/goreleaser-version` is new. It holds the goreleaser version that the workflow and the snapshot both use: `v2.19.0`. v2.20.0 was published on 2026-11-04 (`gh api repos/goreleaser/goreleaser/releases/tags/v2.20.0 --jq .published_at` printed `2026-11-04T12:48:50Z`, run by Bishop on 2026-11-04). It was deliberately not pinned. The pin rule is the **Pin rule (Bishop, 2026-11-04)** bullet in *Open from m5-d11* in `plan/PROGRESS.md`: the pin is not a release published on the day it is chosen.
+- `scripts/third-party-licenses.sh` is new. It runs before the build, as a goreleaser `before:` hook. It copies the licence and notice files of every module that `./cmd/kirsch` links into `build/licenses/`, and Go's own licence. A module with no licence file fails the release. `build/` is gitignored.
+- `scripts/release-snapshot.sh` is new, with `npm run release:snapshot`. It builds the release archives into `dist/` on your machine and publishes nothing. Nothing is installed. The first run downloads goreleaser and, only if go.mod's toolchain is older than goreleaser needs, a newer Go toolchain, so it takes minutes.
+- `.goreleaser.yaml` gains the `before:` hook and an explicit archive `files:` list: `LICENSE`, `README.md`, `CHANGELOG.md`, `NOTICE`, and `build/licenses/**/*` into `licenses/`. The list is the source of truth for what an archive holds. The archive also holds the binary, `kirsch`.
 
-**Waits on:** m5-d10b (goreleaser config) and O3 (release workflow: trigger, permissions, pinning, dispatch), from `plan/milestones/milestone-5.md:111`. Repository Actions settings must allow write. That is an operator setting (`plan/milestones/milestone-5.md:1066`).
+**Trigger, permissions and pinning, as O3 records them.** O3 (`plan/PROGRESS.md`, *Milestone 5 — decisions recorded*) says the workflow runs when a `v*` tag is pushed, can be started by hand for a dry run, has permission only to create the release, and pins its tools to fixed versions. The file's `on:` block:
+
+```yaml
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+```
+
+- Trigger: a `v*` tag push, and a manual dispatch. There is no `pull_request` trigger, so no release build runs on a pull request. A tag push must name a commit that is on `main`. The `tagged commit is on main` step fetches `main` and fails the run, with nothing published, when it is not. A manual dispatch skips that step.
+- Permissions: the workflow default is `contents: read`. Only the `release` job raises it to `contents: write`, which creating a release and uploading its assets needs.
+- Pinning: actions are pinned by major tag, as `ci.yml` pins them. The grep in the third *Automated checks* item lists each `uses:` line, and every one must carry a version tag. The goreleaser version is read from `scripts/goreleaser-version`, which must hold a bare `vX.Y.Z`, or the step fails.
+
+**Waits on:** m5-d10b (goreleaser config) and O3 (release workflow: trigger, permissions, pinning, dispatch), from `plan/milestones/milestone-5.md:111`. Repository Actions settings must allow write. That is an operator setting (`plan/milestones/milestone-5.md:1073`).
 
 **Automated checks**
 
-- [ ] `release.yml` triggers on `v*` tags, and on dispatch only if O3 says so (`plan/milestones/milestone-5.md:1057`). Command: `TO EXPAND`. The milestone says "grep the `on:` block" and gives no command line.
-- [ ] The write permission is scoped as O3 records (`plan/milestones/milestone-5.md:1058`). Command: `TO EXPAND`. The milestone says "grep `permissions:`" and gives no command line.
-- [ ] Action pinning matches O3 (`plan/milestones/milestone-5.md:1059`). Command: `TO EXPAND`.
+Each check is run with its control in the same command. A control is a planted copy of the text, which the same grep must catch. Run them from the kirsch folder.
+
+- [✅] `release.yml` triggers on `v*` tags, and on dispatch only if O3 says so (`plan/milestones/milestone-5.md:1064`). The milestone gives no command line, so the grep is authored here.
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch && grep -n -A3 '^on:' .github/workflows/release.yml
+  cd /Volumes/DATA/Github/kirsch && grep -n -E '^  pull_request' .github/workflows/release.yml; echo "exit=$?"
+  printf 'on:\n  pull_request:\n' | grep -n -E '^  pull_request'
+  ```
+
+  Expected: the first command prints lines 6 to 9, `on:`, `  push:`, `    tags: ['v*']` and `  workflow_dispatch:`. The second prints nothing and `exit=1`, so there is no `pull_request` trigger. The third is the control, and it must print `2:  pull_request:`.
+
+- [✅] The write permission is scoped as O3 records (`plan/milestones/milestone-5.md:1065`). The milestone gives no command line, so the grep is authored here.
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch && grep -n -E '^permissions:' -A1 .github/workflows/release.yml
+  cd /Volumes/DATA/Github/kirsch && grep -n -E '^ +contents: write$' .github/workflows/release.yml
+  printf 'permissions:\n  contents: write\n' | grep -n -E '^ +contents: write$'
+  ```
+
+  Expected: `12:permissions:` with `13-  contents: read` under it, the workflow default. Then one line, `29:      contents: write`, which is in the `release` job only. The control must print `2:  contents: write`. The pattern is anchored to a key line, so the comments that mention `contents: write` do not match.
+
+- [✅] Action pinning matches O3 (`plan/milestones/milestone-5.md:1066`). The goreleaser version check is in the same block.
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch && grep -n 'uses:' .github/workflows/release.yml
+  cd /Volumes/DATA/Github/kirsch && grep -n 'uses:' .github/workflows/release.yml | grep -c -v '@v[0-9]'; echo "exit=$?"
+  printf '      - uses: actions/checkout\n' | grep -n 'uses:' | grep -v '@v[0-9]'
+  cd /Volumes/DATA/Github/kirsch && grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' scripts/goreleaser-version
+  printf 'latest\n' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'; echo "exit=$?"
+  ```
+
+  Expected: four `uses:` lines, `33:      - uses: actions/checkout@v4`, `50:      - uses: actions/setup-go@v5`, `76:      - uses: goreleaser/goreleaser-action@v7` and `88:        uses: actions/upload-artifact@v4`. The count of lines with no version tag prints `0` and `exit=1`. Its control prints `1:      - uses: actions/checkout`, an unpinned line. The version prints `v2.19.0`. Its control, `latest`, prints nothing and `exit=1`.
+
+- [✅] (authored here, not a milestone box) The archives hold the notices and the licence texts. Run after `npm run release:snapshot`, which writes `dist/`. This checks the archive against the `files:` list in `.goreleaser.yaml`.
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch && npm run release:snapshot; echo "exit=$?"
+  cd /Volumes/DATA/Github/kirsch && tar -tzf dist/kirsch_*_darwin_arm64.tar.gz | sort | grep -E '^(kirsch|LICENSE|README\.md|CHANGELOG\.md|NOTICE|licenses/go/LICENSE)$'
+  cd /Volumes/DATA/Github/kirsch && tar -tzf dist/kirsch_*_darwin_arm64.tar.gz | grep -c '^licenses/'
+  cd /Volumes/DATA/Github/kirsch && for f in dist/kirsch_*.tar.gz; do echo "$(tar -tzf "$f" | wc -l | tr -d ' ') $f"; done
+  printf 'NOTICE\nsecret.txt\n' | grep -c -E '^(kirsch|LICENSE|README\.md|CHANGELOG\.md|NOTICE|licenses/go/LICENSE)$'
+  ```
+
+  Expected: `exit=0` from the snapshot, then the names in the order `sort` gives on the machine these were run on: `CHANGELOG.md`, `kirsch`, `LICENSE`, `licenses/go/LICENSE`, `NOTICE`, `README.md`. Then `29`, the count of files under `licenses/`. Then one line per archive, each `34` followed by the archive name. The control prints `1`: `NOTICE` matches and `secret.txt` does not. The `sort` order depends on the locale, so a different order on another machine is not a fault; a missing name is. The `29` and the `34` are the counts on 2026-11-04. They change when the libraries change or the archive's `files:` list changes, so the check is the shape of the output, not these numbers.
+
+- [✅] (authored here, not a milestone box) The licence script prints its count line. It writes `build/licenses/`, which Git ignores.
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch && bash scripts/third-party-licenses.sh | grep -c -E '^third-party-licenses: [0-9]+ modules \+ Go → build/licenses$'
+  printf 'third-party-licenses: several modules\n' | grep -c -E '^third-party-licenses: [0-9]+ modules \+ Go → build/licenses$'
+  ```
+
+  Expected: the first prints `1`. The control is a planted line with no count, and it must print `0`. The `28` in the line is the module count on 2026-11-04. It changes when the libraries change, so the check is the line's shape, not the number.
 
 **Live checks**
 
-> Live GitHub release run. Spends no model tokens. **ONE-WAY:** a `v*` tag or a dispatch run publishes a public release, which is one-way. Run this check only on a fork, or with a throwaway pre-release tag on a fork.
+> Live GitHub release run. Spends no model tokens. A **manual run** of the *Release* workflow on `main` is a dry run. It builds a snapshot, publishes no release, and uploads the archives and checksums as an artifact. It is safe on the real repository, not only on a fork. A **`v*` tag push is ONE-WAY**: it publishes a public release. The tag run belongs to m5-d22, and nothing in this section pushes a tag. The manual run needs the commit pushed first.
 
-- [ ] (operator) A dispatch run, or a throwaway pre-release tag on a fork, produces a release with archives and checksums (`plan/milestones/milestone-5.md:1060`). Command: `TO EXPAND`.
+- [ ] (operator) A manual run on `main` is green, its run page lists an artifact named `release-dry-run`, and the Releases page shows no new release. Command: none. The check is on GitHub, in the Actions tab. `plan/milestones/milestone-5.md:1067` says a dispatch run "produces a release"; O3 makes a dispatch a dry run that publishes nothing, so this box is read as the dry run, and the milestone is not edited here.
+- [ ] (operator, m5-d22) A `v*` tag push produces a public release with archives and checksums. ONE-WAY, and not run here. Command: none.
 
 **Notes / evidence**
 
-_Empty. Fill at run. Record the run URL and the release page, not any credential._
+**Crew run, 2026-11-04 (mission-20261104-01, steps 1, 2a, 2c and 2e; review step 2f APPROVED).** These results are the crew's reports. Lambert did not re-run them; the step 3 re-run below covers the automated checks.
+
+- `npm run release:snapshot` succeeded. The tail of its output:
+
+  ```
+    • calculating checksums
+    • writing artifacts metadata
+    • release succeeded after 7s
+    • thanks for using GoReleaser!
+  ```
+
+- It wrote four archives and a checksums file. Each archive has 34 entries: `kirsch`, `LICENSE`, `README.md`, `CHANGELOG.md`, `NOTICE`, and 29 files under `licenses/`, which are 28 modules plus `licenses/go/LICENSE`.
+- `bash scripts/third-party-licenses.sh` prints `third-party-licenses: 28 modules + Go → build/licenses`.
+- `./dist/kirsch_darwin_arm64_v8.0/kirsch --version` printed `kirsch m4-SNAPSHOT-f6d0cd0`. The version stamp reaches the binary in a snapshot. Whether a real `v0.1.0` tag prints `0.1.0` or `v0.1.0` is not verified until the first tag, which is m5-d22's.
+- `npm run ci:targets` ends `ci.sh: all 4 targets compile`.
+- Controls: a module with no licence file exits 1, naming the module. The arguments `.`, `..` and `"$PWD/"` each exit 2. A symlinked `build` exits 2, and the target's `keep-me` file survives. Without the guard that file is deleted.
+
+**Re-run, 2026-11-04 (mission-20261104-01, step 3, Lambert).** The commands in *Automated checks* were run from `/Volumes/DATA/Github/kirsch` at commit `f6d0cd0`, with the working tree uncommitted. The outputs, as printed:
+
+```
+### on: block (grep -n -A3 '^on:')
+6:on:
+7-  push:
+8-    tags: ['v*']
+9-  workflow_dispatch:
+
+### pull_request absence (exit=1 means none found)
+exit=1
+### control
+2:  pull_request:
+
+### permissions (grep -n -E '^permissions:' -A1)
+12:permissions:
+13-  contents: read
+
+### contents: write as a key
+29:      contents: write
+### control
+2:  contents: write
+
+### uses: lines
+33:      - uses: actions/checkout@v4
+50:      - uses: actions/setup-go@v5
+76:      - uses: goreleaser/goreleaser-action@v7
+88:        uses: actions/upload-artifact@v4
+### unpinned count
+0
+exit=1
+### control
+1:      - uses: actions/checkout
+
+### goreleaser-version
+v2.19.0
+### control (exit=1, nothing printed)
+exit=1
+
+### npm run release:snapshot (tail)
+  • release succeeded after 7s
+  • thanks for using GoReleaser!
+exit=0
+
+### names, sort | grep (darwin_arm64)
+CHANGELOG.md
+kirsch
+LICENSE
+licenses/go/LICENSE
+NOTICE
+README.md
+### licenses/ entries
+29
+### entries per archive
+34 dist/kirsch_m4-SNAPSHOT-f6d0cd0_darwin_amd64.tar.gz
+34 dist/kirsch_m4-SNAPSHOT-f6d0cd0_darwin_arm64.tar.gz
+34 dist/kirsch_m4-SNAPSHOT-f6d0cd0_linux_amd64.tar.gz
+34 dist/kirsch_m4-SNAPSHOT-f6d0cd0_linux_arm64.tar.gz
+### archive filter control
+1
+
+### licence count line
+1
+### licence count control
+0
+
+### checksums file
+dist/kirsch_m4-SNAPSHOT-f6d0cd0_checksums.txt
+
+### kirsch --version
+kirsch m4-SNAPSHOT-f6d0cd0
+```
+
+**Crew run of operator step 2, 2026-11-04 15:34 UTC (Lambert, mission-20261104-01, step 4c).** Warm cache; first-run output not captured. The command was `npm run release:snapshot; echo "result: $?"`, run from `/Volumes/DATA/Github/kirsch` on the same Mac. The output has no `go: downloading` line and no goreleaser download line, so the tools were already on this machine. It shows the shape of a warm run, not what a first run prints. Full raw output:
+
+```
+> kirsch@0.1.0-dev release:snapshot
+> bash scripts/release-snapshot.sh
+
+go: github.com/goreleaser/goreleaser/v2@v2.19.0 requires go >= 1.27.3; switching to go1.27.3
+  • starting release
+  • skipping announce, publish, and validate...
+  • cleaning distribution directory
+  • loading environment variables
+  • getting and validating git state
+    • using tags                                     previous=m3 current=m4
+    • pipe skipped or partially skipped              reason=disabled during snapshot mode
+  • parsing tag
+    • current tag is not semver                      error=invalid semantic version tag=m4
+    • pipe skipped or partially skipped              reason=validation is disabled
+  • setting defaults
+  • snapshotting
+    • building snapshot...                           version=m4-SNAPSHOT-f6d0cd0
+  • running before hooks
+    • running                                        hook=bash scripts/third-party-licenses.sh
+  • ensuring distribution directory
+  • setting up metadata
+  • writing release metadata
+  • loading go mod information
+  • build prerequisites
+  • building binaries
+    • building                                       paths=cmd/kirsch binaries=kirsch target=linux_arm64_v8.0
+    • building                                       paths=cmd/kirsch binaries=kirsch target=linux_amd64_v1
+    • building                                       paths=cmd/kirsch binaries=kirsch target=darwin_amd64_v1
+    • building                                       paths=cmd/kirsch binaries=kirsch target=darwin_arm64_v8.0
+  • archives
+    • archiving                                      name=dist/kirsch_m4-SNAPSHOT-f6d0cd0_darwin_arm64.tar.gz
+    • archiving                                      name=dist/kirsch_m4-SNAPSHOT-f6d0cd0_linux_arm64.tar.gz
+    • archiving                                      name=dist/kirsch_m4-SNAPSHOT-f6d0cd0_linux_amd64.tar.gz
+    • archiving                                      name=dist/kirsch_m4-SNAPSHOT-f6d0cd0_darwin_amd64.tar.gz
+  • calculating checksums
+  • writing artifacts metadata
+  • release succeeded after 8s
+  • thanks for using GoReleaser!
+result: 0
+```
+
+**Open for the operator.** None of these blocks the automated checks above.
+
+- The first live run is m5-d22's tag run, and a `v*` tag push is ONE-WAY. The manual run in the Live checks is the step to do first. It needs the commit pushed.
+- Repository Actions settings must allow write (O3; `plan/milestones/milestone-5.md:1073`, the m5-d11 *Must-know-before*). The crew did not check this setting, and the workflow asks for `contents: write` at job level.
+- The GitHub wording in operator step 5 has not been verified by the crew: the *Actions* tab, *Release*, and *Run workflow*. *Release* is the workflow's `name:` and `release-dry-run` is the artifact name in the file, but GitHub's own button labels are not in the file and were not checked. The operator copy asks the operator to stop and tell Bishop if *Run workflow* cannot be found.
+- A tag push must name a commit that is on `main`. The `tagged commit is on main` step fails any tag run on a commit that is not, before anything is published. Push `main` first, then tag a commit that is on it. The first tag is m5-d22's. The tag gate has not been exercised on a runner, so its behaviour is read from `release.yml`, not observed.
+- W-2: a `v*` tag on a commit that is on `main`, but whose CI failed, still publishes. O3 does not require a CI-passed gate, so whether to add one is the operator's call.
+- The milestone's box at `plan/milestones/milestone-5.md:1067` says a dispatch run "produces a release". O3 makes a dispatch a dry run. The box is read here as the dry run, and the milestone is not edited. Bishop should decide whether its wording changes.
+
+**Carried, non-blocking.**
+
+- The comment in `scripts/third-party-licenses.sh` says "a link there means the output has been pointed somewhere unexpected". That claims more than the check does.
+- The symlink guard runs before the `go list` calls, not next to the `rm`.
+- The arch axis of the module union has no mutant coverage. `go list` with an unknown GOARCH gives the same module set, so no control separates the arches.
+- Action pins are by major tag, as O3 records. A commit-SHA pin for `goreleaser-action` in the write job was suggested and not taken.
+
+_Record the run URL and the release page at the live run, not any credential._
 
 ---
 
@@ -2039,8 +2284,8 @@ keycount
 
 **Hands-on checks**
 
-1. (operator, in the Setup terminal) Work through the steps of section 17 in `plan/testing/manual/user-testing/milestone-5-donovan.md`, in order. The install steps use throwaway folders under `T_CFG`.
-2. (operator, at the final release check, section 37) The clean-machine run: on a clean machine or in a container, with no `kirsch` on its `PATH` and no API key variables set, follow `doc/install.md` from the top. This includes the release-archive route once a release exists, and the checksum commands. Record the machine or container, and the commands the page gave, in *Notes / evidence*.
+1. (operator) In the Setup terminal, work through the steps of section 17 in `plan/testing/manual/user-testing/milestone-5-donovan.md`, in order. The install steps use throwaway folders under `T_CFG`.
+2. (operator) At the final release check, section 37, do the clean-machine run: on a clean machine or in a container, with no `kirsch` on its `PATH` and no API key variables set, follow `doc/install.md` from the top. This includes the release-archive route once a release exists, and the checksum commands. Record the machine or container, and the commands the page gave, in *Notes / evidence*.
 
 **Notes / evidence**
 
@@ -2054,11 +2299,126 @@ _Empty. Fill at run._
 
 **What landed**
 
-> **TO EXPAND when m5-d16 lands:** the script name, the pseudo-terminal method O19 records, and the onboarding text it captured.
+- The check is `scripts/no-key-check.sh`, run as `npm run check:no-key` (`package.json`). It builds `bin/kirsch` with `scripts/build.sh`, creates a temporary home and a temporary Git repository, and starts the binary inside that repository with `env -i HOME=<temporary home> PATH=$PATH TERM=xterm-256color`. It removes both when the run ends.
+- It drives the program through `script(1)`, which gives it a pseudo-terminal (O19). Both argument forms are handled: the BSD form, which runs on macOS and is the form that has been run, and the util-linux form, which has only been checked for shell syntax and has not been run on Linux.
+- It passes when the line `No API key: set KIRSCH_OPENCODE_API_KEY → OPENCODE_API_KEY` is in the output the terminal received during the run. It checks the emitted output, not the final screen, so a line that was drawn and later scrolled away still matches.
+- It takes about 35 seconds on the Mac where it was written. The first output reaches the capture about 30 seconds after launch. Nothing is typed into the composer, so it sends no request to a model.
+- Exit codes: `0` pass; `1` Kirsch drew frames and the line is missing, or the run timed out after a frame; `2` the check could not complete; `130` interrupted. The header of `scripts/no-key-check.sh` lists each case.
+- O14 is unchanged. "Not in a repo" keeps its message, `Kirsch runs inside a Git repository.`, from `internal/workspace/workspace.go`, and the process exits 1. The automated check below shows it.
 
-**Waits on:** O14 (whether "not in a repo" is included, and where the check lives), O19 (how the interactive TUI is driven), and m5-d10a (builds the binary), from `plan/milestones/milestone-5.md:119`. This does not depend on m5-d4 (`plan/milestones/milestone-5.md:1381`).
+**Product change, outside the planned file list.** On a fresh start, the notice `no previous session — starting fresh` used to hide the no-key onboarding and the empty session. Now the onboarding (or the empty session) stays while the transcript holds only notices and every notice row fits below it. The notices are listed beneath it after one blank row. If a notice row would not fit, the normal scrollable transcript shows, with nothing cut off. This includes notices from user commands such as `/status`. The first message, a tool card, an error or any other item ends it, as before. The composer placeholder is not shown below 40 columns, or when the transcript region has no rows. The rule is decided for each frame, so `/new`, which empties the transcript, or a larger window can bring the onboarding back. Code: `internal/tui/model.go` (`introRows`), `internal/tui/view.go:654`, and the header of `internal/tui/empty.go`. Spec: `plan/spec/ui-spec-v0.1.md` §2 and §7.5.
 
-**Before any edit.** Save `scripts/smoke-test.sh` verbatim to `.claude/memory/workspace/m5-d16-smoke-test.pre.sh` (`plan/milestones/milestone-5.md:1391`). The acceptance box compares against it.
+**What a tester sees at 80 by 24 on a fresh start.** The screens below were captured on 2026-11-05 by a scratch run outside the repository. The binary ran under `env -i` in a new temporary Git repository with a new temporary home. The output was drawn by a terminal emulator at the size shown, and the run was ended with two `Ctrl+C`. Under `env -i` there is no UTF-8 locale, so the wordmark is letter-spaced and the bullets are `.`. Every run made with `env -i`, as the commands in this section are, shows the same. Trailing blank rows are left out.
+
+Fresh start, nothing typed (80 by 24):
+
+```text
+ Kirsch -----------------------------------------------------------------------
+ repo - master
+
+ K I R S C H
+
+ v0.1.0-dev . terminal-native coding agent
+
+ . No API key: set KIRSCH_OPENCODE_API_KEY → OPENCODE_API_KEY.
+ . Keys are never read from config files.
+
+ . Using opencode sends prompts and file contents to OpenCode's gateway and to
+ whoever hosts the chosen model, not to Anthropic.
+
+ . no previous session - starting fresh
+
+
+
+
+
+ ------------------------------------------------------------------------------
+ minimax-m3 . idle . 0 tok
+ ------------------------------------------------------------------------------
+ > Ask anything (Enter to send, /help for help)
+```
+
+Read it top to bottom: the onboarding comes first, then one blank row, then the notice line. The composer shows the placeholder.
+
+After `/status` is typed and entered at the same size (80 by 24), the notices are too tall to fit under the onboarding, so the normal transcript shows instead. The composer shows the cursor, not the placeholder. The session line differs on every run:
+
+```text
+ Kirsch -----------------------------------------------------------------------
+ repo - master
+
+ . no previous session - starting fresh
+
+ . model minimax-m3 . endpoint opencode . base_url opencode.ai . key source  .
+ context none . branch master . dirty 0 . session
+ 20261105T090741-06GTNXP3YVE34JPWKYQNTRE4TR . tokens in 0 out 0 cache 0 .
+ compaction - . grants none . Using opencode sends prompts and file contents to
+ OpenCode's gateway and to whoever hosts the chosen model, not to Anthropic.
+
+
+
+
+
+
+
+
+
+ ------------------------------------------------------------------------------
+ minimax-m3 . idle . 0 tok
+ ------------------------------------------------------------------------------
+ > _
+```
+
+The same `/status`, at 80 by 40, leaves the onboarding showing, with the notices beneath it. Rows 14 to 20 of that screen:
+
+```text
+ . no previous session - starting fresh
+
+ . model minimax-m3 . endpoint opencode . base_url opencode.ai . key source  .
+ context none . branch master . dirty 0 . session
+ 20261105T090825-06GTNXVGPMHC777CAETS3EH74M . tokens in 0 out 0 cache 0 .
+ compaction - . grants none . Using opencode sends prompts and file contents to
+ OpenCode's gateway and to whoever hosts the chosen model, not to Anthropic.
+```
+
+Rows 36 to 39 of that screen, where the composer shows the placeholder again:
+
+```text
+ ------------------------------------------------------------------------------
+ minimax-m3 . idle . 0 tok
+ ------------------------------------------------------------------------------
+ > Ask anything (Enter to send, /help for help)
+```
+
+The narrow case, 39 columns by 24 rows, a fresh start with nothing typed. The transcript region reads `terminal too narrow`, and the composer shows the cursor and no placeholder:
+
+```text
+ Kirsch ------------------------------
+ repo
+ terminal too narrow
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ -------------------------------------
+ minimax-m3 . idle
+ -------------------------------------
+ > _
+```
+
+
+**Baseline.** `.claude/memory/workspace/m5-d16-smoke-test.pre.sh` is `scripts/smoke-test.sh` as it stood before m5-d16 changed anything. The `cmp` below compares against it.
 
 **Key-state check, first.** Authored here. Run it before any kirsch launch in this section. It must print `CONTROL PASS`, then `0`.
 
@@ -2070,9 +2430,59 @@ keycount
 
 **Automated checks**
 
-- [ ] A no-key run in a clean environment shows onboarding that names `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY`. The output is pasted into the step report (`plan/milestones/milestone-5.md:1402`). Command: `TO EXPAND`, per O19.
-- [ ] The check runs in a temporary Git repository, which it creates and removes (`plan/milestones/milestone-5.md:1403`). Command: `TO EXPAND`.
-- [ ] `scripts/smoke-test.sh` is unchanged against its saved copy. The saved copy is `.claude/memory/workspace/m5-d16-smoke-test.pre.sh` (`plan/milestones/milestone-5.md:1404`).
+- [ ] The no-key check passes. Property: the onboarding line was written to the terminal during a run with no key. Expected: the matched line `. No API key: set KIRSCH_OPENCODE_API_KEY → OPENCODE_API_KEY.`, then `no-key-check: PASS (the line was emitted to the terminal)`, then `exit=0`. npm first prints its own `> kirsch@0.1.0-dev check:no-key` lines. The run takes about 35 seconds. The output is pasted into the step report (`plan/milestones/milestone-5.md:1410`).
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch && npm run check:no-key; echo "exit=$?"
+  ```
+
+- [ ] The check can fail. Property: a run whose expected line is wrong ends in FAIL, so a PASS means the line was seen. The copy must sit in `scripts/`, because the script finds its repository from its own place. It differs from the script in one line only, the `want=` line (`scripts/no-key-check.sh:141`), where `KIRSCH_OPENCODE_API_KEY` becomes `KIRSCH_FALSIFIED_KEY`. The `sed` writes the copy and leaves the script alone. Expected: `diff` reports the one changed line (a `<` line and a `>` line) and exits 1. The falsifier run takes about 35 seconds. It prints the FAIL line first, `no-key-check: FAIL (Kirsch drew frames, ...; the terminal output never carried: No API key: set KIRSCH_FALSIFIED_KEY ...)`, and then the last 40 rows of Kirsch's captured output (`tail -n 40`, `scripts/no-key-check.sh:423`). Both go to stderr, so the FAIL line sits on the line above those 40 rows. That text has no final newline, so `exit=1` lands on the same row as the last of those 40 rows. The copy is then removed, and its absence is checked against a control: `test -e` on the real script must exit 0 first. If the run stops part way, for example with `Ctrl+C`, the copy stays in `scripts/`. Run the `rm` line by hand, then run the `test -e` pair: `test -e scripts/no-key-check.sh; echo "control exit=$?"` must print exit 0, then `test -e scripts/no-key-check.falsify.sh; echo "exit=$?"` must print exit 1, which shows the copy is gone.
+
+  ```bash
+  # authored here
+  # Falsifier: one changed line, a FAIL with exit 1, then the copy is removed.
+  cd /Volumes/DATA/Github/kirsch && sed '/^want=/s/KIRSCH_OPENCODE_API_KEY/KIRSCH_FALSIFIED_KEY/' scripts/no-key-check.sh > scripts/no-key-check.falsify.sh && diff scripts/no-key-check.sh scripts/no-key-check.falsify.sh; echo "diff exit=$? (expect 1, one changed line)"
+  cd /Volumes/DATA/Github/kirsch && bash scripts/no-key-check.falsify.sh; echo "exit=$? (expect 1; the FAIL line is the line above the 40 rows, and this line shares the last row)"
+  cd /Volumes/DATA/Github/kirsch && rm -- scripts/no-key-check.falsify.sh; echo "rm exit=$?"
+  cd /Volumes/DATA/Github/kirsch && test -e scripts/no-key-check.sh; echo "control exit=$? (expect 0, the real script is present)"
+  cd /Volumes/DATA/Github/kirsch && test -e scripts/no-key-check.falsify.sh; echo "gone exit=$? (expect 1, the copy is absent)"
+  # Convenience only, not a control: must not list no-key-check.falsify.sh
+  cd /Volumes/DATA/Github/kirsch && git status --short scripts/
+  ```
+
+- [ ] The script refuses an argument with exit 2, before it builds or starts anything. Property: exit 2 (the check could not complete) is reported apart from exit 0 (pass). Expected: the usage line `usage: bash scripts/no-key-check.sh   (takes no arguments)` and `exit=2`.
+
+  ```bash
+  # authored here
+  cd /Volumes/DATA/Github/kirsch && bash scripts/no-key-check.sh extra; echo "exit=$?"
+  ```
+
+- [ ] The temporary home and Git repository are removed when the run ends. Property: no `kirsch-no-key.*` directory is left under the temporary directory. The block makes its own control first: a directory made the way the script makes one must be listed, with exit 0, before the real listing counts. The block removes its control directory. If the block stops part way, `rmdir` the path the control printed, since that directory is empty. Run it after the check above has finished. Expected: the control lists its directory and ends `exit=0`. The real listing prints nothing, its error from `ls` shows on the terminal (`No such file or directory` in bash, `no matches found` in zsh), and it ends `exit=1`.
+
+  ```bash
+  # authored here
+  # Control first: a directory made the way the script makes one must be listed, with exit 0.
+  CTRL="$(mktemp -d "${TMPDIR:-/tmp}/kirsch-no-key.XXXXXX")" && echo "control directory: $CTRL"
+  ls -d "${TMPDIR:-/tmp}"/kirsch-no-key.*; echo "control exit=$? (expect 0, the directory above is listed)"
+  rmdir "$CTRL"; echo "control removed exit=$?"
+  # Real check: no kirsch-no-key.* directory may be left. Expect nothing listed, the ls error, and exit=1.
+  ls -d "${TMPDIR:-/tmp}"/kirsch-no-key.*; echo "exit=$? (expect 1, nothing listed)"
+  ```
+
+  The `exit=1` on the real listing is the macOS result. BSD `ls`, which macOS ships, exits 1 for a missing path. GNU `ls` (for example `gls` from GNU coreutils) exits 2 for the same case, so on Linux that line reads `exit=2`. Nothing is listed either way. Bishop ran both commands on 2026-11-05 09:55 UTC on macOS 26.5.1, and the output is pasted below verbatim:
+
+  ```
+  $ ls -d /nonexistent-kirsch-m5d16; echo "ls exit=$?"
+  ls: /nonexistent-kirsch-m5d16: No such file or directory
+  ls exit=1
+  $ gls --version | head -1
+  ls (GNU coreutils) 9.12
+  $ gls -d /nonexistent-kirsch-m5d16; echo "gls exit=$?"
+  gls: cannot access '/nonexistent-kirsch-m5d16': No such file or directory
+  gls exit=2
+  ```
+- [ ] `scripts/smoke-test.sh` is unchanged against its saved copy. The saved copy is `.claude/memory/workspace/m5-d16-smoke-test.pre.sh` (`plan/milestones/milestone-5.md:1412`).
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && cmp -s .claude/memory/workspace/m5-d16-smoke-test.pre.sh scripts/smoke-test.sh; echo "exit=$?"
@@ -2087,21 +2497,34 @@ keycount
   cmp -s "$CTRL" /Volumes/DATA/Github/kirsch/scripts/smoke-test.sh; echo "control exit=$? (expect 1)"; rm -f "$CTRL"
   ```
 
-- [ ] `scripts/smoke-test.sh` still exits 2 without a key. The command strips every key variable from the child with `env -u`, so the script sees no key. It then exits 2 at `scripts/smoke-test.sh:16–22`, whatever the shell holds. With any one key variable set in the child, the script runs `TestSmokeLive` against the live provider and spends tokens (`plan/milestones/milestone-5.md:1405–1411`).
+- [ ] `scripts/smoke-test.sh` still exits 2 without a key. The command strips every key variable from the child with `env -u`, so the script sees no key. It then exits 2 at `scripts/smoke-test.sh:16–22`, whatever the shell holds. With any one key variable set in the child, the script runs `TestSmokeLive` against the live provider and spends tokens (`plan/milestones/milestone-5.md:1413`).
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && env -u ANTHROPIC_API_KEY -u KIRSCH_ANTHROPIC_API_KEY -u OPENCODE_API_KEY -u KIRSCH_OPENCODE_API_KEY bash scripts/smoke-test.sh; echo "exit=$?"
   ```
 
-  The `; echo "exit=$?"` is as the milestone gives it (`plan/milestones/milestone-5.md:1408`). The printed `exit=` line is pasted.
+  The `; echo "exit=$?"` is as the milestone gives it (`plan/milestones/milestone-5.md:1416`). The printed `exit=` line is pasted.
 
-- [ ] The "not in a repo" case is handled as O14 records (`plan/milestones/milestone-5.md:1412`). Command: `TO EXPAND`.
+- [ ] The "not in a repo" case keeps its message and exits 1, as O14 records (`plan/milestones/milestone-5.md:1420`). Property: outside a Git repository, Kirsch prints the message and exits without a screen. The message is in `internal/workspace/workspace.go`. Needs `bin/kirsch`, built by `npm run build` or by the check above. Command below. Expected: the lines `kirsch: Kirsch runs inside a Git repository.`, then `Either cd into a repository, or point Kirsch at a directory explicitly:`, then `    kirsch --workspace /path/to/project`, then `exit=1`.
+
+  ```bash
+  # authored here
+  NR="$(mktemp -d)" && cd "$NR" && env -i HOME="$HOME" PATH="$PATH" TERM=xterm-256color /Volumes/DATA/Github/kirsch/bin/kirsch; echo "exit=$?"; cd /Volumes/DATA/Github/kirsch && rmdir "$NR"
+  ```
 
 **Hands-on checks**
 
-1. (operator) Run the no-key check on a clean machine (`plan/milestones/milestone-5.md:1413`).
+1. (operator) Run `npm run check:no-key` on a clean machine, or in a container, with no key set, as in the first automated check above. Paste its last lines into *Notes / evidence* (`plan/milestones/milestone-5.md:1421`).
+2. (operator) In an 80 by 24 window, start Kirsch by hand on a fresh start, with no key, in a new temporary folder and a new temporary home. Compare the screen with the first sample under *What a tester sees*. Then type `/status` and press Enter, and compare with the second sample. Quit with two `Ctrl+C`.
 
-   > **TO EXPAND when O19 is recorded:** the pseudo-terminal method and the terminal size it uses.
+   ```bash
+   # authored here
+   FAKE_HOME="$(mktemp -d)" && cd "$(mktemp -d)" && git init -q . && env -i HOME="$FAKE_HOME" PATH="$PATH" TERM=xterm-256color /Volumes/DATA/Github/kirsch/bin/kirsch
+   ```
+
+3. (operator) In an 80 by 40 window, repeat step 2 in a window 40 rows tall. After `/status`, the onboarding should still show, with the notices beneath it. Quit with two `Ctrl+C`.
+
+   The throwaway folders from steps 2 and 3 are left for the operator to remove.
 
 **Notes / evidence**
 
@@ -2111,45 +2534,138 @@ _Empty. Fill at run._
 
 ## 19 · `/new` lifecycle: C51, C52 (optional) (m5-d17a)
 
-**Context:** Terminal: Setup. Binary: `go test`; `kirsch` for hands-on step 1 (TO EXPAND). Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the hands-on launch. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: `go test` only; no kirsch launch in this section. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a; the tests use temporary folders (a full `go test ./internal/app/` run left the number of session files under `~/.local/share/kirsch/sessions` unchanged; output under *Automated checks*). Key state: all key variables unset. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d17a lands:** whether the session file is created lazily or removed on cancel (C51), and how the provider session id rotates (C52).
+**Choice recorded for C51: cleanup, not lazy creation.** A session file is still created when a session starts, and it is removed when that session is abandoned with nothing written to it. The choice rests on these reasons:
+
+- In the code: the `NewSession` docblock says that when the new store cannot be created, "the error and the App is unchanged" (`internal/app/app.go:1212`). That rule predates this mission, and the cleanup choice is consistent with it.
+- Not in the code: the author's reasoning, which is that cleanup keeps the session id visible right after `/new`.
+
+The approach is recorded in @hicks's step 1 report and in row 1 of `.claude/memory/missions/mission-20261105-04/PROGRESS.md` ("C51 cleanup approach"). Lazy creation was the other option and was not built.
+
+What the code does, with the cites checked against `internal/app/app.go`:
+
+- A session that this process creates carries an origin. It is made at start-up by `ensureStore` (`:973`) or `StartNewSession` (`:1002`), or by `/new` through `NewSession` (`:1239`). The origin is set in `createSessionStore` (`:1142`; the assignment is at `:1170`).
+- An abandoned session with nothing written is removed in these cases: on quit, in `Close` (`:890`, through `abandonEmpty` at `:1055`); when `/new` replaces it, in `installSession` (`:1303`); and when the store cannot be opened, in `discardFailedCreate` (`:1198`).
+- `abandonEmptyLocked` (`:1063`) deletes the 0-byte file, then calls `restoreIndexLocked` (`:1085`, call at `:1077`). That function restores `index.json` only when the entry still names the abandoned session (`:1091`). The restore point comes from `restorePoint` (`:1111`), which walks past sessions that are already removed. If there was no earlier entry, or the restore target's file is gone, the workspace entry is deleted.
+- A session that received any event is never removed (`TestNewSessionThatReceivedAnEventSurvivesClose`). A resumed session is never removed (`TestResumedSessionIsNeverDeleted`).
+- `Close` releases the workspace lock only after the removals. The comment is at `internal/app/app.go:922–924`.
+
+C52: `/new` sets a fresh provider session id. `randomSessionID()` (`internal/app/app.go:1039`) makes 16 random bytes as hex. `NewSession` sets it after a successful install (`:1281`). `cmd/kirsch/main.go` is unchanged.
+
+File ownership: the planned ownership was `internal/app/app.go` only. The change also adds `internal/app/session_orphan_test.go`, changes one line in `internal/app/session_ops_test.go`, and changes `cmd/kirsch/newsession_wiring_test.go`, which now records one real event with `ClearGrants()` (`:99`) before `/new`.
+
+User-visible change, as the code does it (read from the code, not seen in a run): a session file that this Kirsch created and that nothing was written to is removed when you quit (`Close`, `internal/app/app.go:890`) or when `/new` replaces it (`installSession`, `internal/app/app.go:1303`). A session that received any event, or that was resumed, is never removed. When the removed session is the one `index.json` names for this workspace (at quit, the session you were in), the entry is put back to what it held before Kirsch created that session, skipping any earlier empty sessions that `/new` already removed, or deleted if there was nothing earlier or that earlier session's file is gone (`restoreIndexLocked`, `internal/app/app.go:1085`; `restorePoint`, `internal/app/app.go:1111`). After `/new`, the entry names the new session; at quit it goes back as described only if that session is still empty. So, after a normal quit, the next launch does not find an empty session that this Kirsch created. Which notice that launch shows depends on how it is started (`chooseSessionInit`, `cmd/kirsch/main.go:277–310`). `/new` also sets a new provider session id (`randomSessionID()`, `internal/app/app.go:1039`, set in `NewSession` at `internal/app/app.go:1281`).
 
 **Waits on:** m5-d5 (the session layer) and O13 (scheduling of the optional group), from `plan/milestones/milestone-5.md:120`.
 
-**Key-state check, first.** Authored here. Run it before any kirsch launch in this section. It must print `CONTROL PASS`, then `0`.
+**Automated checks**
+
+- [ ] A test shows that quitting during `/new` leaves no empty session file (`plan/milestones/milestone-5.md:1456`). Test: `TestCloseAfterNewSessionLeavesNoEmptySession` (`internal/app/session_orphan_test.go:54`). Command and output below.
+- [ ] A test shows that after `NewSession` the provider session id differs from the id before it (`plan/milestones/milestone-5.md:1457`). Test: `TestNewSessionRotatesTheProviderSessionID` (`internal/app/session_orphan_test.go:160`). Command and output below.
+- [ ] `go test ./internal/app/` passes (`plan/milestones/milestone-5.md:1458`). Left unticked for the operator. The full-package run below is Bishop's capture on 2026-11-05 (mission-20261105-04, step 4a), with its `exit=` line.
 
 ```bash
 # authored here
-keycount_control
-keycount
+go test -count=1 ./internal/app/; echo "exit=$?"
 ```
 
-**Automated checks**
+```
+ok  	github.com/djm56/kirsch/internal/app	92.542s
+exit=0
+```
 
-- [ ] A test shows that quitting during `/new` leaves no empty session file (`plan/milestones/milestone-5.md:1446`). Command: `TO EXPAND`.
-- [ ] A test shows that after `NewSession` the provider session id differs from the id before it (`plan/milestones/milestone-5.md:1447`). Command: `TO EXPAND`.
-- [ ] `go test ./internal/app/` passes (`plan/milestones/milestone-5.md:1448`).
+The capture above (92.542s) predates the step 5 test-isolation fix.
 
-  ```bash
-  cd /Volumes/DATA/Github/kirsch && go test ./internal/app/
-  ```
+After the step 5 test-isolation fix (Bishop's run, 2026-11-05; it counts the session files):
+
+```bash
+b=$(find ~/.local/share/kirsch/sessions -name '*.jsonl' | wc -l); go test -count=1 ./internal/app/; echo "exit=$?"; a=$(find ~/.local/share/kirsch/sessions -name '*.jsonl' | wc -l); echo "session files before=$b after=$a"
+```
+
+```
+ok  	github.com/djm56/kirsch/internal/app	112.224s
+exit=0
+session files before=    6251 after=    6251
+```
+
+The named tests, and the `/new` test through the real wiring, run by Bishop on 2026-11-05 (mission-20261105-04, step 4a). The commands are authored here, and they are not quoted from the milestone. Each output is pasted as captured, with its `exit=` line.
+
+```bash
+# authored here
+go test -count=1 ./internal/app/ -run 'TestCloseAfterNewSessionLeavesNoEmptySession$|TestNewSessionThatReceivedAnEventSurvivesClose$|TestFreshLaunchSessionIsAbandonedLikeANewOne$|TestResumedSessionIsNeverDeleted$|TestNewSessionRotatesTheProviderSessionID$' -v; echo "exit=$?"
+```
+
+```
+=== RUN   TestCloseAfterNewSessionLeavesNoEmptySession
+--- PASS: TestCloseAfterNewSessionLeavesNoEmptySession (0.08s)
+=== RUN   TestNewSessionRotatesTheProviderSessionID
+--- PASS: TestNewSessionRotatesTheProviderSessionID (0.08s)
+=== RUN   TestNewSessionThatReceivedAnEventSurvivesClose
+--- PASS: TestNewSessionThatReceivedAnEventSurvivesClose (0.06s)
+=== RUN   TestResumedSessionIsNeverDeleted
+--- PASS: TestResumedSessionIsNeverDeleted (0.08s)
+=== RUN   TestFreshLaunchSessionIsAbandonedLikeANewOne
+=== RUN   TestFreshLaunchSessionIsAbandonedLikeANewOne/empty_startup_then_quit
+=== RUN   TestFreshLaunchSessionIsAbandonedLikeANewOne/empty_startup_then_/new_then_quit
+=== RUN   TestFreshLaunchSessionIsAbandonedLikeANewOne/startup_with_an_event_then_/new_then_quit_(control)
+--- PASS: TestFreshLaunchSessionIsAbandonedLikeANewOne (0.17s)
+    --- PASS: TestFreshLaunchSessionIsAbandonedLikeANewOne/empty_startup_then_quit (0.05s)
+    --- PASS: TestFreshLaunchSessionIsAbandonedLikeANewOne/empty_startup_then_/new_then_quit (0.06s)
+    --- PASS: TestFreshLaunchSessionIsAbandonedLikeANewOne/startup_with_an_event_then_/new_then_quit_(control) (0.06s)
+PASS
+ok  	github.com/djm56/kirsch/internal/app	0.736s
+exit=0
+```
+
+Output of the `cmd/kirsch` test (`cmd/kirsch/newsession_wiring_test.go:72`), run by Bishop on 2026-11-05 (mission-20261105-04). The command is authored here.
+
+```bash
+# authored here
+go test -count=1 ./cmd/kirsch/ -run 'TestSlashNewThroughRealWiringStartsANewSession$' -v; echo "exit=$?"
+```
+
+```
+=== RUN   TestSlashNewThroughRealWiringStartsANewSession
+--- PASS: TestSlashNewThroughRealWiringStartsANewSession (0.16s)
+PASS
+ok  	github.com/djm56/kirsch/cmd/kirsch	0.669s
+exit=0
+```
 
 **Hands-on checks**
 
-1. > **TO EXPAND when m5-d17a lands:** the manual steps for quit-during-`/new`, and the session directory listing before and after.
+None is written in this section. The automated checks above cover the behaviour. A hands-on quit-during-`/new` step, with the session directory listing before and after, has not been run and has no captured output, so it is not written. It is carried below.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Mutant record. The mutant results come from the step reports of @hicks (steps 2a and 2c) and @vasquez (steps 2e and 2g), summarised in the m5-d17a rows of this mission's PROGRESS (`.claude/memory/missions/mission-20261105-04/PROGRESS.md`). The raw outputs were not saved to disk, and no mutant was re-run for this section. Each test in the table below failed when the change in its row was made (as reported); the change and test columns come from the step reports. The mutant labels are the step reports' own. M1 here is the step 2a mutant, not the step 1 mutant with the same number (the `abandonEmpty` early return, the C51 fix) (@hicks, step 1 report):
+
+| Mutant | Change made | Test that failed (`internal/app/session_orphan_test.go`) | Failing message (verbatim where it is a literal string) |
+|---|---|---|---|
+| M1 (step 2a) | C52 rotation removed | `TestNewSessionRotatesTheProviderSessionID` (:160; message at :191) | `provider session id "abababababababababababababababab" unchanged by /new` |
+| M3 | size check dropped | `TestNewSessionThatReceivedAnEventSurvivesClose` (:229) | description, not the literal message: the session file is deleted, so a stat fails |
+| M6 | startup origin dropped | `TestFreshLaunchSessionIsAbandonedLikeANewOne` (:322) | description, not the literal message: the file is left and index.json still points at it |
+| M7 | resume gets an origin | `TestResumedSessionIsNeverDeleted` (:261; message at :292) | `resumed empty session removed by Close` |
+| MW1 (2g) | `abandonMu` taken late | `TestCloseDuringInstallWaitsForTheReplacedSessionToGo` (:782; message at :864) | `Close returned (workspace lock free) while the replaced empty session … was still on disk` [format string, truncated] |
+| MD | `discardFailedCreate` call removed | `TestFailedStoreOpenDiscardsTheHalfMadeSession` (:980; message at :1023) | `half-made session file … on disk = true, want false` |
+
+Carried items, not closed by this section:
+
+- A hands-on quit-during-`/new` step is not written, because it has no captured output.
+- Review suggestions from the m5-d17a review, not graded here: (1) no deterministic mutant covers the full span of the `abandonMu` hold in `installSession` (`internal/app/app.go:1329–1338`); (2) comment wrapping in the `abandonMu` field comment (`internal/app/app.go:481–490`) and in the `NewSession` docblock (`:1207–1238`); (3) `createSessionStore` says "It touches no App state" (`internal/app/app.go:1129`), and the suggested wording is "mutates no App fields".
+- Test ordering race, product side: `Submit` and `RunTurn` send through separate `sendAsyncSequence` calls, so a late `BudgetMsg` can leave a stale estimate on the status line (`internal/tui/update.go:449`, `:470`, `:478`). `TestSubmitSendsBudgetMsgForSmallRequest` was changed in m5-d17a to find the BudgetMsg by type; no run shows the new assertion failing (the mutant run was denied by the permission system). The race is listed under *Open from m5-d17a* in `plan/PROGRESS.md`.
+- Comment carried: the comment above `TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget` (`internal/app/app_test.go:179–184`) says the first message is the BudgetMsg, which the product does not guarantee. Listed under *Open from m5-d17a* in `plan/PROGRESS.md`.
+- Unverified: whether `RunTurn`'s streamed deltas can arrive out of order (`emit` at `internal/app/app.go:2120–2124`). Listed under *Open from m5-d17a* in `plan/PROGRESS.md`.
+- The cross-process `index.json` read-modify-write has no lock (`ReadIndex` at `internal/session/index.go:28`, `WriteIndex` at `:44`). This predates m5-d17a and is listed under *Open from m5-d17a* in `plan/PROGRESS.md`.
 
 ---
 
 ## 20 · Doctor: key, backend, model and project-context lines (m5-d4a)
 
-**Context:** Terminal: Setup. Binary: `"$KIRSCH_BIN" doctor`, built by `npm run build` (the build block in §2); `go test` for the checks. Working directory and workspace are stated inside each hands-on step, because they differ from step to step. Settings: Setup, unchanged, except where a step names its own settings folder for that one command, or reads the operator's own settings (`env -u XDG_CONFIG_HOME`). Key state: all key variables unset; hands-on 1 sets one dummy value for one command at a time, never a real key.
+**Context:** Terminal: Setup. Binary: `"$KIRSCH_BIN" doctor`, built by `npm run build` (the build block in §2); `go test` for the checks. Working directory: stated inside each hands-on step, because it differs from step to step. Workspace: stated inside each hands-on step, because it differs from step to step. Key state: all key variables unset; hands-on 1 sets one dummy value for one command at a time, never a real key. Config state: Setup, unchanged, except where a step names its own settings folder for that one command, or reads the operator's own settings (`env -u XDG_CONFIG_HOME`).
 **What landed**
 
 After the config line, `kirsch doctor` prints the lines `key`, `backend`, `model` and `context`, in this order. The summary line counts them with the rest. Each uses the m5-d3a grammar, `<status>  <check>: <detail>`. The probes are `resolvedResults` and its helpers in `internal/doctor/probes.go`. The lines below are as the binary prints them. Every line in the table was seen in a measured run (*Notes / evidence*, and `.claude/memory/workspace/m20261029-06-step3-runs.txt` and `.claude/memory/workspace/m20261029-06-step3a-runs.txt`, both scratch and archived at the next mission start), except the row for an unreadable candidate, which is read from the code.
@@ -2697,27 +3213,64 @@ _Empty. Fill at run._
 
 **What landed**
 
-> **TO EXPAND when m5-d15 lands:** the judgement recorded for each "0001–0007" site (DIR-004), and the install section as written.
+Landed in mission-20261106-02 (2026-11-06). Each claim below is checked by the command named in *Notes / evidence*, by row number.
+
+**Judgement for each "0001–0007" site (DIR-004).** The sites are the ones the repo-wide grep prints, with their live line numbers.
+
+| Site | Before | After | Judgement |
+|---|---|---|---|
+| `plan/spec/kirsch-plan.md:391` (the *Design docs are already settled* bullet) | `` `plan/adr/` (0001–0007). `` | `` `plan/adr/` (0001–0007, the ADRs in the planning baseline; ADR 0008 onward are later and are indexed in `plan/adr/README.md`). `` | Kept, and qualified. The range names the planning baseline, and the qualifier says where the later ADRs are indexed. |
+| `plan/README.md` (the `adr/` row) | No range. The step 1 copy `m5-d15-plan-README.pre.md` has none either. | No range. | No site to judge. The range left this file at commit `4a50a76`, before this mission. |
+| `AGENTS.md:21` (*Why was X decided?*) | `ADRs 0001–0007` | `ADRs 0001–0012` | Changed to the range that `ls plan/adr/` lists. |
+| `plan/adr/README.md:65` (*Status Update*) | `ADRs 0001–0007 were written during planning, and most still carry the status ...` | Unchanged. | Kept. The sentence is true as written. The status wording is the operator's decision, and it is not edited. |
+| `CHANGELOG.md:27` (the planning-baseline entry) | `and ADRs 0001–0007.` | Unchanged. | Kept. It is history. |
+| `plan/PROGRESS.md:593` (*Acceptance box on "0001–0007"*, under *Open from m5-d15*) | The open item quotes the range. | Unchanged. | Kept. It is a note about the box, not a claim about the ADR set. |
+| `plan/testing/manual/milestone-5.md` (this file) | This section quotes the range as the subject of its checks. | Unchanged in substance. | Kept. It is the check's own text, and the master's copy of the box excludes it. |
+
+**The install section as written.** Lines 23 to 43 of `README.md`, copied verbatim:
+
+    ## Install
+
+    > **v0.1.0 is not published yet.** Until it is, build Kirsch from a clone of the repository. The release-archive route and `go install` by release tag, which [`doc/install.md`](doc/install.md) describes, need a published release, so they do not apply yet.
+
+    Build from a clone. These are the commands from the *Build from source* section of [`doc/install.md`](doc/install.md):
+
+    ```bash
+    git clone https://github.com/djm56/kirsch.git
+    cd kirsch
+    bash scripts/build.sh
+    ./bin/kirsch --version
+    ```
+
+    You need Go and `git`. [`doc/install.md`](doc/install.md) gives the Go version. The binary is written to `bin/kirsch` inside the checkout. The same page covers what Kirsch needs on the machine, setting up an API key, and checking the install with `kirsch doctor`.
+
+    Developers working on Kirsch itself can run it from the clone without building a binary:
+
+    ```bash
+    go run ./cmd/kirsch
+    ```
 
 **Waits on:** m5-d1 (X2 wording), m5-d10a and m5-d10b (release tooling the README refers to), m5-d13c (the install page), and O22 (the "multiple providers" wording), from `plan/milestones/milestone-5.md:118`.
 
-**Before any edit.** Save verbatim copies to `.claude/memory/workspace/`: `plan/spec/kirsch-plan.md` as `m5-d15-kirsch-plan.pre.md`, `plan/adr/README.md` as `m5-d15-adr-README.pre.md`, `plan/README.md` as `m5-d15-plan-README.pre.md`, `AGENTS.md` as `m5-d15-AGENTS.pre.md`, `README.md` as `m5-d15-README.pre.md` (`plan/milestones/milestone-5.md:1345`), and `plan/PROGRESS.md` as `m5-d15-PROGRESS.pre.md` (`plan/milestones/milestone-5.md:1353`, DIR-020). The controls below read `HEAD`'s copy of each file, which is the pre-change text while the file is unedited, because the saved copies are not in the workspace (see the open question in the step report).
+**Before any edit.** Save verbatim copies to `.claude/memory/workspace/`: `plan/spec/kirsch-plan.md` as `m5-d15-kirsch-plan.pre.md`, `plan/adr/README.md` as `m5-d15-adr-README.pre.md`, `plan/README.md` as `m5-d15-plan-README.pre.md`, `AGENTS.md` as `m5-d15-AGENTS.pre.md`, `README.md` as `m5-d15-README.pre.md` (`plan/milestones/milestone-5.md:1345`), and `plan/PROGRESS.md` as `m5-d15-PROGRESS.pre.md` (`plan/milestones/milestone-5.md:1353`, DIR-020). The copies are in the workspace, saved by mission-20261106-02 step 1, and the controls below read them. The copies taken before this step's own edits are `m5-d15-s5-*.pre.md`.
 
 **Automated checks**
 
-- [ ] `README.md` has an install section that links `doc/install.md` (`plan/milestones/milestone-5.md:1356`). Command: `TO EXPAND`.
+- [ ] `README.md` has an install section that links `doc/install.md` (`plan/milestones/milestone-5.md:1356`). Command: `grep -n '^## Install' README.md` and `grep -n 'doc/install.md' README.md` (rows 1 and 2). Control: `grep -c '^## Install'` on the step 1 copy prints 0 (row 3), so the check can fail. Result: PASS. The section is quoted under *What landed*.
 - [ ] Every line that `grep -n '0001–0007'` prints in the named files is a site the step report records as kept, with its reason (`plan/milestones/milestone-5.md:1357`). The M5 manual files are excluded, because they contain the string themselves. The Milestone 4 manual files do not contain it, so they are not excluded.
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && grep -rln '0001–0007' --include='*.md' . | grep -v '\.claude/memory/' | grep -v 'plan/milestones/' | grep -v -e 'plan/testing/manual/milestone-5.md' -e 'plan/testing/manual/user-testing/milestone-5-donovan.md'
   ```
 
-  Control, as commands (authored here). Each tracked file must hold the string at its pre-change text, so each line prints PASS:
+  Control, on the step 1 copies (authored here). Each copy must print a line that holds the range:
 
   ```bash
   # authored here
-  for f in plan/spec/kirsch-plan.md plan/adr/README.md plan/README.md AGENTS.md; do test "$(git -C /Volumes/DATA/Github/kirsch show HEAD:$f | grep -c '0001–0007')" -ge 1 && echo "PASS $f" || echo "FAIL $f"; done
+  cd /Volumes/DATA/Github/kirsch && for f in kirsch-plan adr-README plan-README AGENTS; do grep -n '0001–0007' .claude/memory/workspace/m5-d15-$f.pre.md; done
   ```
+
+  Result (row 5): each copy except `m5-d15-plan-README.pre.md` prints its line. The plan README copy prints nothing, because that file has not held the range since commit `4a50a76`. **Cannot pass as written.** The repo-wide grep also prints `plan/testing/manual/milestone-5.md`, which this box excludes but the milestone's copy of the box does not. The sites are judged under *What landed*. See *Open from m5-d15* (the *Acceptance box on "0001–0007"* item) in `plan/PROGRESS.md`.
 
 - [ ] `grep -n 'lint-screens.py' README.md` prints a line, and `grep -n 'every script is one line' README.md` prints nothing (`plan/milestones/milestone-5.md:1358`).
 
@@ -2726,16 +3279,18 @@ _Empty. Fill at run._
   cd /Volumes/DATA/Github/kirsch && grep -n 'every script is one line' README.md
   ```
 
-  Control, as a command (authored here). The pre-change `README.md` must hold the line, so this prints PASS:
+  Control, on the step 1 copy (authored here). The copy must hold the line, so this prints PASS:
 
   ```bash
   # authored here
-  test "$(git -C /Volumes/DATA/Github/kirsch show HEAD:README.md | grep -c 'every script is one line')" = 1 && echo "PASS control" || echo "FAIL control"
+  test "$(grep -c 'every script is one line' .claude/memory/workspace/m5-d15-README.pre.md)" = 1 && echo 'PASS control' || echo 'FAIL control'
   ```
 
-- [ ] `CHANGELOG.md:16` and `plan/PROGRESS.md:231` describe the narrow-width behaviour that m5-d1 built (`plan/milestones/milestone-5.md:1359`). Command: `TO EXPAND`. Review step.
-- [ ] `README.md:47` states the configured endpoints, in the wording O22 records (`plan/milestones/milestone-5.md:1360`). Command: `TO EXPAND`.
-- [ ] C21, C32, C33 and C42 are marked Resolved in `plan/PROGRESS.md`. C39 is marked Resolved with the 2026-10-23 check of `internal/config/config.go:44` cited beside it (`plan/milestones/milestone-5.md:1361`). Command: `TO EXPAND`.
+  Result: PASS control (row 7). The live check prints no line and exits 1 (row 6), so the box passes.
+
+- [ ] `CHANGELOG.md:16` and `plan/PROGRESS.md:231` describe the narrow-width behaviour that m5-d1 built (`plan/milestones/milestone-5.md:1359`). Command: `grep -n 'N tok' CHANGELOG.md` and `grep -n 'corrected 2026-11-06, m5-d15' plan/PROGRESS.md` (rows 8). The lines have moved: the CHANGELOG entry is line 22, not 16, and the tracker row is line 232, not 231. Result: the corrected entry says the `N tok` fallback applies at 80 columns and wider only, which is what `plan/spec/ui-spec-v0.1.md:131` says. Whether the code that m5-d1 built matches that is for the review step, which is mission-20261106-02 step 6 (`@apone`) and has not run. The box stays unticked until that review and the operator's own check.
+- [ ] `README.md:47` states the configured endpoints, in the wording O22 records (`plan/milestones/milestone-5.md:1360`). Command: `grep -n '^| Providers' README.md` (row 9). The row is now line 69, and it names the *built-in* endpoints, `opencode` and `anthropic`. **Cannot pass as written:** the box asks for *configured* endpoints. See *Open from m5-d15* (the X3 item) in `plan/PROGRESS.md`.
+- [ ] C21, C32, C33 and C42 are marked Resolved in `plan/PROGRESS.md`. C39 is marked Resolved with the 2026-10-23 check of `internal/config/config.go:44` cited beside it (`plan/milestones/milestone-5.md:1361`). Command: `grep -n 'Resolved 2026-11-06 (m5-d15)' plan/PROGRESS.md` and `grep -n 'checked on 2026-10-23' plan/PROGRESS.md` (row 10). Result: the marks sit on the rows for C21, C33 and C42, and on the rows for C32 and C39 for part of their scope. The C32 mark covers the settings clause only. The C39 mark covers the policy and config comments, and the grace-poll comments stay open. The C39 row cites the 2026-10-23 check. **Cannot pass as written** for C32 and C39. See *Open from m5-d15* (the C39 item) in `plan/PROGRESS.md`.
 - [ ] `plan/adr/README.md:64` status wording is unchanged (`plan/milestones/milestone-5.md:1362`).
 
   ```bash
@@ -2743,7 +3298,7 @@ _Empty. Fill at run._
   cd /Volumes/DATA/Github/kirsch && grep -c 'Accepted (planning phase' .claude/memory/workspace/m5-d15-adr-README.pre.md
   ```
 
-  The printed counts must match.
+  The printed counts must match. Result: 1 and 1, so PASS (row 11).
 
 **Hands-on checks**
 
@@ -2753,11 +3308,180 @@ _Empty. Fill at run._
    cd /Volumes/DATA/Github/kirsch && ls plan/adr/
    ```
 
-2. Record the judgement for each "0001–0007" site (DIR-004). The milestone lists `plan/spec/kirsch-plan.md:392`, `plan/README.md:25` and `AGENTS.md:21`, plus `plan/adr/README.md:64`, which may stay as written. `CHANGELOG.md:21` is history and stays.
+   Result: the listing is in *Notes / evidence* (row 12).
+
+2. Record the judgement for each "0001–0007" site (DIR-004). The milestone lists `plan/spec/kirsch-plan.md:392`, `plan/README.md:25` and `AGENTS.md:21`, plus `plan/adr/README.md:64`, which may stay as written. `CHANGELOG.md:21` is history and stays. Recorded under *What landed*. The spec line is now 391, not 392. `plan/README.md` no longer carries the range, so there is nothing at line 25 to judge. `CHANGELOG.md` is now at line 27, and `plan/adr/README.md` at line 65.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+Run by `@lambert` in mission-20261106-02, step 5, on 2026-11-06, from `/Volumes/DATA/Github/kirsch`. Every command is read-only, and no key or model is used. The operator has not yet tested section 23 of the plain checklist.
+
+**Claims and the command that checks each**
+
+| Row | Claim | Command in the executed block | Result |
+|---|---|---|---|
+| 1 | `README.md` has an Install section. | `grep -n '^## Install' README.md` | Line 23. |
+| 2 | The install section links `doc/install.md`, and the target exists. | `grep -n 'doc/install.md' README.md`; `test -f doc/install.md` | Lines 25, 27 and 36 hold the link. The file is present. |
+| 3 | The step 1 copy has no Install section, so the control can fail. | `grep -c '^## Install' .claude/memory/workspace/m5-d15-README.pre.md` | 0, exit 1. |
+| 4 | The range sits only at the sites in *What landed*. | `grep -rln '0001–0007'` in the milestone's repo-wide form; `grep -n '0001–0007'` on the live files | The files the repo-wide grep prints are the ones in the judgement table. |
+| 5 | The step 1 copies hold the range where the table says. | The `for f` loop over the step 1 copies | Each copy except `m5-d15-plan-README.pre.md` prints its line. The plan README copy prints nothing. |
+| 6 | The npm sentence names the Python script, and the old wording is gone. | `grep -n 'lint-screens.py' README.md`; `grep -n 'every script is one line' README.md` | Line 168 names the script. The old wording prints nothing and exits 1. |
+| 7 | The step 1 copy held the old wording, so the control can pass. | `test "$(grep -c ...)" = 1` | PASS control. |
+| 8 | The X2 corrections sit beside the originals. | `grep -n 'N tok' CHANGELOG.md`; `grep -n 'corrected 2026-11-06, m5-d15' plan/PROGRESS.md` | CHANGELOG line 22 is the m4-d9 entry, with the correction after the original. Line 12 is the new bullet that names it. Tracker line 232 is the m4-d9 row. |
+| 9 | The Providers row names the built-in endpoints. | `grep -n '^| Providers' README.md` | Line 69. |
+| 10 | The Resolved marks are present, and C39 cites the 2026-10-23 check. | `grep -n 'Resolved 2026-11-06 (m5-d15)' plan/PROGRESS.md`; `grep -n 'checked on 2026-10-23' plan/PROGRESS.md` | Rows at lines 129, 151, 152, 158 and 172. Row 158 holds the check. |
+| 11 | The ADR status wording is unchanged. | The `grep -c 'Accepted (planning phase'` lines, on the live file and the copy | 1 and 1. |
+| 12 | The ADR files on disk run from 0001 to 0012. | `ls plan/adr/` | Listed in the block. |
+| 13 | The W1 cite is gone from the milestone, and the W4 sentence is gone from the milestone. The master guide had no such sentence before this step, and it now quotes the phrase only in this section. | `grep -c 'main.go:274' plan/milestones/milestone-5.md`; `grep -c 'unless O4 changes' plan/milestones/milestone-5.md` | 0; 0. |
+| 14 | The W3 list at line 476 names `workspace`, `new`, `debug` and `version`. | `sed -n '476p' ... \| grep -o` | The names are printed as the list. |
+| 15 | The W2 sentence is dated, not present tense. | `sed -n '5p' ... \| grep -o` | The clause reads "in that step". |
+| 16 | No operator tick or verdict was in this section before this step. | The DIR-020 `awk` check | Exit 1, no lines. Nothing was overwritten. |
+
+**Executed block** (the output is verbatim, and each `exit=` line is that command's real exit status):
+
+```text
+### DIR-020 check: operator ticks or verdicts already in section 23 of the master guide
+$ awk '/^## 23 · /{f=1} /^## 24 · /{f=0} f' plan/testing/manual/milestone-5.md | grep -n -E '\[✅\]|\[❌\]|operator (passed|tested)'
+exit=1
+
+### Box: install section
+$ grep -n '^## Install' README.md
+23:## Install
+exit=0
+
+$ grep -n 'doc/install.md' README.md | cut -c1-80
+25:> **v0.1.0 is not published yet.** Until it is, build Kirsch from a clone of 
+27:Build from a clone. These are the commands from the *Build from source* secti
+36:You need Go and `git`. [`doc/install.md`](doc/install.md) gives the Go versio
+exit=0
+
+$ test -f doc/install.md && echo 'doc/install.md is present'
+doc/install.md is present
+exit=0
+
+$ grep -c '^## Install' .claude/memory/workspace/m5-d15-README.pre.md
+0
+exit=1
+
+### Box: 0001–0007, repo-wide as the milestone box writes it
+$ grep -rln '0001–0007' --include='*.md' . | grep -v '\.claude/memory/' | grep -v 'plan/milestones/'
+./CHANGELOG.md
+./plan/adr/README.md
+./plan/spec/kirsch-plan.md
+./plan/PROGRESS.md
+./plan/testing/manual/milestone-5.md
+exit=0
+
+### Box: 0001–0007, live sites
+$ grep -n '0001–0007' plan/spec/kirsch-plan.md plan/adr/README.md plan/README.md AGENTS.md CHANGELOG.md | cut -c1-140
+plan/spec/kirsch-plan.md:391:- Design docs are already settled, not drafts: `plan/spec/architecture.md`, `plan/spec/ui-spec-v0.1.md`, `plan/
+plan/adr/README.md:65:ADRs 0001–0007 were written during planning, and most still carry the status "Accepted (planning phase; no code yet)".
+CHANGELOG.md:27:  and ADRs 0001–0007.
+exit=0
+
+$ grep -n '0001–0007' plan/PROGRESS.md | cut -c1-100
+593:- **Acceptance box on "0001–0007" (m5-d15, cannot be satisfied as written):** the m5-d15 accepta
+exit=0
+
+### Box: 0001–0007, control on the step 1 pre-copies
+$ for f in kirsch-plan adr-README plan-README AGENTS; do echo "-- $f.pre.md"; grep -n '0001–0007' .claude/memory/workspace/m5-d15-$f.pre.md | cut -c1-140; done
+-- kirsch-plan.pre.md
+391:- Design docs are already settled, not drafts: `plan/spec/architecture.md`, `plan/spec/ui-spec-v0.1.md`, `plan/spec/kirsch-ui-screens.md
+-- adr-README.pre.md
+65:ADRs 0001–0007 were written during planning, and most still carry the status "Accepted (planning phase; no code yet)". That parenthetical
+-- plan-README.pre.md
+-- AGENTS.pre.md
+21:| Why was X decided? | [`plan/adr/`](plan/adr/) — ADRs 0001–0007 |
+exit=0
+
+### Box: lint-screens and npm sentence
+$ grep -n 'lint-screens.py' README.md
+168:`python3 scripts/lint-screens.py`.
+exit=0
+
+$ grep -n 'every script is one line' README.md
+exit=1
+
+$ grep -n 'every script is one line' .claude/memory/workspace/m5-d15-README.pre.md | cut -c1-140
+143:`npm` is a front door, not a dependency — every script is one line of `go` or
+exit=0
+
+$ test "$(grep -c 'every script is one line' .claude/memory/workspace/m5-d15-README.pre.md)" = 1 && echo 'PASS control' || echo 'FAIL control'
+PASS control
+exit=0
+
+### Box: X2 narrow width
+$ grep -n 'N tok' CHANGELOG.md | cut -c1-120
+12:- **The README has an Install section, and the narrow-width `N tok` claim is corrected.** The new *Install* section i
+22:- **Milestone 4, m4-d9 — Token and Cost Tracking.** `usage` events → `usage.json` cumulative totals (prompt, completi
+exit=0
+
+$ grep -n 'corrected 2026-11-06, m5-d15' plan/PROGRESS.md | cut -c1-80
+232:| 2026-10-17 | m4-d9 — token and cost tracking | `mission-20261017-05`. `usa
+exit=0
+
+### Box: Providers row
+$ grep -n '^| Providers' README.md | cut -c1-150
+69:| Providers | One wire format for v0.1 (Anthropic Messages), with the built-in endpoints `opencode` (OpenCode Go, the default) and `anthropic` |
+exit=0
+
+### Box: Resolved marks and C39 check
+$ grep -n 'Resolved 2026-11-06 (m5-d15)' plan/PROGRESS.md | cut -c1-70
+129:- **(routed to m3-d6) `max_turns_exceeded` error-card rendering:**
+151:- **Unwired settings and hooks:** `allow_session_scoped_grants`, `
+152:- **Configured command timeout ignored:** `run_command` never read
+158:- **Stale code comments:** `internal/policy/policy.go:57` and `int
+172:- **Deferred review suggestion — `usage.json` cost field:** the `U
+exit=0
+
+$ grep -n 'checked on 2026-10-23' plan/PROGRESS.md | cut -c1-70
+158:- **Stale code comments:** `internal/policy/policy.go:57` and `int
+exit=0
+
+### Box: ADR status wording
+$ grep -c 'Accepted (planning phase' plan/adr/README.md
+1
+exit=0
+
+$ grep -c 'Accepted (planning phase' .claude/memory/workspace/m5-d15-adr-README.pre.md
+1
+exit=0
+
+### Hands-on 1: ADR files
+$ ls plan/adr/
+0001-go-bubble-tea.md
+0002-jsonl-session-store.md
+0003-provider-abstraction.md
+0004-workspace-confinement.md
+0005-patch-only-editing.md
+0006-session-scoped-approvals.md
+0007-untrusted-tool-output.md
+0008-provider-endpoints.md
+0009-planning-layout-from-m6.md
+0010-model-catalog-and-roles.md
+0011-wire-format-adapters.md
+0012-execution-seam.md
+README.md
+TEMPLATE.md
+exit=0
+
+### Carried items in the Landed paragraph
+$ grep -c 'main.go:274' plan/milestones/milestone-5.md
+0
+exit=1
+
+$ grep -c 'unless O4 changes' plan/milestones/milestone-5.md
+0
+exit=1
+
+$ sed -n '476p' plan/milestones/milestone-5.md | grep -o '(`workspace`, `new`, `debug`, and `version`'
+(`workspace`, `new`, `debug`, and `version`
+exit=0
+
+$ sed -n '5p' plan/testing/manual/milestone-5.md | grep -o 'goreleaser is not installed, and no install was allowed in that step'
+goreleaser is not installed, and no install was allowed in that step
+exit=0
+```
 
 ---
 
@@ -2878,7 +3602,7 @@ Then paste the whole Guard functions block from *Setup* (it defines `storage_ok`
 
 These steps need two terminals, and both use the scratch paths from Setup. Instance 1 is the Setup terminal. Instance 2 is a second terminal that shares its paths. Do not run Setup again in the second terminal: it would make new folders, and the lock would not be shared. The lock is per workspace, so both launches use `--workspace "$WORKSPACE"`.
 
-1. **Instance 1 starts, with no key (operator; the Setup terminal).** Working directory: `$T_CFG`. Workspace: `--workspace "$WORKSPACE"`. Key state: unset.
+1. (operator) **Instance 1 starts, with no key (the Setup terminal).** Working directory: `$T_CFG`. Workspace: `--workspace "$WORKSPACE"`. Key state: unset.
 
    ```bash
    cd "$T_CFG"
@@ -2887,7 +3611,7 @@ These steps need two terminals, and both use the scratch paths from Setup. Insta
 
    Expected: kirsch's screen opens and keeps running. With no key set, it shows the no-key notice and does not stop. That is read from the code, not run: `App.CheckOnboarding` sends `NoAPIKey` to the screen (`internal/app/app.go:1318–1333`), and `keyResult` (`internal/doctor/probes.go`) records that kirsch starts. Opening the screen creates `$T_STATE/sessions/<hash>` and its `.lock` (`internal/session/lock.go:34, :42`). Leave this terminal open until step 4.
 
-2. **Instance 2 reads the lock (operator; the second terminal, after the attach block above).** Working directory: `$T_CFG`. Workspace: `--workspace "$WORKSPACE"`.
+2. (operator) **Instance 2 reads the lock (the second terminal, after the attach block above).** Working directory: `$T_CFG`. Workspace: `--workspace "$WORKSPACE"`.
 
    ```bash
    cd "$T_CFG"
@@ -2896,11 +3620,11 @@ These steps need two terminals, and both use the scratch paths from Setup. Insta
 
    Expected: a line `warn  lock: held by another kirsch in this workspace; a new start would skip resume and session grants`, a line starting `ok  state:` that names `$T_STATE/sessions/<hash>` and ends `exists and is writable`, and `exit=0`. The held wording is read from the code (`internal/doctor/state.go:274`, corrected at step 4e from the stale `:170`) and tested by `TestLockLineHeldThenFree`. This step is its live check, and it has not been run live by the agent, which cannot start a second live instance.
 
-3. **Instance 1 is not disturbed (operator; the second terminal, then the first).** Paste the step 2 command again in the second terminal. Expected: the same `warn  lock:` line. Then look at the first terminal: kirsch's screen is still open. Type nothing in the first terminal.
+3. (operator) **Instance 1 is not disturbed (the second terminal, then the first).** Paste the step 2 command again in the second terminal. Expected: the same `warn  lock:` line. Then look at the first terminal: kirsch's screen is still open. Type nothing in the first terminal.
 
-4. **Quit instance 1, then the lock reads free (operator; the first terminal, then the second).** In the first terminal, type `/quit` and press Enter. kirsch closes. In the second terminal, paste the step 2 command again. Expected: `ok  lock: free` and `exit=0`. The `.lock` file stays on disk after kirsch closes. That is normal: the release unlocks and closes the file (`internal/session/lock.go:63–76`) and does not delete it. That is why the line reads `free` and not `free (no lock file yet)`. The release happens when the app closes (`internal/app/app.go:827–829`).
+4. (operator) **Quit instance 1, then the lock reads free (the first terminal, then the second).** In the first terminal, type `/quit` and press Enter. kirsch closes. In the second terminal, paste the step 2 command again. Expected: `ok  lock: free` and `exit=0`. The `.lock` file stays on disk after kirsch closes. That is normal: the release unlocks and closes the file (`internal/session/lock.go:63–76`) and does not delete it. That is why the line reads `free` and not `free (no lock file yet)`. The release happens when the app closes (`internal/app/app.go:827–829`).
 
-5. **The state folder is the test folder (operator; the second terminal).**
+5. (operator) **The state folder is the test folder (the second terminal).**
 
    ```bash
    ls "$T_STATE/sessions"
@@ -2908,7 +3632,7 @@ These steps need two terminals, and both use the scratch paths from Setup. Insta
 
    Expected: the folder name listed matches the name at the end of the path on the `ok  state:` line from step 2.
 
-6. **Optional: an unwritable state folder (second terminal, after step 4 has closed instance 1).** This changes the mode of `$T_STATE` only, and the same block puts the mode back. Authored here; no key is used.
+6. (operator) **Optional: an unwritable state folder (second terminal, after step 4 has closed instance 1).** This changes the mode of `$T_STATE` only, and the same block puts the mode back. Authored here; no key is used.
 
    ```bash
    # authored here
@@ -3141,48 +3865,174 @@ exit=0
 
 ## 26 · `/new` busy state and turn fencing: C48, C49 (optional) (m5-d17b)
 
-**Context:** Terminal: Setup. Binary: `go test` for the checks; `kirsch` for the C49 reproduction (TO EXPAND). Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on each reproduction launch. Key state: all key variables unset for the checks; key entered for this live step for the C49 reproduction only. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: `go test` only; no kirsch launch in this section. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a; the tests use temporary folders. Key state: all key variables unset. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d17b lands:** the reproductions of C48 and C49 on the pre-fix code, and the generation counter as built.
+This section is automated only. C48 and C49 were each reproduced as a test on the code before the fix, and the fixes are checked by the tests under *Automated checks*. No kirsch launch and no model call is involved, so no key is used.
 
-**Waits on:** m5-d8 (shared `update.go`), m5-d17a (shared `app.go`), and O13 (scheduling), from `plan/milestones/milestone-5.md:121`.
+**Reproductions on the code before the fix.** The blocks below are the raw output kept in `.claude/memory/workspace/m5-d17b-raw/`, copied as written. The line numbers in them (for example `new_pending_test.go:81`) are for the test files as they stood at the reproduction, not the current files. The raw files have no `exit=` line, and none is added here.
 
-**Key-state check before the live step.** Authored here. It must print `CONTROL PASS`, then `0` before any key is entered.
+C48, from `.claude/memory/workspace/m5-d17b-raw/c48-prefix.txt`:
 
-```bash
-# authored here
-keycount_control
-keycount
 ```
+--- FAIL: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages (0.05s)
+    --- FAIL: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnCompleteMsg (0.01s)
+        new_pending_test.go:81: after tui.TurnCompleteMsg: busy = {false ""}, want {true "new session"}
+        new_pending_test.go:91: after tui.TurnCompleteMsg: Enter during /new reached Submit 1 time(s), want 0
+        new_pending_test.go:94: after tui.TurnCompleteMsg: Enter during /new left 1 error card(s), want the 0 already there
+    --- FAIL: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnErrorMsg (0.00s)
+        new_pending_test.go:81: after tui.TurnErrorMsg: busy = {false ""}, want {true "new session"}
+        new_pending_test.go:91: after tui.TurnErrorMsg: Enter during /new reached Submit 1 time(s), want 0
+        new_pending_test.go:94: after tui.TurnErrorMsg: Enter during /new left 2 error card(s), want the 1 already there
+    --- FAIL: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ErrorMsg (0.00s)
+        new_pending_test.go:81: after tui.ErrorMsg: busy = {false ""}, want {true "new session"}
+        new_pending_test.go:91: after tui.ErrorMsg: Enter during /new reached Submit 1 time(s), want 0
+        new_pending_test.go:94: after tui.ErrorMsg: Enter during /new left 2 error card(s), want the 1 already there
+    --- FAIL: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ManualCompactMsg (0.00s)
+        new_pending_test.go:81: after tui.ManualCompactMsg: busy = {false ""}, want {true "new session"}
+        new_pending_test.go:91: after tui.ManualCompactMsg: Enter during /new reached Submit 1 time(s), want 0
+        new_pending_test.go:94: after tui.ManualCompactMsg: Enter during /new left 1 error card(s), want the 0 already there
+    --- FAIL: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ToolStartedMsg (0.00s)
+        new_pending_test.go:81: after tui.ToolStartedMsg: busy = {true "read_file"}, want {true "new session"}
+    --- FAIL: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/AssistantTextDeltaMsg (0.00s)
+        new_pending_test.go:81: after tui.AssistantTextDeltaMsg: busy = {true "thinking"}, want {true "new session"}
+    --- FAIL: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/CompactingMsg (0.00s)
+        new_pending_test.go:81: after tui.CompactingMsg: busy = {true "compacting"}, want {true "new session"}
+FAIL
+FAIL	github.com/djm56/kirsch/internal/tui	0.284s
+FAIL
+```
+
+The failing subtests are `TurnCompleteMsg`, `TurnErrorMsg`, `ErrorMsg`, `ManualCompactMsg`, `ToolStartedMsg`, `AssistantTextDeltaMsg` and `CompactingMsg`. In each, busy was not `new session` after the late message. For the first four, the raw lines also show Enter during `/new` reaching `Submit`.
+
+C49, from `.claude/memory/workspace/m5-d17b-raw/c49-prefix.txt`:
+
+```
+--- FAIL: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns (0.53s)
+    session_fence_test.go:102: 5 old-turn message(s) delivered after NewSession returned: []interface {}{tui.BudgetMsg{EstimatedTokens:4997, ContextWindow:30000}, tui.TurnCompleteMsg{}, tui.SessionUsageMsg{TokensIn:7, TokensOut:3, CacheRead:0, CacheWrite:0, CostUSD:0, CostState:"flat", ModelKnown:true}, tui.UsageMsg{InputTokens:7, OutputTokens:3, CacheReadTokens:0, CacheWriteTokens:0}, tui.AssistantTextDeltaMsg{BlockID:1, Delta:"late reply"}}
+FAIL
+FAIL	github.com/djm56/kirsch/internal/app	1.019s
+FAIL
+```
+
+The five messages named in the failure line are `BudgetMsg`, `TurnCompleteMsg`, `SessionUsageMsg`, `UsageMsg` and `AssistantTextDeltaMsg`. They were delivered after `NewSession` returned.
+
+**Both reproductions were run against earlier drafts of their tests.** The C49 draft is recorded in the step 2 review (`.claude/memory/missions/mission-20261105-09/PROGRESS.md`, row 2, item S3), and the C49 test was reworked in steps 2a and 2c. Neither reproduction has been run again against the final tests.
+
+**The fixes.**
+
+- **C48, `internal/tui/update.go`.** `Model.Update` (`:279`) wraps `update` (`:292`). While `/new` is pending, it puts `busy` back to what it was on entry, whatever `update` wrote. The rest of the message's effect (cards, notices, token figures) is kept. `NewSessionDoneMsg` (`:360`) ends the hold: it clears `newSessionPending` and busy.
+- **C49, `internal/app/app.go`.** `sessionGen` (`:412`) is an atomic counter of installed sessions. `installSession` advances it at its end (`:1376`, through `bumpGeneration` at `:1914`), under `genMu`. The turn's senders, `send` (`:1946`) and `sendAsyncSequenceFenced` (`:2011`), deliver only through `deliverIfCurrent` (`:1925`). A message whose generation is no longer current is dropped, so turn messages from the old session's work do not arrive after `/new` installs the new session. `Resolve` is not fenced (see S-4 below).
+- **The structural pin.** `TestTurnPathsUseOnlyFencedSenders` (`internal/app/session_fence_test.go:839`) fails when a function in package app calls an unfenced sender and is not on the `knownUnfenced` allowlist (`internal/app/session_fence_test.go:608`).
+
+The change went through the Code-Quality Pipeline. @hicks did step 1 and fix rounds 2a and 2c. The round trigger then escalated the work to @vasquez (steps 2e and 2g), and the final review (step 2h, @apone) approved it.
+
+**Mutant record.** The table is taken from the step reports of @hicks (steps 1, 2a and 2c) and @vasquez (steps 2e and 2g), as recorded in `.claude/memory/missions/mission-20261105-09/PROGRESS.md` (rows 1, 2a, 2c, 2e and 2g). It is from the step reports; not re-run in this step. The step 1 mutants M1 to M6 are not itemised in that record.
+
+| Step | Mutant | Result as reported |
+|------|--------|--------------------|
+| 1 (@hicks) | M1 to M6 | fail |
+| 1 | M7 (context generation in `RunTurn`) | survived |
+| 2a (@hicks) | M7, M8, M9 and the W2 mutant | fail |
+| 2a | Not individually mutated: Submit's refusal sends and its `TryLock` refusal | not mutated |
+| 2c (@hicks) | M7, re-run | fail |
+| 2e (@vasquez) | M-flush, M-usage, M-arg, M7, M-card, M-fail and M-presence | fail |
+| 2g (@vasquez) | hold removed; a new helper; `flushStore` left unfenced | fail |
+
+**Waits on:** m5-d8 (shared `update.go`) and m5-d17a (shared `app.go`), both done, and O13 (scheduling), recorded in `plan/PROGRESS.md`, from `plan/milestones/milestone-5.md:121`.
 
 **Automated checks**
 
-- [ ] A test shows that pressing Enter while `/new` is pending shows no error card (`plan/milestones/milestone-5.md:1482`). Command: `TO EXPAND`.
-- [ ] A test shows that a message carrying a cancelled turn's generation is dropped (`plan/milestones/milestone-5.md:1483`). Command: `TO EXPAND`.
-- [ ] The C48 test fails on the pre-fix code, and the failing output is pasted (`plan/milestones/milestone-5.md:1485`). Command: `TO EXPAND`.
+The commands are authored here, not quoted from the milestone. Each output is pasted as Bishop captured it on 2026-11-05, after step 3, with its `exit=` line. Your times will differ a little, and that is normal.
 
-**Hands-on checks**
+- [ ] A test shows that pressing Enter while `/new` is pending shows no error card (`plan/milestones/milestone-5.md:1494`). Tests: `TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages` (`internal/tui/new_pending_test.go:61`), `TestManualCompactMsgDuringNewAfterBusyClearedMidCompaction` (`:204`) and `TestNewSessionDoneEndsBusyAfterLateTurnMessages` (`:151`). Command and output below.
+- [ ] A test shows that a message carrying a cancelled turn's generation is dropped (`plan/milestones/milestone-5.md:1495`). Tests: `TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns` (`internal/app/session_fence_test.go:223`), `TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne` (`:442`) and `TestTurnPathsUseOnlyFencedSenders` (`:839`). Command and output below.
+- [ ] The C48 test fails on the pre-fix code, and the failing output is pasted (`plan/milestones/milestone-5.md:1497`). The pasted output is under *Reproductions on the code before the fix*, above. The caveat on the earlier drafts applies there.
 
-1. Reproduce C48 and C49 on the current code before any change. Record the command or test run and its output for each (`plan/milestones/milestone-5.md:1477`).
+```bash
+# authored here
+go test -count=1 ./internal/tui/ -run 'TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages$|TestManualCompactMsgDuringNewAfterBusyClearedMidCompaction$|TestNewSessionDoneEndsBusyAfterLateTurnMessages$' -v; echo "exit=$?"
+```
 
-   The C49 reproduction contacts the provider: it is live, it needs a key, and it spends tokens. It needs turns, and there is no offline path yet. Enter the key only for that run, with the live-key block in *Setup* (`read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY`), and only for the C49 reproduction command.
+```
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/control:_UsageMsg_touches_no_busy_state
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnCompleteMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnCancelledMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnErrorMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ErrorMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ManualCompactMsg_(delivered_directly,_no_/compact_run)
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ToolStartedMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/AssistantTextDeltaMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/CompactingMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/positive_control:_no_/new_pending,_Enter_reaches_Submit
+--- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages (0.05s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/control:_UsageMsg_touches_no_busy_state (0.01s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnCompleteMsg (0.01s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnCancelledMsg (0.01s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnErrorMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ErrorMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ManualCompactMsg_(delivered_directly,_no_/compact_run) (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ToolStartedMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/AssistantTextDeltaMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/CompactingMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/positive_control:_no_/new_pending,_Enter_reaches_Submit (0.00s)
+=== RUN   TestNewSessionDoneEndsBusyAfterLateTurnMessages
+=== RUN   TestNewSessionDoneEndsBusyAfterLateTurnMessages/success
+=== RUN   TestNewSessionDoneEndsBusyAfterLateTurnMessages/failure
+--- PASS: TestNewSessionDoneEndsBusyAfterLateTurnMessages (0.01s)
+    --- PASS: TestNewSessionDoneEndsBusyAfterLateTurnMessages/success (0.00s)
+    --- PASS: TestNewSessionDoneEndsBusyAfterLateTurnMessages/failure (0.00s)
+=== RUN   TestManualCompactMsgDuringNewAfterBusyClearedMidCompaction
+--- PASS: TestManualCompactMsgDuringNewAfterBusyClearedMidCompaction (0.00s)
+PASS
+ok  	github.com/djm56/kirsch/internal/tui	0.689s
+exit=0
+```
 
-   > **TO EXPAND when m5-d17b lands:** the reproduction commands for each.
+```bash
+# authored here
+go test -count=1 ./internal/app/ -run 'TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns$|TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne$|TestTurnPathsUseOnlyFencedSenders$' -v; echo "exit=$?"
+```
 
-   **Key-state check, last** (authored here). The key does not outlive the live step. The count after the unset must print `CONTROL PASS`, then `0`.
-
-   ```bash
-   # authored here
-   unset ANTHROPIC_API_KEY KIRSCH_ANTHROPIC_API_KEY OPENCODE_API_KEY KIRSCH_OPENCODE_API_KEY
-   keycount_control
-   keycount
-   ```
+```
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/BudgetMsg
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/AssistantTextDeltaMsg
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/final_turn_message
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/Submit_refusal
+--- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns (1.66s)
+    --- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/BudgetMsg (0.38s)
+    --- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/AssistantTextDeltaMsg (0.52s)
+    --- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/final_turn_message (0.47s)
+    --- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/Submit_refusal (0.29s)
+=== RUN   TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne
+--- PASS: TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne (0.22s)
+=== RUN   TestTurnPathsUseOnlyFencedSenders
+=== RUN   TestTurnPathsUseOnlyFencedSenders/package_app
+=== RUN   TestTurnPathsUseOnlyFencedSenders/control
+--- PASS: TestTurnPathsUseOnlyFencedSenders (0.01s)
+    --- PASS: TestTurnPathsUseOnlyFencedSenders/package_app (0.01s)
+    --- PASS: TestTurnPathsUseOnlyFencedSenders/control (0.00s)
+PASS
+ok  	github.com/djm56/kirsch/internal/app	2.406s
+exit=0
+```
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+The boxes above are unticked. The operator ticks them.
+
+Carried items. None of these is fixed by m5-d17b. Each is recorded in `plan/PROGRESS.md` under *Open from m5-d17b*.
+
+- **W-A, for the operator to schedule.** The `ErrorMsg` case clears busy unconditionally (`internal/tui/update.go:379`). During `/compact` that lets typed text reach `Submit`, and the app's compaction refusal can then show as a stray error card. This is the C48 class, in `/compact`. The clearing is shown by the setup assertion of `TestManualCompactMsgDuringNewAfterBusyClearedMidCompaction` (`internal/tui/new_pending_test.go:218`). The Enter path (`internal/tui/update.go:807–810`) and the `/compact` guard (`internal/tui/update.go:1628`) are read from the code, not seen in a run. It needs its own step.
+- **W-B.** The comment at `internal/tui/update.go:1635` ("busy stays active until that message arrives") is no longer accurate, because W-A can clear busy first. It is not changed here.
+- **S-1.** `internal/app/session_fence_test.go:30–32` has an overlong line in the file header. It needs reflowing, and is not changed here.
+- **S-2.** The control subtest of `TestTurnPathsUseOnlyFencedSenders` (`internal/app/session_fence_test.go:851`) runs against the live `knownUnfenced` and `fencedCallers` tables (`:608`, `:626`). The generation argument is matched by its spelling (`gen`, `currentGen()`, `turnGen()`), not by its value.
+- **S-3.** The wording of the `sessionGen` comment at `internal/app/app.go:399–400`. It is not changed here.
+- **S-4.** `Resolve` (`internal/app/app.go:2660`) sends a `NoticeMsg` (`:2713`) and an `ApprovalResolvedMsg` (`:2720`) through `sendAsyncSequence` (`:2725`), without the fence. @apone's step 2h review called this effectively unreachable after `/new` (in its report text; the review record on disk does not carry that sentence). Reachability after `/new` was not run. But `resetForNewSession` (`internal/tui/update.go:1227`) resets the transcript and not `approvalCards` (`internal/tui/model.go:186`). The comment at `internal/tui/update.go:1387–1396` calls the `!ok` branch unreachable, which is no longer true once the transcript is reset.
+- **The C48 and C49 drafts.** Both pre-fix reproductions were run against earlier drafts of their tests (see *Reproductions on the code before the fix*). Neither has been run again against the final tests.
 
 ---
 
@@ -3310,6 +4160,8 @@ keycount
 
    The crew runs the non-TUI steps only. Steps 7 and 8 need a terminal window and stay with the operator.
 
+   - [ ] (operator, not yet run) Re-check the first claim of the *No API key* paragraph against the screen. In a new Terminal window with no key set, first set this window to 80 columns wide and 24 rows tall. In Terminal, the Window settings for the profile hold the Columns and Rows fields. Then start a fresh session in a new temporary folder and a new temporary home: `FAKE_HOME="$(mktemp -d)" && cd "$(mktemp -d)" && git init -q . && env -i HOME="$FAKE_HOME" PATH="$PATH" TERM=xterm-256color /Volumes/DATA/Github/kirsch/bin/kirsch`. The onboarding should be on screen, with the `no previous session` notice beneath it. Compare with the 80 by 24 sample in section 18 (`plan/testing/manual/milestone-5.md:2302`, `:2308`); under `env -i` the dash in that notice is a plain `-`. A much shorter window shows the ordinary transcript instead of the onboarding. That is expected, not a failure. Quit with two `Ctrl+C`. Send no message. The paragraph's second claim, that a resumed session with messages does not show the onboarding, is not tested by this item, because a run with no key cannot keep a message (`internal/app/app.go:1385–1391` returns with an `auth` card before any session is stored). That half is approximated by the unit test `TestFirstNonNoticeItemEndsOnboarding` in `internal/tui/notice_onboarding_test.go:67`, which shows that a user item appended to a model in memory after a notice ends the onboarding. It does not load a saved session. This item is unticked because no run has been made yet.
+
    **Key-state check, last** (authored here). Remove the dummy or real key. The unset line clears every key variable. The count after the unset must print `CONTROL PASS`, then `0`.
 
    ```bash
@@ -3327,46 +4179,105 @@ _Empty. Fill at run._
 
 ## 28 · Resume totals and compaction % (optional) (m5-d18)
 
-**Context:** Terminal: Setup. Binary: `kirsch resume` and `/compact` (TO EXPAND). Working directory: `$WORKSPACE`, with `--workspace "$WORKSPACE"` on each launch. Workspace: `$WORKSPACE`. Key state: all key variables unset until the TO EXPAND below is resolved; then key entered for this live step. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: `go test` only; no kirsch launch in this section. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a; the tests use temporary folders. Key state: all key variables unset. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d18 lands:** the totals loader, and the compaction % values before and after `/compact` for the fixture.
+This section is automated only. The changes landed under m5-d18. On resume, the status bar's session totals are summed from the session log's `usage` events, not read from `usage.json`, which sits at the kirsch data root and holds the totals of every session that uses the same data root. After a manual `/compact`, `/status` shows the compaction % of the compacted conversation. Both are checked by the tests under *Automated checks*. No kirsch launch and no model call is involved, so no key is used.
+
+**Reproductions on the code before the fix.** The block below is copied from the step 1 report of mission-20261105-10 (@hicks). It is not re-run here. The line numbers in it are for the test files as they stood at the reproduction, not the current files.
+
+```
+--- FAIL: TestResumeLastSessionSendsLogTotalsToStatusBar (5.07s)
+    resume_usage_test.go:122: got 0 SessionUsageMsg after 5s, want 1: []tui.SessionUsageMsg(nil)
+--- FAIL: TestResumeLastSessionSendsZeroTotalsWithoutUsageEvents (5.05s)
+    resume_usage_test.go:162: got 0 SessionUsageMsg after 5s, want 1: []tui.SessionUsageMsg(nil)
+--- FAIL: TestResumeLastSessionTornUsageLine (5.05s)
+    resume_usage_test.go:189: got 0 SessionUsageMsg after 5s, want 1: []tui.SessionUsageMsg(nil)
+--- FAIL: TestManualCompactUpdatesStatusCompactionPercent (0.10s)
+    resume_usage_test.go:223: compaction % before /compact: 60
+    resume_usage_test.go:239: compaction % after /compact: 60 (estimate 9727 tokens)
+    resume_usage_test.go:241: compaction % after /compact is still 60: /status is stale
+```
 
 **Waits on:** m5-d17a (file ownership only; both own `internal/app/app.go`), and O13 (scheduling), from `plan/milestones/milestone-5.md:122`.
 
-**Key-state check before the live step.** Authored here. It must print `CONTROL PASS`, then `0` before any key is entered.
+**Automated checks**
+
+Each check below has one command, run as written, with its raw output pasted under it. Each output ends with its `exit=` line. The commands were run on 2026-11-05 by mission-20261105-10 (step 3). Your times will differ a little, and that is normal.
+
+- [ ] A test shows that after resume the status bar shows the session's totals before any new usage (`plan/milestones/milestone-5.md`, m5-d18 *Acceptance*, first box). Command and output below, first block. The test that proves it is `TestResumeLastSessionSendsLogTotalsToStatusBar`.
+- [ ] A test shows that the totals equal the sum of the session's `usage` events in a fixture log (`plan/milestones/milestone-5.md`, m5-d18 *Acceptance*, second box). Command and output below, second block. The test that proves it is `TestLoadUsageTotalsSumsUsageEvents`.
+- [ ] A test shows the compaction % before `/compact` is 60%, and after it is the value `Compact` returns, which differs from 60%. Both values are pasted (`plan/milestones/milestone-5.md`, m5-d18 *Acceptance*, third box). Command and output below, third block. The test that proves it is `TestManualCompactUpdatesStatusCompactionPercent`.
 
 ```bash
 # authored here
-keycount_control
-keycount
+go test -count=1 -v -run 'TestResumeLastSession|TestResumeCompletesPartialTurn' ./internal/app/; echo exit=$?
 ```
 
-**Automated checks**
+```
+=== RUN   TestResumeCompletesPartialTurn
+--- PASS: TestResumeCompletesPartialTurn (0.10s)
+=== RUN   TestResumeLastSessionNoSession
+--- PASS: TestResumeLastSessionNoSession (0.01s)
+=== RUN   TestResumeLastSessionSendsLogTotalsToStatusBar
+--- PASS: TestResumeLastSessionSendsLogTotalsToStatusBar (0.17s)
+=== RUN   TestResumeLastSessionSendsZeroTotalsWithoutUsageEvents
+--- PASS: TestResumeLastSessionSendsZeroTotalsWithoutUsageEvents (0.15s)
+=== RUN   TestResumeLastSessionTornUsageLine
+--- PASS: TestResumeLastSessionTornUsageLine (0.16s)
+=== RUN   TestResumeLastSessionAfterCloseIsRefused
+--- PASS: TestResumeLastSessionAfterCloseIsRefused (0.08s)
+PASS
+ok  	github.com/djm56/kirsch/internal/app	1.189s
+exit=0
+```
 
-- [ ] A test shows that after resume the status bar shows the session's totals before any new usage (`plan/milestones/milestone-5.md:1520`). Command: `TO EXPAND`.
-- [ ] A test shows that the totals equal the sum of the session's `usage` events in a fixture log (`plan/milestones/milestone-5.md:1521`). Command: `TO EXPAND`.
-- [ ] A test shows the compaction % before `/compact` is 60%, and after it is the value `Compact` returns, which differs from 60%. Both values are pasted (`plan/milestones/milestone-5.md:1522`). Command: `TO EXPAND`.
+```bash
+# authored here
+go test -count=1 -v -run 'TestLoadUsageTotals' ./internal/session/; echo exit=$?
+```
+
+```
+=== RUN   TestLoadUsageTotalsSumsUsageEvents
+--- PASS: TestLoadUsageTotalsSumsUsageEvents (0.01s)
+=== RUN   TestLoadUsageTotalsNoUsageEvents
+--- PASS: TestLoadUsageTotalsNoUsageEvents (0.01s)
+=== RUN   TestLoadUsageTotalsStopsAtTornLine
+--- PASS: TestLoadUsageTotalsStopsAtTornLine (0.01s)
+=== RUN   TestLoadUsageTotalsStopsAtUndecodableUsageEvent
+--- PASS: TestLoadUsageTotalsStopsAtUndecodableUsageEvent (0.01s)
+=== RUN   TestLoadUsageTotalsMissingFile
+--- PASS: TestLoadUsageTotalsMissingFile (0.00s)
+PASS
+ok  	github.com/djm56/kirsch/internal/session	0.638s
+exit=0
+```
+
+```bash
+# authored here
+go test -count=1 -v -run 'TestManualCompactUpdatesStatusCompactionPercent' ./internal/app/; echo exit=$?
+```
+
+```
+=== RUN   TestManualCompactUpdatesStatusCompactionPercent
+    resume_usage_test.go:224: compaction % before /compact: 60
+    resume_usage_test.go:240: compaction % after /compact: 37 (estimate 9727 tokens)
+--- PASS: TestManualCompactUpdatesStatusCompactionPercent (0.12s)
+PASS
+ok  	github.com/djm56/kirsch/internal/app	0.384s
+exit=0
+```
+
+The third block is the compaction check. Its before value is 60, from the line `compaction % before /compact: 60`. Its after value is 37, from the line `compaction % after /compact: 37 (estimate 9727 tokens)`. The after value differs from 60, as the milestone requires. The pre-fix run in the reproduction above showed 60 after `/compact`, which is why the check failed before the change.
 
 **Hands-on checks**
 
-1. Run a turn, quit, run `kirsch resume`, then `/compact` and `/status` (`plan/milestones/milestone-5.md:1524`).
-
-   > **TO EXPAND when m5-d18 lands:** whether a turn here reaches a provider. The milestone does not say whether a fake provider is used. Until this is expanded, do not run this step with a key set.
-
-   **Key-state check, last** (authored here). The key does not outlive the live step. The count after the unset must print `CONTROL PASS`, then `0`.
-
-   ```bash
-   # authored here
-   unset ANTHROPIC_API_KEY KIRSCH_ANTHROPIC_API_KEY OPENCODE_API_KEY KIRSCH_OPENCODE_API_KEY
-   keycount_control
-   keycount
-   ```
+Not authored here. The hands-on run in the *Manual test hook* of m5-d18 (`plan/milestones/milestone-5.md`) needs a model call, so it is not written into this section; it is optional.
 
 **Notes / evidence**
 
-_Empty. Fill at run. Record both compaction % values._
+The automated outputs above were captured on 2026-11-05 by mission-20261105-10 (step 3). The operator has not yet tested this section.
 
 ---
 
@@ -3398,31 +4309,76 @@ _Empty. Fill at run. Record the decision date, not an approver credential._
 
 ## 30 · Model table (conditional) (m5-d21a)
 
-**Context:** Terminal: Setup. Binary: `go test`. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: Setup. Binary: `go test` only; no kirsch launch in this section. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
 
 **What landed**
 
-> **TO EXPAND when m5-d21a lands, or record "no step":** the figures, dates and cache-write prices changed, from the m5-d20 decision.
+This section is automated only. The changes landed under m5-d21a (mission-20261105-11, 2026-11-05). One figure changed: `claude-sonnet-5-5` `CacheReadPerMTok` went from 0.2 to 0.1 in `internal/provider/models.go`. The line now reads `CacheReadPerMTok:  0.1,`.
+
+The decisions behind it are X5 and C9, quoted from `plan/PROGRESS.md` (*Milestone 5 — decisions recorded*, 2026-11-03). X5: "Operator accepted Bishop's recommendation ("Accept all (Recommended)", m5-d20 decision sheet): Re-read the model-table figures against the vendors' published pages, and update the table and its date (m5-d21a)." C9: "Operator accepted Bishop's recommendation ("Accept all (Recommended)", m5-d20 decision sheet): Check the cache-write prices against the vendors' published price pages and update the model table (m5-d21a)."
+
+The comments in `internal/provider/models.go` now name the pricing page and the overview page, and the date 2026-11-05. The 5-minute cache-write values are the published rates, and the cache-read comment names `claude-sonnet-5-5` at 5%. The other per-token figures and the context windows matched the pages, so they did not change. Haiku 4.5's 200K and 64K were not re-read. No kirsch launch and no model call is involved, so no key is used.
 
 **Waits on:** m5-d20 (the X5 and C9 decisions), from `plan/milestones/milestone-5.md:126`. Runs only if the operator changed the figures or dates (`plan/milestones/milestone-5.md:1661`).
 
 **Automated checks**
 
-- [ ] The table matches the recorded decision, and `go test ./internal/provider/` passes (`plan/milestones/milestone-5.md:1665`).
+Checks one and two each have one command, run as written, with its raw output pasted under it, and each output ends with its `exit=` line. Check three has no command and no pasted output: it is a process check, described under its box. The commands were run on 2026-11-05 by @lambert in mission-20261105-11 (step 3). Your times will differ a little, and that is normal.
 
-  ```bash
-  cd /Volumes/DATA/Github/kirsch && go test ./internal/provider/
-  ```
+- [ ] The table matches the recorded decision (`plan/milestones/milestone-5.md`, m5-d21a *Acceptance*, first box). Command and output below, first block. The test that proves the figures is `TestPublishedPerTokenFigures`. The other names in that `-run` pattern run the cost arithmetic against the same table.
+- [ ] `go test ./internal/provider/` passes (`plan/milestones/milestone-5.md`, m5-d21a *Acceptance*, first box). Command and output below, second block.
+- [ ] The review step is recorded in `plan/PROGRESS.md` (`plan/milestones/milestone-5.md`, m5-d21a *Acceptance*, second box). No command checks it. This is a process check: the review record is in `.claude/memory/missions/mission-20261105-11/PROGRESS.md`, which is the record of every step and review. `plan/PROGRESS.md` row 300 records only the status and the mission id, not the review steps. Whether that meets this box is the operator's call.
 
-- [ ] The review step is recorded in `plan/PROGRESS.md` (`plan/milestones/milestone-5.md:1666`). Process check.
+```bash
+# authored here
+go test -count=1 -v -run 'TestPublishedPerTokenFigures|TestCostPerTokenModel|TestCostAllPerTokenModels' ./internal/provider/; echo exit=$?
+```
+
+```
+=== RUN   TestCostPerTokenModel
+--- PASS: TestCostPerTokenModel (0.00s)
+=== RUN   TestCostAllPerTokenModels
+=== RUN   TestCostAllPerTokenModels/claude-sonnet-5-5
+=== RUN   TestCostAllPerTokenModels/claude-opus-5-5
+=== RUN   TestCostAllPerTokenModels/claude-fable-5-1
+=== RUN   TestCostAllPerTokenModels/claude-haiku-4-5-20251001
+--- PASS: TestCostAllPerTokenModels (0.00s)
+    --- PASS: TestCostAllPerTokenModels/claude-sonnet-5-5 (0.00s)
+    --- PASS: TestCostAllPerTokenModels/claude-opus-5-5 (0.00s)
+    --- PASS: TestCostAllPerTokenModels/claude-fable-5-1 (0.00s)
+    --- PASS: TestCostAllPerTokenModels/claude-haiku-4-5-20251001 (0.00s)
+=== RUN   TestPublishedPerTokenFigures
+=== RUN   TestPublishedPerTokenFigures/claude-sonnet-5-5
+=== RUN   TestPublishedPerTokenFigures/claude-opus-5-5
+=== RUN   TestPublishedPerTokenFigures/claude-fable-5-1
+=== RUN   TestPublishedPerTokenFigures/claude-haiku-4-5-20251001
+--- PASS: TestPublishedPerTokenFigures (0.00s)
+    --- PASS: TestPublishedPerTokenFigures/claude-sonnet-5-5 (0.00s)
+    --- PASS: TestPublishedPerTokenFigures/claude-opus-5-5 (0.00s)
+    --- PASS: TestPublishedPerTokenFigures/claude-fable-5-1 (0.00s)
+    --- PASS: TestPublishedPerTokenFigures/claude-haiku-4-5-20251001 (0.00s)
+PASS
+ok  	github.com/djm56/kirsch/internal/provider	0.640s
+exit=0
+```
+
+```bash
+# authored here
+cd /Volumes/DATA/Github/kirsch && go test -count=1 ./internal/provider/; echo exit=$?
+```
+
+```
+ok  	github.com/djm56/kirsch/internal/provider	0.408s
+exit=0
+```
 
 **Hands-on checks**
 
-1. Quote the recorded decision into the brief (`plan/milestones/milestone-5.md:1662`).
+Not authored here. No kirsch launch and no model call is involved, so this section has no hands-on checks.
 
 **Notes / evidence**
 
-_Empty. Fill at run, or write "no step" with the m5-d20 decision it rests on._
+The automated outputs above were captured on 2026-11-05 by @lambert in mission-20261105-11 (step 3). The operator has not yet tested this section.
 
 ---
 
@@ -3432,32 +4388,83 @@ _Empty. Fill at run, or write "no step" with the m5-d20 decision it rests on._
 
 **What landed**
 
-> **TO EXPAND when m5-d21b lands, or record "no step":** the footer text O16 records, and the fences that moved.
+This section is automated, with a hands-on step for the operator. The change landed under m5-d21b (mission-20261105-12, 2026-11-05). The help overlay's footer now names `docs: github.com/djm56/kirsch` where it named `docs: doc/usage.md`, in the footer ladder: the clipped variant at `internal/tui/modal.go:300` and the unclipped variant at `internal/tui/modal.go:308`. The decision is O16, quoted from `plan/PROGRESS.md` (*Milestone 5 — decisions recorded*, 2026-11-03): "Operator accepted Bishop's recommendation ("Accept all (Recommended)", m5-d20 decision sheet): The help footer's `docs: doc/usage.md` becomes `docs: github.com/djm56/kirsch`, because an installed binary has no `doc/` folder (m5-d21b)." X8 records the same decision, and O23 sets how the golden fences move.
 
-**Waits on:** m5-d20 (O16 recorded), and O23 (golden handling), from `plan/milestones/milestone-5.md:127`. The footer is at `internal/tui/modal.go:308`.
+The sized fence that moved is `## 06 · Help overlay` (80×28) in `plan/spec/kirsch-ui-screens.md`. Its footer row is line 405 of that file, and it now reads `kirsch v0.1.0-dev · Esc or ? closes`. No other sized fence moved. The unsized footer row of the colour legend, and a bullet under fence 06 that states the width condition, were also edited.
 
-**Before any edit.** Save a verbatim copy of `plan/spec/kirsch-ui-screens.md` to `.claude/memory/workspace/` before the edit, as the golden procedure requires (`plan/milestones/milestone-5.md:50`). Name it with the m5-d21b prefix, for example `m5-d21b-kirsch-ui-screens.pre.md`. This name is chosen here.
+The docs link shows only when the help box is wide enough for the full rung. At 80 columns it does not show, and the golden fence `## 06 · Help overlay` pins that. On terminals wide enough for the full footer it shows: `TestHelpFooterNamesScrollKeysWhenClipped` asserts the link at 120×27 (clipped body) and at 120×30 (whole body), and those cases pass. No terminal run in this section measured where the link starts. Those widths are worked out from the code, with their conditions, in *Open from m5-d21b* in `plan/PROGRESS.md`. A different version string changes them.
+
+The steps and their reviews are recorded in `.claude/memory/missions/mission-20261105-12/PROGRESS.md`. This section does not repeat them.
+
+**Waits on:** m5-d20 (O16, recorded) and O23 (golden handling, recorded), from `plan/milestones/milestone-5.md:127`. The footer rungs that carry the link are at `internal/tui/modal.go:300` and `:308`.
+
+**Before any edit.** Verbatim copies exist, as the golden procedure requires (*Golden mechanism and regeneration procedure*, step 2). `.claude/memory/workspace/m5-d21b-screens.pre.md` is the spec before step 1 changed it, and it is the base of the golden diff below. `.claude/memory/workspace/m5-d21b-docs-pre/plan_spec_kirsch-ui-screens.md` is the spec as step 1 left it, before this docs step. They sit in `workspace/`, so the next mission init archives them and does not delete them.
 
 **Automated checks**
 
-- [ ] Golden check, procedure step 5 (`plan/milestones/milestone-5.md:53`):
+Each command below is run as written, from the kirsch folder, and its raw output is pasted under it. Each output ends with its `exit=` line. The commands were run on 2026-11-05 by @lambert in mission-20261105-12 (step 3), after the spec edit, so the screen check reads the spec as it now stands. Your times will differ a little, and that is normal.
+
+- [ ] The footer matches O16 (`plan/milestones/milestone-5.md`, m5-d21b *Acceptance*, first box). The test that proves it is `TestHelpFooterNamesScrollKeysWhenClipped` (`internal/tui/header_test.go`). Within its loop, the 120×27 case (clipped body) asserts that the footer contains `docs: github.com/djm56/kirsch` and does not contain `docs: doc/usage.md`, and the 120×30 case (whole body) asserts the same. The test's name and docblock describe only the scroll keys, so the docs assertions are not visible from the name. Command and output below, first block.
 
   ```bash
-  cd /Volumes/DATA/Github/kirsch && go test ./internal/tui
-  cd /Volumes/DATA/Github/kirsch && npm run screens
+  # authored here
+  go test -count=1 -v -run 'TestHelpFooterNamesScrollKeysWhenClipped' ./internal/tui/; echo exit=$?
   ```
 
-- [ ] The footer matches O16, and every moved golden is listed in the step report (`plan/milestones/milestone-5.md:1695`). Command: `TO EXPAND`.
+  ```
+  === RUN   TestHelpFooterNamesScrollKeysWhenClipped
+  --- PASS: TestHelpFooterNamesScrollKeysWhenClipped (0.04s)
+  PASS
+  ok  	github.com/djm56/kirsch/internal/tui	0.705s
+  exit=0
+  ```
+
+- [ ] The golden fence `## 06 · Help overlay` (80×28) matches its render, as do the other sized fences the test covers. The test is `TestMatchesScreenReference` (`internal/tui/golden_test.go`), which runs inside the package command. The procedure gives `go test ./internal/tui`; this run adds `-count=1` so the result is not cached. Command and output below, second block.
+
+  ```bash
+  # authored here
+  go test -count=1 ./internal/tui/; echo exit=$?
+  ```
+
+  ```
+  ok  	github.com/djm56/kirsch/internal/tui	9.723s
+  exit=0
+  ```
+
+- [ ] `npm run screens` lints the screens document, its grids and its content (*Golden mechanism and regeneration procedure*, step 5). Command and output below, third block.
+
+  ```bash
+  npm run screens; echo exit=$?
+  ```
+
+  ```
+  > kirsch@0.1.0-dev screens
+  > python3 scripts/lint-screens.py
+
+  kirsch-ui-screens.md: grids OK, content OK
+  exit=0
+  ```
+
+- [ ] Every moved golden is listed in the step report, by fence header (m5-d21b *Acceptance*, first box). No command: this is a process check. Step 1's record in `.claude/memory/missions/mission-20261105-12/PROGRESS.md` names the moved fence, `## 06 · Help overlay` (80×28), and no other.
+
+- [ ] The review step covers the golden diff and is recorded (m5-d21b *Acceptance*, second box). No command: this is a process check. Step 2 of `.claude/memory/missions/mission-20261105-12/PROGRESS.md` records @apone's approval of step 1 with "only fence 06 moved". Whether that meets this box is the operator's call.
 
 **Hands-on checks**
 
-1. (operator) The golden diff is reviewed by the operator (`plan/milestones/milestone-5.md:1688`).
+1. (operator) Review the golden diff (m5-d21b *Mission steps*, step 2: "The operator also reviews the golden diff"). The diff is Bishop's diff of `.claude/memory/workspace/m5-d21b-screens.pre.md` against `plan/spec/kirsch-ui-screens.md`. The change inside the sized fence is these lines, in `## 06 · Help overlay` (80×28), at line 405 of the spec:
 
-   > **TO EXPAND when m5-d21b lands:** the moved fences, by header, and the review record.
+   ```diff
+   -         │ kirsch v0.1.0-dev · docs: doc/usage.md · Esc or ? closes   │
+   +         │ kirsch v0.1.0-dev · Esc or ? closes                        │
+   ```
+
+   The same diff also shows edits outside any sized fence: the footer row of the colour legend, and a bullet under fence 06. Neither is a picture. The complete diff for this docs step is `.claude/memory/workspace/m5-d21b-step3.diff`.
+
+   > **Look at:** the docs link is gone from the 80×28 picture, and nothing takes its place, because at 80 columns the link does not show. The link shows on terminals wide enough for the full footer (see *What landed*). Whether the 80-column picture should keep a link is for you to decide. Bishop's recommendation is in *Open from m5-d21b* in `plan/PROGRESS.md`.
 
 **Notes / evidence**
 
-_Empty. Fill at run._
+The automated outputs above were captured on 2026-11-05 by @lambert in mission-20261105-12 (step 3). No width threshold in this section was run in a terminal. The thresholds are worked out from the code and recorded in `plan/PROGRESS.md`. The operator has not yet reviewed the golden diff, and has not yet tested section 31 of the plain checklist.
 
 ---
 
@@ -3499,32 +4506,289 @@ _Empty. Fill at run._
 
 ## 33 · Debug log disclosure (conditional) (m5-d21d)
 
-**Context:** Terminal: Setup. Binary: none (grep). Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: none; Kirsch is not started. Binary: none; `grep`, `awk` and `wc`, each run through `bash -c` from the repository root, and `echo` for the `exit=` lines. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: no key is used. Config state: n/a; no config file is read.
 
 **What landed**
 
-> **TO EXPAND when m5-d21d lands, or record "no step":** the disclosure line in `SECURITY.md`, traced to the cited lines.
+The decision, quoted from `plan/PROGRESS.md` (row C24, 2026-11-03):
 
-**Waits on:** m5-d20 (the C24 decision), and m5-d12 (file ownership of `SECURITY.md`), from `plan/milestones/milestone-5.md:129`.
+> Operator accepted Bishop's recommendation ("Accept all (Recommended)", m5-d20 decision sheet): Disclose in `SECURITY.md` that a 400 writes the full request body to the debug log; do not clip it (m5-d21d runs; m5-d21c does not).
+
+The debug-log bullet under *Known limits* in `SECURITY.md` now states what the debug log can hold, and it states the 400 behaviour as a disclosed limit: the full request body is written, and it is not clipped.
 
 **Automated checks**
 
-- [ ] `SECURITY.md` states the 400 log behaviour, and each claim traces to a cited line (`plan/milestones/milestone-5.md:1759`). Command: `TO EXPAND`.
-- [ ] The sentence that says a 400 writes the full request body now says it is a disclosed limit (`plan/milestones/milestone-5.md:1760`).
+**Box 1.** First item of the *Acceptance* list under `## m5-d21d (conditional) — Debug log disclosure (C24)` in `plan/milestones/milestone-5.md`: "`SECURITY.md` states the 400 log behaviour, and each claim traces to a cited line."
 
-  ```bash
-  cd /Volumes/DATA/Github/kirsch && grep -n 'full request body' SECURITY.md
-  ```
+The commands to run are in the block below. The table is not for pasting.
 
-  The line printed must contain `disclosed`. On the file m5-d12 leaves, it does not, so this box fails until the update is made.
+| Claim | Command |
+|-------|---------|
+| 1. Title: messages, paths, commands and, on a 400, the whole conversation | `grep -n -A1 "The debug log can hold your messages" SECURITY.md` |
+| 2. Off unless `--debug`, `KIRSCH_DEBUG=1` or `telemetry.debug_log` is set | `grep -n "debug := \*flagDebug" cmd/kirsch/main.go` |
+| 3. Default is off | `grep -n "DebugLog: false" internal/config/config.go` |
+| 4. A project's configuration cannot turn it on (absence; control in block) | `awk '/^func mergeProjectFile/,/^}/' internal/config/config.go \| grep -n "DebugLog"` |
+| 5. Each message's text is logged as a plain attribute | `grep -n "tui submitted" cmd/kirsch/main.go` |
+| 6. The message text is not clipped (absence; control in block) | `grep -n "telemetry.Content" cmd/kirsch/main.go` |
+| 7. The startup line logs the workspace path | `grep -n "\"workspace\", ws.Root" cmd/kirsch/main.go` |
+| 8. A configuration warning names the file and the key | `grep -n "unknown key %q\|key %q ignored" internal/config/config.go` |
+| 9. Configuration warnings are logged | `grep -n "log.Warn(\"config\"" cmd/kirsch/main.go` |
+| 10. The argv of a refused session grant is logged | `grep -n "\"grant rejected\", \"argv\"" internal/app/app.go` |
+| 11. The saved pattern of a restored grant that the policy refuses is logged | `grep -n "restored grant rejected by policy" internal/app/app.go` |
+| 12. Refused context-file names are in warnings, and the warnings are logged | `grep -n "candidate %q refused\|\"project context\", \"warning\", w" internal/agent/prompt/loader.go internal/app/app.go` |
+| 13. A context file whose read or stat fails is named, and the error is logged | `grep -n "candidate %q: %w\|\"project context\", \"error\"" internal/agent/prompt/loader.go internal/app/app.go` |
+| 14. The base name of a usage file moved aside is logged | `grep -n "recovered from corrupt\|recoveredTo = filepath.Base" internal/app/app.go internal/session/usage.go` |
+| 15. Session, session index, usage and lock errors are logged | `grep -n "session store error\|failed to update session index\|usage update failed\|lock unavailable" internal/app/app.go` |
+| 16. The lock-file open error wraps the `os.OpenFile` error for the lock path | `grep -n "os.OpenFile(lockPath\|open lock file: %w" internal/session/lock.go` |
+| 16a. An `os.OpenFile` error names the path it failed on (Go standard library `*os.PathError`; not a Kirsch code line) | none — stdlib behaviour |
+| 17. No tool call is logged (absence; control in block) | `grep -rn --include="*.go" --exclude="*_test.go" "\.RunTool(" internal cmd` |
+| 18. The executor writes no log line (absence; control in block) | `awk '/^func \(te \*toolExecutor\) Invoke/,/^}/' internal/app/app.go \| grep -n "log\."` |
+| 19. No slash command is logged; `internal/tui` has no logger call (absence; control in block) | `grep -rnE --include="*.go" --exclude="*_test.go" "(^\|[^a-zA-Z])s?log\." internal/tui` |
+| 20. Redaction needles, matched without regard to case | `grep -n "ToLower\|env_value" internal/telemetry/telemetry.go` |
+| 21. Redaction examines attribute names only | `awk '/^func redactArgs/,/^}/' internal/telemetry/telemetry.go` |
+| 22. Emit passes its arguments through redaction | `grep -n "redactArgs(args)" internal/telemetry/telemetry.go` |
+| 23. A 400 writes the request body to the debug log | `grep -n "logBadRequest(\|provider bad request\|request_body" internal/provider/anthropic/client.go` |
+| 24. The request body is not clipped (absence; control in block) | `grep -n "Content(.*reqBody\|Content(.*request" internal/provider/anthropic/client.go` |
+| 25. The request holds the system prompt, messages and tool definitions | `grep -n "reqMap\[\"\(system\|messages\|tools\)\"\]" internal/provider/anthropic/encode.go` |
+| 26. The request holds thinking blocks, tool calls and tool results | `grep -n "\"type\": *\"\(thinking\|tool_use\|tool_result\)\"" internal/provider/anthropic/encode.go` |
+| 27. Tool results carry file contents and command output | `grep -n "content, cut := Truncate\|Truncate(output" internal/tool/readfile.go internal/tool/run_command.go` |
+| 28. A MissingSessionID 400 returns before the body is logged | `grep -n -A4 "case 400:" internal/provider/anthropic/client.go` |
+| 29. A response body over 256 bytes is cut to 256 bytes and marked | `grep -n "len(body) > MaxContentBytes\|MaxContentBytes = 256\|…(truncated)" internal/telemetry/telemetry.go` |
+| 30. Advice to keep the log off (text only; not a code claim) | `grep -n -A1 "Keep the$" SECURITY.md` |
 
-**Hands-on checks**
+```bash
+set -o pipefail
+cd /Volumes/DATA/Github/kirsch
+# row 1 — title
+grep -n -A1 "The debug log can hold your messages" SECURITY.md; echo "exit=$?"
+# row 2 — off unless --debug, KIRSCH_DEBUG=1 or telemetry.debug_log
+grep -n "debug := \*flagDebug" cmd/kirsch/main.go; echo "exit=$?"
+# row 3 — default is off
+grep -n "DebugLog: false" internal/config/config.go; echo "exit=$?"
+# row 4 — a project's configuration cannot turn it on (absence)
+awk '/^func mergeProjectFile/,/^}/' internal/config/config.go | grep -n "DebugLog"; echo "exit=$?"
+# row 4, control — the same search finds the project key that is set
+awk '/^func mergeProjectFile/,/^}/' internal/config/config.go | grep -n "ProjectFiles"; echo "exit=$?"
+# row 5 — each message's text is logged as a plain attribute
+grep -n "tui submitted" cmd/kirsch/main.go; echo "exit=$?"
+# row 6 — the message text is not clipped (absence)
+grep -n "telemetry.Content" cmd/kirsch/main.go; echo "exit=$?"
+# row 6, control — the same search finds telemetry.Content in the provider
+grep -n "telemetry.Content" internal/provider/anthropic/client.go; echo "exit=$?"
+# row 7 — startup line logs the workspace path
+grep -n "\"workspace\", ws.Root" cmd/kirsch/main.go; echo "exit=$?"
+# row 8 — a configuration warning names the file and the key
+grep -n "unknown key %q\|key %q ignored" internal/config/config.go; echo "exit=$?"
+# row 9 — configuration warnings are logged
+grep -n "log.Warn(\"config\"" cmd/kirsch/main.go; echo "exit=$?"
+# row 10 — argv of a refused session grant is logged
+grep -n "\"grant rejected\", \"argv\"" internal/app/app.go; echo "exit=$?"
+# row 11 — saved pattern of a restored grant that the policy refuses is logged
+grep -n "restored grant rejected by policy" internal/app/app.go; echo "exit=$?"
+# row 12 — refused context-file names are in warnings, and the warnings are logged
+grep -n "candidate %q refused\|\"project context\", \"warning\", w" internal/agent/prompt/loader.go internal/app/app.go; echo "exit=$?"
+# row 13 — a context file whose read or stat fails is named, and the error is logged
+grep -n "candidate %q: %w\|\"project context\", \"error\"" internal/agent/prompt/loader.go internal/app/app.go; echo "exit=$?"
+# row 14 — base name of a usage file moved aside is logged
+grep -n "recovered from corrupt\|recoveredTo = filepath.Base" internal/app/app.go internal/session/usage.go; echo "exit=$?"
+# row 15 — session, session index, usage and lock errors are logged
+grep -n "session store error\|failed to update session index\|usage update failed\|lock unavailable" internal/app/app.go; echo "exit=$?"
+# row 16 — the lock-file open error wraps the os.OpenFile error for the lock path
+grep -n "os.OpenFile(lockPath\|open lock file: %w" internal/session/lock.go; echo "exit=$?"
+# row 17 — no tool call is logged (absence)
+grep -rn --include="*.go" --exclude="*_test.go" "\.RunTool(" internal cmd; echo "exit=$?"
+# row 17, control — the same path finds the executor's calls
+grep -rn --include="*.go" --exclude="*_test.go" "\.Invoke(" internal cmd; echo "exit=$?"
+# row 18 — the executor writes no log line (absence)
+awk '/^func \(te \*toolExecutor\) Invoke/,/^}/' internal/app/app.go | grep -n "log\."; echo "exit=$?"
+# row 18, control — the same window finds the call to the registry
+awk '/^func \(te \*toolExecutor\) Invoke/,/^}/' internal/app/app.go | grep -n "reg.Invoke"; echo "exit=$?"
+# row 19 — no slash command is logged: internal/tui has no logger call (absence)
+grep -rnE --include="*.go" --exclude="*_test.go" "(^|[^a-zA-Z])s?log\." internal/tui; echo "exit=$?"
+# row 19, control — the same search finds logger calls in internal/app
+grep -rnE --include="*.go" --exclude="*_test.go" "(^|[^a-zA-Z])s?log\." internal/app | wc -l; echo "exit=$?"
+# row 20 — redaction needles, matched without regard to case
+grep -n "ToLower\|env_value" internal/telemetry/telemetry.go; echo "exit=$?"
+# row 21 — redaction examines attribute names only
+awk '/^func redactArgs/,/^}/' internal/telemetry/telemetry.go; echo "exit=$?"
+# row 22 — emit passes its arguments through redactArgs
+grep -n "redactArgs(args)" internal/telemetry/telemetry.go; echo "exit=$?"
+# row 23 — a 400 writes the request body to the debug log
+grep -n "logBadRequest(\|provider bad request\|request_body" internal/provider/anthropic/client.go; echo "exit=$?"
+# row 24 — the request body is not clipped (absence)
+grep -n "Content(.*reqBody\|Content(.*request" internal/provider/anthropic/client.go; echo "exit=$?"
+# row 24, control — the same search finds the response body's Content call
+grep -n "Content(.*respBody" internal/provider/anthropic/client.go; echo "exit=$?"
+# row 25 — the request holds the system prompt, messages and tool definitions
+grep -n "reqMap\[\"\(system\|messages\|tools\)\"\]" internal/provider/anthropic/encode.go; echo "exit=$?"
+# row 26 — the request holds thinking blocks, tool calls and tool results
+grep -n "\"type\": *\"\(thinking\|tool_use\|tool_result\)\"" internal/provider/anthropic/encode.go; echo "exit=$?"
+# row 27 — tool results carry file contents and command output
+grep -n "content, cut := Truncate\|Truncate(output" internal/tool/readfile.go internal/tool/run_command.go; echo "exit=$?"
+# row 28 — a MissingSessionID 400 returns before the body is logged
+grep -n -A4 "case 400:" internal/provider/anthropic/client.go; echo "exit=$?"
+# row 29 — a response body over 256 bytes is cut to 256 bytes and marked
+grep -n "len(body) > MaxContentBytes\|MaxContentBytes = 256\|…(truncated)" internal/telemetry/telemetry.go; echo "exit=$?"
+# row 30 — advice, not a code claim: keep the log off
+grep -n -A1 "Keep the$" SECURITY.md; echo "exit=$?"
+```
 
-1. Run only if the operator disclosed under m5-d20. Otherwise record "no step" (`plan/milestones/milestone-5.md:1756`).
+```text
+80:- **The debug log can hold your messages, paths, commands and, on a 400, the
+81-  whole conversation.** The debug log is off unless you turn it on with
+exit=0
+211:	debug := *flagDebug || os.Getenv("KIRSCH_DEBUG") == "1" || cfg.Telemetry.DebugLog
+exit=0
+116:		Telemetry: TelemetryConfig{DebugLog: false},
+exit=0
+exit=1
+49:					if projectFilesVal, hasProjectFiles := contextTable["project_files"]; hasProjectFiles {
+62:								cfg.Context.ProjectFiles = projectFiles
+exit=0
+370:		log.Debug("tui submitted", "text", text)
+exit=0
+exit=1
+511:		slog.String("request_body", reqBody), telemetry.Content("response_body", respBody))
+exit=0
+256:		"workspace", ws.Root,
+exit=0
+153:		return fmt.Sprintf("%s: key %q ignored (a project config may set only [context].project_files)", w.File, w.Key)
+156:			return fmt.Sprintf("%s: unknown key %q (ignored)", w.File, w.Key)
+exit=0
+252:		log.Warn("config", "detail", w.String())
+exit=0
+2728:			a.log.Debug("grant rejected", "argv", app.argv, "err", err)
+exit=0
+1510:			a.log.Debug("restored grant rejected by policy", "action", g.Action, "pattern", g.Pattern, "error", err)
+exit=0
+internal/agent/prompt/loader.go:62:			warnings = append(warnings, fmt.Sprintf("project context candidate %q refused: %s", candidate, resolveErr))
+internal/app/app.go:842:		a.log.Warn("project context", "warning", w)
+exit=0
+internal/agent/prompt/loader.go:71:			return "", "", 0, warnings, fmt.Errorf("stat project context candidate %q: %w", candidate, statErr)
+internal/agent/prompt/loader.go:86:			return "", "", 0, warnings, fmt.Errorf("read project context candidate %q: %w", candidate, readErr)
+internal/app/app.go:845:		a.log.Error("project context", "error", err)
+exit=0
+internal/app/app.go:2412:			a.log.Warn("recovered from corrupt usage.json", "moved_to", recovered)
+internal/session/usage.go:191:			recoveredTo = filepath.Base(corruptPath)
+exit=0
+893:	a.log.Warn("lock unavailable — single-instance guard off", "error", err)
+894:	a.SendStatusWarning("lock unavailable — single-instance guard off")
+1202:			a.log.Debug("session store error", "error", err)
+1433:			a.log.Debug("session store error", "error", err)
+1441:		a.log.Debug("failed to update session index", "error", err)
+2415:			a.log.Warn("usage update failed", "error", err)
+exit=0
+42:	file, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE, 0o600) // #nosec G304 -- fixed ".lock" basename in a session dir named by a sha256 hex of the workspace, created 0700
+44:		return nil, fmt.Errorf("open lock file: %w", err)
+exit=0
+exit=1
+internal/app/app.go:313:	res := te.app.reg.Invoke(ctx, c.Name, c.Input)
+internal/app/app.go:2576:		res := a.reg.Invoke(ctx, name, raw)
+internal/agent/agent.go:564:			out <- a.Tools.Invoke(ctx, copyToolCall(call))
+internal/tool/tool.go:146:	return t.Invoke(ctx, raw)
+exit=0
+exit=1
+13:	res := te.app.reg.Invoke(ctx, c.Name, c.Input)
+exit=0
+exit=1
+      25
+exit=0
+162:	k := strings.ToLower(key)
+163:	for _, needle := range []string{"api_key", "apikey", "token", "secret", "password", "env_value"} {
+exit=0
+func redactArgs(args []any) []any {
+	out := make([]any, len(args))
+	copy(out, args)
+	for i := 0; i+1 < len(out); i += 2 {
+		key, ok := out[i].(string)
+		if !ok {
+			continue
+		}
+		if looksSecret(key) {
+			out[i+1] = "<redacted>"
+		}
+	}
+	for i, a := range out {
+		if attr, ok := a.(slog.Attr); ok && looksSecret(attr.Key) {
+			out[i] = slog.String(attr.Key, "<redacted>")
+		}
+	}
+	return out
+}
+exit=0
+116:	l.log.Log(nil, level, msg, redactArgs(args)...) //nolint:staticcheck // nil ctx is fine here
+exit=0
+453:		c.logBadRequest(string(reqBody), string(bodyBytes))
+506:func (c *Client) logBadRequest(reqBody, respBody string) {
+510:	c.log.Debug("provider bad request", slog.String("endpoint", c.endpoint), slog.Int("status", 400),
+511:		slog.String("request_body", reqBody), telemetry.Content("response_body", respBody))
+exit=0
+exit=1
+511:		slog.String("request_body", reqBody), telemetry.Content("response_body", respBody))
+exit=0
+113:		reqMap["system"] = system
+129:	reqMap["messages"] = messages
+142:		reqMap["tools"] = tools
+exit=0
+260:			"type":      "thinking",
+271:			"type":  "tool_use",
+279:			"type":        "tool_result",
+exit=0
+internal/tool/readfile.go:127:	content, cut := Truncate(b.String(), MaxFileBytes)
+internal/tool/run_command.go:260:			content, truncated := Truncate(output, maxOutputBytes)
+internal/tool/run_command.go:274:	content, truncated := Truncate(output, maxOutputBytes)
+exit=0
+449:	case 400:
+450-		if c.isMissingSessionID(bodyBytes) {
+451-			return &Error{Kind: KindConfig, Status: status, Attempts: attempt, Message: fmt.Sprintf("provider %q refused the request: MissingSessionID (configuration error, not retried)", c.endpoint)}
+452-		}
+453-		c.logBadRequest(string(reqBody), string(bodyBytes))
+exit=0
+25:const MaxContentBytes = 256
+126:	if len(body) > MaxContentBytes {
+127:		body = body[:MaxContentBytes] + "…(truncated)"
+exit=0
+107:  bytes is cut to its first 256 bytes, followed by `…(truncated)`. Keep the
+108-  debug log off when you work on material you cannot share.
+exit=0
+```
 
-**Notes / evidence**
+**Box 2.** Second item of the same *Acceptance* list: "The sentence in `SECURITY.md` that says a 400 writes the full request body now says that this is a disclosed limit. `grep -n 'full request body' SECURITY.md` prints a line, and that line contains `disclosed`. On the file that m5-d12 leaves, the sentence has no `disclosed`, so this box fails until the update is made."
 
-_Empty. Fill at run._
+```bash
+set -o pipefail
+cd /Volumes/DATA/Github/kirsch
+grep -n 'full request body' SECURITY.md; echo "exit=$?"
+grep -n 'full request body' SECURITY.md | grep -c disclosed; echo "exit=$?"
+# control — the pre-mission copy: the first command must print the line, the second must print 0
+grep -n 'full request body' .claude/memory/workspace/m5-d21d-pre/SECURITY.md; echo "exit=$?"
+grep -n 'full request body' .claude/memory/workspace/m5-d21d-pre/SECURITY.md | grep -c disclosed; echo "exit=$?"
+```
+
+```text
+100:  full request body. This is a disclosed limit, and the body is not clipped. It
+exit=0
+1
+exit=0
+85:  provider writes the full request body to the debug log. That body includes
+exit=0
+0
+exit=1
+```
+
+The control runs the same command on the pre-mission copy, `.claude/memory/workspace/m5-d21d-pre/SECURITY.md`, and prints `0` with `exit=1`, so the box fails there, as it should. The pre-mission copy moves to `.claude/memory/workspace/archive-mission-<next id>/` at the next mission init; after that the control commands report a missing file instead of line 85.
+
+For reference, line 85 of the pre-mission copy, verbatim:
+
+```text
+  provider writes the full request body to the debug log. That body includes
+```
+
+The quote has no `disclosed`, so a check against it fails, as it should.
+
+**Operator.** Run only if C24 disclosed, which it did (row C24, 2026-11-03). The operator reads the debug-log bullet under *Known limits* in `SECURITY.md` and runs the plain checks in `plan/testing/manual/user-testing/milestone-5-donovan.md` § 33.
+
+**Notes / evidence.** Outputs pasted from the run in mission-20261105-13 on 2026-11-06 (UTC). `SECURITY.md` was not changed by this section's steps.
 
 ---
 
@@ -3558,25 +4822,352 @@ _Empty. Fill at run._
 
 ## 35 · §7 amendment (conditional) (m5-d21f)
 
-**Context:** Terminal: Setup. Binary: none (grep, review). Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: all key variables unset. Config state: Setup, unchanged.
+**Context:** Terminal: none; Kirsch is not started. Binary: none; `bash`, `grep`, `awk`, `sed` and `eval`, each run through `bash -c` from the repository root. Working directory: /Volumes/DATA/Github/kirsch. Workspace: n/a. Key state: no key is used. Config state: n/a; no config file is read.
 
 **What landed**
 
-> **TO EXPAND when m5-d21f lands, or record "no step":** the §7 lines amended in `plan/spec/kirsch-plan.md` (`:340–359`), and the session events listed.
-
-**Waits on:** m5-d20 (the C43 and C46 decisions), and m5-d5 (file ownership of §7), from `plan/milestones/milestone-5.md:131`.
+Section 7 of `plan/spec/kirsch-plan.md` now lists only the session event types the code writes, states the flattened `assistant.message` that decision C43 accepts ("Accept the flattening, and amend §7 to state it"), and leaves out `session.started` and `session.resumed`, as decision C46 keeps them ("Keep the code, which does not write `session.started` or `session.resumed`, and amend §7 to match").
 
 **Automated checks**
 
-- [ ] §7 matches the events the code writes, and the review step is recorded (`plan/milestones/milestone-5.md:1817`). Command: `TO EXPAND`.
+**Box.** The acceptance box, quoted verbatim from the *Acceptance* list of `## m5-d21f (conditional) — §7 amendment (C43, C46)` in `plan/milestones/milestone-5.md`, and found with `grep -F -e` (section J of the block below): "§7 matches the events the code writes, and the review step is recorded." Its review step is step 2 of mission-20261106-01, which had not run when this section was written. The box is the operator's, and it is not ticked here.
 
-**Hands-on checks**
+The block below is one bash script with every command in it. It was run from the repository root as `bash -c 'bash <file>'`, where the file holds the block's text. Its raw output, `exit=` lines included, is in the block after it.
 
-1. Run only if the operator amends §7. If not, record "no step" (`plan/milestones/milestone-5.md:1814`).
+| Claim | Verdict | Where in the block |
+|-------|---------|--------------------|
+| `user.message` is written | written | B, `eventTypeUserMessage`; C; E (kept) |
+| `assistant.message` is written | written | B, `eventTypeAssistantMessage`; C; E (kept) |
+| `assistant.thinking` is written | written | B, `eventTypeAssistantThinking`; C; E (kept) |
+| `tool.completed` is written | written | B, `eventTypeToolCompleted`; C; E (kept) |
+| `turn.started` is written | written | B, `eventTypeTurnStarted`; D; E (kept) |
+| `turn.completed` is written | written | B, `eventTypeTurnCompleted`; E (kept) |
+| `usage` is written | written | B, `eventTypeUsage`; E (kept) |
+| `approval.scope_granted` is written | written | B, `eventTypeApprovalScopeGranted`; E (kept) |
+| `approval.scopes_cleared` is written | written | B, `eventTypeApprovalScopesCleared`; E (kept) |
+| `compaction.applied` is written | written | B, `eventTypeCompactionApplied`; E (kept) |
+| `session.started` is not written | not written | E (absent from §7, with a control on the pre-edit copy); F (absent from the code, with a control) |
+| `session.resumed` is not written | not written | E; F |
+| `tool.requested` is not written | not written | E; F |
+| `approval.requested` is not written | not written | E; F |
+| `approval.resolved` is not written | not written | E; F |
+| `error` is not written | not written | E; G (no literal `Type` value in the session package, with a control); H |
+| `assistant.delta` is not written | not written | B (no marshal site, with a control on the same grep shape); E |
 
-**Notes / evidence**
+```bash
+set -o pipefail
+cd /Volumes/DATA/Github/kirsch || exit 2
+SPEC=plan/spec/kirsch-plan.md
+PRE=.claude/memory/workspace/m5-d21f-pre/plan-spec-kirsch-plan.md
+ST=internal/session/event.go
+SEC7='awk "/^## 7\. Session Events/{p=1} /^## 8\. /{p=0} p"'
 
-_Empty. Fill at run._
+echo "### A. Timestamp"
+date -u +"%Y-%m-%d %H:%M UTC"; echo "exit=$?"
+
+echo "### B. Write check per event constant: (a) marshal site, (b) enclosing func, (c) caller of that func, (d) Store Record method called outside internal/session"
+for pair in UserMessage:Record AssistantMessage:Record AssistantThinking:Record ToolCompleted:Record TurnStarted:RecordTurnStarted TurnCompleted:RecordTurnCompleted Usage:RecordUsage ApprovalScopeGranted:RecordScopeGranted ApprovalScopesCleared:RecordScopesCleared CompactionApplied:RecordCompaction AssistantDelta:NONE; do
+  c=${pair%%:*}; m=${pair#*:}
+  echo "## eventType$c (Store method: $m)"
+  L=$(grep -n -e "Type: *eventType$c}" $ST | cut -d: -f1 | head -1)
+  grep -n -e "Type: *eventType$c}" $ST; echo "(a) exit=$?"
+  if [ -n "$L" ]; then
+    F=$(awk -v L="$L" 'NR<=L && /^func /{f=$0} NR==L{print f; exit}' $ST)
+    echo "(b) $F"
+    FN=$(echo "$F" | sed -E 's/^func ([A-Za-z]+)\(.*/\1/')
+    grep -rn -F -e "$FN(" internal/session --include="*.go" | grep -v "_test\.go" | grep -v -F -e "func $FN("; echo "(c) exit=$?"
+    grep -rn -F -e ".$m(" internal/ cmd/ --include="*.go" | grep -v "_test\.go" | grep -v "^internal/session/"; echo "(d) exit=$?"
+  else
+    echo "(a) no marshal site. Control, same grep shape on a written type:"
+    grep -n -e "Type: *eventTypeTurnStarted}" $ST; echo "control exit=$?"
+    echo "read sites only:"
+    grep -rn -F -e "case eventType$c:" internal/session --include="*.go" | grep -v "_test\.go"; echo "read exit=$?"
+  fi
+  echo
+done
+
+echo "### C. Chain above the encoders"
+grep -n -e "encode(kind" internal/session/store.go; echo "exit=$?"
+grep -n -e "encodeAppend(m)" -e "encodeMerge(m)" -e "encodeUserAppend(m)" -e "encodeAssistantAppend(m)" $ST; echo "exit=$?"
+
+echo "### D. Reachability: function-level callers. Store methods called from internal/app/app.go (control: RecordTurnCompleted, called from the turn-status switch)"
+grep -n -F -e "RecordTurnStarted(" -e "RecordUsage(" -e "RecordScopesCleared(" -e "RecordScopeGranted(" -e "RecordCompaction(" -e "RecordTurnCompleted(" internal/app/app.go; echo "app.go exit=$?"
+echo "App methods wired from cmd/kirsch/main.go (the wiring the TUI reaches the app through)"
+grep -n -e "Submit" -e "ClearGrants" -e "ManualCompact" cmd/kirsch/main.go; echo "main.go exit=$?"
+
+echo "### E. Section 7 of the spec, example form. Removed names must not match in the current file. The same command on the pre-edit copy must match (the corrupted input the check has to reject)."
+for n in session.started session.resumed tool.requested approval.requested approval.resolved error assistant.delta; do
+  eval "$SEC7 $SPEC" | grep -n -F -e "\"type\":\"$n\""; echo "removed $n, current exit=$?"
+  eval "$SEC7 $PRE" | grep -n -F -e "\"type\":\"$n\""; echo "removed $n, pre-edit copy exit=$?"
+done
+for n in turn.started user.message assistant.thinking assistant.message approval.scope_granted approval.scopes_cleared tool.completed compaction.applied usage turn.completed; do
+  eval "$SEC7 $SPEC" | grep -n -F -e "\"type\":\"$n\""; echo "kept $n, current exit=$?"
+done
+
+echo "### F. Code: literal JSON type names in non-test Go under internal and cmd (control: turn.started)"
+for n in session.started session.resumed tool.requested approval.requested approval.resolved; do
+  grep -rn -F -e "\"$n\"" internal/ cmd/ --include="*.go" | grep -v "_test\.go"; echo "code $n exit=$?"
+done
+grep -rn -F -e '"turn.started"' internal/ cmd/ --include="*.go" | grep -v "_test\.go"; echo "control turn.started exit=$?"
+
+echo "### G. Literal Type values in the session package (error is not a written type; control: constant Type values)"
+grep -rn -e 'Type: *"' internal/session --include="*.go" | grep -v "_test\.go"; echo "literal Type exit=$?"
+grep -rn -e 'Type: *eventType' internal/session --include="*.go" | grep -v "_test\.go"; echo "control constant Type exit=$?"
+
+echo "### H. JSON type tags in session and cmd/kirsch (event.go:51 is the only tag on a written line; the two others decode on read; control: the v tag)"
+grep -rn -F -e 'json:"type"' internal/session cmd/kirsch --include="*.go" | grep -v "_test\.go"; echo "type tags exit=$?"
+grep -rn -F -e 'json:"v"' internal/session --include="*.go" | grep -v "_test\.go"; echo "control v tag exit=$?"
+
+echo "### I. Workspace path in the event structs (control: the Version field)"
+grep -n -i -e 'workspace' $ST; echo "workspace exit=$?"
+grep -n -e 'Version int' $ST; echo "control Version exit=$?"
+
+echo "### J. Quotes against their sources (controls: a near-miss must not match)"
+grep -n -F -e "Accept the flattening, and amend §7 to state it" plan/PROGRESS.md; echo "C43 in PROGRESS exit=$?"
+grep -n -F -e "Accept the flattening, and amend §7 to state it" $SPEC; echo "C43 in spec exit=$?"
+grep -n -F -e "Accept the flattening, and amend §7 to state this" plan/PROGRESS.md; echo "C43 near-miss exit=$?"
+grep -n -F -e 'Keep the code, which does not write `session.started` or `session.resumed`, and amend §7 to match' plan/PROGRESS.md; echo "C46 in PROGRESS exit=$?"
+grep -n -F -e 'Keep the code, which does not write `session.started` or `session.resumed`, and amend §7 to match' $SPEC; echo "C46 in spec exit=$?"
+grep -n -F -e "§7 matches the events the code writes, and the review step is recorded." plan/milestones/milestone-5.md; echo "acceptance box exit=$?"
+
+echo "### K. Planning cites that point at the pre-amendment lines of the spec"
+P=$(printf 'kirsch-plan.md:%s' 34)
+grep -n -F -e "$P" plan/milestones/milestone-5.md; echo "exit=$?"
+```
+
+Raw output of the block above, run at 06:24 UTC on 2026-11-06 (the timestamp is the run's own, from `date -u`):
+
+```text
+### A. Timestamp
+2026-11-06 06:24 UTC
+exit=0
+### B. Write check per event constant: (a) marshal site, (b) enclosing func, (c) caller of that func, (d) Store Record method called outside internal/session
+## eventTypeUserMessage (Store method: Record)
+181:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeUserMessage},
+211:			baseEvent: baseEvent{Version: eventVersion, Type: eventTypeUserMessage},
+(a) exit=0
+(b) func encodeMerge(m agent.Message) ([][]byte, error) {
+internal/session/event.go:153:		return encodeMerge(m)
+(c) exit=0
+internal/agent/agent.go:497:		a.Recorder.Record(kind, copyMessage(m))
+(d) exit=0
+
+## eventTypeAssistantMessage (Store method: Record)
+284:			baseEvent: baseEvent{Version: eventVersion, Type: eventTypeAssistantMessage},
+(a) exit=0
+(b) func encodeAssistantAppend(m agent.Message) ([][]byte, error) {
+internal/session/event.go:165:		return encodeAssistantAppend(m)
+(c) exit=0
+internal/agent/agent.go:497:		a.Recorder.Record(kind, copyMessage(m))
+(d) exit=0
+
+## eventTypeAssistantThinking (Store method: Record)
+261:				baseEvent: baseEvent{Version: eventVersion, Type: eventTypeAssistantThinking},
+(a) exit=0
+(b) func encodeAssistantAppend(m agent.Message) ([][]byte, error) {
+internal/session/event.go:165:		return encodeAssistantAppend(m)
+(c) exit=0
+internal/agent/agent.go:497:		a.Recorder.Record(kind, copyMessage(m))
+(d) exit=0
+
+## eventTypeToolCompleted (Store method: Record)
+225:				baseEvent: baseEvent{Version: eventVersion, Type: eventTypeToolCompleted},
+(a) exit=0
+(b) func encodeUserAppend(m agent.Message) ([][]byte, error) {
+internal/session/event.go:163:		return encodeUserAppend(m)
+(c) exit=0
+internal/agent/agent.go:497:		a.Recorder.Record(kind, copyMessage(m))
+(d) exit=0
+
+## eventTypeTurnStarted (Store method: RecordTurnStarted)
+308:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeTurnStarted},
+(a) exit=0
+(b) func marshalTurnStarted(turn int) ([]byte, error) {
+internal/session/store.go:189:	line, err := marshalTurnStarted(turn)
+(c) exit=0
+internal/app/app.go:2257:			store.RecordTurnStarted(turn)
+(d) exit=0
+
+## eventTypeTurnCompleted (Store method: RecordTurnCompleted)
+316:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeTurnCompleted},
+(a) exit=0
+(b) func marshalTurnCompleted(status string) ([]byte, error) {
+internal/session/store.go:201:	line, err := marshalTurnCompleted(status)
+(c) exit=0
+internal/app/app.go:2286:			store.RecordTurnCompleted(status)
+(d) exit=0
+
+## eventTypeUsage (Store method: RecordUsage)
+324:		baseEvent:    baseEvent{Version: eventVersion, Type: eventTypeUsage},
+(a) exit=0
+(b) func marshalUsage(u agent.Usage) ([]byte, error) {
+internal/session/store.go:214:	line, err := marshalUsage(u)
+(c) exit=0
+internal/app/app.go:2398:		store.RecordUsage(usage)
+(d) exit=0
+
+## eventTypeApprovalScopeGranted (Store method: RecordScopeGranted)
+335:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopeGranted},
+(a) exit=0
+(b) func marshalApprovalScopeGranted(action, pattern string) ([]byte, error) {
+internal/session/store.go:227:	line, err := marshalApprovalScopeGranted(action, pattern)
+(c) exit=0
+internal/app/app.go:2742:				store.RecordScopeGranted(action, strings.Join(app.argv, " "))
+(d) exit=0
+
+## eventTypeApprovalScopesCleared (Store method: RecordScopesCleared)
+344:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopesCleared},
+(a) exit=0
+(b) func marshalApprovalScopesCleared() ([]byte, error) {
+internal/session/store.go:241:	line, err := marshalApprovalScopesCleared()
+(c) exit=0
+internal/app/app.go:633:		store.RecordScopesCleared()
+(d) exit=0
+
+## eventTypeCompactionApplied (Store method: RecordCompaction)
+351:		baseEvent:    baseEvent{Version: eventVersion, Type: eventTypeCompactionApplied},
+(a) exit=0
+(b) func marshalCompactionApplied(from, to int, summary string) ([]byte, error) {
+internal/session/store.go:254:	line, err := marshalCompactionApplied(from, to, summary)
+(c) exit=0
+internal/app/app.go:2893:		store.RecordCompaction(comp.From, comp.To, comp.Summary)
+(d) exit=0
+
+## eventTypeAssistantDelta (Store method: NONE)
+(a) exit=1
+(a) no marshal site. Control, same grep shape on a written type:
+308:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeTurnStarted},
+control exit=0
+read sites only:
+internal/session/resume.go:157:		case eventTypeAssistantDelta:
+read exit=0
+
+### C. Chain above the encoders
+162:	lines, err := encode(kind, m)
+exit=0
+151:		return encodeAppend(m)
+153:		return encodeMerge(m)
+163:		return encodeUserAppend(m)
+165:		return encodeAssistantAppend(m)
+exit=0
+### D. Reachability: function-level callers. Store methods called from internal/app/app.go (control: RecordTurnCompleted, called from the turn-status switch)
+633:		store.RecordScopesCleared()
+2257:			store.RecordTurnStarted(turn)
+2286:			store.RecordTurnCompleted(status)
+2398:		store.RecordUsage(usage)
+2742:				store.RecordScopeGranted(action, strings.Join(app.argv, " "))
+2893:		store.RecordCompaction(comp.From, comp.To, comp.Summary)
+app.go exit=0
+App methods wired from cmd/kirsch/main.go (the wiring the TUI reaches the app through)
+367:	// Submit hands ordinary composer text to the app, which starts a real
+369:	m.Submit = func(text string) {
+371:		a.Submit(text, os.Getenv)
+397:	// ClearGrants wires the TUI's grant clearing to the app's policy.
+398:	m.ClearGrants = func() {
+399:		a.ClearGrants()
+417:	// ManualCompact wires the /compact command. The app method blocks until
+420:	m.ManualCompact = func() tui.ManualCompactMsg {
+421:		return a.ManualCompact(os.Getenv)
+main.go exit=0
+### E. Section 7 of the spec, example form. Removed names must not match in the current file. The same command on the pre-edit copy must match (the corrupted input the check has to reject).
+removed session.started, current exit=1
+6:{"v":1,"type":"session.started","session_id":"...","workspace":"...","model":"...","project_type":"go"}
+removed session.started, pre-edit copy exit=0
+removed session.resumed, current exit=1
+7:{"v":1,"type":"session.resumed","session_id":"...","from_event":142}
+removed session.resumed, pre-edit copy exit=0
+removed tool.requested, current exit=1
+13:{"v":1,"type":"tool.requested","id":"toolu_01...","tool":"read_file","input":{}}
+removed tool.requested, pre-edit copy exit=0
+removed approval.requested, current exit=1
+14:{"v":1,"type":"approval.requested","id":"toolu_01...","action":"apply_patch","detail":{}}
+removed approval.requested, pre-edit copy exit=0
+removed approval.resolved, current exit=1
+15:{"v":1,"type":"approval.resolved","id":"toolu_01...","granted":true,"scope":"once"}
+removed approval.resolved, pre-edit copy exit=0
+removed error, current exit=1
+22:{"v":1,"type":"error","kind":"command_timeout","detail":"..."}
+removed error, pre-edit copy exit=0
+removed assistant.delta, current exit=1
+10:{"v":1,"type":"assistant.delta","text":"..."}
+removed assistant.delta, pre-edit copy exit=0
+6:{"v":1,"type":"turn.started","turn":3}
+kept turn.started, current exit=0
+7:{"v":1,"type":"user.message","content":"..."}
+kept user.message, current exit=0
+8:{"v":1,"type":"assistant.thinking","content":"...","signature":"..."}
+kept assistant.thinking, current exit=0
+9:{"v":1,"type":"assistant.message","content":"...","tool_calls":[{"id":"toolu_01...","tool":"read_file","input":{}}]}
+kept assistant.message, current exit=0
+10:{"v":1,"type":"approval.scope_granted","action":"run_command","pattern":"go test"}
+kept approval.scope_granted, current exit=0
+11:{"v":1,"type":"approval.scopes_cleared"}
+kept approval.scopes_cleared, current exit=0
+12:{"v":1,"type":"tool.completed","id":"toolu_01...","ok":true,"content":"...","truncated":false}
+kept tool.completed, current exit=0
+13:{"v":1,"type":"compaction.applied","replaced_from":3,"replaced_to":98,"summary":"..."}
+kept compaction.applied, current exit=0
+14:{"v":1,"type":"usage","input_tokens":1234,"output_tokens":567,"cache_read":8900,"cache_write":0}
+kept usage, current exit=0
+15:{"v":1,"type":"turn.completed","status":"success"}
+kept turn.completed, current exit=0
+### F. Code: literal JSON type names in non-test Go under internal and cmd (control: turn.started)
+code session.started exit=1
+code session.resumed exit=1
+code tool.requested exit=1
+code approval.requested exit=1
+code approval.resolved exit=1
+internal/session/event.go:29:	eventTypeTurnStarted = "turn.started"
+control turn.started exit=0
+### G. Literal Type values in the session package (error is not a written type; control: constant Type values)
+literal Type exit=1
+internal/session/event.go:181:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeUserMessage},
+internal/session/event.go:211:			baseEvent: baseEvent{Version: eventVersion, Type: eventTypeUserMessage},
+internal/session/event.go:225:				baseEvent: baseEvent{Version: eventVersion, Type: eventTypeToolCompleted},
+internal/session/event.go:261:				baseEvent: baseEvent{Version: eventVersion, Type: eventTypeAssistantThinking},
+internal/session/event.go:284:			baseEvent: baseEvent{Version: eventVersion, Type: eventTypeAssistantMessage},
+internal/session/event.go:308:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeTurnStarted},
+internal/session/event.go:316:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeTurnCompleted},
+internal/session/event.go:324:		baseEvent:    baseEvent{Version: eventVersion, Type: eventTypeUsage},
+internal/session/event.go:335:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopeGranted},
+internal/session/event.go:344:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopesCleared},
+internal/session/event.go:351:		baseEvent:    baseEvent{Version: eventVersion, Type: eventTypeCompactionApplied},
+control constant Type exit=0
+### H. JSON type tags in session and cmd/kirsch (event.go:51 is the only tag on a written line; the two others decode on read; control: the v tag)
+internal/session/event.go:51:	Type string `json:"type"`
+internal/session/grants.go:46:			Type string `json:"type"`
+internal/session/usage_totals.go:53:			Type string `json:"type"`
+type tags exit=0
+internal/session/event.go:49:	Version int `json:"v"`
+control v tag exit=0
+### I. Workspace path in the event structs (control: the Version field)
+workspace exit=1
+49:	Version int `json:"v"`
+control Version exit=0
+### J. Quotes against their sources (controls: a near-miss must not match)
+408:| C43 | Operator accepted Bishop's recommendation ("Accept all (Recommended)", m5-d20 decision sheet): Accept the flattening, and amend §7 to state it (m5-d21f). | 2026-11-03 |
+C43 in PROGRESS exit=0
+358:**Flattened assistant message.** Decision C43 ("Accept the flattening, and amend §7 to state it") is recorded as follows: each assistant message is written as one `assistant.message` line, in which every text block is joined into `content` and every tool call into `tool_calls`, so the order of text between tool calls is lost. Each `assistant.thinking` line is written before the message's `assistant.message` line, whatever the thinking block's original position in the message (`internal/session/event.go`). The relative order of thinking, text and tool calls is therefore lost, not only the order of text between tool calls.
+C43 in spec exit=0
+C43 near-miss exit=1
+409:| C46 | Operator accepted Bishop's recommendation ("Accept all (Recommended)", m5-d20 decision sheet): Keep the code, which does not write `session.started` or `session.resumed`, and amend §7 to match (m5-d21f). | 2026-11-03 |
+C46 in PROGRESS exit=0
+360:**Types this section does not list.** `session.started` and `session.resumed` are absent because the code does not write them. Decision C46 reads: "Keep the code, which does not write `session.started` or `session.resumed`, and amend §7 to match." The types `tool.requested`, `approval.requested`, `approval.resolved`, `error` and `assistant.delta` are also absent, because the code does not write them.
+C46 in spec exit=0
+1846:- [ ] §7 matches the events the code writes, and the review step is recorded.
+acceptance box exit=0
+### K. Planning cites that point at the pre-amendment lines of the spec
+73:| O11 | D3: name of the new session event (for example `approval.scopes_cleared`) and the §7 amendment. Whether `/new` also records one (it starts a new file, so no). | — | — | m5-d5 | `plan/adr/0006-session-scoped-approvals.md:45, :67–69`; `plan/spec/kirsch-plan.md:340–359` |
+285:| C43 | §7 flattening of interleaved text and tool calls | m5-d20 (decision); m5-d21f (§7 amendment) | `plan/PROGRESS.md:186`; `plan/spec/kirsch-plan.md:340–359` |
+288:| C46 | `session.started` / `session.resumed` not written | m5-d20 (decision); m5-d21f (§7 amendment) | `plan/PROGRESS.md:194`; `plan/spec/kirsch-plan.md:342–343` |
+720:3. `@lambert` — docs: the §7 amendment (`plan/spec/kirsch-plan.md:340–359`) listing the event the code writes.
+1829:- C43 — §7 flattening of interleaved text and tool calls (`plan/spec/kirsch-plan.md:340–359`).
+1830:- C46 — the session events `session.started` and `session.resumed` (`plan/spec/kirsch-plan.md:342–343`).
+1853:**Landed (mission-20261106-01, 2026-11-06).** The example in §7 of `plan/spec/kirsch-plan.md` now lists only the session event types the code writes, with the JSON fields their marshal structs write. The reconstruction rule no longer says `assistant.delta` exists. A note under §7 states the flattened `assistant.message` (C43). C46 covers `session.started` and `session.resumed`; the other removed types had no decision and are under *Open from m5-d21f* in `plan/PROGRESS.md`. The storage-layout sentence that said each session file holds a `session.started` event is corrected. No code changed. The steps and their records are in `.claude/memory/missions/mission-20261106-01/PROGRESS.md`: step 1 is this amendment, and step 2 is the review by `@apone`. The acceptance box above is the operator's, and none is ticked. Historical note: the cites `plan/spec/kirsch-plan.md:340–359` and `:342–343` in this section, and the same cites at `:73`, `:285`, `:288` and `:720` of this file, give the pre-amendment location, as the plan was written. They are not rewritten here.
+exit=0
+```
+
+**Notes.** The `:73`, `:285`, `:288` and `:720` cites above are in the planning tables and the m5-d5 step list, and they point at the pre-amendment lines, as the historical note in the m5-d21f section says.
 
 ---
 

@@ -7,9 +7,9 @@ sets. It is scaffolding for the builder.
 [`doc/`](../doc/) is reserved for **documentation for people using Kirsch** —
 install, configuration reference, keybindings, troubleshooting. Usage documentation
 ([`usage.md`](../doc/usage.md)) landed early because the help overlay inside the
-program points readers at that file, so leaving it absent meant shipping a pointer
-to nothing. The rest of `doc/` arrives at Milestone 5 when there is a working
-system to document. If you are wondering which folder something belongs in, ask:
+program pointed readers at that file, so leaving it absent meant shipping a pointer
+to nothing. The rest of `doc/` was added during Milestone 5, once there was a
+working system to document. If you are wondering which folder something belongs in, ask:
 *is this for someone building Kirsch, or someone using it?* Building → `plan/`.
 Using → `doc/`.
 

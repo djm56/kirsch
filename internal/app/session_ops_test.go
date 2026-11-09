@@ -543,6 +543,7 @@ func TestNewSessionFailureLeavesTheSessionIntact(t *testing.T) {
 	if err == nil {
 		t.Fatal("NewSession succeeded against an unwritable storage dir")
 	}
+	requireStoreMuFree(t, e.a, "the failed NewSession")
 	e.a.storeMu.Lock()
 	sameStore := e.a.store == oldStore
 	tokens, est := e.a.sessionTokensIn, e.a.lastEstimatedTokens

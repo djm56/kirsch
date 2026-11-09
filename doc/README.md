@@ -1,6 +1,6 @@
 # Kirsch — Documentation
 
-> The help overlay in the program points readers at [`usage.md`](usage.md).
+> The help overlay's footer points readers at the project page on GitHub, `github.com/djm56/kirsch`, where the terminal is wide enough to show the link. [`usage.md`](usage.md) is the usage guide.
 
 `doc/` is for **people using Kirsch**. It contains:
 

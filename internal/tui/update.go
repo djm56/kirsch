@@ -242,7 +242,54 @@ func (m *Model) clearApprovalRelease() {
 
 // Update is the single entry point for all state change. architecture.md §3
 // rule 4: TUI state is mutated only here.
+//
+// While /new is pending, busy belongs to /new until update clears the pending
+// flag, which it does in its NewSessionDoneMsg case. The cancelled turn can
+// still send messages in that window, and many of their cases in update write
+// m.busy. For example, TurnCompleteMsg, TurnErrorMsg and a flush ErrorMsg
+// clear it, ToolCompletedMsg clears it in applyToolResult, and ToolStartedMsg,
+// CompactingMsg and an AssistantTextDeltaMsg that opens a new text block set a
+// different verb. This wrapper holds busy against all of them: if /new was
+// pending when the message arrived and is still pending after update has
+// handled it, busy is put back to what it was on entry, whatever update wrote.
+// A message after which /new is no longer pending is not held, so
+// NewSessionDoneMsg ends busy. The rest of a held message's effect (cards,
+// notices, token figures) is kept. Without this, a TurnCompleteMsg cleared
+// busy, Enter reached Submit, and the app's "busy" refusal showed as a stray
+// error card.
+//
+// TurnCancelledMsg does not depend on the hold: update hands it to cancelTurn,
+// which returns before its busy write while /new is pending.
+//
+// ManualCompactMsg also writes busy (it ends a compaction) and is held like
+// the rest. It rarely arrives while /new is pending. /new typed into the
+// composer goes through submit, keyComposing does not call submit while busy
+// is active, and /compact sets busy when it starts, so a /new during a
+// compaction needs busy cleared first. Esc does not clear it (cancelTurn
+// returns early while compacting is set), but a message whose case in update
+// clears busy can, if it is still in flight when /compact starts. One example
+// is ManualCompact's own flushStore: it reports a failed flush as an ErrorMsg
+// sent from a goroutine of its own, which can reach update before the
+// ManualCompactMsg, and the ErrorMsg case clears busy. Another is a turn
+// cancelled with Esc just before /compact, whose late TurnCompleteMsg,
+// TurnErrorMsg, ToolCompletedMsg or flush ErrorMsg arrives after it. A /new
+// started in such a gap leaves the ManualCompactMsg arriving while it is
+// pending. Holding busy is then what /new needs; the message's other effects
+// (compacting cleared, its notice) are kept.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	if !m.newSessionPending {
+		return next, cmd
+	}
+	if nm, ok := next.(Model); ok && nm.newSessionPending {
+		nm.busy = m.busy
+		return nm, cmd
+	}
+	return next, cmd
+}
+
+// update handles one message. Update wraps it; see there for the /new rule.
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -285,9 +332,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case ManualCompactMsg:
-		// The only place busy is cleared for /compact. The app sends this
-		// message once, when compaction has finished, so it carries the real
-		// outcome. Every outcome is a notice, never an error card.
+		// Ends the compaction: clears compacting and busy. busy may already
+		// have been cleared by another message (see the Update docblock). The
+		// app sends this message once, when compaction has finished, so it
+		// carries the real outcome. Every outcome is a notice, never an error
+		// card.
 		m.compacting = false
 		m.busy = Busy{}
 		switch msg.Outcome {

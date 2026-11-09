@@ -70,7 +70,10 @@ nothing else paints an outer border.
   in §2.4.
 - **③ Status bar** — §2.3.
 - **④ Composer** — multiline text area, 1–5 lines then internal scroll.
-  Placeholder `Ask anything (Enter to send, /help for help)` when empty.
+  Placeholder `Ask anything (Enter to send, /help for help)` while the onboarding
+  or the empty-session screen is showing (§7.5), and not otherwise. Below 40
+  columns, or when the transcript region has no rows, the empty session shows no
+  placeholder.
   Dimmed and input-disabled while a turn is in flight; `Esc`/`Ctrl+C` cancels
   the turn and re-enables it.
 
@@ -627,6 +630,19 @@ the 38 a 40-column terminal leaves — so it is cut by its own renderer and read
 version leads because it is the part worth keeping when the row is cut. The
 lead-in and the three suggestions survive at sizes where the wordmark does not:
 they are the part that tells a new user what to do.
+
+**Notices under the onboarding.** Start-up notices, such as
+`no previous session — starting fresh`, arrive before the first message. They do
+not end the onboarding or the empty session. While the transcript holds nothing
+but notices, the onboarding (or the empty session) stays, with one blank row and
+then the notices beneath it, provided every notice row fits below it. This includes
+notices from user commands, such as `/status`. If any notice row would not fit, the
+normal scrollable transcript shows instead, with nothing cut off. The first message,
+a tool card, an error card or any other item ends the onboarding, as before.
+
+The rule is decided afresh for each frame, so the onboarding can come back. `/new`
+empties the transcript and brings it back, and so does a larger window while the
+transcript still holds only notices that now fit.
 
 ## 8. Milestone 0 Prototype Scope
 

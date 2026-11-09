@@ -2,6 +2,7 @@
 
 > **Status: Milestones 0–4 complete (Milestone 4, the real task loop + sessions, operator-accepted 2026-10-23, tag `m4`); Milestone 5 (polish and release, v0.1.0) is in progress; per-deliverable status, including what awaits operator testing, is in plan/PROGRESS.md.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. A second instance in the same workspace is detected and degraded gracefully (fresh start, status-bar warning, grants disabled). Long conversations are compacted to stay within the context window, and `/compact` does so on demand. The slash commands work on real session state, the status bar shows session token and cost totals, and the system prompt asks the agent to end each task that took actions with a final-task report. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
+> Developer path, from a clone of the repository (for a built binary, see [Install](#install)):
 > ```
 > go run ./cmd/kirsch
 > ```
@@ -18,6 +19,27 @@ It works inside a Git repository, where it can:
 - Keep a durable, resumable local session record
 
 **First user:** a solo developer working on real projects (WordPress/PHP, Go).
+
+## Install
+
+> **v0.1.0 is not published yet.** Until it is, build Kirsch from a clone of the repository. The release-archive route and `go install` by release tag, which [`doc/install.md`](doc/install.md) describes, need a published release, so they do not apply yet.
+
+Build from a clone. These are the commands from the *Build from source* section of [`doc/install.md`](doc/install.md):
+
+```bash
+git clone https://github.com/djm56/kirsch.git
+cd kirsch
+bash scripts/build.sh
+./bin/kirsch --version
+```
+
+You need Go and `git`. [`doc/install.md`](doc/install.md) gives the Go version. The binary is written to `bin/kirsch` inside the checkout. The same page covers what Kirsch needs on the machine, setting up an API key, and checking the install with `kirsch doctor`.
+
+Developers working on Kirsch itself can run it from the clone without building a binary:
+
+```bash
+go run ./cmd/kirsch
+```
 
 ## Core Ideas
 
@@ -44,7 +66,7 @@ It works inside a Git repository, where it can:
 | Language | Go |
 | UI | Bubble Tea full-screen TUI (primary); non-interactive `kirsch run` later |
 | License | MIT |
-| Providers | One only for v0.1 (Anthropic) |
+| Providers | One wire format for v0.1 (Anthropic Messages), with the built-in endpoints `opencode` (OpenCode Go, the default) and `anthropic` |
 | Storage | JSONL session events, local disk only |
 | CLI | stdlib `flag` + hand-rolled subcommands (no cobra) |
 | Platforms | macOS + Linux, amd64/arm64 (no Windows in v0.1) |
@@ -63,8 +85,8 @@ plan/     everything needed to BUILD Kirsch — spec, architecture, ADRs,
           UI spec, per-milestone instruction sets. Scaffolding; goes away
           after v0.1.0.
 doc/      everything needed to USE Kirsch — install, configuration, usage,
-          troubleshooting. Mostly written at Milestone 5; `usage.md` landed
-          early because the help overlay already points to it.
+          troubleshooting. The pages are in place, and `doc/README.md`
+          indexes them.
 ```
 
 If you are unsure where something belongs: *is it for someone building Kirsch,
@@ -96,6 +118,8 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 Milestones 0–4 are complete. Milestone 4 (the real task loop + sessions) was operator-accepted on 2026-10-23 and tagged `m4`; all of its deliverables are done. Milestone 5 (polish and release, v0.1.0) is in progress. Its instruction set and testing skeletons are written, and deliverables are landing one at a time, and the status of each, including which ones await operator testing, is in plan/PROGRESS.md. Live status — what's in progress, what's blocked, who owns each deliverable, and the items carried forward — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md). To start Milestone 5, read [`plan/milestones/milestone-5-start-here.md`](plan/milestones/milestone-5-start-here.md).
 
 ## What works today
+
+Developer path, from a clone:
 
 ```
 go run ./cmd/kirsch
@@ -140,8 +164,10 @@ real model. It needs an API key (`ANTHROPIC_API_KEY` or `OPENCODE_API_KEY`, or
 their `KIRSCH_` forms), and it spends tokens, so run it by hand with
 `bash scripts/smoke-test.sh`. It is not one of the `npm` scripts.
 
-`npm` is a front door, not a dependency — every script is one line of `go` or
-`bash`, and nothing in the build needs Node. See
+`npm` is a front door, not a dependency. `npm run screens` runs
+`python3 scripts/lint-screens.py`.
+Nothing in the build needs Node: `scripts/build.sh` and `.goreleaser.yaml` call
+no `npm` or `node`. See
 [`plan/testing/`](plan/testing/) for the manual walkthroughs and for what the
 suite deliberately does not cover.
 

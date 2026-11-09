@@ -16,7 +16,7 @@ type Composer struct {
 	ta         textarea.Model
 	Disabled   bool   // mirrors Busy; the only thing Busy does here
 	Focused    bool   // the composer holds input capture
-	Onboarding bool   // nothing has been said yet: show the placeholder
+	Onboarding bool   // Model.showIntro: show the placeholder
 	Hint       string // dim inline hint for an unknown /command, §6
 
 	// History for command and message recall. Stores up to 100 entries,
@@ -115,7 +115,7 @@ func (c *Composer) contentLines() int {
 // Three empty-composer states, which is what the screens show and what §2's
 // bare "placeholder when empty" does not distinguish:
 //
-//   - onboarding (nothing said yet): the placeholder      — screen 01
+//   - onboarding (Model.showIntro): the placeholder       — screen 01
 //   - focused, with a transcript:    the cursor           — screens 07, 08, 10
 //   - not focused (an approval or modal holds capture): neither — screens 03-06
 //

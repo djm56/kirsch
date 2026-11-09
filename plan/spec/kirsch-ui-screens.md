@@ -106,7 +106,10 @@ tagline             "v0.1.0-dev · terminal-native coding agent"  dim       245 
 - **21 columns wide**, 2 rows — count the grid above, and note the single-cell `█` for `I`
   and for the two stems of `H` on row 1. Non-UTF-8 locale falls back to letter-spaced
   plain text.
-- Shown on the empty session only. It scrolls away with the first message and never reappears.
+- Shown while the onboarding or the empty session is showing (§7.5), and only
+  then. It scrolls away with the first message. It comes back only where that
+  screen does: after `/new`, or in a larger window while the transcript still
+  holds only notices that now fit (§7.5).
 - Suppressed below 40 cols or 10 rows, where the transcript needs the lines more. The band is
   read from the **terminal** width, not from the content width the frame's margin leaves — at
   40 and 41 columns the two disagree, and reading content width would retire the wordmark from
@@ -162,9 +165,11 @@ separators          both full-width "─" rules                    border    244
 ```
 
 - Onboarding, not an error: no border, no red. §7.5.
-- Composer placeholder is the literal string from §2. It appears **only here**: an empty
-  composer shows the placeholder while the session is empty, the cursor `▌` once there is a
-  transcript and the composer has focus, and nothing at all while an approval or modal holds
+- Composer placeholder is the literal string from §2. It appears **in screen 01
+  and in screen 12**: an empty composer shows the placeholder while the
+  onboarding or the empty session is showing (§2 and §7.5; not below 40 columns
+  or with no transcript rows), the cursor `▌` once there is a transcript and the
+  composer has focus, and nothing at all while an approval or modal holds
   capture (screens 03–06). A placeholder standing behind a pending approval reads as an
   invitation to type into a composer that is deliberately refusing input.
 - Suggestions are `dim` (240) with `·` bullets; the lead-in line is `muted` (244).
@@ -397,7 +402,7 @@ status+composer     unchanged, still live                    muted     248  #a8a
          │ ?             help                   /compact  /quit       │
          │                                      /exit                 │
          ├────────────────────────────────────────────────────────────┤
-         │ kirsch v0.1.0-dev · docs: doc/usage.md · Esc or ? closes   │
+         │ kirsch v0.1.0-dev · Esc or ? closes                        │
          └────────────────────────────────────────────────────────────┘
  ──────────────────────────────────────────────────────────────────────────────
  claude-sonnet-5-5 · idle · 12.4k tok
@@ -414,12 +419,13 @@ modal.title         "help"                                   accent    117  #87d
 section.headings    "composing" "browsing" "approval"        warning   215  #ffaf5f
                     "modal" "commands"
 bindings            key + description columns                muted     248  #a8a8a8
-footer              "kirsch v0.1.0-dev · docs: … · Esc or ? closes"  dim 245  #8a8a8a
+footer              "kirsch v0.1.0-dev · Esc or ? closes"    dim       245  #8a8a8a
 BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8a8a
 ```
 
 - Opens from Browsing and ApprovalPending only. In the composer, `?` is a literal character. §4.2.
 - One screen, no scrolling: bindings by mode, then slash commands, then the version footer.
+- The footer's docs link, `docs: github.com/djm56/kirsch`, is one rung of the footer ladder, and the box width decides which rung is drawn. Fence 06 (80×28) shows the footer without the link. That follows from the current footer ladder; it is not a decided reference behaviour. Wider terminals can show the link: `TestHelpFooterNamesScrollKeysWhenClipped` asserts it at 120×27 and at 120×30.
 - Mode headings are `warning` (215); bindings are `muted` (248).
 - Two columns, both generated from the same binding table `update.go` dispatches on, so a
   binding cannot change behaviour while keeping its old description here.

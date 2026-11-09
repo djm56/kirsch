@@ -651,7 +651,7 @@ func (m Model) View() string {
 	}
 	comp := m.comp
 	comp.Focused = m.mode() == ModeComposing && !m.busy.Active
-	comp.Onboarding = m.tr.Len() == 0
+	comp.Onboarding = m.showIntro(lay)
 	rows = append(rows, comp.rows(lay, m.sty, m.gly, m.busy.Active)...)
 
 	// Hint line: appended at h >= 24, and blanked when an overlay is open.

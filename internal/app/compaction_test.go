@@ -679,12 +679,12 @@ var (
 )
 
 // usageCost is claude-sonnet-5-5's cost for a call, from the prices in
-// internal/provider/models.go: 2.0 in, 10.0 out, 0.2 cache read, 2.5 cache
+// internal/provider/models.go: 2.0 in, 10.0 out, 0.1 cache read, 2.5 cache
 // write, per million tokens. The arithmetic is written out here, not taken
 // from ModelInfo.Cost, so a bug in Cost cannot hide in the expectation.
 func usageCost(u provider.Usage) float64 {
 	return (float64(u.InputTokens)*2.0 + float64(u.OutputTokens)*10.0 +
-		float64(u.CacheReadTokens)*0.2 + float64(u.CacheWriteTokens)*2.5) / 1e6
+		float64(u.CacheReadTokens)*0.1 + float64(u.CacheWriteTokens)*2.5) / 1e6
 }
 
 // sumUsage adds provider usages field by field.

@@ -925,7 +925,83 @@ _(nothing yet)_
 
 ## 11 · Another safety test for running commands (m5-d19b)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d19b is finished.
+**What this checks:** two timing tests for commands that kirsch runs. One checks that a command which stops when asked ends about at its time limit. The other checks that a command which ignores the request is still forced to stop within the allowed time. Step 2 looks at the milestone plan's boxes that changed, and step 3 is a decision for you. No model is called and no API key is used.
+
+**Before this section:** do *Before you start* in this Terminal window. Each step starts in the kirsch folder.
+
+**Step 1 — Run the two timing tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 ./internal/tool -run 'TestRunCommandTerminateThenKill$|TestRunCommandTimeoutWithinDeadline$' -v; echo "exit=$?"
+```
+You should see lines starting `=== RUN` and `--- PASS`, and no line starting `--- FAIL`. The last line is `exit=0`. Here is the output of a run on 2026-11-05. Your times will differ a little, and that is normal:
+```
+=== RUN   TestRunCommandTimeoutWithinDeadline
+--- PASS: TestRunCommandTimeoutWithinDeadline (1.02s)
+=== RUN   TestRunCommandTerminateThenKill
+--- PASS: TestRunCommandTerminateThenKill (3.02s)
+PASS
+ok  	github.com/djm56/kirsch/internal/tool	4.241s
+exit=0
+```
+In plain words, the two PASS lines mean this:
+- `TestRunCommandTimeoutWithinDeadline`: a command that stops when asked ends about at its time limit, which is 1 second in this test. The test accepts anything from 1 to 2 seconds.
+- `TestRunCommandTerminateThenKill`: a command that ignores the request is forced to stop. The call ends about 2 seconds after the 1-second limit (3 seconds after the start, as the output shows). The test accepts up to 3 seconds after the limit, and fails above that.
+
+A `--- FAIL` line, or an `exit=` value other than 0, means the check did not pass. Copy the last lines and tell Bishop.
+- [✅] I saw `--- PASS` for both tests, the `ok` line, and `exit=0` as the last line
+
+**Step 2 — Look at the three boxes that changed.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+sed -n '/Command timeout ends the call/,/^- \[x\] Env filtering/p' plan/milestones/milestone-2.md
+```
+You should see three boxes, each starting `- [ ]`, which means unticked. The last line of the output is one already-ticked box, and it only marks where the printout stops. Here is the output of that command, run after the edits in this milestone:
+```
+- [ ] Command timeout ends the call within 3s of the deadline, even when the
+      command ignores SIGTERM. At the deadline SIGTERM goes to the process
+      group; if the group leader is still alive 2s later, SIGKILL goes to the
+      group. This box does not assert that every process in the group is gone
+      when a process ignores SIGTERM: no test checks that, and the code may
+      skip SIGKILL once the leader has exited (suspected, read from
+      `internal/tool/run_command.go`, not run). (was: "Command timeout kills
+      the process group within 500ms of the deadline", unticked; relaxed by
+      O15, C29, 2026-10-29; the 3s value is in plan/PROGRESS.md row C29
+      detail)
+- [ ] A cancelled command's process is actually gone, not merely detached
+      Note (2026-11-05, m5-d19b): m5-d19a (mission-20261027-05) made
+      `TestRunCommandCancellationProcessGroupDead` record the PIDs out of band
+      and assert they are gone (ESRCH). The test fails when `Setpgid` is
+      set to `false` ("still alive 3s after the command ended",
+      plan/testing/manual/milestone-5.md section 6). That meets the condition
+      the status note below sets for ticking. Ticking is the operator's call.
+- [ ] A command that reads input gets end-of-input at once and cannot
+      wait for typing
+      (was: "A command reading stdin fails immediately", ticked; reworded
+      by C34, 2026-11-03)
+- [x] Env filtering strips `*_KEY`/`*_TOKEN` even when allowlisted
+```
+Next to that output, the three boxes say the following:
+- The first box is the timeout box. Its text now says `within 3s of the deadline`, and the old `500ms` wording is kept after `(was:`.
+- The second box is the cancelled-process box. Its note says the test meets the condition for ticking, and that ticking is the operator's call.
+- The third box is the stdin box. It has the reworded text, and the old wording is kept after `(was:`.
+
+- [✅] I saw the three boxes, each unticked, and the timeout box says `within 3s of the deadline`
+
+**Step 3 — A decision for you, not a check.**
+Decide whether to tick the box "A cancelled command's process is actually gone, not merely detached", in `plan/milestones/milestone-2.md`. The test behind it is `TestRunCommandCancellationProcessGroupDead`, which you ran in section 6 of this checklist. When it was checked with the code broken on purpose (Bishop's crew turned process groups off), it failed with the line below; that run is recorded in the table in section 6 of `plan/testing/manual/milestone-5.md`. Ticking the box is your decision. Bishop has not ticked it, and Bishop will not tick it for you. Write your decision under *Anything odd?* at the end of this section.
+
+```
+run_command_test.go:963: still alive 3s after the command ended: grandchild sleep(pid 83373)
+```
+
+One gap is not covered by any test, and this section does not check it. A process that ignores the stop request may survive when the process it started exits on that request. It is written up in `plan/PROGRESS.md` under *Open from m5-d19b*, and fixing it needs a code change.
+
+**Anything odd?** Write it here:
+
+Yes Tick the box
 
 ---
 
@@ -1197,7 +1273,103 @@ _(nothing yet)_
 
 ## 15 · The automatic release steps on GitHub (m5-d11)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d11 is finished.
+**What this checks:** the steps that build kirsch's release files, and the notices that go into each one. Steps 2 to 4 run on your Mac. Inside the kirsch folder they change only the `dist` and `build` folders, which Git ignores. The first run also downloads tools into Go's own download folder on your Mac. Step 5 runs on GitHub after you commit and push. It starts a dry run, which publishes nothing. No kirsch session starts, no model is called and no API key is used.
+
+**Before this section:** do *Before you start* in this Terminal window. Setup B must have said `Ready.`.
+
+Every step works from the kirsch folder.
+
+**Step 1 — Go to the kirsch folder.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+```
+You should see your prompt again, with no message.
+- [✅] Done
+
+**Step 2 — Build the release files on your Mac.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+npm run release:snapshot; echo "result: $?"
+```
+The first run downloads tools, so it takes a few minutes. Wait for it to finish.
+
+The run prints many lines, and their exact text can vary from one Mac to another. You may see lines like these: lines starting with `>` (npm saying what it is running), lines starting `go: downloading`, and lines starting `npm notice`. On this machine a healthy run also printed a line starting `go:` that says it is switching Go version, and a line that contains `error=invalid semantic version tag=m4`. That second line comes from an older tag in the project, and the run still succeeded. Two things matter:
+- `release succeeded` near the end.
+- `result: 0` as the last line.
+
+Any other number on the last line means the run failed. If that happens, paste the same command again once; if the cause was a network problem, a second run may clear it. Running it twice is safe. If it still fails, tell Bishop.
+
+You should see these as the last lines. The number of seconds will differ on your Mac:
+```
+  • release succeeded after 8s
+  • thanks for using GoReleaser!
+result: 0
+```
+- [✅] I saw `release succeeded` near the end and `result: 0` last
+
+**Step 3 — Check that the archive holds the notices.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+tar -tzf dist/kirsch_*_darwin_arm64.tar.gz | sort | grep -E '^(kirsch|LICENSE|README\.md|CHANGELOG\.md|NOTICE|licenses/go/LICENSE)$'
+tar -tzf dist/kirsch_*_darwin_arm64.tar.gz | grep -c '^licenses/'
+```
+You should see these names. The order may differ on your Mac; what matters is that all of them appear:
+```
+CHANGELOG.md
+kirsch
+LICENSE
+licenses/go/LICENSE
+NOTICE
+README.md
+```
+Then a line with the number `29`.
+
+What the names are:
+- `kirsch` is the program.
+- `LICENSE` is kirsch's own licence.
+- `README.md` is the front page.
+- `CHANGELOG.md` is the list of changes.
+- `NOTICE` names the libraries kirsch uses, and their licences.
+- `licenses/go/LICENSE` is the licence of the Go language that kirsch is built with.
+
+The `29` counts the licence texts in the `licenses` folder. It can change when the libraries change. What matters is a number above zero, with no error message.
+- [✅] I saw all of them, then a number above zero
+
+**Step 4 — Check the checksums file.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+ls dist/*_checksums.txt
+```
+You should see one file name that ends in `_checksums.txt`, for example:
+```
+dist/kirsch_m4-SNAPSHOT-f6d0cd0_checksums.txt
+```
+The middle part of the name is the version. It can differ on your Mac, depending on the latest tag and the commit. The checksums file holds one fingerprint for each archive, so someone can check that an archive was not changed.
+- [✅] I saw one `_checksums.txt` file name
+
+**Step 5 — Start a dry run on GitHub (you do this in your browser).**
+This step runs the copy of the project on GitHub, so commit your changes and push them first. Changes that are not pushed do not run. Publishing a real release is a later step, with a version tag, and it is not part of this section. The release steps are set up so that a tag works only on a commit that is already on `main`; if it is not, the run should fail with an error before it builds or publishes anything. That check has not been tried on GitHub yet.
+
+1. Open the kirsch repository on GitHub, `https://github.com/djm56/kirsch`, signed in as the owner.
+2. Click the *Actions* tab.
+3. In the list on the left, click *Release*.
+4. Click *Run workflow*. Choose the branch `main`, then click the green *Run workflow* button.
+5. Wait for the run to finish. It takes a few minutes. Click the run to open its page.
+
+If GitHub's buttons are named a little differently, look for the closest match; if you cannot find *Run workflow*, stop and tell Bishop.
+
+You should see a green tick on the run. On its page, an artifact named `release-dry-run` is listed. The *Releases* page shows no new release. This step publishes nothing.
+
+If the run is red, or a step says permission denied, stop and tell Bishop the section and step number.
+- [ ] The run is green, the `release-dry-run` artifact is on its page, and the *Releases* page shows no new release
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 
@@ -1350,13 +1522,142 @@ _(nothing yet)_
 
 ## 18 · Fresh machine, no API key check (m5-d16)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d16 is finished.
+**What this checks:** what Kirsch shows when you start it with no API key. The first step runs a check that does this for you. The later steps let you see the same start by hand, and see what changes once you type a command.
+
+**Before this section:** do *Before you start* in this Terminal window. Step 1 works from the kirsch folder. Steps 2 to 4 start Kirsch in new temporary folders, so they do not use your own sessions, and each one needs the Terminal window at the size the step gives.
+
+**Step 1 — Run the no-key check.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+npm run check:no-key; echo "exit=$?"
+```
+The check takes about 35 seconds. It builds Kirsch first. If the build fails, the check stops and shows the build's output, and the `exit=` line at the end is not `exit=0`. Your own key settings do not reach the check, so it works even when a key is set in this window. Here is the whole output of a run from a normal shell, without `env -i`. The first lines are npm's own, and they are not part of the result:
+```
+
+> kirsch@0.1.0-dev check:no-key
+> bash scripts/no-key-check.sh
+
+ . No API key: set KIRSCH_OPENCODE_API_KEY → OPENCODE_API_KEY.
+no-key-check: PASS (the line was emitted to the terminal)
+exit=0
+```
+The key line starts with one space, then the dot, and both are part of the text Kirsch prints. The check passed when its output contains the `no-key-check: PASS (the line was emitted to the terminal)` line and `exit=0` is the last line. Lines between them do not change the result. If the PASS line is missing, or `exit=0` is not the last line, the check did not pass. Copy the last lines of the output and tell Bishop.
+- [ ] I saw the `No API key` line, the `PASS` line, and `exit=0`
+
+**Step 2 — Look at a fresh start with no key.**
+Set this Terminal window to 80 columns wide and 24 rows tall. In Terminal, the Window settings for the profile hold the Columns and Rows fields.
+
+Paste:
+```
+FAKE_HOME="$(mktemp -d)" && cd "$(mktemp -d)" && git init -q . && env -i HOME="$FAKE_HOME" PATH="$PATH" TERM=xterm-256color /Volumes/DATA/Github/kirsch/bin/kirsch
+```
+This starts Kirsch as on a new computer: no key, and an empty home folder. It does not use your own settings or your own sessions.
+
+You should see, from the top:
+- the word KIRSCH with a space between each letter (this test has no language setting, so Kirsch falls back to plain letters)
+- the version line, `v0.1.0-dev . terminal-native coding agent`
+- the key lines: `. No API key: set KIRSCH_OPENCODE_API_KEY → OPENCODE_API_KEY.`, then `. Keys are never read from config files.`
+- one blank line, then the note that starts `. Using opencode sends prompts and file contents to`. It may wrap onto more than one row.
+- one blank line, then `. no previous session - starting fresh`. The dash in that line is a plain dash here.
+- near the bottom, the typing line: `> Ask anything (Enter to send, /help for help)`
+
+Quit with two `Ctrl+C`.
+- [ ] I saw the key lines with both key names, the `Keys are never read` line, then one blank line, the OpenCode note that starts `. Using opencode sends prompts`, one blank line, the `no previous session` line, and the typing line at the bottom
+
+**Step 3 — Type a command at the same size.**
+Paste the same command from step 2 again. Then type `/status` and press Enter.
+
+The onboarding goes away. The screen shows the messages instead: the `no previous session` line, then the status text (model, endpoint, key source and so on). The typing line at the bottom shows only the cursor. That is expected at this size, because the status text is too tall to fit under the onboarding.
+
+Quit with two `Ctrl+C`.
+- [ ] After `/status`, the onboarding was gone and the typing line showed only the cursor
+
+**Step 4 — The same command with a taller window.**
+Set the window to 80 columns wide and 40 rows tall. Paste the same command from step 2 again, and type `/status` and press Enter.
+
+This time the onboarding should stay, with the `no previous session` line and the status text beneath it. The typing line at the bottom should show `Ask anything (Enter to send, /help for help)` again.
+
+Quit with two `Ctrl+C`.
+- [ ] With 40 rows, the onboarding stayed, with the status text beneath it, and the typing line showed `Ask anything`
+
+The folders made by steps 2 to 4 hold only test data, and this test does not remove them.
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 
 ## 19 · Starting a new session with `/new` (only if you choose to do it) (m5-d17a)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d17a is finished.
+**What this checks:** what happens to a session that Kirsch makes when it starts, or when you type `/new`, and you then quit with nothing written in it. Such a session is now removed on quit, so the next start no longer picks up an empty one. Steps 1 and 2 run tests. You do not type anything into Kirsch in this section. No model is called and no API key is used.
+
+**Before this section:** do *Before you start* in this Terminal window. Each step starts in the kirsch folder.
+
+**Step 1 — Run the session tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 ./internal/app/ -run 'TestCloseAfterNewSessionLeavesNoEmptySession$|TestNewSessionThatReceivedAnEventSurvivesClose$|TestFreshLaunchSessionIsAbandonedLikeANewOne$|TestResumedSessionIsNeverDeleted$|TestNewSessionRotatesTheProviderSessionID$' -v; echo "exit=$?"
+```
+You should see lines starting `=== RUN` and `--- PASS`, and no line starting `--- FAIL`. Here is the output of the run on 2026-11-05, copied as it was printed. Your times will differ a little, and that is normal:
+```
+=== RUN   TestCloseAfterNewSessionLeavesNoEmptySession
+--- PASS: TestCloseAfterNewSessionLeavesNoEmptySession (0.08s)
+=== RUN   TestNewSessionRotatesTheProviderSessionID
+--- PASS: TestNewSessionRotatesTheProviderSessionID (0.08s)
+=== RUN   TestNewSessionThatReceivedAnEventSurvivesClose
+--- PASS: TestNewSessionThatReceivedAnEventSurvivesClose (0.06s)
+=== RUN   TestResumedSessionIsNeverDeleted
+--- PASS: TestResumedSessionIsNeverDeleted (0.08s)
+=== RUN   TestFreshLaunchSessionIsAbandonedLikeANewOne
+=== RUN   TestFreshLaunchSessionIsAbandonedLikeANewOne/empty_startup_then_quit
+=== RUN   TestFreshLaunchSessionIsAbandonedLikeANewOne/empty_startup_then_/new_then_quit
+=== RUN   TestFreshLaunchSessionIsAbandonedLikeANewOne/startup_with_an_event_then_/new_then_quit_(control)
+--- PASS: TestFreshLaunchSessionIsAbandonedLikeANewOne (0.17s)
+    --- PASS: TestFreshLaunchSessionIsAbandonedLikeANewOne/empty_startup_then_quit (0.05s)
+    --- PASS: TestFreshLaunchSessionIsAbandonedLikeANewOne/empty_startup_then_/new_then_quit (0.06s)
+    --- PASS: TestFreshLaunchSessionIsAbandonedLikeANewOne/startup_with_an_event_then_/new_then_quit_(control) (0.06s)
+PASS
+ok  	github.com/djm56/kirsch/internal/app	0.736s
+exit=0
+```
+The output above ends with `exit=0`, as yours should.
+
+In plain words, each PASS means this:
+- `TestCloseAfterNewSessionLeavesNoEmptySession`: a session that already has something in it is replaced by `/new`, nothing is written to the new session, and Kirsch quits. Only the old session's file is left, and `index.json` points at that old session.
+- `TestNewSessionRotatesTheProviderSessionID`: the first message is sent with the provider session id set before `/new`. After `/new`, the next message is sent with a different id, which is 32 lowercase hexadecimal characters.
+- `TestNewSessionThatReceivedAnEventSurvivesClose`: a new session that receives one event after `/new` is kept on quit. The old session's file is also kept, and `index.json` points at the new session.
+- `TestResumedSessionIsNeverDeleted`: an empty session that was resumed is kept on quit, and it is still kept after a later `/new` and quit. The empty session that `/new` made is removed, and `index.json` points at the resumed session.
+- `TestFreshLaunchSessionIsAbandonedLikeANewOne`: it checks these situations in turn. A launch with nothing written, then quit, leaves no session file and no index entry. A launch with nothing written, then `/new`, then quit, leaves no session file and no index entry. A launch with one event written, then `/new`, then quit (the control), leaves only the first session's file, and `index.json` points at it.
+
+A `--- FAIL` line, or an `exit=` value other than 0, means the check did not pass. Copy the last lines and tell Bishop.
+- [ ] I saw `--- PASS` for each named test, the `ok` line, and `exit=0` as the last line
+
+**Step 2 — Run the `/new` test through the real wiring.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 ./cmd/kirsch/ -run 'TestSlashNewThroughRealWiringStartsANewSession$' -v; echo "exit=$?"
+```
+This test starts a session, records one real event in it, then sends `/new` through the same wiring that Kirsch uses at the keyboard. It asserts that the session id that `/status` reports changes after `/new`, and that the old id is no longer on screen. It asserts that two session files exist, the old session's and the new one, and that exactly one of them holds content: the old session's event.
+You should see `--- PASS` for the test, and an `ok` line. Here is the output of a run on 2026-11-05, copied as it was printed:
+```
+=== RUN   TestSlashNewThroughRealWiringStartsANewSession
+--- PASS: TestSlashNewThroughRealWiringStartsANewSession (0.16s)
+PASS
+ok  	github.com/djm56/kirsch/cmd/kirsch	0.669s
+exit=0
+```
+The output above ends with `exit=0`, as yours should.
+- [ ] I saw `--- PASS` for the test, the `ok` line, and `exit=0` as the last line
+
+**What the code does (read from the code, not seen in a run).** A session file that this Kirsch created and that nothing was written to is removed when you quit (`Close`, `internal/app/app.go:890`) or when `/new` replaces it (`installSession`, `internal/app/app.go:1303`). A session that received any event, or that was resumed, is never removed. When the removed session is the one `index.json` names for this workspace (at quit, the session you were in), the entry is put back to what it held before Kirsch created that session, skipping any earlier empty sessions that `/new` already removed, or deleted if there was nothing earlier or that earlier session's file is gone (`restoreIndexLocked`, `internal/app/app.go:1085`; `restorePoint`, `internal/app/app.go:1111`). After `/new`, the entry names the new session; at quit it goes back as described only if that session is still empty. So, after a normal quit, the next launch does not find an empty session that this Kirsch created. Which notice that launch shows depends on how it is started (`chooseSessionInit`, `cmd/kirsch/main.go:277–310`). `/new` also sets a new provider session id (`randomSessionID()`, `internal/app/app.go:1039`, set in `NewSession` at `internal/app/app.go:1281`). Nothing in this change needs a key or a model.
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 
@@ -1709,7 +2010,103 @@ _(nothing yet)_
 
 ## 23 · The front page and progress tracker are current (m5-d15)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d15 is finished.
+**What this checks:** the front page of the project now has an Install section, the list of decision records in `AGENTS.md` names the ones that exist, the npm note and the narrow-width note are correct, and the progress tracker agrees with the work. Every step here only reads files. Nothing runs Kirsch, and no key is needed.
+
+**Before this section:** nothing needs running first. Open a Terminal window.
+
+**Step 1 — Go to the kirsch folder.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+```
+You should see your prompt again, with no message.
+- [ ] Done
+
+**Step 2 — Check the Install section on the front page.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n -E '^## Install$|doc/install.md' README.md | cut -c1-160
+test -f doc/install.md && echo "doc/install.md is there"
+```
+You should see these lines. The numbers are line numbers in `README.md`, and the last line of output says `doc/install.md is there`.
+```
+23:## Install
+25:> **v0.1.0 is not published yet.** Until it is, build Kirsch from a clone of the repository. The release-archive route and `go install` by release tag, which
+27:Build from a clone. These are the commands from the *Build from source* section of [`doc/install.md`](doc/install.md):
+36:You need Go and `git`. [`doc/install.md`](doc/install.md) gives the Go version. The binary is written to `bin/kirsch` inside the checkout. The same page cove
+doc/install.md is there
+```
+- [ ] The lines match
+
+**Step 3 — Check the decision-record range in `AGENTS.md`.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n 'Why was X decided' AGENTS.md | cut -c1-160
+ls plan/adr/
+```
+You should see line 21 ending in `ADRs 0001–0012`, and then the file names from `0001-go-bubble-tea.md` to `0012-execution-seam.md`, followed by `README.md` and `TEMPLATE.md`.
+- [ ] The lines match
+
+**Step 4 — Check the npm note in `README.md`.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n 'npm run screens' README.md | cut -c1-160
+grep -n 'python3 scripts/lint-screens.py' README.md | cut -c1-160
+grep -c 'every script is one line' README.md
+```
+You should see line 167, which ends with the words `npm run screens` runs, then line 168, which reads `python3 scripts/lint-screens.py`. The last line should be `0`, which means the old wording is gone.
+- [ ] The lines match
+
+**Step 5 — Check the narrow-width note in `CHANGELOG.md`.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n 'corrected 2026-11-06, m5-d15' CHANGELOG.md | cut -c1-100
+```
+You should see line 22, which starts `- **Milestone 4, m4-d9 — Token and Cost Tracking.**`. The correction sits after the original sentence, and the original is still there.
+- [ ] The line matches
+
+**Step 6 — Check the Providers row in `README.md`.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n '^| Providers' README.md
+```
+You should see line 69, which names `opencode` and `anthropic` as the built-in endpoints.
+- [ ] The line matches
+
+**Step 7 — Check the progress tracker.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n '^| m5-d15 |' plan/PROGRESS.md
+grep -o 'm5-d15 is done ([^)]*)' plan/milestones/milestone-5-start-here.md
+```
+You should see line 292 of `plan/PROGRESS.md`. Its status cell reads `done (not yet operator-tested; section 23 ready to test)`, and its owner cell reads `mission-20261106-02`. The last line should be `m5-d15 is done (mission-20261106-02)`.
+- [ ] The lines match
+
+**Step 8 — Check the resolved marks in the tracker.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n 'Resolved 2026-11-06 (m5-d15)' plan/PROGRESS.md | cut -c1-60
+```
+You should see a line for each of these rows: the `max_turns_exceeded` row, the *Unwired settings and hooks* row, the *Configured command timeout ignored* row, the *Stale code comments* row, and the *Deferred review suggestion — `usage.json` cost field* row. The rows marked for part of their scope are the *Unwired settings and hooks* row and the *Stale code comments* row. Each row writes its open part in its own text.
+- [ ] The lines match
+
+**Step 9 — Check that a stale sentence is gone.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -c 'unless O4 changes' plan/milestones/milestone-5.md
+```
+You should see `0`.
+- [ ] The count is 0
+
+If a line differs from what you should see, do not tick the box. Tell Bishop which step and what the screen showed.
 
 ---
 
@@ -1953,7 +2350,106 @@ _(nothing yet)_
 
 ## 26 · `/new` while busy (only if you choose to do it) (m5-d17b)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d17b is finished.
+**What this checks:** what happens when you press Esc during a reply, and then type `/new` while that cancelled reply is still finishing. Steps 1 and 2 run tests. You do not type anything into Kirsch in this section. No model is called and no API key is used.
+
+**Before this section:** do *Before you start* in this Terminal window. Each step starts in the kirsch folder.
+
+**Step 1 — Run the busy-state tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 ./internal/tui/ -run 'TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages$|TestManualCompactMsgDuringNewAfterBusyClearedMidCompaction$|TestNewSessionDoneEndsBusyAfterLateTurnMessages$' -v; echo "exit=$?"
+```
+You should see `=== RUN` and `--- PASS` lines for each test named in the plain words below, the `ok` line, and `exit=0` as the last line. Here is the output of a run on 2026-11-05, copied as it was printed. Your times will differ a little, and that is normal:
+```
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/control:_UsageMsg_touches_no_busy_state
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnCompleteMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnCancelledMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnErrorMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ErrorMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ManualCompactMsg_(delivered_directly,_no_/compact_run)
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ToolStartedMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/AssistantTextDeltaMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/CompactingMsg
+=== RUN   TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/positive_control:_no_/new_pending,_Enter_reaches_Submit
+--- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages (0.05s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/control:_UsageMsg_touches_no_busy_state (0.01s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnCompleteMsg (0.01s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnCancelledMsg (0.01s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/TurnErrorMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ErrorMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ManualCompactMsg_(delivered_directly,_no_/compact_run) (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/ToolStartedMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/AssistantTextDeltaMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/CompactingMsg (0.00s)
+    --- PASS: TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages/positive_control:_no_/new_pending,_Enter_reaches_Submit (0.00s)
+=== RUN   TestNewSessionDoneEndsBusyAfterLateTurnMessages
+=== RUN   TestNewSessionDoneEndsBusyAfterLateTurnMessages/success
+=== RUN   TestNewSessionDoneEndsBusyAfterLateTurnMessages/failure
+--- PASS: TestNewSessionDoneEndsBusyAfterLateTurnMessages (0.01s)
+    --- PASS: TestNewSessionDoneEndsBusyAfterLateTurnMessages/success (0.00s)
+    --- PASS: TestNewSessionDoneEndsBusyAfterLateTurnMessages/failure (0.00s)
+=== RUN   TestManualCompactMsgDuringNewAfterBusyClearedMidCompaction
+--- PASS: TestManualCompactMsgDuringNewAfterBusyClearedMidCompaction (0.00s)
+PASS
+ok  	github.com/djm56/kirsch/internal/tui	0.689s
+exit=0
+```
+
+In plain words, the lines above mean this:
+
+- `TestEnterWhileNewSessionPendingStaysSwallowedAfterLateTurnMessages`: while `/new` is waiting, a late message from the cancelled reply does not clear the busy state, and Enter does not send your typed text to the app. There is one subtest for each kind of late message: `TurnCompleteMsg`, `TurnCancelledMsg`, `TurnErrorMsg`, `ErrorMsg`, `ManualCompactMsg`, `ToolStartedMsg`, `AssistantTextDeltaMsg` and `CompactingMsg`. `ManualCompactMsg` is delivered directly, not a late message from the cancelled reply. The `control` line sends a message that should change nothing. The `positive control` line checks that, when `/new` is not waiting, Enter does send the text, so the other lines cannot pass just because Enter never works.
+- `TestManualCompactMsgDuringNewAfterBusyClearedMidCompaction`: it runs `/compact`, then a session-log save error clears busy while the compaction is still going. Then `/new` is typed and Enter is pressed. When the compaction's own message arrives, the test checks that `/new` is still waiting, the busy state still says "new session", the compaction notice shows once, and Enter does not reach the app. Then the message that ends `/new` clears busy.
+- `TestNewSessionDoneEndsBusyAfterLateTurnMessages`: the message that ends `/new` clears the busy state even after late messages have arrived. There are two cases. `success` empties the transcript. `failure` keeps the transcript, and the late error box is still there.
+
+A `--- FAIL` line means the check did not pass. Copy the last lines and tell Bishop.
+- [ ] I saw `--- PASS` for each test named in step 1, the `ok` line, and `exit=0` as the last line, with no `--- FAIL` line
+
+**Step 2 — Run the session-fence tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 ./internal/app/ -run 'TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns$|TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne$|TestTurnPathsUseOnlyFencedSenders$' -v; echo "exit=$?"
+```
+You should see `=== RUN` and `--- PASS` lines for each test named in the plain words below, the `ok` line, and `exit=0` as the last line. Here is the output of a run on 2026-11-05, copied as it was printed. Your times will differ a little, and that is normal:
+```
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/BudgetMsg
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/AssistantTextDeltaMsg
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/final_turn_message
+=== RUN   TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/Submit_refusal
+--- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns (1.66s)
+    --- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/BudgetMsg (0.38s)
+    --- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/AssistantTextDeltaMsg (0.52s)
+    --- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/final_turn_message (0.47s)
+    --- PASS: TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns/Submit_refusal (0.29s)
+=== RUN   TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne
+--- PASS: TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne (0.22s)
+=== RUN   TestTurnPathsUseOnlyFencedSenders
+=== RUN   TestTurnPathsUseOnlyFencedSenders/package_app
+=== RUN   TestTurnPathsUseOnlyFencedSenders/control
+--- PASS: TestTurnPathsUseOnlyFencedSenders (0.01s)
+    --- PASS: TestTurnPathsUseOnlyFencedSenders/package_app (0.01s)
+    --- PASS: TestTurnPathsUseOnlyFencedSenders/control (0.00s)
+PASS
+ok  	github.com/djm56/kirsch/internal/app	2.406s
+exit=0
+```
+
+In plain words, the lines above mean this:
+
+- `TestNewSessionDeliversNothingFromTheOldTurnAfterItReturns`: a reply is started and cancelled, then `/new` runs. Once `/new` has returned, nothing from the old reply shows up in the test's record of messages. The subtests are `BudgetMsg`, `AssistantTextDeltaMsg`, `final_turn_message` and `Submit_refusal`. For `Submit_refusal`, the endpoint is unknown, so no reply is started, and the refusal message must not arrive after `/new`. Each one has a check that the message really exists at that point, so an empty result afterwards means the message was held back, not that nothing was sent.
+- `TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne`: after `/new`, it sends one message through each sender that carries the old session's number, and one through the same sender with the new number. The old message must not arrive. The new one must arrive, which shows that the sender works at all.
+- `TestTurnPathsUseOnlyFencedSenders`: it reads the Go source of the app package, not the tests, and checks that the functions in package app that send a turn's messages use the checked senders, unless the function is on a short list of known exceptions. Its own comment lists what it cannot see. It does not run the program. Its `control` line plants three kinds of bad call and one allowed one in a small piece of text, and checks that the test reports the three bad ones.
+
+- [ ] I saw `--- PASS` for each test named in step 2, the `ok` line, and `exit=0` as the last line, with no `--- FAIL` line
+
+**What changed for you (read from the code and tests, not seen in a run).** When you press Esc during a reply and then type `/new` while that reply is still finishing, the status bar stays on "new session" until the new session is ready. Enter does not send your text, and no error box appears, until then. Messages from the old reply no longer appear in the new session; an approval answer from the old reply is not covered (see *Open from m5-d17b*, S-4, in `plan/PROGRESS.md`). The status bar reads the busy verb through `stateVerb` (`internal/tui/statusbar.go:196`, used at `:52`); `/new` sets it at `internal/tui/update.go:1204`; Esc reaches `cancelTurn` at `internal/tui/update.go:792`.
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_
 
 ---
 
@@ -2051,6 +2547,7 @@ Type `hi` and press Enter. Kirsch refuses before it sends anything, so nothing r
 
 You should see an error card titled `auth`, reading `no API key for endpoint "opencode" (set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY)`. Type `/quit` to leave. Then open *No API key* in the guide. It should show the same card text.
 - [✅] I saw the `auth` card with the variable names shown above, and *No API key* shows the same text
+- [ ] (not yet run) Re-check the first claim of the *No API key* paragraph in the guide, against the screen. In a new Terminal window with no key set, first set this window to 80 columns wide and 24 rows tall. In Terminal, the Window settings for the profile hold the Columns and Rows fields. Then start a fresh session with this command, which uses a new temporary folder and a new temporary home: `FAKE_HOME="$(mktemp -d)" && cd "$(mktemp -d)" && git init -q . && env -i HOME="$FAKE_HOME" PATH="$PATH" TERM=xterm-256color /Volumes/DATA/Github/kirsch/bin/kirsch`. The onboarding should be on screen, with the `no previous session` notice beneath it. A much shorter window shows the ordinary transcript instead of the onboarding. That is expected, not a failure. Quit with two `Ctrl+C`. Send no message.
 
 **Step 8 — (Optional) The rejected-key card. The crew could not run this.**
 Paste:
@@ -2086,7 +2583,30 @@ _(nothing yet)_
 
 ## 28 · Resume totals and percent full (only if you choose to do it) (m5-d18)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d18 is finished.
+**What this checks:** two things. When you reopen an earlier session, the totals in the status bar are that session's own totals, straight away. After you use `/compact`, the percent full that `/status` shows changes to match. You do not type anything into Kirsch in this section. Step 1 runs tests only. No model is called, no API key is used, and Kirsch is not started.
+
+**Before this section:** do *Before you start* in this Terminal window. Step 1 starts in the kirsch folder.
+
+**Step 1 — Run the resume, session and compact tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 -v -run 'TestResumeLastSession|TestResumeCompletesPartialTurn' ./internal/app/; echo exit=$?
+go test -count=1 -v -run 'TestLoadUsageTotals' ./internal/session/; echo exit=$?
+go test -count=1 -v -run 'TestManualCompactUpdatesStatusCompactionPercent' ./internal/app/; echo exit=$?
+```
+You should see, in this order, the lines below. Each `exit=` line comes straight after the `ok` line it belongs to. Your times will differ a little, and that is normal:
+```
+ok  	github.com/djm56/kirsch/internal/app	1.189s
+exit=0
+ok  	github.com/djm56/kirsch/internal/session	0.638s
+exit=0
+ok  	github.com/djm56/kirsch/internal/app	0.384s
+exit=0
+```
+Above those lines you should also see `--- PASS` lines for each test. The last line of each run is `exit=0`. In the output of the third command you should also see the two lines `compaction % before /compact: 60` and `compaction % after /compact: 37 (estimate 9727 tokens)`. A `--- FAIL` line means a check did not pass. Copy the last lines and tell Bishop.
+
+- [ ] I ran the three commands in step 1, I saw `ok` and `exit=0` after each one, I saw no `--- FAIL` line, and I saw both `compaction % before /compact: 60` and `compaction % after /compact: 37 (estimate 9727 tokens)` in the output of the third command
 
 ---
 
@@ -2098,13 +2618,74 @@ Not ready yet. This section will be written in the same step-by-step style when 
 
 ## 30 · The list of AI models (only if your decision calls for it) (m5-d21a)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d21a is finished.
+**What this checks:** the prices Kirsch uses to work out what a session costs. One price changed. Reading saved context with Claude Sonnet 5.5 is now $0.10 per million tokens, not $0.20, to match Anthropic's pricing page as it read on 2026-11-05. You do not type anything into Kirsch in this section. Step 1 runs tests only. It uses no key, no model is called, and Kirsch is not started.
+
+**Before this section:** do *Before you start* in this Terminal window. Step 1 starts in the kirsch folder.
+
+**Step 1 — Run the price tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 -v -run 'TestPublishedPerTokenFigures|TestCostPerTokenModel|TestCostAllPerTokenModels' ./internal/provider/; echo exit=$?
+```
+You should see, at the end, these two lines. Your times will differ a little, and that is normal:
+```
+ok  	github.com/djm56/kirsch/internal/provider	0.640s
+exit=0
+```
+Above those lines you should also see `--- PASS` lines for each test. The last line is `exit=0`. A `--- FAIL` line means a check did not pass. Copy the last lines and tell Bishop.
+
+- [ ] I ran the command in step 1, I saw `ok` and `exit=0`, and I saw no `--- FAIL` line
 
 ---
 
 ## 31 · The help footer and saved pictures of the screen (only if your decision calls for it) (m5-d21b)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d21b is finished.
+**What this checks:** the last line of the Help box, the box you see when you press `?`. That line used to say `docs: doc/usage.md`. An installed Kirsch does not have that folder, so the line now says `docs: github.com/djm56/kirsch`. At 80 columns the link does not show. It shows when the window is wide enough to fit the whole line. Step 1 runs tests and the screen check. Step 2 is a look at the line that changed. You do not type anything into Kirsch in this section. It uses no key, no model is called, and Kirsch is not started.
+
+**Before this section:** do *Before you start* in this Terminal window. Step 1 starts in the kirsch folder.
+
+**Step 1 — Run the help and screen tests.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+go test -count=1 -v -run 'TestHelpFooterNamesScrollKeysWhenClipped' ./internal/tui/; echo exit=$?
+go test -count=1 ./internal/tui/; echo exit=$?
+npm run screens; echo exit=$?
+```
+You should see lines like these in the output. The sample below shows selected lines from the runs, not every line. Your times will differ a little, and that is normal:
+```
+--- PASS: TestHelpFooterNamesScrollKeysWhenClipped (0.04s)
+ok  	github.com/djm56/kirsch/internal/tui	0.705s
+exit=0
+ok  	github.com/djm56/kirsch/internal/tui	9.723s
+exit=0
+kirsch-ui-screens.md: grids OK, content OK
+exit=0
+```
+A run that passes ends with the line `exit=0`. A `--- FAIL` line means a check did not pass. Copy the last lines and tell Bishop.
+
+- [ ] I ran the commands in step 1, I saw an `exit=0` line after every command, `ok` after each test command and `grids OK` after the screen check, and I saw no `--- FAIL` line
+
+**Step 2 — Look at the line that changed.**
+The saved picture of the Help box is in `plan/spec/kirsch-ui-screens.md`, under the heading `06 · Help overlay`. It is drawn 80 columns wide and 28 rows tall. Its footer line, the line under the divider, changed. In plain words:
+
+- Before: the line said `kirsch v0.1.0-dev · docs: doc/usage.md · Esc or ? closes`.
+- After: the line says `kirsch v0.1.0-dev · Esc or ? closes`.
+
+So `docs: doc/usage.md` is gone from the picture, and the new link does not take its place. At 80 columns the picture shows no link. It shows one when the window is wide enough to fit the whole line.
+
+Bishop's own diff of the saved picture before this change against the tree now, with the removed line marked `-` and the added line marked `+`:
+```
+-         │ kirsch v0.1.0-dev · docs: doc/usage.md · Esc or ? closes   │
++         │ kirsch v0.1.0-dev · Esc or ? closes                        │
+```
+
+O16 decided that the help footer's `docs: doc/usage.md` becomes `docs: github.com/djm56/kirsch`, because an installed program does not have the `doc/` folder. Tick the box below only if the change above is what you decided. The 80-column picture above shows no link. That is a fact to look at, not something O16 decided. Whether the 80-column picture should keep a link is open: see *Open from m5-d21b* item a in `plan/PROGRESS.md`. Bishop has a recommendation there, for you to decide.
+
+- [ ] The change above is what I decided under O16: the help footer's docs line now reads `docs: github.com/djm56/kirsch` instead of `docs: doc/usage.md`
+
+Question for you (O23): your answer goes in the decisions table in `plan/PROGRESS.md`. The O23 row there reads `Go with a`. Bishop read `a` as regenerate the moved pictures, then have a person review the golden diff. Please confirm that reading; see *Open from m5-d21b* item d in `plan/PROGRESS.md`.
 
 ---
 
@@ -2116,7 +2697,48 @@ Not ready yet. This section will be written in the same step-by-step style when 
 
 ## 33 · The notice about the debug log (only if your decision calls for it) (m5-d21d)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d21d is finished.
+**What this checks:** the notice about the debug log in `SECURITY.md`, the project's security notes. The debug log is off unless you turn it on. When it is on, it holds the text of each message you send, in full. It also holds the workspace folder path. When a configuration warning occurs, it holds the configuration file path too. It holds the command arguments of a session approval that is refused. It does not record each tool call or each slash command. The notice says the 400 request is a disclosed limit, and that the request is not cut short. When a provider turns a request away with a 400 error (a request the provider says is badly formed), the log holds the whole request. A 400 error that names `MissingSessionID` is reported as a configuration error, and it is not written to the log. A secret typed into a message, or that appears in a path or command, is written to the log too. Steps 1 to 3 search the file for the notice, for the exception and for the message part. They check the wording only. They use no key, no model is called, and Kirsch is not started.
+
+**Before this section:** do *Before you start* in this Terminal window. Step 1 starts in the kirsch folder.
+
+**Step 1 — Find the notice in the file.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n 'full request body' SECURITY.md; echo exit=$?
+```
+You should see a line of text, then `exit=0`. Your line number can differ if the file has changed since this was written. The words after the number should be the same:
+```
+100:  full request body. This is a disclosed limit, and the body is not clipped. It
+exit=0
+```
+The last line is `exit=0`. If you see `exit=1` instead, or no line above it, copy the output and tell Bishop.
+
+**Step 2 — Find the exception in the file.**
+Paste (still in the kirsch folder):
+```
+grep -n 'MissingSessionID' SECURITY.md; echo exit=$?
+```
+You should see a line of text that names `MissingSessionID`, then `exit=0`. The words after the number should be the same:
+```
+105:  `MissingSessionID` is the exception: Kirsch reports it as a configuration
+exit=0
+```
+The last line is `exit=0`. If you see `exit=1` instead, or no line above it, copy the output and tell Bishop.
+
+**Step 3 — Find the message part of the notice.**
+Paste (still in the kirsch folder):
+```
+grep -n 'writes the text of each message you send' SECURITY.md; echo exit=$?
+```
+You should see a line that names `writes the text of each message you send`, then `exit=0`. The words after the number should be the same:
+```
+84:  log writes the text of each message you send, in full. It also writes the
+exit=0
+```
+The last line is `exit=0`. If you see `exit=1` instead, or no line above it, copy the output and tell Bishop.
+
+- [ ] I ran the commands in steps 1, 2 and 3. The line from step 1 contains the word `disclosed`, the line from step 2 contains `MissingSessionID`, the line from step 3 contains `writes the text of each message you send`, the last line I saw after each was `exit=0`, and I did not edit `SECURITY.md`
 
 ---
 
@@ -2128,7 +2750,57 @@ Not ready yet. This section will be written in the same step-by-step style when 
 
 ## 35 · A written change to the specification (its section 7) (only if your decision calls for it) (m5-d21f)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d21f is finished.
+**What this checks:** the list of session events in section 7 of the specification, `plan/spec/kirsch-plan.md`. Kirsch writes its conversation to a session file, with a line for each event. Section 7 now lists only the kinds of line Kirsch writes. Step 1 lists the kinds the code writes. Step 2 searches section 7 for an event that was taken off the list, and expects no match. Step 3 searches for an event that is still on the list, as a control, and expects a match. The steps only read files. They use no key, no model is called, and Kirsch is not started.
+
+**Before this section:** do *Before you start* in this Terminal window. Step 1 starts in the kirsch folder.
+
+**Step 1 — List the kinds of event the code writes.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+grep -n 'Type: *eventType' internal/session/event.go; echo exit=$?
+```
+You should see a line for each kind below, then `exit=0`. The kinds are: user message, assistant message, assistant thinking, tool completed, turn started, turn completed, usage, approval scope granted, approval scopes cleared, and compaction applied. The user message kind is on the lines that start `181:` and `211:`. The line numbers can differ if the file has changed since this was written. The rest of each line should be the same:
+```
+181:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeUserMessage},
+211:			baseEvent: baseEvent{Version: eventVersion, Type: eventTypeUserMessage},
+225:				baseEvent: baseEvent{Version: eventVersion, Type: eventTypeToolCompleted},
+261:				baseEvent: baseEvent{Version: eventVersion, Type: eventTypeAssistantThinking},
+284:			baseEvent: baseEvent{Version: eventVersion, Type: eventTypeAssistantMessage},
+308:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeTurnStarted},
+316:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeTurnCompleted},
+324:		baseEvent:    baseEvent{Version: eventVersion, Type: eventTypeUsage},
+335:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopeGranted},
+344:		baseEvent: baseEvent{Version: eventVersion, Type: eventTypeApprovalScopesCleared},
+351:		baseEvent:    baseEvent{Version: eventVersion, Type: eventTypeCompactionApplied},
+exit=0
+```
+The last line is `exit=0`. If you see `exit=1` instead, or no lines above it, copy the output and tell Bishop.
+
+**Step 2 — Check that a removed event is gone from section 7.**
+Paste (still in the kirsch folder):
+```
+awk '/^## 7\. Session Events/{p=1} /^## 8\. /{p=0} p' plan/spec/kirsch-plan.md | grep -n -F '"type":"session.started"'; echo exit=$?
+```
+You should see no line of text, only `exit=1`. Kirsch does not write `session.started`, so the list should not show it.
+```
+exit=1
+```
+If you see a line that contains `session.started` in a JSON example, copy the output and tell Bishop.
+
+**Step 3 — Control: a kept event is still in section 7.**
+Paste (still in the kirsch folder):
+```
+awk '/^## 7\. Session Events/{p=1} /^## 8\. /{p=0} p' plan/spec/kirsch-plan.md | grep -n -F '"type":"turn.started"'; echo exit=$?
+```
+You should see a line that contains `turn.started`, then `exit=0`. The number before it can differ. The words after it should be the same:
+```
+6:{"v":1,"type":"turn.started","turn":3}
+exit=0
+```
+If you see `exit=1` instead, or no line above it, copy the output and tell Bishop. Step 2 proves nothing unless this step finds its line.
+
+- [ ] I ran steps 1, 2 and 3 in the kirsch folder. Step 1 listed a line for each kind of event named above, and its last line was `exit=0`. Step 2 printed no line, only `exit=1`. Step 3 printed a line that contains `turn.started`, and its last line was `exit=0`. I did not edit `plan/spec/kirsch-plan.md`.
 
 ---
 

@@ -270,7 +270,7 @@ func (m Model) modalBox(lay Layout) (box []string, top, left int) {
 //
 // A single truncEnd is not enough here and the smallest supported terminal is
 // where that shows: at 40 columns the help footer's full form cuts to
-// "kirsch v0.1.0 · docs: doc/usage.md…" and the words naming the way out are
+// "kirsch v0.1.0 · docs: github.com…" and the words naming the way out are
 // the ones that go. The ladder drops the version and the docs pointer instead,
 // because the exit key is the span this modal cannot be left without — the same
 // reasoning that keeps the footer itself when the body goes.
@@ -297,7 +297,7 @@ func (m Model) modalFooters(md *ModalState, scrollable bool, clipped bool) []str
 	if md.Kind == ModalHelp {
 		if clipped {
 			return []string{
-				"j/k scroll" + dot + "g/G top/bottom" + dot + "docs: doc/usage.md" + dot + key + " closes",
+				"j/k scroll" + dot + "g/G top/bottom" + dot + "docs: github.com/djm56/kirsch" + dot + key + " closes",
 				"j/k scroll" + dot + "g/G top/bottom" + dot + key + " closes",
 				"j/k scroll" + dot + key + " closes",
 				key + " closes",
@@ -305,7 +305,7 @@ func (m Model) modalFooters(md *ModalState, scrollable bool, clipped bool) []str
 			}
 		}
 		return []string{
-			"kirsch v" + m.sess.Version + dot + "docs: doc/usage.md" + dot + key + " closes",
+			"kirsch v" + m.sess.Version + dot + "docs: github.com/djm56/kirsch" + dot + key + " closes",
 			"kirsch v" + m.sess.Version + dot + key + " closes",
 			key + " closes",
 			key,

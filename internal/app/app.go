@@ -8,9 +8,12 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"os/exec"
@@ -42,6 +45,11 @@ import (
 // tool ID map from RunTurn into the toolExecutor that completes agent-driven
 // tool calls. architecture.md §4.
 type toolCallsKey struct{}
+
+// turnGenKey is the context key for the session generation a turn (or a manual
+// tool run) started under, so the tool executor and the approval request, which
+// receive only a context, send their messages fenced to that generation.
+type turnGenKey struct{}
 
 // compactionParams holds the information needed to decide whether compaction
 // should run before the turn. It is computed in Submit and passed to RunTurn.
@@ -299,7 +307,7 @@ func (te *toolExecutor) Invoke(ctx context.Context, c agent.ToolCall) agent.Tool
 	}
 	if id == 0 {
 		id = te.app.nextID.Add(1)
-		te.app.send(tui.ToolStartedMsg{ID: id, Name: c.Name, Target: target})
+		te.app.send(te.app.turnGen(ctx), tui.ToolStartedMsg{ID: id, Name: c.Name, Target: target})
 	}
 
 	res := te.app.reg.Invoke(ctx, c.Name, c.Input)
@@ -320,7 +328,7 @@ func (te *toolExecutor) Invoke(ctx context.Context, c agent.ToolCall) agent.Tool
 		msg.ErrorKind = string(res.Error.Kind)
 		msg.ErrorMsg = res.Error.Message
 	}
-	te.app.send(msg)
+	te.app.send(te.app.turnGen(ctx), msg)
 
 	return agent.ToolResult{
 		OK:        res.OK,
@@ -383,6 +391,25 @@ type App struct {
 	// turn's Add or runs entirely before the Submit starts, so an Add can
 	// never race a Wait at zero. It is never held by a turn goroutine.
 	opMu sync.Mutex
+	// sessionGen counts the sessions NewSession has installed (installSession
+	// bumps it). The fenced senders, send and sendAsyncSequenceFenced, deliver a
+	// message only if the generation they were given is still current; both go
+	// through deliverIfCurrent, which holds genMu for reading across the check
+	// and the delivery, and bumpGeneration takes genMu for writing to advance
+	// sessionGen. The functions TestTurnPathsUseOnlyFencedSenders lists send
+	// their messages only through the fenced senders, and that test pins it.
+	//
+	// Invariant: no goroutine that Bubble Tea's Update runs on may take genMu.
+	// A reader can sit in genMu across a program.Send that waits for the loop,
+	// and Go's RWMutex holds back new readers once a writer (bumpGeneration, in
+	// NewSession) is waiting, so an Update that took genMu could freeze the
+	// loop. sessionGen is therefore atomic and currentGen reads it without
+	// genMu. Code on the Update goroutine reads the generation only through
+	// currentGen: ClearGrants and Submit are TUI callbacks, and Submit calls
+	// RunTurn. Outside tests, only deliverIfCurrent and bumpGeneration take
+	// genMu.
+	genMu      sync.RWMutex
+	sessionGen atomic.Uint64
 	// turnsLive counts RunTurn goroutines that have not yet returned, and
 	// compacting reports a ManualCompact in progress. Both are protected by mu.
 	// ManualCompact refuses while either is set; Submit refuses while
@@ -411,8 +438,9 @@ type App struct {
 	// window deterministically; production leaves it nil.
 	afterCompactHook func()
 
-	// sessionID is required for the opencode endpoint and generated once per
-	// invocation in main.go.
+	// sessionID is required for the opencode endpoint. main.go sets the first
+	// one; NewSession rotates it (C52) so a provider that groups requests by
+	// this id sees /new as a new conversation.
 	sessionID string
 	// version is the Kirsch version, passed to the provider for the User-Agent.
 	version string
@@ -440,7 +468,10 @@ type App struct {
 	store *session.Store
 	// layout computes session paths under the configured state root.
 	layout *session.Layout
-	// storeMu protects lazy creation of store and layout.
+	// storeMu protects store and layout and the other fields marked below.
+	// Session files are created under it (ensureStore, NewSession), and Close
+	// takes it to set closed and abandon empty sessions, so a session file is
+	// never created while Close is between those steps and the lock release.
 	storeMu sync.Mutex
 
 	// lock guards against concurrent instances in the same workspace. Acquired
@@ -466,6 +497,66 @@ type App struct {
 	// currentSessionID tracks the ID of the current session for /status display.
 	// Protected by storeMu.
 	currentSessionID string
+	// origin records how the live session was created (by ensureStore or
+	// NewSession), so an empty one can be abandoned cleanly (see
+	// abandonEmpty). Nil for a resumed session, which is never abandoned.
+	// Protected by storeMu.
+	origin *sessionOrigin
+	// abandonMu serialises the session-file removals and index.json restores
+	// (abandonEmpty, abandonEmptyLocked, discardFailedCreate), so two of them
+	// cannot interleave. Lock order is storeMu, then abandonMu: Close, and
+	// createSessionStore when the store open fails, take it while holding
+	// storeMu, and installSession takes it before it releases storeMu and holds
+	// it until the replaced session is closed and abandoned. Nothing that holds abandonMu takes storeMu. Because
+	// installSession has released storeMu by then, readers of the store do not
+	// wait on the old store's fsync; only a Close that runs at that moment does,
+	// holding storeMu, and so do readers queued behind that Close.
+	abandonMu sync.Mutex
+	// afterAbandonRemoveHook, when set, is called by abandonEmpty right after
+	// it removes a session file, before the index restore. Tests use it to
+	// observe what Close still holds at that moment; production leaves it nil.
+	// It runs with abandonMu held, and also with storeMu held when Close is the
+	// caller (installSession has released storeMu by then), so it must not call
+	// App methods: one that takes either lock would deadlock.
+	afterAbandonRemoveHook func()
+	// beforeCreateSessionHook, when set, is called by createSessionStore after
+	// its closed check and before it creates anything. Tests use it to start
+	// Close inside that interval; production leaves it nil. It runs with
+	// storeMu held, so it must not call App methods and wait for them on the
+	// same goroutine: one that takes storeMu would deadlock.
+	beforeCreateSessionHook func()
+	// afterCreateSessionHook, when set, is called by createSessionStore after
+	// the session file is created and index.json names it, before the store
+	// is returned. Tests use it to start Close at that moment; production
+	// leaves it nil. It runs with storeMu held. opMu is held as well when the
+	// caller is NewSession, or Submit through ensureStore; StartNewSession's
+	// call to ensureStore holds no opMu. So it must not call App methods and
+	// wait for them on the same goroutine: one that takes either lock would
+	// deadlock.
+	afterCreateSessionHook func()
+	// openSessionStore, when set, replaces session.New in createSessionStore.
+	// Tests use it to make the open fail after CreateSession has written
+	// index.json; production leaves it nil.
+	openSessionStore func(path string, opts ...session.Option) (*session.Store, error)
+	// afterInstallUnlockHook, when set, is called by installSession right after
+	// it releases storeMu and before it closes and abandons the replaced
+	// session. It runs with abandonMu and opMu held. Tests use it to start
+	// Close at that moment; production leaves it nil.
+	afterInstallUnlockHook func()
+	// beforeInstallHook, when set, is called by NewSession after the old turn
+	// has stopped and before installSession. Tests use it to hold NewSession
+	// at that point so Close provably runs first; production leaves it nil.
+	beforeInstallHook func()
+	// pending is the session NewSession has created but not yet installed
+	// because it is still waiting for the old turn to stop. It lives on the
+	// App, not in NewSession's locals, so Close can find and abandon it.
+	// Protected by storeMu.
+	pending *pendingSession
+	// closed is set by Close. Once it is true createSessionStore (and so
+	// ensureStore and NewSession) and ResumeLastSession open or create nothing,
+	// and installSession installs nothing, so no store is opened that nobody
+	// closes. Protected by storeMu.
+	closed bool
 	// lastEstimatedTokens and lastContextWindow track the most recent budget
 	// estimates for compaction % display. Protected by storeMu.
 	lastEstimatedTokens int
@@ -544,7 +635,7 @@ func (a *App) ClearGrants() {
 		// before the next ticker flush cannot lose the clear, which would let
 		// a resumed session restore the grants the user revoked. A failure is
 		// reported to the TUI the way turn completion reports one.
-		a.flushStore(store)
+		a.flushStore(a.currentGen(), store)
 	}
 }
 
@@ -804,7 +895,16 @@ func (a *App) AcquireLock() error {
 	return nil
 }
 
-// Close cancels everything and waits, briefly, for in-flight tools.
+// Close cancels everything and waits, briefly, for in-flight tools. It then
+// closes the session store and abandons (see abandonEmpty) a session created
+// by this process that never received an event, and a /new session still
+// waiting to be installed. It releases the workspace lock after those files
+// are gone. Setting closed and the abandon steps run under storeMu, which
+// NewSession and ensureStore also hold while they create a session file, so no
+// file they create can appear between those steps and the lock release. If
+// installSession is still closing and abandoning the session that /new
+// replaced, Close's abandonEmpty waits on abandonMu until that file is gone,
+// so the lock release comes after that removal too.
 //
 // The wait is bounded on purpose. A tool goroutine finishing after the Bubble
 // Tea program has stopped blocks in program.Send — the program's loop is no
@@ -824,17 +924,32 @@ func (a *App) Close() {
 	case <-time.After(closeGrace):
 	}
 
+	a.storeMu.Lock()
+	a.closed = true
+	// C51: a /new session still waiting to be installed, then the live one,
+	// are abandoned if they never held an event. The pending one goes first so
+	// index.json is walked back through the chain in order. A session without
+	// an origin (a resumed one) is never abandoned.
+	if p := a.pending; p != nil {
+		a.pending = nil
+		_ = p.store.Close()
+		a.abandonEmpty(p.layout, p.origin)
+	}
+	if a.store != nil {
+		_ = a.store.Close()
+		a.abandonEmpty(a.layout, a.origin)
+		a.store = nil
+		a.origin = nil
+	}
+	a.storeMu.Unlock()
+
+	// The lock is released only now, after the abandon steps above. While it
+	// is held no other Kirsch can start in this workspace, resume the session
+	// being deleted and then lose its events to an unlinked file.
 	if a.lock != nil {
 		_ = a.lock.Release()
 		a.lock = nil
 	}
-
-	a.storeMu.Lock()
-	if a.store != nil {
-		_ = a.store.Close()
-		a.store = nil
-	}
-	a.storeMu.Unlock()
 
 	_ = a.log.Close()
 }
@@ -887,13 +1002,15 @@ func (a *App) ensureStore() (*session.Store, *session.Layout, error) {
 		return a.store, a.layout, nil
 	}
 
-	store, layout, sessionID, err := a.createSessionStore()
+	// createSessionStore returns errAppClosing once Close has run.
+	store, layout, sessionID, origin, err := a.createSessionStore()
 	if err != nil {
 		return nil, nil, err
 	}
 
 	a.store = store
 	a.layout = layout
+	a.origin = origin
 	a.currentSessionID = sessionID
 	// Reset token totals for the new session
 	a.sessionTokensIn = 0
@@ -911,35 +1028,204 @@ func (a *App) StartNewSession() error {
 	return err
 }
 
+// sessionOrigin records what index.json held for the workspace just before a
+// session was created, so abandoning that session can put it back.
+type sessionOrigin struct {
+	// id and path name the session file the origin belongs to.
+	id, path string
+	// prevID and prevAt are the workspace's index entry before the session was
+	// created; hadPrev is false when the workspace had none.
+	prevID  string
+	prevAt  time.Time
+	hadPrev bool
+	// supersedes is the origin of the empty session this one replaced via
+	// /new, or nil. It lets abandonEmpty walk past a superseded session whose
+	// file has been removed to the entry before it.
+	supersedes *sessionOrigin
+}
+
+// pendingSession is a session store NewSession has created and is holding
+// while it waits for the old turn to stop.
+type pendingSession struct {
+	store  *session.Store
+	layout *session.Layout
+	origin *sessionOrigin
+}
+
+// errAppClosing is returned by NewSession, ensureStore (and so StartNewSession)
+// and ResumeLastSession once Close has run, and by NewSession when Close runs
+// while its new session waits to be installed.
+var errAppClosing = errors.New("app is closing")
+
+// randomSessionID returns the provider session id: 16 random bytes as 32 hex
+// characters, the same format cmd/kirsch/main.go's newSessionID produces. If
+// the random source fails it falls back to the pid, as that function does.
+func randomSessionID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%d", os.Getpid())
+	}
+	return hex.EncodeToString(b)
+}
+
+// abandonEmpty removes a session file that never received an event and, when
+// index.json still points at it, puts the workspace's index entry back to what
+// it was before the session was created (see restorePoint). When the
+// workspace had no entry before, the entry is deleted. The store must already
+// be closed so its buffer is flushed: an empty file then really means no event
+// was written. A nil origin (a resumed session), a missing file or a non-empty
+// file is left alone. Errors are ignored: this is best-effort tidying on a path
+// (quit, /new) that must not fail or hang.
+func (a *App) abandonEmpty(layout *session.Layout, origin *sessionOrigin) {
+	a.abandonMu.Lock()
+	defer a.abandonMu.Unlock()
+	a.abandonEmptyLocked(layout, origin)
+}
+
+// abandonEmptyLocked is abandonEmpty for a caller that already holds
+// abandonMu (installSession, which takes it before releasing storeMu).
+func (a *App) abandonEmptyLocked(layout *session.Layout, origin *sessionOrigin) {
+	if origin == nil || layout == nil {
+		return
+	}
+	info, err := os.Stat(origin.path)
+	if err != nil || info.Size() != 0 {
+		return
+	}
+	if err := os.Remove(origin.path); err != nil {
+		return
+	}
+	if h := a.afterAbandonRemoveHook; h != nil {
+		h()
+	}
+	restoreIndexLocked(layout, origin)
+}
+
+// restoreIndexLocked puts the workspace's index.json entry back to what it was
+// before origin's session was created (see restorePoint), or deletes it when
+// there is nothing valid to restore. It does nothing when the entry no longer
+// names origin's session. Errors are ignored, as in abandonEmpty. The caller
+// holds abandonMu.
+func restoreIndexLocked(layout *session.Layout, origin *sessionOrigin) {
+	idx, err := session.ReadIndex(layout.Root)
+	if err != nil {
+		return
+	}
+	entry, ok := idx.Sessions[layout.Workspace]
+	if !ok || entry.LastSessionID != origin.id {
+		return // index already moved on (a later session replaced this one)
+	}
+	prevID, prevAt, hadPrev := restorePoint(layout, origin)
+	if hadPrev {
+		idx.Set(layout.Workspace, prevID, prevAt)
+	} else {
+		delete(idx.Sessions, layout.Workspace)
+	}
+	_ = session.WriteIndex(layout.Root, idx)
+}
+
+// restorePoint returns the index entry to put back when origin's session is
+// abandoned: origin's own previous entry, unless that entry names an empty
+// session that /new replaced and abandonEmpty has since removed, in which case
+// the entry before that one, and so on. If the entry that results names a
+// session file that no longer exists (another instance abandoned it), there is
+// nothing valid to restore and had is false, so the caller deletes the entry
+// rather than leave index.json pointing at a missing file. The caller holds
+// abandonMu, so a removal is not half done while this looks at the files.
+func restorePoint(layout *session.Layout, origin *sessionOrigin) (id string, at time.Time, had bool) {
+	id, at, had = origin.prevID, origin.prevAt, origin.hadPrev
+	for s := origin.supersedes; s != nil && had && id == s.id; s = s.supersedes {
+		if _, err := os.Stat(s.path); !errors.Is(err, fs.ErrNotExist) {
+			break // still on disk, so the entry is a valid restore point
+		}
+		id, at, had = s.prevID, s.prevAt, s.hadPrev
+	}
+	if had {
+		target := session.SessionPath(layout.Root, layout.Workspace, id)
+		if _, err := os.Stat(target); errors.Is(err, fs.ErrNotExist) {
+			return "", time.Time{}, false
+		}
+	}
+	return id, at, had
+}
+
 // createSessionStore creates a session file under the state root and opens a
-// store on it. It touches no App state, so a failure leaves the App exactly as
-// it was.
-func (a *App) createSessionStore() (*session.Store, *session.Layout, string, error) {
+// store on it. It touches no App state, so a failure leaves the App as it
+// was. The returned origin records the workspace's previous index entry for
+// abandonEmpty. Both callers, ensureStore and NewSession, hold storeMu while
+// it runs.
+//
+// It returns errAppClosing, creating nothing, once Close has run. The check
+// sits here, in the same storeMu hold as the creation, so that both callers
+// get it and Close (which sets closed under storeMu) cannot run between the
+// check and the creation and release the workspace lock first.
+//
+// If opening the store fails after CreateSession has pointed index.json at the
+// new id, the half-made session is discarded (see discardFailedCreate), so the
+// next start does not resume a session that was never opened.
+func (a *App) createSessionStore() (*session.Store, *session.Layout, string, *sessionOrigin, error) {
+	// Close has already run: a store created now would never be closed.
+	if a.closed {
+		return nil, nil, "", nil, errAppClosing
+	}
+	if h := a.beforeCreateSessionHook; h != nil {
+		h()
+	}
+
 	root, err := a.stateRoot()
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", nil, err
 	}
 
 	layout, err := session.NewLayout(root, a.ws.CanonicalRoot)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("create session layout: %w", err)
+		return nil, nil, "", nil, fmt.Errorf("create session layout: %w", err)
 	}
+
+	// Read the entry CreateSession is about to overwrite. A read failure just
+	// means a later abandon cannot restore it.
+	prevID, prevAt, hadPrev, _ := layout.LastSession()
 
 	path, sessionID, err := layout.CreateSession(time.Now().UTC())
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("create session file: %w", err)
+		return nil, nil, "", nil, fmt.Errorf("create session file: %w", err)
 	}
 
-	store, err := session.New(
+	origin := &sessionOrigin{id: sessionID, path: path, prevID: prevID, prevAt: prevAt, hadPrev: hadPrev}
+	open := session.New
+	if a.openSessionStore != nil {
+		open = a.openSessionStore
+	}
+	store, err := open(
 		path,
 		session.WithOnError(func(err error) {
 			a.log.Debug("session store error", "error", err)
 		}),
 	)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("open session store: %w", err)
+		a.discardFailedCreate(layout, origin)
+		return nil, nil, "", nil, fmt.Errorf("open session store: %w", err)
 	}
-	return store, layout, sessionID, nil
+	if h := a.afterCreateSessionHook; h != nil {
+		h()
+	}
+	return store, layout, sessionID, origin, nil
+}
+
+// discardFailedCreate undoes a CreateSession whose store could not be opened:
+// it removes the session file if it exists and is empty, then puts index.json
+// back as restoreIndexLocked does. The index is restored even when there is no
+// file, because CreateSession writes index.json before any file exists and an
+// entry naming a missing file makes the next start fail. A non-empty file is
+// left on disk. The caller holds storeMu; this takes abandonMu (storeMu, then
+// abandonMu, as everywhere).
+func (a *App) discardFailedCreate(layout *session.Layout, origin *sessionOrigin) {
+	a.abandonMu.Lock()
+	defer a.abandonMu.Unlock()
+	if info, err := os.Stat(origin.path); err == nil && info.Size() == 0 {
+		_ = os.Remove(origin.path)
+	}
+	restoreIndexLocked(layout, origin)
 }
 
 // NewSession abandons the current session and starts a fresh one. It blocks
@@ -955,26 +1241,68 @@ func (a *App) createSessionStore() (*session.Store, *session.Layout, string, err
 //     token totals and budget estimates, and closes the old store (see
 //     installSession);
 //   - clears touched files and session grants and resets the turn counter;
+//   - rotates the provider session id to a fresh one;
 //   - re-reads the project context and rebuilds the system prompt.
+//
+// The new session file and its index.json entry are written up front. If the
+// process quits before the session receives an event (during the wait, or
+// after /new with nothing sent), Close removes the empty file and puts
+// index.json back to the entry it replaced (abandonEmpty). An empty session
+// that /new replaces is removed the same way. A resumed session is never
+// removed. If Close has already run, NewSession returns errAppClosing (from
+// createSessionStore) before creating anything. If Close runs while NewSession
+// waits for the old turn, it abandons the parked session and NewSession returns
+// errAppClosing, installing nothing.
 //
 // The advisory lock is not released; this process keeps holding it.
 // NewSession holds opMu throughout, so Submit and ManualCompact cannot start
-// work between the Wait and the swap.
+// work between the Wait and the swap. It holds storeMu from the closed check
+// (in createSessionStore) until the new session is parked; Close takes storeMu
+// too, so it cannot run in between and release the lock while the new file
+// exists unparked.
 func (a *App) NewSession(getenv func(string) string) error {
 	a.opMu.Lock()
 	defer a.opMu.Unlock()
 
-	store, layout, sessionID, err := a.createSessionStore()
+	// The closed check and the file creation (both in createSessionStore) and
+	// the parking below run under one storeMu hold. Close sets closed, abandons
+	// pending and live sessions under
+	// storeMu, and releases the workspace lock only after that. So Close either
+	// runs that section wholly before this one (closed is seen, no file is
+	// made) or wholly after it (Close finds the new session, parked or by then
+	// installed, and abandons it if it is still empty, while it still holds
+	// the lock). So an empty file this creates is never on disk once Close has
+	// released the lock. storeMu is held only for the file I/O here, as
+	// ensureStore holds it, never across the turn wait below.
+	a.storeMu.Lock()
+	store, layout, sessionID, origin, err := a.createSessionStore()
 	if err != nil {
+		// errAppClosing (Close has run) or a create failure; either way
+		// nothing was parked and storeMu must not stay held.
+		a.storeMu.Unlock()
 		return err
 	}
+	// Park the new session where Close can see it: if the process quits while
+	// we wait below, Close abandons it instead of leaving an empty file that
+	// index.json points at (C51).
+	a.pending = &pendingSession{store: store, layout: layout, origin: origin}
+	a.storeMu.Unlock()
 
 	// Cancel any in-flight turn and wait for its goroutines to finish. The
 	// turn goroutines hold the old store; after Wait none of them can write.
 	a.CancelTurn()
 	a.inFlight.Wait()
+	if h := a.beforeInstallHook; h != nil {
+		h()
+	}
 
-	a.installSession(store, layout, sessionID)
+	if err := a.installSession(store, layout, sessionID, origin); err != nil {
+		return err
+	}
+
+	// C52: a fresh provider session id, so the provider sees a new conversation.
+	// No race with a turn reading it: opMu is held and the old turn has finished.
+	a.sessionID = randomSessionID()
 
 	a.promptMu.Lock()
 	a.loadAndStoreSessionPrompt(getenv)
@@ -985,12 +1313,31 @@ func (a *App) NewSession(getenv func(string) string) error {
 // installSession makes store the live session and resets every piece of
 // session-scoped state in one place: conversation, token totals, budget
 // estimates, turn counter, touched files and grants. The previous store is
-// closed last. The caller must have waited for in-flight work to finish.
-func (a *App) installSession(store *session.Store, layout *session.Layout, sessionID string) {
+// closed and abandoned after storeMu is released, so the fsync and file I/O do
+// not stall readers of the store. abandonMu is taken before storeMu is
+// released and held until that is done: a Close that gets storeMu in between
+// waits in abandonEmpty for the replaced file to be gone before it abandons
+// the new session, and so releases the workspace lock only after both. The
+// caller must have waited for in-flight work to finish.
+//
+// It returns errAppClosing, installing nothing, if Close has already run;
+// Close has then dealt with the pending store itself. The old session is
+// abandoned (see abandonEmpty) if it was created by this process and never
+// received an event; a resumed session has no origin and is left alone.
+func (a *App) installSession(store *session.Store, layout *session.Layout, sessionID string, origin *sessionOrigin) error {
 	a.storeMu.Lock()
-	old := a.store
+	if a.closed {
+		a.storeMu.Unlock()
+		return errAppClosing
+	}
+	a.pending = nil
+	old, oldOrigin, oldLayout := a.store, a.origin, a.layout
+	// Record the replaced session on the new origin before anyone else can
+	// see it as live, so restorePoint can step over it if it is removed.
+	origin.supersedes = oldOrigin
 	a.store = store
 	a.layout = layout
+	a.origin = origin
 	a.currentSessionID = sessionID
 	a.conv = &agent.Conversation{}
 	a.sessionTokensIn = 0
@@ -1000,7 +1347,19 @@ func (a *App) installSession(store *session.Store, layout *session.Layout, sessi
 	a.sessionCostUSD = 0
 	a.lastEstimatedTokens = 0
 	a.lastContextWindow = 0
+	// Lock order storeMu, then abandonMu. Taking abandonMu before letting go of
+	// storeMu leaves no moment where Close can take storeMu and finish its
+	// abandon steps while the replaced session's file is still on disk.
+	a.abandonMu.Lock()
 	a.storeMu.Unlock()
+	if h := a.afterInstallUnlockHook; h != nil {
+		h()
+	}
+	if old != nil {
+		_ = old.Close()
+		a.abandonEmptyLocked(oldLayout, oldOrigin)
+	}
+	a.abandonMu.Unlock()
 
 	a.turnCount.Store(0)
 
@@ -1011,9 +1370,11 @@ func (a *App) installSession(store *session.Store, layout *session.Layout, sessi
 
 	a.pol.ClearGrants()
 
-	if old != nil {
-		_ = old.Close()
-	}
+	// Last, so a late message from the old session is fenced out from here on.
+	// bumpGeneration also waits for any delivery of the old generation that is
+	// already handing a message to the TUI.
+	a.bumpGeneration()
+	return nil
 }
 
 // ResumeLastSession loads the workspace's last session from index.json,
@@ -1021,14 +1382,25 @@ func (a *App) installSession(store *session.Store, layout *session.Layout, sessi
 // append, restores session-scoped grants, and sends the recovered transcript
 // into the TUI.
 //
+// It also seeds the session totals from the log's usage events
+// (session.LoadUsageTotals), prices the summed tokens at the current model, and
+// sends a SessionUsageMsg after the transcript. On a load error the totals stay
+// zero and the zero-total message is still sent.
+//
 // If the workspace has no recorded session, it returns session.ErrNoSession so
-// the caller can fall back to a fresh session.
+// the caller can fall back to a fresh session. After Close it returns
+// errAppClosing and opens nothing.
 func (a *App) ResumeLastSession() error {
 	a.storeMu.Lock()
 	defer a.storeMu.Unlock()
 
 	if a.store != nil {
 		return nil
+	}
+
+	// Close has already run: a store opened now would never be closed.
+	if a.closed {
+		return errAppClosing
 	}
 
 	root, err := a.stateRoot()
@@ -1075,17 +1447,42 @@ func (a *App) ResumeLastSession() error {
 	a.store = store
 	a.layout = layout
 	a.currentSessionID = id
-	// Reset token totals when resuming a session
+	// Seed the totals from this session's own log. usage.json holds the totals of every
+	// session that uses the same data root, so it is not read here. A load error leaves the totals at zero.
 	a.sessionTokensIn = 0
 	a.sessionTokensOut = 0
 	a.sessionTokensRead = 0
 	a.sessionTokensWrite = 0
 	a.sessionCostUSD = 0
+	modelID := a.cfg.Provider.Endpoints[a.cfg.Provider.Default].Model
+	if totals, err := session.LoadUsageTotals(path); err != nil {
+		a.log.Debug("failed to load session usage", "error", err)
+	} else {
+		a.sessionTokensIn = totals.InputTokens
+		a.sessionTokensOut = totals.OutputTokens
+		a.sessionTokensRead = totals.CacheReadTokens
+		a.sessionTokensWrite = totals.CacheWriteTokens
+		// The log's usage events carry no model id, so the summed tokens are
+		// priced once at the current model's rates, the same Cost call
+		// recordUsage makes per call. A model without per-token pricing adds
+		// nothing, as in recordUsage.
+		if cost, ok := provider.LookupModel(modelID).Cost(
+			totals.InputTokens, totals.OutputTokens,
+			totals.CacheReadTokens, totals.CacheWriteTokens,
+		); ok {
+			a.sessionCostUSD = cost
+		}
+	}
 
 	items := a.transcriptToItems(transcript)
 	a.sendAsyncSequence([]tea.Msg{
 		tui.NoticeMsg{Text: "session resumed"},
 		tui.TranscriptLoadedMsg{Items: items, Recovered: store.Recovered()},
+		sessionUsageMsgFor(
+			a.sessionTokensIn, a.sessionTokensOut,
+			a.sessionTokensRead, a.sessionTokensWrite,
+			a.sessionCostUSD, modelID,
+		),
 	})
 	return nil
 }
@@ -1353,19 +1750,30 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 	// so NewSession cannot Wait between the two. TryLock keeps a caller on the
 	// Bubble Tea goroutine from freezing behind a NewSession that is waiting
 	// for a turn to stop.
+	//
+	// The refusal below is sent without opMu, fenced to the generation read
+	// after TryLock failed. If the holder is NewSession and has not bumped the
+	// generation yet, the refusal is dropped if its delivery starts after the
+	// bump; a delivery that starts before it is delivered, and the bump waits
+	// for it. If the bump has already happened (NewSession holds opMu until it
+	// returns), the refusal reads the new generation and is delivered into the
+	// new session.
 	if !a.opMu.TryLock() {
-		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+		a.sendAsyncSequenceFenced(a.currentGen(), []tea.Msg{tui.TurnErrorMsg{
 			Kind:    "busy",
 			Message: "A session operation is in progress. Try again in a moment.",
 		}})
 		return
 	}
 	defer a.opMu.Unlock()
+	// Every message Submit sends from here on is fenced to this generation.
+	// NewSession holds opMu across its bump, so it cannot change under us.
+	gen := a.currentGen()
 
 	// A manual compaction owns conv until it returns; a turn started now would
 	// write the same Conversation.
 	if a.isCompacting() {
-		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+		a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.TurnErrorMsg{
 			Kind:    "busy",
 			Message: "Compaction is running. Wait for it to finish, or press Esc to cancel it.",
 		}})
@@ -1375,7 +1783,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 	epName := a.cfg.Provider.Default
 	ep, ok := a.cfg.Provider.Endpoints[epName]
 	if !ok {
-		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+		a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.TurnErrorMsg{
 			Kind:    "config",
 			Message: fmt.Sprintf("unknown endpoint %q", epName),
 		}})
@@ -1384,7 +1792,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 
 	key, _ := ep.ResolveKey(getenv)
 	if key == "" {
-		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+		a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.TurnErrorMsg{
 			Kind:    "auth",
 			Message: fmt.Sprintf("no API key for endpoint %q (set %s or %s)", epName, "KIRSCH_"+ep.APIKeyEnv, ep.APIKeyEnv),
 		}})
@@ -1398,7 +1806,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 
 	store, _, err := a.ensureStore()
 	if err != nil {
-		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+		a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.TurnErrorMsg{
 			Kind:    "session_store",
 			Message: fmt.Sprintf("failed to open session store: %v", err),
 		}})
@@ -1407,7 +1815,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 
 	prov, err := a.providerBuilder(epName, ep, key, a.version, a.sessionID, a.log)
 	if err != nil {
-		a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+		a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.TurnErrorMsg{
 			Kind:    "provider",
 			Message: fmt.Sprintf("failed to build provider client: %v", err),
 		}})
@@ -1445,7 +1853,7 @@ func (a *App) Submit(userText string, getenv func(string) string) {
 	a.lastContextWindow = info.ContextWindow
 	a.storeMu.Unlock()
 
-	a.sendAsyncSequence([]tea.Msg{tui.BudgetMsg{
+	a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.BudgetMsg{
 		EstimatedTokens: estimated,
 		ContextWindow:   info.ContextWindow,
 	}})
@@ -1509,20 +1917,65 @@ func (a *App) WorkspaceInfo() tui.WorkspaceInfoMsg {
 	}
 }
 
-// send delivers a message to the TUI, or drops it if no program is attached.
+// currentGen returns the session generation messages are being fenced against.
+// It does not take genMu (see the invariant on genMu), so it never blocks and
+// is safe to call from the Update goroutine.
+func (a *App) currentGen() uint64 {
+	return a.sessionGen.Load()
+}
+
+// turnGen returns the generation carried by ctx (set by RunTurn and RunTool),
+// or the current generation when ctx carries none (a direct caller of Request
+// or of the tool executor, as the tests are).
+func (a *App) turnGen(ctx context.Context) uint64 {
+	if g, ok := ctx.Value(turnGenKey{}).(uint64); ok {
+		return g
+	}
+	return a.currentGen()
+}
+
+// bumpGeneration starts a new generation. It takes genMu for writing, so it
+// waits for every delivery that passed its check under the old generation to
+// be accepted by the TUI first; a delivery that starts afterwards fails its
+// check and is dropped. For a sender that goes through deliverIfCurrent (send,
+// sendAsyncSequenceFenced), messages from the old generation are therefore all
+// either already queued ahead of anything NewSession's caller sends next, or
+// never sent. Unfenced senders (sendAsyncSequence) get no such guarantee.
+func (a *App) bumpGeneration() {
+	a.genMu.Lock()
+	a.sessionGen.Add(1)
+	a.genMu.Unlock()
+}
+
+// deliverIfCurrent runs deliver only if gen is still the current generation.
+// It holds genMu for reading across deliver, which is what lets bumpGeneration
+// wait for a delivery that has passed the check: the check and the hand-over to
+// the TUI are one step, so there is no window between them for the bump to fall
+// into.
+func (a *App) deliverIfCurrent(gen uint64, deliver func()) {
+	a.genMu.RLock()
+	defer a.genMu.RUnlock()
+	if gen != a.sessionGen.Load() {
+		return
+	}
+	deliver()
+}
+
 // send delivers a message to the TUI, or drops it if there is nowhere to put
-// it.
+// it or if gen is no longer the current session generation (a /new has
+// replaced the session the sender belongs to).
 //
 // Delivery is abandoned once the root context is cancelled. Without that, a
 // tool that finishes just as the user quits blocks forever handing its result
 // to a program that has stopped reading.
 //
-// send is called only from tool goroutines spawned in RunTool. Those goroutines
-// need the delivery guarantee: they wait for the message to be accepted so they
-// know the result reached the TUI.
-func (a *App) send(msg tea.Msg) {
+// send is called by RunTool's goroutine, by the tool executor's Invoke and by
+// Request. It returns only once the message has been accepted by the TUI,
+// dropped by the generation check, or abandoned because the root context was
+// cancelled.
+func (a *App) send(gen uint64, msg tea.Msg) {
 	if a.sendFn != nil {
-		a.sendFn(msg)
+		a.deliverIfCurrent(gen, func() { a.sendFn(msg) })
 		return
 	}
 	if a.program == nil {
@@ -1530,7 +1983,7 @@ func (a *App) send(msg tea.Msg) {
 	}
 	delivered := make(chan struct{})
 	go func() {
-		a.program.Send(msg)
+		a.deliverIfCurrent(gen, func() { a.program.Send(msg) })
 		close(delivered)
 	}()
 	select {
@@ -1574,6 +2027,27 @@ func (a *App) send(msg tea.Msg) {
 // program's context cancellation during shutdown prevents it from blocking
 // indefinitely (see Close and the program's event loop).
 func (a *App) sendAsyncSequence(msgs []tea.Msg) {
+	a.sendSequence(msgs, a.deliverOne)
+}
+
+// sendAsyncSequenceFenced is sendAsyncSequence with each message fenced to gen:
+// a message is delivered only if gen is still the current session generation
+// when its turn comes (see deliverIfCurrent), so what a cancelled turn still
+// has queued never reaches the TUI's new session. Submit (its refusals and its
+// BudgetMsg), RunTurn, flushStore and recordCompactionUsage send through it;
+// send is the fenced sender for callers that wait for delivery.
+// sendAsyncSequence stays for messages that belong to no turn, for example
+// notices, approval resolutions and onboarding.
+func (a *App) sendAsyncSequenceFenced(gen uint64, msgs []tea.Msg) {
+	a.sendSequence(msgs, func(msg tea.Msg) {
+		a.deliverIfCurrent(gen, func() { a.deliverOne(msg) })
+	})
+}
+
+// sendSequence is the body shared by sendAsyncSequence and
+// sendAsyncSequenceFenced: one goroutine, messages in order, deliver called for
+// each.
+func (a *App) sendSequence(msgs []tea.Msg, deliver func(tea.Msg)) {
 	if len(msgs) == 0 {
 		return
 	}
@@ -1586,7 +2060,7 @@ func (a *App) sendAsyncSequence(msgs []tea.Msg) {
 	// (program.Send) — see deliverOne.
 	go func() {
 		for _, msg := range msgs {
-			a.deliverOne(msg)
+			deliver(msg)
 		}
 	}()
 }
@@ -1664,6 +2138,9 @@ func (a *App) CancelTurn() {
 // runs on the turn's goroutine, after BeginTurn, so CancelTurn/Esc cancels it.
 func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string, compParams compactionParams) {
 	ctx := a.BeginTurn()
+	// Submit holds opMu here and NewSession holds it across its generation
+	// bump, so this is the generation the turn really starts under.
+	gen := a.currentGen()
 
 	a.mu.Lock()
 	a.turnsLive++
@@ -1680,6 +2157,7 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 		var textBlock, thinkingBlock int64
 		callIDs := make(map[string]int64)
 		ctx = context.WithValue(ctx, toolCallsKey{}, callIDs)
+		ctx = context.WithValue(ctx, turnGenKey{}, gen)
 
 		// The agent must use the app-side tool executor so that tool calls
 		// driven by the model send ToolStartedMsg / ToolCompletedMsg and are
@@ -1706,7 +2184,7 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 			// Announce compaction only when there is something to compact, so
 			// the nothing-to-compact path does not flash the status.
 			if _, _, ok := session.PlanCompaction(conv.Messages); ok {
-				a.sendAsyncSequence([]tea.Msg{tui.CompactingMsg{}})
+				a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.CompactingMsg{}})
 			}
 			// The summary call is capped at the output reserve as well as the
 			// model's own maximum: the context is already at least 75% full.
@@ -1714,52 +2192,52 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 			comp, err := a.runCompaction(ctx, ag.Model, conv, maxTokens)
 			// Record before the switch: the summary call is billed whether or
 			// not the compaction was applied.
-			a.recordCompactionUsage(comp, compParams.modelID)
+			a.recordCompactionUsage(gen, comp, compParams.modelID)
 			switch {
 			case errors.Is(err, context.Canceled):
 				// Cancelled: runCompaction returned before touching conv or
 				// the store. The turn is not started.
-				a.sendAsyncSequence([]tea.Msg{tui.TurnCancelledMsg{}})
-				a.flushStore(store)
+				a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.TurnCancelledMsg{}})
+				a.flushStore(gen, store)
 				return
 			case errors.Is(err, session.ErrNothingToCompact):
 				if compParams.estimatedTokens <= budget {
 					// Above the threshold but within budget: proceed.
 					break
 				}
-				a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+				a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.TurnErrorMsg{
 					Kind:    "context_overflow",
 					Message: "The request exceeds the model's context window.",
 					Detail: fmt.Sprintf(
 						"Estimated %d tokens against a budget of %d after the %d-token output reserve, and there is nothing to compact. Start a new session with /new.",
 						compParams.estimatedTokens, budget, outputReserve),
 				}})
-				a.flushStore(store)
+				a.flushStore(gen, store)
 				return
 			case err != nil:
-				a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+				a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.TurnErrorMsg{
 					Kind:    "context_overflow",
 					Message: "Compaction failed. The request exceeds the model's context window.",
 					Detail: fmt.Sprintf(
 						"Compaction failed: %v. Start a new session with /new.", err),
 				}})
-				a.flushStore(store)
+				a.flushStore(gen, store)
 				return
 			default:
 				// runCompaction replaced conv.Messages and recorded
 				// compaction.applied. Tell the header now, so it is right
 				// even if the compacted request is still too large.
-				a.sendAsyncSequence([]tea.Msg{tui.SessionCompactedMsg{}})
+				a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.SessionCompactedMsg{}})
 				newEstimated := a.estimateRequest(userText, conv, ag.Tools)
 				if newEstimated > budget {
-					a.sendAsyncSequence([]tea.Msg{tui.TurnErrorMsg{
+					a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.TurnErrorMsg{
 						Kind:    "context_overflow",
 						Message: "The compacted request still exceeds the model's context window.",
 						Detail: fmt.Sprintf(
 							"Estimated %d tokens after compaction against a budget of %d. Start a new session with /new.",
 							newEstimated, budget),
 					}})
-					a.flushStore(store)
+					a.flushStore(gen, store)
 					return
 				}
 				// Update the stored estimate for /status display
@@ -1767,7 +2245,7 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 				a.lastEstimatedTokens = newEstimated
 				a.lastContextWindow = compParams.contextWindow
 				a.storeMu.Unlock()
-				a.sendAsyncSequence([]tea.Msg{tui.BudgetMsg{
+				a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.BudgetMsg{
 					EstimatedTokens: newEstimated,
 					ContextWindow:   compParams.contextWindow,
 				}})
@@ -1781,7 +2259,7 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 
 		emit := func(ev agent.Event) {
 			for _, msg := range a.adaptTurnEvent(ev, &textBlock, &thinkingBlock, callIDs, compParams.modelID) {
-				a.sendAsyncSequence([]tea.Msg{msg})
+				a.sendAsyncSequenceFenced(gen, []tea.Msg{msg})
 			}
 		}
 
@@ -1808,20 +2286,21 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 			store.RecordTurnCompleted(status)
 		}
 
-		a.sendAsyncSequence([]tea.Msg{final})
-		a.flushStore(store)
+		a.sendAsyncSequenceFenced(gen, []tea.Msg{final})
+		a.flushStore(gen, store)
 	}()
 }
 
-// flushStore flushes store, if there is one, and reports a failure to the TUI.
-// RunTurn calls it on every exit, including the early returns of the
-// compaction block, so a compaction.applied event is never left unflushed.
-func (a *App) flushStore(store *session.Store) {
+// flushStore flushes store, if there is one, and reports a failure to the TUI
+// as an ErrorMsg fenced to gen. RunTurn calls it on every exit, including the
+// early returns of the compaction block, so a compaction.applied event is
+// never left unflushed; ManualCompact and ClearGrants call it too.
+func (a *App) flushStore(gen uint64, store *session.Store) {
 	if store == nil {
 		return
 	}
 	if flushErr := store.Flush(); flushErr != nil {
-		a.sendAsyncSequence([]tea.Msg{tui.ErrorMsg{
+		a.sendAsyncSequenceFenced(gen, []tea.Msg{tui.ErrorMsg{
 			Kind:    "session_store",
 			Message: fmt.Sprintf("Failed to flush session log: %v", flushErr),
 		}})
@@ -1834,21 +2313,26 @@ func (a *App) flushStore(store *session.Store) {
 // returned alongside its error: non-nil on every failure after the model call
 // began, carrying Usage only (or, on a cancel after the summary arrived, Usage
 // plus an unapplied Messages). A nil comp or an all-zero Usage records and sends
-// nothing.
-func (a *App) recordCompactionUsage(comp *session.Compaction, modelID string) {
+// nothing. The SessionUsageMsg it sends is fenced to gen.
+func (a *App) recordCompactionUsage(gen uint64, comp *session.Compaction, modelID string) {
 	if comp == nil || !comp.Usage.Nonzero() {
 		return
 	}
 	a.recordUsage(comp.Usage, modelID)
-	a.sendAsyncSequence([]tea.Msg{a.buildSessionUsageMsg(modelID)})
+	a.sendAsyncSequenceFenced(gen, []tea.Msg{a.buildSessionUsageMsg(modelID)})
 }
 
 // buildSessionUsageMsg builds a SessionUsageMsg from the current session totals.
 // Used after both turn and compaction usage events to update the status bar (m4-d9).
 //
-// The cost is the running per-call sum, not the cumulative tokens priced at
-// modelID's rates, so it agrees with usage.json after a mid-session model
-// switch. CostState and ModelKnown describe modelID, the model in use now.
+// The cost is the running session cost, not the cumulative tokens priced at
+// modelID's rates. In a session started in this process it is the sum of the
+// per-call costs; recordUsage adds each of those same figures to usage.json as
+// well, which also holds other sessions' totals. After ResumeLastSession it
+// starts from the log's summed tokens priced once at the model in use at
+// resume, with per-call costs added after; for a session that switched models
+// before the resume that base differs from the sum of its per-call costs.
+// CostState and ModelKnown describe modelID, the model in use now.
 func (a *App) buildSessionUsageMsg(modelID string) tui.SessionUsageMsg {
 	a.storeMu.Lock()
 	in, out := a.sessionTokensIn, a.sessionTokensOut
@@ -1856,6 +2340,13 @@ func (a *App) buildSessionUsageMsg(modelID string) tui.SessionUsageMsg {
 	cost := a.sessionCostUSD
 	a.storeMu.Unlock()
 
+	return sessionUsageMsgFor(in, out, read, write, cost, modelID)
+}
+
+// sessionUsageMsgFor builds a SessionUsageMsg from the given totals. CostState
+// and ModelKnown describe modelID. It takes no lock, so ResumeLastSession, which
+// already holds storeMu, can use it where buildSessionUsageMsg would deadlock.
+func sessionUsageMsgFor(in, out, read, write int64, cost float64, modelID string) tui.SessionUsageMsg {
 	modelInfo := provider.LookupModel(modelID)
 	return tui.SessionUsageMsg{
 		TokensIn:   int(in),
@@ -1871,7 +2362,9 @@ func (a *App) buildSessionUsageMsg(modelID string) tui.SessionUsageMsg {
 // recordUsage records one model call's usage in three places: the session store
 // (a usage event), the TUI session totals that /status reads, and, when a
 // layout is present, usage.json with the cost for modelID. The same per-call
-// cost is added to the running session cost that buildSessionUsageMsg reports.
+// cost is added to the running session cost that buildSessionUsageMsg reports,
+// on top of whatever base the session started with: zero, or the priced log
+// totals ResumeLastSession seeded.
 //
 // Turn calls and compaction calls both come through here, so the totals count
 // every billed call. The header's per-call token figure is a separate message
@@ -2053,6 +2546,8 @@ func turnErrorDetail(err error) string {
 // the offending line looks like ordinary sequencing.
 func (a *App) RunTool(name string, input map[string]any) {
 	ctx := a.BeginTurn()
+	gen := a.currentGen()
+	ctx = context.WithValue(ctx, turnGenKey{}, gen)
 	id := a.nextID.Add(1)
 	target := describeInput(input)
 
@@ -2060,12 +2555,12 @@ func (a *App) RunTool(name string, input map[string]any) {
 	go func() {
 		defer a.inFlight.Done()
 
-		a.send(tui.ToolStartedMsg{ID: id, Name: name, Target: target})
+		a.send(gen, tui.ToolStartedMsg{ID: id, Name: name, Target: target})
 		a.log.Debug("tool started", "tool", name, "id", id, "target", target)
 
 		raw, err := json.Marshal(input)
 		if err != nil {
-			a.send(tui.ToolCompletedMsg{
+			a.send(gen, tui.ToolCompletedMsg{
 				ID: id, Name: name, Target: target,
 				OK: false, ErrorKind: string(tool.KindToolInputInvalid),
 				ErrorMsg: "could not encode tool input: " + err.Error(),
@@ -2076,7 +2571,7 @@ func (a *App) RunTool(name string, input map[string]any) {
 		start := time.Now()
 		ctx = tool.WithToolID(ctx, id)
 		ctx = tool.WithProgressSink(ctx, func(chunk string) {
-			a.send(tui.CommandOutputChunkMsg{ID: id, Chunk: chunk})
+			a.send(gen, tui.CommandOutputChunkMsg{ID: id, Chunk: chunk})
 		})
 		res := a.reg.Invoke(ctx, name, raw)
 		elapsed := time.Since(start)
@@ -2097,7 +2592,7 @@ func (a *App) RunTool(name string, input map[string]any) {
 			"tool", name, "id", id, "ok", res.OK,
 			"duration_ms", res.DurationMS, "kind", msg.ErrorKind,
 			telemetry.Content("summary", res.DisplaySummary))
-		a.send(msg)
+		a.send(gen, msg)
 	}()
 }
 
@@ -2162,7 +2657,7 @@ func (a *App) Request(ctx context.Context, req ApprovalRequest) (ApprovalOutcome
 	}
 
 	// Send the approval message to the TUI.
-	a.send(tui.ApprovalRequestedMsg{
+	a.send(a.turnGen(ctx), tui.ApprovalRequestedMsg{
 		ID:                   id,
 		ToolID:               tool.ToolIDFrom(ctx),
 		Description:          req.Description,
@@ -2468,8 +2963,9 @@ func (a *App) beginManualCompact() (ctx context.Context, conv *agent.Conversatio
 // ManualCompact compacts the current conversation without starting a turn and
 // returns the real outcome as the one ManualCompactMsg the TUI will see. It
 // blocks for the whole summary call, so the TUI runs it inside a tea.Cmd and
-// keeps its busy state until the returned message arrives. It sends no TUI
-// message itself.
+// keeps its busy state until the returned message arrives. The outcome is the
+// return value; the only messages it sends are the ones recordCompactionUsage
+// and flushStore send, fenced to the generation it started under.
 //
 // It gets its own turn context from BeginTurn, so CancelTurn (Esc) cancels
 // it, and it goes through runCompaction, the path RunTurn uses, so the
@@ -2482,6 +2978,9 @@ func (a *App) ManualCompact(getenv func(string) string) tui.ManualCompactMsg {
 		return tui.ManualCompactMsg{Outcome: tui.ManualCompactBusy}
 	}
 	defer done()
+	// NewSession waits for this compaction (beginManualCompact registered it
+	// with inFlight) before it bumps the generation, so this is stable here.
+	gen := a.currentGen()
 
 	model := a.GetActiveModel(getenv)
 	if model == nil {
@@ -2500,11 +2999,21 @@ func (a *App) ManualCompact(getenv func(string) string) tui.ManualCompactMsg {
 	comp, err := a.runCompaction(ctx, model, conv, maxTokens)
 	// Record before classifying the outcome: the summary call is billed whether
 	// or not the compaction was applied.
-	a.recordCompactionUsage(comp, ep.Model)
-	a.flushStore(store)
+	a.recordCompactionUsage(gen, comp, ep.Model)
+	a.flushStore(gen, store)
 
 	switch {
 	case err == nil:
+		// conv now holds the compacted messages, so the estimate /status
+		// reads is stale. No user text is pending. The window comes from
+		// a.modelInfo, as Submit's estimate does. This stores the estimate
+		// for StatusInfo and sends no message.
+		window := a.modelInfo(ep.Model).ContextWindow
+		estimated := a.estimateRequest("", conv, &toolExecutor{app: a})
+		a.storeMu.Lock()
+		a.lastEstimatedTokens = estimated
+		a.lastContextWindow = window
+		a.storeMu.Unlock()
 		return tui.ManualCompactMsg{Outcome: tui.ManualCompactApplied}
 	case errors.Is(err, session.ErrNothingToCompact):
 		return tui.ManualCompactMsg{Outcome: tui.ManualCompactNothing}

@@ -192,9 +192,13 @@ type Model struct {
 
 	pendingDiffSeq int // sequence number for /diff requests; ignored if stale. Only ever increases.
 
-	// compacting is set from /compact until its ManualCompactMsg arrives, and
-	// newSessionPending from /new until its NewSessionDoneMsg arrives. While
-	// either is set busy is active and Esc cannot clear it.
+	// compacting is set from /compact until its ManualCompactMsg arrives (or
+	// resetForNewSession runs), and newSessionPending from /new until its
+	// NewSessionDoneMsg arrives. Each is set together with busy, and while
+	// either is set Esc does not clear busy (cancelTurn returns first). Update
+	// holds busy for the whole /new window. Nothing holds it for /compact: a
+	// message whose case in update clears busy can still clear it before the
+	// ManualCompactMsg arrives (see the Update docblock).
 	compacting        bool
 	newSessionPending bool
 
@@ -530,11 +534,11 @@ func (m Model) transcriptRows(lay Layout) []string {
 	}
 
 	// Onboarding, while nothing has been said yet. §7.5, screens 01 and 12.
-	if m.tr.Len() == 0 {
-		if m.onboarding != nil {
-			return m.onboardingRows(lay)
-		}
-		return m.emptyStateRows(lay)
+	// Start-up notices (for example "no previous session — starting fresh")
+	// arrive before the user types and are shown under it, but only when every
+	// notice row fits; otherwise this falls through to the normal transcript.
+	if rows, ok := m.introRows(lay); ok {
+		return rows
 	}
 
 	out := make([]string, 0, h)
@@ -562,6 +566,87 @@ func (m Model) transcriptRows(lay Layout) []string {
 			" " + m.sty.Accent(tail)
 	}
 	return out
+}
+
+// nothingSaidYet reports whether the transcript holds nothing but notices,
+// which includes holding nothing at all. The first item of any other kind
+// (user, assistant, tool, approval, error, thinking) ends it. It is half of
+// the rule in introRows, its only caller outside the tests.
+func (m Model) nothingSaidYet() bool {
+	for _, it := range m.tr.Items() {
+		if it.Kind != KindNotice {
+			return false
+		}
+	}
+	return true
+}
+
+// introRows is the one rule for "the onboarding (or the empty state) is
+// showing", asked by the transcript region (transcriptRows) and by the
+// composer's placeholder (View, through showIntro). ok is true exactly when
+// all three hold for this frame:
+//
+//   - the transcript region draws a transcript: lay.ShowTranscript (not the
+//     "terminal too narrow" line) and at least one row (lay.TranscriptH > 0);
+//   - nothing but notices has been said (nothingSaidYet);
+//   - there are no notice rows, or the onboarding (or empty-state) rows, one
+//     blank separator and every notice row fit in lay.TranscriptH. With no
+//     notices nothing is tested for fit: the onboarding and empty-state
+//     renderers cut their own rows to the region.
+//
+// rows are then exactly lay.TranscriptH rows: the onboarding (or empty-state)
+// rows, then the separator and the notice rows if there are any, then blank
+// padding. Otherwise ok is false, rows is nil, and transcriptRows draws the
+// region as it would for any other transcript. The answer is worked out afresh from the transcript and the
+// layout on every call; nothing latches it. A larger window can make notices
+// that stopped fitting fit again, and /new (resetForNewSession) empties the
+// transcript, so the onboarding can come back.
+func (m Model) introRows(lay Layout) (rows []string, ok bool) {
+	h := lay.TranscriptH
+	if !lay.ShowTranscript || h <= 0 || !m.nothingSaidYet() {
+		return nil, false
+	}
+	// m.lines is "", the notice rows with their spacing, "". Both outer blanks
+	// are dropped; the separator below replaces the leading one.
+	var notices []string
+	if n := len(m.lines); n > 2 {
+		notices = m.lines[1 : n-1]
+	}
+
+	top := m.emptyStateRows(lay)
+	if m.onboarding != nil {
+		top = m.onboardingRows(lay)
+	}
+	used := len(top)
+	for used > 0 && top[used-1] == "" {
+		used--
+	}
+	if len(notices) > 0 && used+1+len(notices) > h {
+		return nil, false
+	}
+
+	out := make([]string, 0, h)
+	out = append(out, top[:used]...)
+	if len(notices) > 0 {
+		out = append(out, "")
+		out = append(out, notices...)
+	}
+	for len(out) < h {
+		out = append(out, "")
+	}
+	return out, true
+}
+
+// showIntro reports introRows' ok for lay. View sets the composer placeholder
+// from it with the same layout it passes to transcriptRows, and transcriptRows
+// returns the intro rows exactly when introRows says ok (its own early returns,
+// for no rows and for a narrow terminal, are cases where introRows says no). So
+// within one frame the placeholder is on exactly when transcriptRows returns
+// the onboarding or empty-state rows. An open modal or confirm is drawn over
+// the region afterwards; that is not decided here.
+func (m Model) showIntro(lay Layout) bool {
+	_, ok := m.introRows(lay)
+	return ok
 }
 
 func itoa(n int) string {

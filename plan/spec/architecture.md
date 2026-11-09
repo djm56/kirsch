@@ -234,8 +234,11 @@ Consequences that follow directly:
 - Resume rebuilds transcript **and** conversation from the log — which is the
   entire reason the event schema carries `assistant.message` with tool-call ids
   and `tool.completed` with content, rather than only deltas (plan §7).
-- `assistant.delta` events exist for replaying the *look* of streaming. They are
-  never the source of truth for what was sent to the model.
+- Nothing writes `assistant.delta` events. The live UI renders streamed text from
+  the provider's stream as it arrives (`AssistantTextDeltaMsg` in `internal/tui`),
+  and the session file records the completed message as `assistant.message`
+  (plan §7). What was sent to the model is rebuilt from completed-message events,
+  never from stream fragments.
 
 ## 7. A turn, end to end
 

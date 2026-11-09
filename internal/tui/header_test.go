@@ -814,7 +814,7 @@ func plain(rows []string) []string {
 // TestModalFooterNamesTheWayOutAtEveryWidth pins the footer ladder.
 //
 // A single truncEnd was not enough: at 40 columns — the advertised minimum —
-// the help footer's full form cut to "kirsch v0.1.0 · docs: doc/usage.md…" and
+// the help footer's full form cut to "kirsch v0.1.0 · docs: github.com…" and
 // the three words naming the exit key were the ones that went. The footer was
 // present and structurally intact, which is why the row-count assertions above
 // all passed while the modal was, in the only sense that matters, unleaveable.
@@ -1747,10 +1747,28 @@ func TestHelpFooterNamesScrollKeysWhenClipped(t *testing.T) {
 					w, h, footerRow)
 			}
 
-			// At 120×27, assert the footer contains "docs: doc/usage.md" even when clipped.
+			// At 120×27 the clipped ladder's first rung fits, so the footer
+			// carries the docs link (O16) and not the old doc/ path. Presence is
+			// paired with absence: the old text is what a half-applied edit
+			// would leave behind.
 			if w == 120 && h == 27 {
-				if !strings.Contains(footerRow, "docs: doc/usage.md") {
-					t.Errorf("%dx%d (clipped, wide): footer should contain 'docs: doc/usage.md' but got: %q",
+				if !strings.Contains(footerRow, "docs: github.com/djm56/kirsch") {
+					t.Errorf("%dx%d (clipped, wide): footer should contain 'docs: github.com/djm56/kirsch' but got: %q",
+						w, h, footerRow)
+				}
+				if strings.Contains(footerRow, "docs: doc/usage.md") {
+					t.Errorf("%dx%d (clipped, wide): footer still contains the old 'docs: doc/usage.md': %q",
+						w, h, footerRow)
+				}
+			}
+			// At 120×30 the unclipped ladder's first rung fits as well.
+			if w == 120 && h == 30 {
+				if !strings.Contains(footerRow, "docs: github.com/djm56/kirsch") {
+					t.Errorf("%dx%d (unclipped, wide): footer should contain 'docs: github.com/djm56/kirsch' but got: %q",
+						w, h, footerRow)
+				}
+				if strings.Contains(footerRow, "docs: doc/usage.md") {
+					t.Errorf("%dx%d (unclipped, wide): footer still contains the old 'docs: doc/usage.md': %q",
 						w, h, footerRow)
 				}
 			}

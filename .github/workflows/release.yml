@@ -1,0 +1,94 @@
+name: Release
+
+# Decision O3 (plan/PROGRESS.md): the workflow runs when a v* tag is pushed and
+# can be started by hand for a dry run. No pull_request trigger, so no release
+# build runs on a pull request.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+# Read-only by default, as in ci.yml. Only the release job below is raised.
+permissions:
+  contents: read
+
+# One release run per ref. GitHub keeps at most one pending run per group and
+# cancels an older pending one when a newer arrives; `cancel-in-progress: false`
+# does protect the running release from being cut short.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # O3: the job may create the release and nothing else. contents: write is
+    # what creating a release and uploading its assets needs.
+    permissions:
+      contents: write
+    steps:
+      # Full history: goreleaser builds the changelog (`changelog: use: git`)
+      # from the commits since the previous tag, which a shallow clone lacks.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A tag push publishes, so the tagged commit must be on main. Checkout
+      # above fetched full history; origin/main is fetched explicitly so the
+      # check does not depend on which refs checkout creates.
+      - name: tagged commit is on main
+        if: github.event_name == 'push'
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "tagged commit $GITHUB_SHA is not an ancestor of origin/main" >&2
+            exit 1
+          fi
+
+      # Same Go as ci.yml: the version on go.mod's `go` line.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # Caching off: setup-go@v5 caches by default (`cache: true`), and a
+          # release job with `contents: write` should not restore a cache another
+          # run saved, nor save one. `cache: false` turns it off.
+          cache: false
+
+      # O3: tools are pinned to fixed versions, as CI pins golangci-lint. The
+      # pin lives in scripts/goreleaser-version, the one place that names it,
+      # and `npm run release:snapshot` reads the same file. The same check as
+      # scripts/ci.sh applies: a bare vX.Y.Z or the step fails.
+      - name: read goreleaser version
+        id: goreleaser
+        run: |
+          ver="$(tr -d '[:space:]' < scripts/goreleaser-version)"
+          if ! printf '%s\n' "$ver" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "scripts/goreleaser-version must hold a version like v2.19.0 (got: '$ver')" >&2
+            exit 1
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      # A tag push publishes the release. A manual run builds a snapshot and
+      # publishes nothing: it is the dry run, and its archives are uploaded
+      # below. The before hook in .goreleaser.yaml collects the licence texts
+      # in both cases, so a module without a licence fails the dry run too.
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: ${{ steps.goreleaser.outputs.version }}
+          args: ${{ github.event_name == 'workflow_dispatch' && 'release --snapshot --clean' || 'release --clean' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Dry run only: keep the archives and checksums for inspection. goreleaser
+      # names the checksums file kirsch_<version>_checksums.txt, not checksums.txt.
+      - name: upload dry-run artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dry-run
+          path: |
+            dist/*.tar.gz
+            dist/*_checksums.txt
+          if-no-files-found: error

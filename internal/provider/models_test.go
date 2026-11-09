@@ -95,18 +95,18 @@ func TestPricingUnknownIsZeroValue(t *testing.T) {
 // so a swapped price fails.
 func TestCostPerTokenModel(t *testing.T) {
 	m := LookupModel("claude-sonnet-5-5")
-	// Sonnet: InputPerMTok=2.0, OutputPerMTok=10.0, CacheReadPerMTok=0.2, CacheWritePerMTok=2.5
+	// Sonnet: InputPerMTok=2.0, OutputPerMTok=10.0, CacheReadPerMTok=0.1, CacheWritePerMTok=2.5
 	// Input: 1000 * 2.0 / 1e6 = 0.002
 	// Output: 500 * 10.0 / 1e6 = 0.005
-	// CacheRead: 200 * 0.2 / 1e6 = 0.00004
+	// CacheRead: 200 * 0.1 / 1e6 = 0.00002
 	// CacheWrite: 100 * 2.5 / 1e6 = 0.00025
-	// Total: 0.00729
+	// Total: 0.00727
 	costUSD, ok := m.Cost(1000, 500, 200, 100)
 	if !ok {
 		t.Error("Cost should return ok=true for PricingPerToken model")
 	}
-	expected := 0.00729
-	if costUSD != expected {
+	expected := 0.00727
+	if absFloat(costUSD-expected) > 1e-10 {
 		t.Errorf("Cost = %v, want %v", costUSD, expected)
 	}
 }
@@ -147,9 +147,9 @@ func TestCostAllPerTokenModels(t *testing.T) {
 		// cost = (in*inputPrice + out*outputPrice + read*readPrice + write*writePrice) / 1e6
 		wantCost float64
 	}{
-		// Sonnet: input=2.0, output=10.0, read=0.2, write=2.5
-		// cost = (100*2.0 + 50*10.0 + 20*0.2 + 10*2.5) / 1e6 = (200 + 500 + 4 + 25) / 1e6 = 729 / 1e6
-		{"claude-sonnet-5-5", 100, 50, 20, 10, 0.000729},
+		// Sonnet: input=2.0, output=10.0, read=0.1, write=2.5
+		// cost = (100*2.0 + 50*10.0 + 20*0.1 + 10*2.5) / 1e6 = (200 + 500 + 2 + 25) / 1e6 = 727 / 1e6
+		{"claude-sonnet-5-5", 100, 50, 20, 10, 0.000727},
 
 		// Opus: input=4.0, output=20.0, read=0.2, write=5.0
 		// cost = (100*4.0 + 50*20.0 + 20*0.2 + 10*5.0) / 1e6 = (400 + 1000 + 4 + 50) / 1e6 = 1454 / 1e6
@@ -173,6 +173,48 @@ func TestCostAllPerTokenModels(t *testing.T) {
 			}
 			if absFloat(cost-tt.wantCost) > 1e-10 {
 				t.Errorf("Cost = %v, want %v", cost, tt.wantCost)
+			}
+		})
+	}
+}
+
+// TestPublishedPerTokenFigures pins every per-token figure of the Claude entries
+// to the figures read from the vendor pricing page (https://platform.claude.com/docs/en/about-claude/pricing.md)
+// on 2026-11-05: input, 5-minute cache write, cache hit, output, in USD per MTok.
+// It reads the table through LookupModel, so a drifted row fails by field name.
+func TestPublishedPerTokenFigures(t *testing.T) {
+	tests := []struct {
+		modelID                    string
+		input, write, read, output float64
+	}{
+		// The rows quoted below omit the page's footnote markers.
+		// | Claude Sonnet 5.5 | $2 / MTok | $2.50 / MTok | $4 / MTok | $0.10 / MTok | $10 / MTok |
+		{"claude-sonnet-5-5", 2, 2.5, 0.1, 10},
+		// | Claude Opus 5.5 | $4 / MTok | $5 / MTok | $8 / MTok | $0.20 / MTok | $20 / MTok |
+		{"claude-opus-5-5", 4, 5, 0.2, 20},
+		// | Claude Fable 5.1 | $10 / MTok | $12.50 / MTok | $20 / MTok | $0.25 / MTok | $50 / MTok |
+		{"claude-fable-5-1", 10, 12.5, 0.25, 50},
+		// | Claude Haiku 4.5 | $1 / MTok | $1.25 / MTok | $2 / MTok | $0.10 / MTok | $5 / MTok |
+		{"claude-haiku-4-5-20251001", 1, 1.25, 0.1, 5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.modelID, func(t *testing.T) {
+			m := LookupModel(tt.modelID)
+			if m.Pricing != PricingPerToken {
+				t.Fatalf("Pricing = %v, want PricingPerToken", m.Pricing)
+			}
+			for _, f := range []struct {
+				name      string
+				got, want float64
+			}{
+				{"InputPerMTok", m.InputPerMTok, tt.input},
+				{"CacheWritePerMTok", m.CacheWritePerMTok, tt.write},
+				{"CacheReadPerMTok", m.CacheReadPerMTok, tt.read},
+				{"OutputPerMTok", m.OutputPerMTok, tt.output},
+			} {
+				if absFloat(f.got-f.want) > 1e-12 {
+					t.Errorf("%s = %v, want %v (published)", f.name, f.got, f.want)
+				}
 			}
 		})
 	}

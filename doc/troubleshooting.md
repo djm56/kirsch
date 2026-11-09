@@ -580,10 +580,11 @@ one, an error card titled `auth` reads:
 no API key for endpoint "opencode" (set KIRSCH_OPENCODE_API_KEY or OPENCODE_API_KEY)
 ```
 
-On some starts a notice in the transcript area also explains this. It shows
-only while the transcript is empty, so it does not appear when Kirsch has
-resumed an earlier session or has already printed a notice such as `no
-previous session — starting fresh`.
+On a fresh start, the onboarding screen also shows this, with the variable
+names. It stays while the transcript holds only notices, such as `no previous
+session — starting fresh`, and every notice fits beneath it. A resumed session
+that already has messages in its transcript does not show the onboarding, so
+check the key with `kirsch doctor`, below, instead.
 
 **What to do.** Set the variable in the shell you start Kirsch from. Use the
 bare name, or the prefixed one if you already use it for other tools:

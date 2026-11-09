@@ -340,6 +340,10 @@ command reading stdin fails immediately; env filtering strips a token even when
 allowlisted; a `sleep 60` cancelled mid-run dies rather than lingering (assert
 the pid is gone, not merely that the call returned).
 
+Update 2026-11-05 (m5-d19b): the 500ms bound and the stdin wording in this
+Check are superseded by the Task 9 boxes — the timeout box is relaxed to 3s
+(O15, C29) and the stdin box is reworded (C34). See Task 9.
+
 ## Task 6 — The approval flow
 
 Read the box near the top of this document first.
@@ -415,9 +419,27 @@ wrong and gets updated in this milestone's commit.
 - [x] `apply_patch` never offers `[a]`, and no config makes it allow
 - [x] Command allowlist matches correctly; `sh -c` and its evasions always ask
 - [x] A session grant for `go test` matches `go test ./...` and never `sh -c`
-- [ ] Command timeout kills the process group within 500ms of the deadline
+- [ ] Command timeout ends the call within 3s of the deadline, even when the
+      command ignores SIGTERM. At the deadline SIGTERM goes to the process
+      group; if the group leader is still alive 2s later, SIGKILL goes to the
+      group. This box does not assert that every process in the group is gone
+      when a process ignores SIGTERM: no test checks that, and the code may
+      skip SIGKILL once the leader has exited (suspected, read from
+      `internal/tool/run_command.go`, not run). (was: "Command timeout kills
+      the process group within 500ms of the deadline", unticked; relaxed by
+      O15, C29, 2026-10-29; the 3s value is in plan/PROGRESS.md row C29
+      detail)
 - [ ] A cancelled command's process is actually gone, not merely detached
-- [x] A command reading stdin fails immediately
+      Note (2026-11-05, m5-d19b): m5-d19a (mission-20261027-05) made
+      `TestRunCommandCancellationProcessGroupDead` record the PIDs out of band
+      and assert they are gone (ESRCH). The test fails when `Setpgid` is
+      set to `false` ("still alive 3s after the command ended",
+      plan/testing/manual/milestone-5.md section 6). That meets the condition
+      the status note below sets for ticking. Ticking is the operator's call.
+- [ ] A command that reads input gets end-of-input at once and cannot
+      wait for typing
+      (was: "A command reading stdin fails immediately", ticked; reworded
+      by C34, 2026-11-03)
 - [x] Env filtering strips `*_KEY`/`*_TOKEN` even when allowlisted
 - [x] Approve, reject and approve-for-session all work from the TUI
 - [x] Cancelling a turn with an approval pending returns within 1s and leaves
@@ -435,10 +457,12 @@ known point.
 
 - **CI.** The first CI run on Milestone 2 code (run 36985475148, commit `485e1dd`) failed only in two tests that passed a single argument over 128KB to `printf`, which Linux refuses. Mission-20261002-02 fixed them, and CI run 36988404863 on commit `3c7ce2c` is green. The box is ticked.
 - **The timeout kill is not proven.**
-  - `TestRunCommandTimeoutWithinDeadline` bounds the call at 1–2s after a 1s deadline, which is not the 500ms the box requires.
+  - `TestRunCommandTimeoutWithinDeadline` bounds the call at 1–2s after a 1s deadline, which is not the 500ms the box requires. (superseded; see the Update below)
   - `TestRunCommandTimeoutProcessGroupDead` never checks that the process died. On timeout the result carries no content, so its PID parse fails and the test returns before its assertion (`internal/tool/run_command_test.go:~804`).
   - To close this, fix that test (record the PID out of band) and tighten the bound, or relax the requirement.
+  - Update 2026-11-05 (m5-d19b): the operator chose to relax the requirement (O15, C29, 2026-10-29), and the box now states 3s after the deadline. `TestRunCommandTimeoutProcessGroupDead` was fixed by m5-d19a (mission-20261027-05): it records the PIDs out of band and asserts the shell and grandchild are gone.
 - **Cancelled-process death is not proven.** Walkthrough §9 cancels an approval card before any process starts (`plan/testing/manual/user-testing/milestone-2-donovan.md:411`), and `TestRunCommandCancellationProcessGroupDead` has no PID check. To close this, record the PID out of band and assert `ESRCH` after cancelling, then tick the box.
+  Update 2026-11-05 (m5-d19b): m5-d19a added the PID check, and `TestRunCommandCancellationProcessGroupDead` now asserts ESRCH after cancelling. The box awaits the operator's tick.
 - **The configured command timeout is ignored.** See the last item under *Where execution departed*.
 - **Two more settings and output streaming are not wired.** See *Where execution departed* (plan amendments 72 and 73).
 - **Some ticked boxes rest on the operator's walkthrough, not on a test that can fail.** The evidence table below says which. The tests that cannot detect a regression are listed under *Open defects*.
@@ -462,8 +486,8 @@ known point.
 | `apply_patch` never offers `[a]` | `TestForPatchNeverAllows`, `TestForPatchNoConfigurationAllows`, `TestApprovalPatchNeverOffersSessionApproval`; walkthrough §4 |
 | Allowlist; `sh -c` and evasions ask | `TestShellsCanNeverBeAllowlisted`, `TestShellDetectionByBasename`, `TestRunCommandShellCommandRequiresApproval` |
 | `go test` grant scope | `TestGrantSemantics`, `TestGrantRefusesInvalidPrefixes` |
-| Cancelled process is gone | **Not proven — box open.** Walkthrough §9 cancels an approval card before any process starts (`milestone-2-donovan.md:411`). `TestRunCommandCancellationProcessGroupDead` checks only the error kind and a 3s return |
-| A command reading stdin fails immediately | Walkthrough §9 (`/run cat`, approved: "The command does not block"); `TestRunCommandStdinIsDevNull` shows a stdin-reading command returns at once. A stdin reader sees EOF and exits; it does not error. The test would also pass without the explicit `/dev/null` assignment, because `exec` reads `/dev/null` when `Stdin` is nil |
+| Cancelled process is gone | **Not proven — box open.** Walkthrough §9 cancels an approval card before any process starts (`milestone-2-donovan.md:411`). `TestRunCommandCancellationProcessGroupDead` checks only the error kind and a 3s return. Update 2026-11-05 (m5-d19b): m5-d19a added the PID check (ESRCH); the box awaits the operator's tick |
+| A command reading stdin fails immediately | Walkthrough §9 (`/run cat`, approved: "The command does not block"); `TestRunCommandStdinIsDevNull` shows a stdin-reading command returns at once. A stdin reader sees EOF and exits; it does not error. The test would also pass without the explicit `/dev/null` assignment, because `exec` reads `/dev/null` when `Stdin` is nil. Update 2026-11-05 (m5-d19b): the box is reworded by C34 (2026-11-03), and m5-d19a fixed `TestRunCommandStdinIsDevNull` so it fails when the `/dev/null` assignment is replaced by an empty reader |
 | Env stripping even when allowlisted | `TestRunCommandEnvironmentFiltering` (`*_TOKEN`, with a real environment and passthrough); walkthrough §9 (`SECRET_KEY` stripped although allowlisted). `*_SECRET` and `AWS_*` have no test |
 | Approve, reject and grant from the TUI | Walkthrough §3 and §7 (operator run). `TestApprovalSessionGrantDeadlock` drives a real `tea.Program` with a stub model and proves only that resolving does not deadlock |
 | Cancel with an approval pending returns within 1s | `TestApprovalCancellationReleasesRequest` cancels the context passed to `Request` and asserts `Cancelled` within 1s. By inspection, `Request` parks only in its `select` (`internal/app/app.go:~626–643`), so that return releases it. No test drives an Esc-cancelled turn or asserts goroutine count or `a.approvals` cleanup; the "no parked goroutine" half rests on that reasoning, not on a test that can fail |
@@ -481,7 +505,7 @@ Each departure is recorded as a plan amendment in [`spec/kirsch-plan.md`](../spe
 - **Rename-with-edit keeps permission bits only.** It carries the source file's `Perm()` but not setuid, setgid or sticky. A plain modify and a pure rename keep all of them.
 - **A patch that carries line endings is checked.** A patch's hunk lines can carry `\r`, as a `git diff` of a CRLF file does. Such a patch must add lines in the file's own ending, or it is rejected with `line_ending_mismatch`. A `+` line directly followed by `\ No newline at end of file` is exempt, because it has no terminator. A patch with no `\r` anywhere takes the file's ending.
 - **The `run_command` timeout ignores the configured default.** `policy.default_command_timeout_seconds` (default 60) is validated by `internal/config/config.go:~273` but never read by `run_command`. When `timeout_seconds` is omitted, the tool falls back to 3600 (`internal/tool/run_command.go:~143–146`) and enforces no maximum, while its schema tells the model "Maximum 3600" (`run_command.go:~83`). Plan §3 specifies a default of 60 and a maximum of 300.
-- **A command reading stdin sees EOF; it does not error.** `run_command` gives the child `/dev/null`, so a reader such as `cat` exits at once, normally with success. The Task 9 box and plan §3.2 say "fails immediately"; the delivered guarantee is that it never hangs. Rewording the box is the operator's decision.
+- **A command reading stdin sees EOF; it does not error.** `run_command` gives the child `/dev/null`, so a reader such as `cat` exits at once, normally with success. The Task 9 box and plan §3.2 say "fails immediately"; the delivered guarantee is that it never hangs. Rewording the box is the operator's decision. Update 2026-11-05 (m5-d19b): the operator decided the reword (C34, 2026-11-03), and the box is reworded.
 - **Three policy settings are not read.** `allow_session_scoped_grants`, `require_approval_for_patches` and `require_approval_for_commands` exist in `internal/config` but nothing passes them to the policy, which always enables session grants (`internal/app/app.go:~305`). Task 4.5's "`allow_session_scoped_grants = false` disables `Grant` entirely" is not met.
 - **Command output is not streamed.** `RunCommand.ProgressSink` is never set in production (`internal/app/app.go:~316`), so output appears when the command finishes. Task 5.2's incremental streaming is not met.
 

@@ -43,7 +43,9 @@
     "ci:test": "bash scripts/ci.sh test",
     "ci:security": "bash scripts/ci.sh security",
     "ci:screens": "bash scripts/ci.sh screens",
-    "ci:targets": "bash scripts/ci.sh targets"
+    "ci:targets": "bash scripts/ci.sh targets",
+    "release:snapshot": "bash scripts/release-snapshot.sh",
+    "check:no-key": "bash scripts/no-key-check.sh"
   },
   "engines": {
     "node": ">=18"

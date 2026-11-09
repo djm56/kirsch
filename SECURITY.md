@@ -77,15 +77,35 @@ limits, which the next section lists.
   one of the patterns above is passed through when it is on the passthrough list,
   even if its value is a secret. The patterns are matched case-sensitively, so a
   lowercase name such as `my_token` is not removed.
-- **The debug log can hold your prompts and the paths, search queries and
-  commands of tool calls.** It is off unless you turn it on with `--debug`, with
-  `KIRSCH_DEBUG=1`,
-  or with `telemetry.debug_log` in your global configuration. A project's
-  configuration cannot turn it on. When it is on, a 400 response from the
-  provider writes the full request body to the debug log. That body includes
-  your prompts and any file contents sent in them. The response body in the same
-  record is clipped at 256 bytes. Keep the debug log off when you work on
-  material you cannot share.
+- **The debug log can hold your messages, paths, commands and, on a 400, the
+  whole conversation.** The debug log is off unless you turn it on with
+  `--debug`, with `KIRSCH_DEBUG=1`, or with `telemetry.debug_log` in your global
+  configuration. A project's configuration cannot turn it on. When it is on, the
+  log writes the text of each message you send, in full. It also writes the
+  workspace path at startup, and the paths and key names in a configuration
+  warning. It writes the arguments of a command when you approve it for the
+  session and the grant is refused, and the saved pattern of a grant that the
+  policy refuses to restore. It writes the names of context files it refuses to
+  load, and the name of a context file whose read or stat fails. It writes
+  the base name of a usage file it moves aside after corruption. It writes
+  the error text of a session, session index, usage or lock file that cannot be
+  opened, read or written, and that text can name a file path. The log does not
+  record each tool call or each slash command. Redaction replaces a value only
+  when its attribute name contains one of `api_key`, `apikey`, `token`, `secret`,
+  `password` or `env_value`, matched without regard to case, and it checks no
+  other text. So a secret you type into a message, or that appears in a path
+  or command, is logged.
+
+  On a 400 response from the provider, the debug log records the
+  full request body. This is a disclosed limit, and the body is not clipped. It
+  is the request sent to the model: the system prompt, your messages, the tool
+  definitions, the model's earlier `thinking` blocks, the tool calls in the
+  conversation (for example commands and patches), and their results (for
+  example file contents and command output). A 400 whose error type is
+  `MissingSessionID` is the exception: Kirsch reports it as a configuration
+  error and does not log the request body. A response body longer than 256
+  bytes is cut to its first 256 bytes, followed by `…(truncated)`. Keep the
+  debug log off when you work on material you cannot share.
 - **Windows is not supported.** Process-group handling is POSIX-only.
 - **Dependencies are pinned, not attested.** The module checksums in `go.sum`
   pin each dependency. Kirsch does not verify where a dependency came from, and

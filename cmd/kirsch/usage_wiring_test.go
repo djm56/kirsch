@@ -20,7 +20,7 @@ import (
 )
 
 // usageSSE is a complete Anthropic stream whose usage is 1000 input, 300 output,
-// 8000 cache read and 2000 cache write tokens: 0.0116 USD on claude-sonnet-5-5.
+// 8000 cache read and 2000 cache write tokens: 0.0108 USD on claude-sonnet-5-5.
 const usageSSE = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":" +
 	"{\"input_tokens\":1000,\"cache_read_input_tokens\":8000,\"cache_creation_input_tokens\":2000,\"output_tokens\":0}}}\n\n" +
 	"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n" +

@@ -31,14 +31,19 @@ type ModelInfo struct {
 	// CacheReadPerMTok is the cache read cost in USD per million tokens (PricingPerToken only).
 	CacheReadPerMTok float64
 	// CacheWritePerMTok is the cache write cost in USD per million tokens (PricingPerToken only).
-	// DERIVED from the published 5-minute cache-write multiplier (1.25× input), not read from
-	// a price sheet. Unverified: confirm against current pricing before relying on cost_usd.
+	// The values are the published 5-minute cache-write rates, read 2026-11-05.
 	CacheWritePerMTok float64
 }
 
 // models holds the known model information.
-// Figures sourced from published model documentation, read 2026-10-02.
-// Cache read pricing: 10% of input price (5% on claude-opus-5-5, 2.5% on claude-fable-5-1).
+// Prices read 2026-11-05 from https://platform.claude.com/docs/en/about-claude/pricing.md;
+// context windows and max output for claude-sonnet-5-5, claude-opus-5-5 and
+// claude-fable-5-1 read 2026-11-05 from
+// https://platform.claude.com/docs/en/about-claude/models/overview.md.
+// claude-haiku-4-5-20251001's 200K/64K were not re-read: it is not in the overview page's
+// comparison table (only a link in its legacy-models line).
+// Cache read pricing: 10% of input price (5% on claude-opus-5-5 and claude-sonnet-5-5,
+// 2.5% on claude-fable-5-1).
 var models = map[string]ModelInfo{
 	"claude-sonnet-5-5": {
 		ID:                "claude-sonnet-5-5",
@@ -48,7 +53,7 @@ var models = map[string]ModelInfo{
 		Pricing:           PricingPerToken,
 		InputPerMTok:      2.0,
 		OutputPerMTok:     10.0,
-		CacheReadPerMTok:  0.2,
+		CacheReadPerMTok:  0.1,
 		CacheWritePerMTok: 2.5,
 	},
 	"claude-opus-5-5": {

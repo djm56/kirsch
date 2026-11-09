@@ -8,6 +8,9 @@
 # Build output. Root-anchored, per the note above.
 /kirsch
 /dist/
+# Licence texts the release collects from the module cache
+# (scripts/third-party-licenses.sh); regenerated on every release build.
+/build/
 
 # Node is only a task runner here; root-anchored so it cannot reach
 # testdata/repo-node/node_modules, which is a tracked fixture.

@@ -67,7 +67,8 @@ func TestResumeCompletesPartialTurn(t *testing.T) {
 	}
 
 	// Resume the session through the app.
-	c := newCollector(2)
+	// Three messages: the notice, the transcript and the session totals.
+	c := newCollector(3)
 	a := New(ws, cfg, telemetry.Disabled())
 	a.sendFn = c.send
 	defer a.Close()

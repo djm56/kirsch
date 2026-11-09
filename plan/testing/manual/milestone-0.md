@@ -41,6 +41,8 @@ The launch screen, before anything is typed.
 - [ ] The composer shows the placeholder `Ask anything (Enter to send, /help for help)`
 - [ ] Nothing is cut off, and no line wraps oddly
 
+  *Changed since the last run.* A start-up notice line, such as `no previous session — starting fresh`, may now appear under the suggestions, with one blank row between them. That is expected. The onboarding and its suggestions stay while the notice fits below them. If the notice would not fit, the normal transcript shows instead, with nothing cut off, and the placeholder is not shown.
+
 **The frame margin — check this at a glance.** Kirsch now keeps one blank column
 at the left edge and one at the right, and none at the top or bottom. The easiest
 way to see it is the header rule and the two separator rules: they are the only
@@ -94,7 +96,9 @@ the fallback and a config-selectable binding becomes worth building.
 Type anything and press `Enter`.
 
 - [ ] The message appears under a `── you ───` rule
-- [ ] The wordmark scrolls away and does not come back
+- [ ] The wordmark scrolls away and does not come back in this session
+
+  *Changed since the last run.* The wordmark returns only where the empty session does, which is after `/new`, because `/new` starts with an empty transcript. A larger window does not bring it back once a message is in the transcript.
 - [ ] Tool cards appear one at a time: a `read_file`, then a `run_command`
 - [ ] The `run_command` card shows `◐` and holds it for 2.4 seconds, with the
       status bar spinning on `running go test`, then flips to `✗ exit 1 · 2.4s`

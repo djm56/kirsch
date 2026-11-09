@@ -60,7 +60,7 @@ A deliverable named in a *Blocks* cell cannot start until its decision is record
 
 | ID | Decision | Options | Recommendation | Blocks | Sources (file:line) |
 |----|----------|---------|----------------|--------|---------------------|
-| O1 | What the narrow status bar shows, and at which widths. | Keep ui-spec §2.2:124 (no tokens below 80) and correct the M4 acceptance text; or keep an `N tok` rung at 60–79 and below; or `N tok` only below some width. The walkthrough step (`plan/testing/manual/user-testing/milestone-4-donovan.md:1042`) says both "shows only `N tok`" and "dropping tokens first". | — | m5-d1 | `plan/PROGRESS.md:67`; `plan/spec/ui-spec-v0.1.md:124, :170–173`; `internal/tui/statusbar.go:44–48`; `internal/tui/turn_messages_test.go:619–627` |
+| O1 | What the narrow status bar shows, and at which widths. | Keep ui-spec §2.2:127 (no tokens below 80) and correct the M4 acceptance text; or keep an `N tok` rung at 60–79 and below; or `N tok` only below some width. The walkthrough step (`plan/testing/manual/user-testing/milestone-4-donovan.md:1042`) says both "shows only `N tok`" and "dropping tokens first". | — | m5-d1 | `plan/PROGRESS.md:67`; `plan/spec/ui-spec-v0.1.md:127, :175–178`; `internal/tui/statusbar.go:44–48`; `internal/tui/turn_messages_test.go:619–627` |
 | O2 | goreleaser shape: archive format and names; checksums; changelog source (git log, or `CHANGELOG.md` `[Unreleased]`); Homebrew tap or none; SBOM; signing (cosign or GPG) or none. The spec fixes only goreleaser, the targets listed at `:482`, and a GitHub workflow. | — | — | m5-d10b | `plan/spec/kirsch-plan.md:482` |
 | O3 | Release workflow: trigger (`v*` tag; manual dispatch for dry runs); `permissions: contents: write`; goreleaser version and action pinning (CI pins by tag; the golangci-lint pin lives in `scripts/golangci-lint-version`); whether CI runs a snapshot build on pull requests. `GITHUB_TOKEN` covers release assets; extra secrets are needed only for signing or a tap. Repository Actions settings must allow write. | — | — | m5-d11 | `.github/workflows/ci.yml:9–10, :20, :25`; `plan/spec/kirsch-plan.md:482` |
 | O4 | Version string: bare `0.1.0` in ldflags (the TUI adds `v`); whether `--version` also prints commit and date; whether a `debug.ReadBuildInfo` fallback gives `go install` builds a real version. | — | — | m5-d2, m5-d10a, m5-d10b, m5-d13c | `cmd/kirsch/main.go:38` (`version`); `internal/tui/empty.go:81`; `internal/tui/modal.go:308` |
@@ -73,10 +73,10 @@ A deliverable named in a *Blocks* cell cannot start until its decision is record
 | O11 | D3: name of the new session event (for example `approval.scopes_cleared`) and the §7 amendment. Whether `/new` also records one (it starts a new file, so no). | — | — | m5-d5 | `plan/adr/0006-session-scoped-approvals.md:45, :67–69`; `plan/spec/kirsch-plan.md:340–359` |
 | O12 | Demo assets: asciinema or screenshots; stored in the repository or linked. | — | — | m5-d22 | `plan/spec/kirsch-plan.md:485` |
 | O13 | Whether to schedule the optional groups (m5-d17, m5-d18) and the safety-test group (m5-d19) into v0.1, or leave them in the backlog. | — | Schedule m5-d19: C30 names tests that cannot fail (`run_command_test.go`); the operator may defer it, but the gap stays open. | m5-d17a, m5-d17b, m5-d18, m5-d19a, m5-d19b | `plan/PROGRESS.md:149`; `internal/tool/run_command_test.go` |
-| O14 | Fresh-machine acceptance: does "no key gives onboarding" include "not in a repo" (stderr text when this was written, 2026-10-23), and where it lives, given `smoke-test.sh` requires a key. | — | — | m5-d16 | `plan/spec/kirsch-plan.md:488`; `plan/spec/ui-spec-v0.1.md:597`; `scripts/smoke-test.sh:16–22` |
+| O14 | Fresh-machine acceptance: does "no key gives onboarding" include "not in a repo" (stderr text when this was written, 2026-10-23), and where it lives, given `smoke-test.sh` requires a key. | — | — | m5-d16 | `plan/spec/kirsch-plan.md:488`; `plan/spec/ui-spec-v0.1.md:616`; `scripts/smoke-test.sh:16–22` |
 | O15 | Operator-only carried decisions: C24 (clip the 400 debug log at a byte bound the operator records with the choice, or disclose), C34 (stdin box wording), C40 (ULID dependency), C43 (§7 flattening), C46 (`session.started`/`session.resumed`), C29 (the 500 ms box: tighten or relax). | — | — | m5-d19b (C29); m5-d20 (record) | `plan/PROGRESS.md:138, :148, :153, :170, :186, :194` |
 | O16 | The help footer's `docs: doc/usage.md` for installed binaries (X8). | — | — | m5-d20 (decision); m5-d21b (follow-through) | `internal/tui/modal.go:308` |
-| O17 | Composer rows cut at the frame edge: show a marker, or end the row in `⋯`. | Marker `⋯` at the cut; or wrap the row and show no marker. | Marker `⋯` at the cut (the spec's first option). Accepted by the operator 2026-10-29; see `plan/PROGRESS.md`, *Milestone 5 — decisions recorded*. | m5-d7b | `plan/spec/ui-spec-v0.1.md:565–571`; `internal/tui/view.go:602–613` |
+| O17 | Composer rows cut at the frame edge: show a marker, or end the row in `⋯`. | Marker `⋯` at the cut; or wrap the row and show no marker. | Marker `⋯` at the cut (the spec's first option). Accepted by the operator 2026-10-29; see `plan/PROGRESS.md`, *Milestone 5 — decisions recorded*. | m5-d7b | `plan/spec/ui-spec-v0.1.md:573–576`; `internal/tui/view.go:602–613` |
 | O18 | Empty `NO_COLOR`: before m5-d9 the code treated an empty value as set; the no-color.org convention treats it as unset. Record which behaviour is pinned. | Keep the code (empty is set, colour off); or treat empty as unset (colour on, if the other conditions allow). | — | m5-d9 | `internal/tui/styles.go:44–63` (`LookupEnv` at `:48` before m5-d9; `Getenv` at `:53` now); no-color.org convention (external) |
 | O19 | No-key check method: the flow is interactive, so the script must drive a pseudo-terminal or an equivalent. | A pseudo-terminal driver the script starts (for example `script(1)`, or a small pty helper in the repository's language). A manual run is not an option: the check runs inside the temporary repository that the script creates (m5-d16, instruction 3). | — | m5-d16 | `scripts/smoke-test.sh:16–22`; `internal/app/app.go:1298–1324` |
 | O20 | m5-d10b CI-check method: a snapshot build of every target through goreleaser, or a `GOOS=… GOARCH=… go build` loop over the target list. | `goreleaser build --snapshot` (needs goreleaser on CI); or a plain `go build` loop (no extra tool). | — | m5-d10b | `plan/spec/kirsch-plan.md:482`; `.github/workflows/ci.yml` |
@@ -205,10 +205,10 @@ The check depends only on this file. A pass means every expected ID appears once
 | ID | Item | Maps to | Source (file:line) |
 |----|------|---------|---------------------|
 | S1 | Bracketed paste: multi-line stack traces literal | m5-d6 | `internal/tui/update.go:707–709`; `internal/tui/composer.go:61–63`; `plan/spec/kirsch-plan.md:479` |
-| S2 | Soft-wrap long lines, keep indentation | m5-d7a, m5-d7b | `internal/tui/view.go:165–197, :602–613`; `plan/spec/ui-spec-v0.1.md:227, :232–234, :565–571` |
+| S2 | Soft-wrap long lines, keep indentation | m5-d7a, m5-d7b | `internal/tui/view.go:165–197, :602–613`; `plan/spec/ui-spec-v0.1.md:227, :232–234, :572–576` |
 | S3 | Zero-width resize safety | m5-d9 | `internal/tui/view.go:434–436, :554–558`; `internal/tui/view_smoke_test.go:32–55` |
-| S4 | No-colour fallback detection | m5-d9 | `internal/tui/styles.go:44–63`; `plan/spec/ui-spec-v0.1.md:576–578, :768–769` |
-| S5 | Paste debouncing | m5-d8 | `internal/tui/styles.go:22`; `plan/spec/ui-spec-v0.1.md:561, :753` |
+| S4 | No-colour fallback detection | m5-d9 | `internal/tui/styles.go:44–63`; `plan/spec/ui-spec-v0.1.md:590–592, :795–796` |
+| S5 | Paste debouncing | m5-d8 | `internal/tui/styles.go:22`; `plan/spec/ui-spec-v0.1.md:568, :785` |
 | S6 | `doctor`: binary version | m5-d3a | `cmd/kirsch/main.go:38` (`version`); `plan/spec/kirsch-plan.md:480` |
 | S7 | `doctor`: `rg` present | m5-d3b | `internal/tool/searchcode.go:161–163`; `internal/app/app.go:1450–1453` |
 | S8 | `doctor`: `git` present | m5-d3b | `internal/workspace/workspace.go:94, :116, :395` |
@@ -217,7 +217,7 @@ The check depends only on this file. A pass means every expected ID appears once
 | S11 | `doctor`: config parses | m5-d3b | `internal/config/config.go:270, :604` |
 | S12 | `doctor`: session directory writable | m5-d4b | `internal/app/app.go:831–855` (dated correction, 2026-10-30, step 4c: `App.stateRoot` is at `internal/app/app.go:851`, doc from `:845`); `internal/session/layout.go:43–49` |
 | S13 | `doctor`: active `search_code` backend | m5-d4a | `internal/tool/searchcode.go:116–123` |
-| S14 | `doctor`: resolved model and whether in the table | m5-d4a | `internal/provider/models.go:16–20, :106` |
+| S14 | `doctor`: resolved model and whether in the table | m5-d4a | `internal/provider/models.go:16–20, :106` (historical: `LookupModel` is now at `internal/provider/models.go:111`, m5-d21a) |
 | S15 | `doctor`: project-context file loaded | m5-d4a | `internal/agent/prompt/loader.go:50`; `internal/app/app.go:724–750` |
 | S16 | `doctor`: lock state | m5-d4b | `internal/session/lock.go:29–60` |
 | S17 | `doctor`: dispatch, report format, exit codes | m5-d3a | `cmd/kirsch/main.go:121–129`; `plan/spec/kirsch-plan.md:480, :488` |
@@ -244,11 +244,11 @@ The check depends only on this file. A pass means every expected ID appears once
 | C2 | Absence-check tests use fixed sleeps | backlog | `plan/PROGRESS.md:78` |
 | C3 | Out-of-order `SessionUsageMsg` can leave stale totals | backlog | `plan/PROGRESS.md:99` |
 | C4 | Mid-session pricing change can understate or hide cost | backlog | `plan/PROGRESS.md:99` |
-| C5 | Resumed session shows no totals until new usage | m5-d18 | `plan/PROGRESS.md:99`; `internal/app/app.go:1058–1063` |
+| C5 | Resumed session shows no totals until new usage | m5-d18 | `plan/PROGRESS.md:99`; `internal/app/app.go:1058–1063` (historical: `ResumeLastSession` is now at `internal/app/app.go:1393`, m5-d18) |
 | C6 | `applyCompaction` error arm in `Compact` untested | backlog | `plan/PROGRESS.md:99` |
 | C7 | Rename-aside-then-write-failure consequence undocumented | backlog | `plan/PROGRESS.md:99` |
 | C8 | Usage-lock timeout drops an increment | m5-d20 (decision); m5-d21g (if changed) | `plan/PROGRESS.md:99`; `internal/session/usage.go:28, :152` |
-| C9 | Cache-write prices unverified | m5-d20 (decision); m5-d21a (model table); m5-d22 (re-read) | `plan/PROGRESS.md:99`; `internal/provider/models.go:33–36` |
+| C9 | Cache-write prices unverified | m5-d20 (decision); m5-d21a (model table); m5-d22 (re-read) | `plan/PROGRESS.md:99`; `internal/provider/models.go:33–36` (historical: the `CacheWritePerMTok` values are now at `internal/provider/models.go:57, :68, :79, :90`, m5-d21a) |
 | C10 | Race mutant for the resume test killed in 1 of 20 runs | backlog | `plan/PROGRESS.md:99` |
 | C11 | Final-report survival is instruction-level only | m5-d20 (decision); m5-d22 (re-check) | `plan/PROGRESS.md:105` |
 | C12 | "Limitations" pinned as a bare word | backlog | `plan/PROGRESS.md:106` |
@@ -313,10 +313,10 @@ The check depends only on this file. A pass means every expected ID appears once
 | X2 | CHANGELOG and PROGRESS claim an `N tok` narrow fallback | m5-d15 | `CHANGELOG.md:16`; `plan/PROGRESS.md:231` |
 | X3 | README says one provider only | m5-d15 | `README.md:47`; `plan/spec/kirsch-plan.md:17` |
 | X4 | Composer shows only its first rows; caret can be off screen | m5-d6 | `internal/tui/composer.go:100–106, :138–143, :199–205`; `internal/tui/view.go:461` |
-| X5 | Model-table figures dated 2026-10-02 | m5-d20 (decision); m5-d21a (model table); m5-d22 (re-read, if m5-d21a did not) | `internal/provider/models.go:33–36`; `plan/spec/kirsch-plan.md:270, :274` |
+| X5 | Model-table figures dated 2026-10-02 | m5-d20 (decision); m5-d21a (model table); m5-d22 (re-read, if m5-d21a did not) | `internal/provider/models.go:33–36` (historical: the model figures are now at `internal/provider/models.go:48–91`, m5-d21a); `plan/spec/kirsch-plan.md:270, :274` |
 | X6 | §5 command-line flags precedence layer unwired | m5-d13a (documents no flags); wiring in Backlog | `internal/config/config.go:496–506`; `cmd/kirsch/main.go:181–185` |
-| X7 | "Not in a Git repo" is stderr text, not an onboarding screen | m5-d16 | `cmd/kirsch/main.go:172–175, :87–88`; `plan/spec/ui-spec-v0.1.md:597` |
-| X8 | Help overlay footer says `docs: doc/usage.md` | m5-d20 (decision); m5-d21b (footer and goldens) | `internal/tui/modal.go:308` |
+| X7 | "Not in a Git repo" is stderr text, not an onboarding screen | m5-d16 | `internal/workspace/workspace.go:72`; returned at `cmd/kirsch/main.go:185–187`; printed at `cmd/kirsch/main.go:90`; `plan/spec/ui-spec-v0.1.md:616` |
+| X8 | Help overlay footer says `docs: doc/usage.md` | m5-d20 (decision); m5-d21b (footer and goldens) | `internal/tui/modal.go:308` (historical: this line now reads `docs: github.com/djm56/kirsch`, m5-d21b) |
 
 ---
 
@@ -421,7 +421,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Mission steps:**
 1. `@hicks` — code: band rule, ladder, comment, pinned test, and goldens if instruction 1 finds any.
 2. `@apone` — review of step 1.
-3. `@lambert` — docs: ui-spec §2.2 (`plan/spec/ui-spec-v0.1.md:124`) and §2.3 (`:170–173`).
+3. `@lambert` — docs: ui-spec §2.2 (`plan/spec/ui-spec-v0.1.md:127`) and §2.3 (`:175–178`).
 4. `@apone` — review of step 3.
 
 **Instruction items:**
@@ -430,7 +430,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 3. Change the ladder. The `N tok` rung is currently inside the wide band (`statusbar.go:154`). Add or move it as O1 requires.
 4. Update the comment at `statusbar.go:44–45`, which says "Narrower than the wide layout no token figure is shown", so it matches the new rule.
 5. Flip or rewrite `turn_messages_test.go:619–627` ("below the spec width: no tokens at all") to pin O1's behaviour at 60–79 columns and below 60.
-6. Amend `plan/spec/ui-spec-v0.1.md` §2.2 (`:124`) and §2.3 (`:170–173`) to match the code and O1.
+6. Amend `plan/spec/ui-spec-v0.1.md` §2.2 (`:127`) and §2.3 (`:175–178`) to match the code and O1.
 7. Change only the fences that the list in instruction 1 names, as O23 records and by the procedure in *Golden mechanism and regeneration procedure*. Fences at 80 columns and wider must not move. The acceptance box checks this.
 
 **Acceptance:**
@@ -462,7 +462,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d1 (Walkthrough).
 
 **Must-know-before:**
-- O1 is the blocker. The M4 acceptance, `CHANGELOG.md:16`, `plan/PROGRESS.md:231` and the walkthrough step (`plan/testing/manual/user-testing/milestone-4-donovan.md:1042`) disagree with ui-spec §2.2:124. Do not pick a side in the brief. Record O1.
+- O1 is the blocker. The M4 acceptance, `CHANGELOG.md:16`, `plan/PROGRESS.md:231` and the walkthrough step (`plan/testing/manual/user-testing/milestone-4-donovan.md:1042`) disagree with ui-spec §2.2:127. Do not pick a side in the brief. Record O1.
 - X2 (the CHANGELOG and PROGRESS claims) is corrected in m5-d15, after this lands.
 - This is the item the M4 walkthrough marked ❌ (`plan/PROGRESS.md:67`). O1 resolved it as a wrong expectation, not a code defect.
 
@@ -473,7 +473,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** A `--version` flag that works outside a repository and prints the ldflags-injected value. A `--help` that names the commands and flags and exits 0.
 
 **Items covered:**
-- S18 — `cmd/kirsch/main.go:38` (`version`) (the variable); `main.go:134–137` (flags: `workspace`, `new`, `debug`). The TUI prefixes its own `v` (`internal/tui/empty.go:81`, `internal/tui/onboarding.go:37`, `internal/tui/modal.go:308`).
+- S18 — the `version` variable in `cmd/kirsch/main.go` (the variable); the flags are on the `flag.NewFlagSet` call in `run` (`workspace`, `new`, `debug`, and `version`, which m5-d2 added). The TUI prefixes its own `v` (`internal/tui/empty.go:81`, `internal/tui/onboarding.go:37`, `internal/tui/modal.go:308`).
 - S19 — `main.go:133` (`flag.NewFlagSet("kirsch", flag.ContinueOnError)`); `main.go:142–147` (the help path, not yet run when planned); `main.go:129` (`kirsch help` is an unknown command).
 
 **Dependencies:** O4 (recorded first). m5-d10a, m5-d10b and m5-d13c depend on this one.
@@ -516,7 +516,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Items covered:**
 - S6 — version: `cmd/kirsch/main.go:38` (`version`).
-- S17 — dispatch and report: `main.go:121–129` accepts `resume` and `doctor`; anything else is `unknown command` (`:129`). The spec fixes no format or exit codes (`plan/spec/kirsch-plan.md:480, :488`).
+- S17 — dispatch and report: the dispatch in `run` (`cmd/kirsch/main.go`) accepts `resume` and `doctor`; anything else is `unknown command`. The spec fixes no format or exit codes (`plan/spec/kirsch-plan.md:480, :488`).
 - The help text gains a `doctor` line, owned here, per grouping note 1.
 
 **Dependencies:** m5-d2 (the help text and flag dispatch order), O5 (recorded first).
@@ -533,7 +533,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Instruction items:**
 1. Record O5 first: package placement, output grammar, fail versus warn, exit codes, and whether doctor may create directories or take the lock.
-2. Add `doctor` to the dispatch at `main.go:121–129`. It runs ahead of `workspace.Detect` (`main.go:172`) and ahead of config load (`main.go:181–191`), so it reports when there is no repository and when the config is broken.
+2. Add `doctor` to the dispatch in `run` (`cmd/kirsch/main.go`). It runs ahead of `workspace.Detect` and ahead of config load, in `run`, so it reports when there is no repository and when the config is broken. *Landed in m5-d3a: `case "doctor"` is in `run`, and its branch sits ahead of `workspace.Detect`, as this item asks.*
 3. Print the version first (S6), from `main.version` at `main.go:38` (`version`).
 4. Add `doctor` to the help text, and add a test in `cmd/kirsch/main_test.go` that asserts the help output names it.
 5. Set the report grammar and exit codes exactly as O5 records them. Every check line in later deliverables uses this grammar.
@@ -607,7 +607,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Items covered:**
 - S10 — key resolvable: `internal/config/config.go:521–532` (`EndpointConfig.ResolveKey`, returns the key and the name of the variable). Used at `internal/app/app.go:1218` and `:1305`.
 - S13 — active `search_code` backend: `(*SearchCode).Backend()` (`internal/tool/searchcode.go:116–123`) returns `ripgrep` or `pure-go`.
-- S14 — resolved model: `provider.LookupModel` returns `ModelInfo` with `Known` (`internal/provider/models.go:16–20, :106`). `app.go:1198–1206` and `:1306–1309` already use it.
+- S14 — resolved model: `provider.LookupModel` returns `ModelInfo` with `Known` (`internal/provider/models.go:16–20, :106`; historical: `LookupModel` is now at `internal/provider/models.go:111`, m5-d21a). `app.go:1198–1206` and `:1306–1309` already use it.
 - S15 — project-context file: `prompt.LoadProjectContext` (`internal/agent/prompt/loader.go:50`). The app calls it through the injected `a.loadProjectCtxFn` (`internal/app/app.go:725`; field at `:432`). The inputs are `cfg.Context.ProjectFiles` and `MaxProjectContextBytes` (`app.go:724–750`).
 - The comments at `internal/tool/searchcode.go:116–117` and `internal/app/app.go:520–521` describe doctor. They are updated here.
 
@@ -706,7 +706,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** Clearing grants with `/approvals` must be recorded in the session log, so that a cleared grant does not come back on `kirsch resume`.
 
 **Items covered:**
-- D3 — `internal/app/app.go:528–529` (`App.ClearGrants` clears the policy only); `cmd/kirsch/main.go:274–277` (wiring); `app.go:992` (`installSession` clears at `/new`); `internal/session/grants.go:25–66` (`LoadGrants` replays every `approval.scope_granted`); `app.go:1077–1096` (resume replay). Resume ignores unknown types (`internal/session/resume.go:161–163`), so a new event is additive. ADR 0006 (`plan/adr/0006-session-scoped-approvals.md:45`) promises grants are "visible and revocable"; `:67–69` names a permissive restore as a security bug.
+- D3 — `internal/app/app.go:528–529` (`App.ClearGrants` clears the policy only); the ClearGrants wiring in `wireCallbacks` (`cmd/kirsch/main.go`); `app.go:992` (`installSession` clears at `/new`); `internal/session/grants.go:25–66` (`LoadGrants` replays every `approval.scope_granted`); `app.go:1077–1096` (resume replay). Resume ignores unknown types (`internal/session/resume.go:161–163`), so a new event is additive. ADR 0006 (`plan/adr/0006-session-scoped-approvals.md:45`) promises grants are "visible and revocable"; `:67–69` names a permissive restore as a security bug.
 
 **Dependencies:** O11 (event name and §7 amendment; recorded first).
 
@@ -834,7 +834,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** The composer no longer cuts a row without a marker.
 
 **Items covered:**
-- S2 (composer part) — the composer does not wrap (`internal/tui/composer.go:87–88`). `rows` (`composer.go:138–205`) emits each logical line whole. `exactly` (`internal/tui/view.go:602–613`) cuts at the frame edge (`:610`) with no marker. ui-spec §7.3:565–571.
+- S2 (composer part) — the composer does not wrap (`internal/tui/composer.go:87–88`). `rows` (`composer.go:138–205`) emits each logical line whole. `exactly` (`internal/tui/view.go:602–613`) cuts at the frame edge (`:610`) with no marker. ui-spec §7.3:573–576.
 
 **Dependencies:** m5-d6 (after it), m5-d7a (both touch `view.go`), O17 (the marker choice), O23 (golden handling).
 
@@ -861,7 +861,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Must-know-before:**
 - O17 is the blocker.
-- ui-spec §7.3:565–571 is the reference for the marker.
+- ui-spec §7.3:573–576 is the reference for the marker.
 
 ---
 
@@ -905,7 +905,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
   Dated note, 2026-10-29 (mission-20261029-04, step 3a): this note amends the *Before any edit* paragraph and the controls above. The controls now run against the committed baseline `686d3c4`, not the saved copies, because the copies sit in the workspace and are archived at the next mission start. The current form is `git show 686d3c4:internal/tui/styles.go | grep -n PasteDebounce; echo "exit $?"` and `git show 686d3c4:plan/spec/ui-spec-v0.1.md | grep -n 'Paste debounce'; echo "exit $?"`. The acceptance box compares against `686d3c4`. The saved copies remain as the pre-edit record.
 - [✅] With bracketed paste off, a 5 KB paste lands whole, for single-line text only: words, spaces and a two-byte character, with no tabs. Evidence: `TestUnbracketed5KBPasteLandsWholeThroughKeyMessages` (`internal/tui/paste_nobracket_test.go`) passes at each chunk size in its loop (one rune per message, three runes per message, and no cutting); the text is fed to `Model.Update` as key messages, so Bubble Tea's own reader is not exercised. Not covered: multi-line text. A multi-line paste with bracketed paste off sends its first line to the model and drops the rest while the turn is busy. `TestUnbracketedMultiLinePasteCurrentBehaviour` pins that current behaviour and feeds Enter key messages; that a pasted newline arrives as Enter is read from Bubble Tea's source, not run. The fix-or-accept decision is open in `plan/PROGRESS.md`, *Open from m5-d8*. Not covered by test: a tab in the pasted text. A tab arrives as the Tab key (`tea.KeyTab`, `keyHT` in Bubble Tea's `key.go`, read from source and not run); it completes a unique slash-command name or moves focus to the transcript, and a later Tab in the same paste moves focus back (`keyComposing` and `keyBrowsing`, `internal/tui/update.go`, read and not tested). Not covered by test: a multi-byte rune split across a terminal read, a full read or a short one. That limit is read from Bubble Tea's source and is not tested. Runs: `.claude/memory/workspace/m8-step3a-runs.txt` (scratch, archived at the next mission start).
 
-**Manual test hook:** `plan/testing/manual/milestone-5.md` §14, hands-on check 1 (master only; not in the operator checklist): bracketed paste off, paste 5 KB, and the UI stays responsive (operator, optional, and only if the terminal can turn bracketed paste off).
+**Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d8, hands-on check 1 (master only; not in the operator checklist): bracketed paste off, paste 5 KB, and the UI stays responsive (operator, optional, and only if the terminal can turn bracketed paste off).
 
 **Must-know-before:**
 - O9 is the blocker.
@@ -1197,7 +1197,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** `doc/install.md`, written for a user. Install from a release archive, install with `go install`, install from source, the supported platforms, key setup, and `kirsch doctor`.
 
 **Items covered:**
-- S27 — `doc/install.md` absent (`doc/README.md:13`). The module path is at `go.mod:1`. A `go install` build reports `0.1.0-dev` (`cmd/kirsch/main.go:38` (`version`)) unless O4 changes that. Supported platforms are at `plan/spec/kirsch-plan.md:21`.
+- S27 — `doc/install.md` absent (`doc/README.md:13`). The module path is at `go.mod:1`. A `go install` build of a clean release or pre-release tag reports that version with the leading `v` removed; a build from an untagged commit (a pseudo-version) or with build metadata such as `+dirty` reports `0.1.0-dev` (O4 (b), as `resolveVersion` in `cmd/kirsch/main.go` implements it). Supported platforms are at `plan/spec/kirsch-plan.md:21`.
 
 **Dependencies:** m5-d2 (the `--version` text), m5-d10a and m5-d10b (archive names and build wrapper), O4 (the `go install` version text), O6 (recorded first).
 
@@ -1223,7 +1223,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Must-know-before:**
 - O4 and O6 are the blockers.
-- `go install` builds report `0.1.0-dev` (`cmd/kirsch/main.go:38` (`version`)) unless O4 changes it.
+- `go install` builds of a clean release or pre-release tag report that version with the leading `v` removed; a pseudo-version or build metadata such as `+dirty` reports `0.1.0-dev` (O4 (b); `resolveVersion` in `cmd/kirsch/main.go`).
 
 ---
 
@@ -1376,6 +1376,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - The README banner and "What works today" are updated at release, in m5-d22. This step does not touch them.
 - ADR status wording is the operator's (`plan/adr/README.md:64`).
 
+**Landed (mission-20261106-02, 2026-11-06).** The README has an *Install* section (`README.md`, heading `## Install`). It links `doc/install.md`, says v0.1.0 is not published yet, and gives the build-from-clone commands. The ADR range in `AGENTS.md` (the *Why was X decided?* row) now reads ADRs 0001–0012, which matches `plan/adr/`. The design-docs bullet in `plan/spec/kirsch-plan.md:391` says 0001–0007 are the planning baseline and that ADR 0008 onward is indexed in `plan/adr/README.md`. The npm sentence in `README.md` (heading `## Verifying it`) names `python3 scripts/lint-screens.py` as what `npm run screens` runs, and drops "every script is one line". The X2 corrections sit beside the original text, in the m4-d9 entry of `CHANGELOG.md` and in the m4-d9 row of `plan/PROGRESS.md`. The Providers row in `README.md` (under `## Project Contract (locked for v0.1)`) names the built-in endpoints. The Resolved marks are on the C21, C32, C33, C39 and C42 rows of `plan/PROGRESS.md`. C32 and C39 are marked for part of their scope only. Of the carried items in *main.go line cites drift* in `plan/PROGRESS.md`, the W1 cite to lines 274 to 277 of `main.go` is gone from this file, the W3 list at line 476 now names `workspace`, `new`, `debug` and `version`, and the W4 sentence that hedged on O4 is gone from both guides. W2 is not corrected: the goreleaser sentence at `plan/testing/manual/milestone-5.md:5` now dates the absence to mission-20261028-03 step 13. The other main.go line cites, S2 and S4 stay open under that item. Some acceptance boxes under *m5-d15* cannot be met as written. Each is named under *Open from m5-d15* in `plan/PROGRESS.md`. Section 23 of `plan/testing/manual/milestone-5.md` records each check and its result. No tick box is ticked. Ticking is the operator's.
+
 ---
 
 ## m5-d16 — Fresh-machine no-key check
@@ -1384,7 +1386,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Items covered:**
 - S35 — onboarding for a missing key exists (`CheckOnboarding`, `internal/app/app.go:1298–1324`; the screen landed at m3-d5). `KeyVars` is set at `app.go:1313` as `"KIRSCH_" + ep.APIKeyEnv` and `ep.APIKeyEnv`. The onboarding text renders at `internal/tui/onboarding.go:51` ("No API key: set … → …"). `scripts/smoke-test.sh:16–22` refuses to start without a key, so a no-key flow cannot live in it as written.
-- X7 — `cmd/kirsch/main.go:172–175, :87–88` prints `kirsch: Kirsch runs inside a Git repository…` and exits 1. ui-spec §7.5:597 lists it among onboarding screens.
+- X7 — the text is `internal/workspace/workspace.go:72`, returned at `cmd/kirsch/main.go:185–187`. `cmd/kirsch/main.go:90` prints it as `kirsch: Kirsch runs inside a Git repository…`, and `:91` exits 1. ui-spec §7.5 (`plan/spec/ui-spec-v0.1.md:616`) lists it among onboarding screens.
 
 **Dependencies:** O14 and O19 (both recorded first); m5-d10a (builds the binary the script runs); m5-d2 and m5-d3a (file ownership: `cmd/kirsch/main.go`, only if O14 makes "not in a repo" a screen). This deliverable does not depend on m5-d4: `CheckOnboarding` does not use doctor.
 
@@ -1404,7 +1406,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 3. Write the no-key check as a separate script. The command shape is `env -i HOME=<temporary directory> PATH=$PATH TERM=xterm-256color <binary>`, where `<binary>` is `bin/kirsch` built by `bash scripts/build.sh` (m5-d10a). The script runs it inside a temporary Git repository the script creates and removes.
 4. Drive the TUI by the method O19 records.
 5. Check that the onboarding text names the active endpoint's key pair: `KIRSCH_<api_key_env>` and `<api_key_env>`, from `app.go:1313`, rendered at `internal/tui/onboarding.go:51`. With the default endpoint (`internal/config/config.go:87, :91`) the pair is `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY`. The check asserts that pair.
-6. If O14 includes "not in a repo", decide whether it becomes a screen (`cmd/kirsch/main.go:172–175`), and record the decision.
+6. If O14 includes "not in a repo", decide whether it becomes a screen (`cmd/kirsch/main.go:185–187`), and record the decision.
 
 **Acceptance:**
 - [ ] A no-key run in a clean environment shows onboarding that names `KIRSCH_OPENCODE_API_KEY` and `OPENCODE_API_KEY`. The output is pasted into the step report.
@@ -1419,6 +1421,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
   The printed `exit=` line is pasted.
 - [ ] The "not in a repo" case is handled as O14 records.
 - [ ] (operator) The check is run on a clean machine.
+
+**Landed (mission-20261105-02, 2026-11-05).** The check is `scripts/no-key-check.sh`, run as `npm run check:no-key`. It drives `bin/kirsch` through `script(1)` under O19, in both argument forms: the BSD form (macOS) is the one that has been run, and the util-linux form has only been checked for shell syntax. The product change is outside the planned file ownership: it changed `internal/tui` (`model.go`, `view.go`, `onboarding.go` and `empty.go`, plus comment lines in `composer.go`), not only `cmd/kirsch/main.go`. Reason: on a fresh start the notice `no previous session — starting fresh` replaced the no-key onboarding, so S35 did not show. The onboarding now stays while the transcript holds only notices that fit below it (`plan/spec/ui-spec-v0.1.md` §7.5). O14 is unchanged. Its "not in a repo" text is in `internal/workspace/workspace.go`, returned from `cmd/kirsch/main.go:185–187`; the X7 cites above now give these lines. `scripts/smoke-test.sh` and `cmd/kirsch/main.go` are unchanged. The acceptance boxes above are the operator's, and none is ticked.
 
 **Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d16 (Walkthrough).
 
@@ -1461,6 +1465,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - Optional. Scheduled only if O13 says so.
 - m5-d5 is complete.
 
+**Landed (mission-20261105-04, 2026-11-05).** Choose one, and record it: cleanup. A session that this process creates is removed when it is abandoned with nothing written to it (on quit, when `/new` replaces it, or when the store open fails), and `index.json` is restored. A session that received an event, and a resumed session, are never removed. Cleanup was chosen over lazy creation. It is consistent with the `NewSession` rule that a failed store creation leaves the App unchanged (`internal/app/app.go:1212`, the docblock's wording); that rule predates m5-d17a. The reason that cleanup keeps the session id visible right after `/new` is the author's reasoning and is not written in the code. The approach is recorded as "C51 cleanup approach" in row 1 of `.claude/memory/missions/mission-20261105-04/PROGRESS.md`. C52 is a fresh provider session id on each `/new` (`randomSessionID()`, `internal/app/app.go:1039`). The escalation went through the Code-Quality Pipeline: @hicks did steps 1, 2a and 2c; the round trigger then escalated the work to @vasquez (steps 2e and 2g); the final review, step 2h, approved it. The change is outside the planned file ownership (`internal/app/app.go` only). It also adds `internal/app/session_orphan_test.go`, changes one line in `internal/app/session_ops_test.go`, and changes `cmd/kirsch/newsession_wiring_test.go`. `cmd/kirsch/main.go` is unchanged. The acceptance boxes above are the operator's, and none is ticked.
+
 ---
 
 ## m5-d17b (optional) — `/new` busy state and turn fencing: C48, C49
@@ -1498,6 +1504,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - Optional. Scheduled only if O13 says so.
 - C48 and C49 have not been re-derived against the code. Reproduce them first; the reproduction is the evidence.
 
+**Landed (mission-20261105-09, 2026-11-05).** C48 and C49 were reproduced as tests on the code before the fix. The raw output is in §26 of `plan/testing/manual/milestone-5.md`, and the C49 output came from an earlier draft of its test, as §26 notes. C48: late messages from a cancelled turn cleared busy while `/new` was pending, so Enter reached `Submit` and the refusal showed as a stray error card. The fix is a wrapper on `Model.Update` (`internal/tui/update.go:279`) that holds busy while `/new` is pending, ended by `NewSessionDoneMsg` (`:360`). C49: messages from the old turn were delivered after `NewSession` returned. The fix is a session generation, `sessionGen` (`internal/app/app.go:412`), advanced at the end of `installSession` (`:1376`). The turn's senders, `send` (`:1946`) and `sendAsyncSequenceFenced` (`:2011`), deliver only through `deliverIfCurrent` (`:1925`). `TestTurnPathsUseOnlyFencedSenders` (`internal/app/session_fence_test.go:839`) fails when a function in package app calls an unfenced sender and is not on its allowlist. The escalation went through the Code-Quality Pipeline: @hicks did step 1 and fix rounds 2a and 2c; the round trigger then escalated the work to @vasquez (steps 2e and 2g); the final review, step 2h, approved it. The change went beyond the planned file ownership (`internal/tui/update.go` and `internal/app/app.go`). It also adds `internal/app/session_fence_test.go` and `internal/tui/new_pending_test.go`, and changes `internal/tui/model.go` in step 2g, which is a comment only. Carried and not fixed: the `ErrorMsg` case clears busy during `/compact` (`internal/tui/update.go:379`). It is recorded under *Open from m5-d17b* in `plan/PROGRESS.md`, for you to schedule. The acceptance boxes above are yours, and none is ticked. Historical note: the cites to `internal/tui/update.go:1152–1163` in this file (at :290, :1475 and :1490) give the pre-fix location, as the plan was written. They are not rewritten here.
+
 ---
 
 ## m5-d18 (optional) — Resume totals and compaction %
@@ -1506,6 +1514,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Items covered:**
 - C5 — `ResumeLastSession` zeroes the totals (`internal/app/app.go:1058–1063`) and sends only `NoticeMsg` and `TranscriptLoadedMsg` (`:1066–1069`). `usage.json` is workspace-wide, not per session (`internal/session/layout.go:236`; `internal/session/usage.go:69`), so it cannot seed the totals. `usage` events are in the session log (`internal/session/event.go:315`). `plan/PROGRESS.md:99`.
+  Historical note (m5-d18, 2026-11-05): the `app.go:1058–1063` and `:1066–1069` cites above no longer point at this code; `ResumeLastSession` is at `internal/app/app.go:1393`. `event.go:315` now falls in `marshalTurnCompleted`; `marshalUsage` starts at `internal/session/event.go:322`.
 - C50 — `/status` compaction % is stale after a manual `/compact`. `plan/PROGRESS.md:203`.
 
 **Dependencies:** m5-d17a (file ownership only: both own `internal/app/app.go`). If O13 defers the optional group, this dependency falls away. O13 (recorded first).
@@ -1529,11 +1538,13 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - [ ] A test shows that the totals equal the sum of the session's `usage` events in a fixture log.
 - [ ] A test shows the compaction % before `/compact` is 60% and after it is the value `Compact` returns, which differs from 60%. Both values are pasted.
 
-**Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d18 (Walkthrough): run a turn, quit, `kirsch resume`; then `/compact` and `/status`.
+**Manual test hook:** `plan/testing/manual/milestone-5.md` § m5-d18 (Walkthrough): run a turn, quit, `kirsch resume`; then `/compact` and `/status`. Not authored; see *Open from m5-d18* in `plan/PROGRESS.md`.
 
 **Must-know-before:**
 - Optional. Scheduled only if O13 says so.
 - m5-d17a is complete (file ownership).
+
+**Landed (mission-20261105-10, 2026-11-05).** C5 and C50 are changed. C5: `ResumeLastSession` (`internal/app/app.go:1393`) sums the session log's `usage` events with `session.LoadUsageTotals` (`internal/session/usage_totals.go:35`). The sum stops at a torn or undecodable line (`usage_totals.go:55–58`, `:64–66`). The summed tokens are priced once at the configured default model (`internal/app/app.go:1457`, `:1469–1474`), and `SessionUsageMsg` is sent after the transcript (`:1478–1486`). The resume path does not read `usage.json`, which sits at the kirsch data root and holds the totals of every session that uses the same data root (`internal/session/layout.go:42`, `:235–237`). A load error leaves the totals at zero, and the zero-total message is still sent. C50: `ManualCompact` (`internal/app/app.go:2975`) stores the post-compaction estimate and context window on success (`:3013–3016`). `/status` reads them (`:1664–1666`) and shows `compaction N%` (`internal/tui/update.go:1583–1584`). It sends no message. The pipeline ran as follows: @hicks step 1; @apone step 2 withheld approval on a CRITICAL DIR-015 finding (a test comment stated a count the code did not match) and on WARNINGs about stale or missing docblocks and two design claims; @hicks fix round 1 of 2 (step 2a, comments only); @apone step 2b approved; @lambert step 3 wrote the docs; @apone step 4 approved with WARNINGs, which @lambert fixed in steps 4a, 4c and 4e, each reviewed by @apone (steps 4b, 4d and 4f); @hicks fix round 2 of 2 (step 5: comments, one test message string and the m5-d18 wording on what `usage.json` holds), approved by @apone (step 5a). No escalation. The tests are in `internal/session/usage_totals_test.go`, `internal/app/resume_usage_test.go`, and `TestResumeCompletesPartialTurn` in `internal/app/resume_integration_test.go`, which now expects three messages (`:70–71`). The raw output is in §28 of `plan/testing/manual/milestone-5.md`. The acceptance boxes above are the operator's, and none is ticked. Carried items: *Open from m5-d18* in `plan/PROGRESS.md`.
 
 ---
 
@@ -1608,6 +1619,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Must-know-before:**
 - O15's C29 decision is the blocker.
 
+**Landed (mission-20261105-03, 2026-11-05).** Branch taken: relax. The operator's row `O15 (C29 only)` in `plan/PROGRESS.md` (*Milestone 5 — decisions recorded*, dated 2026-10-29) chose it. The value is 3 s after the deadline, and its row is `C29 detail` in the same file (2026-11-05). The file changed is `plan/milestones/milestone-2.md`: the Task 9 timeout box is relaxed and unticked, with the old text quoted beside it. The cancelled-process box stays unticked, with a note that m5-d19a's test meets its tick condition and that ticking is the operator's call. The stdin box carries the C34 reword (row `C34`, 2026-11-03) and stays unticked; this step is where that reword lands. No code or test changed. Suspected gap, read from the code and not run: after SIGTERM, `killProcessGroup` in `internal/tool/run_command.go` polls the group leader only, and returns without SIGKILL once the leader is gone, so a child or grandchild that ignores SIGTERM may survive. No test checks it. It is listed under *Open from m5-d19b* in `plan/PROGRESS.md`. The acceptance boxes above are the operator's, and none is ticked.
+
 ---
 
 ## m5-d20 (operator) — Record the operator's decisions
@@ -1652,8 +1665,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Scope:** The model figures, dates and cache-write price, if the operator changes them under m5-d20.
 
 **Items covered:**
-- X5 — `internal/provider/models.go:33–36`; `plan/spec/kirsch-plan.md:270, :274`.
-- C9 — `internal/provider/models.go:33–36` (cache-write prices).
+- X5 — `internal/provider/models.go:33–36` (historical: the model figures are now at `internal/provider/models.go:48–91`, m5-d21a); `plan/spec/kirsch-plan.md:270, :274`.
+- C9 — `internal/provider/models.go:33–36` (cache-write prices; historical: the `CacheWritePerMTok` values are now at `internal/provider/models.go:57, :68, :79, :90`, m5-d21a).
 
 **Dependencies:** m5-d20 (the recorded decision).
 
@@ -1678,12 +1691,14 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Must-know-before:**
 - m5-d20 is complete, and its X5 and C9 decisions are recorded.
 
+**Landed (mission-20261105-11, 2026-11-05).** The figures were re-read against the vendor pages, and one figure changed. X5 and C9 are the operator's decisions in `plan/PROGRESS.md` (*Milestone 5 — decisions recorded*, 2026-11-03). `claude-sonnet-5-5` `CacheReadPerMTok` changed from 0.2 to 0.1 (`internal/provider/models.go:56`). The other per-token figures in the Claude entries (`internal/provider/models.go:48–91`) matched the pricing page, and their 1M/128K windows matched the overview page, so they are unchanged. The comment above the table (`internal/provider/models.go:38–46`) names both pages and the date 2026-11-05, and says cache reads are 5% on `claude-opus-5-5` and `claude-sonnet-5-5` and 2.5% on `claude-fable-5-1`. The cache-write comment (`internal/provider/models.go:33–34`) says the values are the published 5-minute rates. Haiku 4.5's 200K and 64K (`internal/provider/models.go:84–85`) were not re-read, because the model is not in the overview page's comparison table. The test is `TestPublishedPerTokenFigures` (`internal/provider/models_test.go:185`), which pins the Claude figures and fails by field name on a drift. The `internal/app` tests that hard-coded the old 0.2 now use 0.1 (`internal/app/app_test.go:3379–3381`, `:3414–3415`, `:3430–3431`; `internal/app/compaction_test.go:681–687`; `internal/app/session_usage_test.go:188–194`), and the comment at `cmd/kirsch/usage_wiring_test.go:23` now says 0.0108 USD. The pipeline is recorded in `.claude/memory/missions/mission-20261105-11/PROGRESS.md`, which is the record of every step and review. `plan/PROGRESS.md` row 300 records only the status and the mission id. The review steps are recorded in `.claude/memory/missions/mission-20261105-11/PROGRESS.md`, not in `plan/PROGRESS.md`, and whether that meets the second acceptance box is the operator's call. The acceptance boxes above are the operator's, and none is ticked. Open items are under *Open from m5-d21a* in `plan/PROGRESS.md`.
+
 ## m5-d21b (conditional) — Help footer and goldens (X8, O16)
 
 **Scope:** The help overlay footer, if the operator changes it under m5-d20, and the goldens that move with it.
 
 **Items covered:**
-- X8 — `internal/tui/modal.go:308`, the footer that says `docs: doc/usage.md`.
+- X8 — `internal/tui/modal.go:308`, the footer that says `docs: doc/usage.md` (historical: this line now reads `docs: github.com/djm56/kirsch`, m5-d21b).
 
 **Dependencies:** m5-d20 (O16 recorded); O23 (golden handling, recorded first).
 
@@ -1707,6 +1722,12 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 
 **Must-know-before:**
 - O16 and O23 are recorded.
+
+**Landed (mission-20261105-12, 2026-11-05).** The help footer's docs link now reads `docs: github.com/djm56/kirsch` (O16, X8). The text is in the rungs of the footer ladder that carry the link: the clipped rung at `internal/tui/modal.go:300` and the unclipped rung at `internal/tui/modal.go:308`, in `modalFooters` (`internal/tui/modal.go:294`). The comment above the ladder (`internal/tui/modal.go:271–274`) still describes the single-truncation behaviour from before the ladder, at version `0.1.0`; it is open, and is listed under *Open from m5-d21b* in `plan/PROGRESS.md`. The only sized golden that moved is `## 06 · Help overlay` (80×28) in `plan/spec/kirsch-ui-screens.md`, at line 405 of that file. No other sized fence moved, and the other 80-column and wider fences are unchanged. The unsized footer row in that file's colour legend, and a bullet under fence 06, were also edited.
+
+The docs link shows only when the help box is wide enough for the full rung. At 80 columns it does not show. The 80-column absence is pinned by the golden fence `## 06 · Help overlay`, through `TestMatchesScreenReference` (`internal/tui/golden_test.go:293`). On terminals wide enough for the full footer the link shows, and `TestHelpFooterNamesScrollKeysWhenClipped` (`internal/tui/header_test.go:1705`) asserts it at 120×27 (guard at `:1754`, assertions at `:1755` and `:1759`) and at 120×30 (guard at `:1765`, assertions at `:1766` and `:1770`). The widths at which the link starts are worked out from the code, not run, and are recorded in *Open from m5-d21b* in `plan/PROGRESS.md`.
+
+The steps and their reviews are recorded in `.claude/memory/missions/mission-20261105-12/PROGRESS.md`; this paragraph does not list them. The acceptance boxes above are the operator's to tick, and none is ticked here.
 
 ## m5-d21c (conditional) — Debug log clip (C24)
 
@@ -1772,6 +1793,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Must-know-before:**
 - The C24 decision is recorded, and m5-d12 is complete.
 
+**Landed (mission-20261105-13, 2026-11-05).** The disclosure is in `SECURITY.md`, in the debug-log bullet under *Known limits*. The sentence that says a 400 writes the full request body now says that this is a disclosed limit, and that the body is not clipped (`internal/provider/anthropic/client.go:511`). The bullet also names the exception: a 400 whose error type is `MissingSessionID` returns early as a configuration error (`client.go:450–451`), before `logBadRequest` is called at `client.go:453`. The clip sentence now matches `telemetry.Content`, which cuts the response body to its first 256 bytes and appends `…(truncated)` (`internal/telemetry/telemetry.go:25`, `:125–130`). The cites in this section were re-derived on 2026-11-05. The planning cites here (`client.go:453`, `:506–512`) still point at their lines, so they are not rewritten. This is a docs-only step, and no code changed. The steps and their reviews are recorded in `.claude/memory/missions/mission-20261105-13/PROGRESS.md`; this paragraph does not repeat them. The acceptance boxes above are the operator's to tick, and none is ticked here. The open item *No test of the debug-log body* in `plan/PROGRESS.md` is still true.
+
 ## m5-d21e (conditional) — ULID dependency (C40)
 
 **Scope:** Replace the stdlib ULID with `oklog/ulid`, only if the operator adds the dependency under m5-d20.
@@ -1829,6 +1852,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Must-know-before:**
 - The C43 and C46 decisions are recorded, and m5-d5 is complete.
 
+**Landed (mission-20261106-01, 2026-11-06).** The example in §7 of `plan/spec/kirsch-plan.md` now lists only the session event types the code writes, with the JSON fields their marshal structs write. The reconstruction rule no longer says `assistant.delta` exists. A note under §7 states the flattened `assistant.message` (C43). C46 covers `session.started` and `session.resumed`; the other removed types had no decision and are under *Open from m5-d21f* in `plan/PROGRESS.md`. The storage-layout sentence that said each session file holds a `session.started` event is corrected. No code changed. The steps and their records are in `.claude/memory/missions/mission-20261106-01/PROGRESS.md`: step 1 is this amendment, and step 2 is the review by `@apone`. The acceptance box above is the operator's, and none is ticked. Historical note: the cites `plan/spec/kirsch-plan.md:340–359` and `:342–343` in this section, and the same cites at `:73`, `:285`, `:288` and `:720` of this file, give the pre-amendment location, as the plan was written. They are not rewritten here.
+
 ## m5-d21g (conditional) — Lock behaviour (C8)
 
 **Scope:** Change the usage-lock behaviour, only if the operator changes it under m5-d20.
@@ -1867,7 +1892,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 - S32 — no screenshots or asciinema demo. It needs a real terminal and is blocked by O12 (`plan/spec/kirsch-plan.md:485`).
 - S33 — tag `v0.1.0`. `git tag -l` prints `m3` and `m4` (checked 2026-10-23). Tagging triggers the release workflow (m5-d11).
 - S34 — re-run `bash scripts/smoke-test.sh` on the release build. It spends tokens. The live run passed on 2026-10-23 (`plan/PROGRESS.md:117`). Re-run at release.
-- C9 — re-read the cache-write prices against the vendor pages before tagging, if m5-d21a did not already do it (`internal/provider/models.go:33–36`).
+- C9 — re-read the cache-write prices against the vendor pages before tagging, if m5-d21a did not already do it (`internal/provider/models.go:33–36`; historical: the `CacheWritePerMTok` values are now at `internal/provider/models.go:57, :68, :79, :90`, m5-d21a).
 - C11 — re-check final-report survival in the release smoke run (`plan/PROGRESS.md:105`).
 - C14 — delete the stray `.bak` files `opencode.json.bak` and `.claude/memory/state/FLIGHT-RECORDER.md.bak`.
 - C38 — retest the walkthrough checks (`plan/testing/manual/user-testing/milestone-2-donovan.md`).

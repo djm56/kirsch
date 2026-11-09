@@ -262,16 +262,16 @@ API key resolution: each endpoint names its key variable in `api_key_env`. Kirsc
 
 `internal/provider` ships a table of known models, because two separate features need it: §6.3's budget maths needs the context window, and the status bar's cost display needs pricing.
 
-| Model | Endpoint | Context window | Max output | In $/Mtok | Out $/Mtok | Cache write $/Mtok (derived 1.25× input, unverified) |
-|---|---|---|---|---|---|---|
-| `claude-sonnet-5-5` (`anthropic` default) | `anthropic` | 1M | 128K | 2 | 10 | 2.5 |
-| `claude-opus-5-5` | `anthropic` | 1M | 128K | 4 | 20 | 5 |
-| `claude-fable-5-1` | `anthropic` | 1M | 128K | 10 | 50 | 12.5 |
-| `claude-haiku-4-5-20251001` (retirement not sooner than 2026-10-15) | `anthropic` | 200K | 64K | 1 | 5 | 1.25 |
-| `minimax-m2.7` | `opencode` | — | — | flat rate | flat rate | flat rate |
-| `minimax-m3` (`opencode` default) | `opencode` | — | — | flat rate | flat rate | flat rate |
+| Model | Endpoint | Context window | Max output | In $/Mtok | Out $/Mtok | Cache read $/Mtok | Cache write $/Mtok (published 5-minute rate) |
+|---|---|---|---|---|---|---|---|
+| `claude-sonnet-5-5` (`anthropic` default) | `anthropic` | 1M | 128K | 2 | 10 | 0.10 | 2.5 |
+| `claude-opus-5-5` | `anthropic` | 1M | 128K | 4 | 20 | 0.20 | 5 |
+| `claude-fable-5-1` | `anthropic` | 1M | 128K | 10 | 50 | 0.25 | 12.5 |
+| `claude-haiku-4-5-20251001` (retirement not sooner than 2026-10-15) | `anthropic` | 200K | 64K | 1 | 5 | 0.10 | 1.25 |
+| `minimax-m2.7` | `opencode` | — | — | flat rate | flat rate | flat rate | flat rate |
+| `minimax-m3` (`opencode` default) | `opencode` | — | — | flat rate | flat rate | flat rate | flat rate |
 
-Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview and the pricing page, read 2026-10-02. Cache reads are billed at 10% of the input price (5% on `claude-opus-5-5`, 2.5% on `claude-fable-5-1`). The cache-write column is not read from a price sheet: it is derived as 1.25× the input price and is unverified. Confirm it against current pricing before relying on `cost_usd` for cache-heavy sessions (`CacheWritePerMTok` in `internal/provider/models.go` carries the same caveat). The legacy `claude-sonnet-5` and `claude-opus-5` are not listed. OpenCode Go publishes per-token prices that count against a flat monthly allowance, but no context window or output limit (opencode.ai/docs/go, read 2026-10-05), so its size columns stay `—`. Until then the unknown-model fallback applies. **Do not guess figures.** An unknown model ID falls back to a conservative default (128k context, 4k output reserve, cost rendered as `?`) and logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
+Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview.md (context window and max output) and https://platform.claude.com/docs/en/about-claude/pricing.md (per-token prices), both read 2026-11-05. The cache-write column is the published 5-minute cache-write rate. Cache reads are billed at 10% of the input price, except 5% on `claude-opus-5-5` and `claude-sonnet-5-5` and 2.5% on `claude-fable-5-1` (the pricing page's footnotes on those rows; the page says all other models use 0.1x). `claude-haiku-4-5-20251001`'s 200K and 64K were not re-read, because the model is not in the overview page's comparison table: the page links to it only from its legacy-models line. Its prices were read from the pricing page. The model-deprecations page (read 2026-11-05) lists it as Active, with retirement not sooner than October 15, 2026. The legacy `claude-sonnet-5` and `claude-opus-5` are not listed, and neither is `claude-haiku-5-5`, which the overview page compares and the pricing page prices. Kirsch's table does not carry it yet, so it uses the unknown-model fallback. OpenCode Go publishes per-token prices that count against a flat monthly allowance, but no context window or output limit (opencode.ai/docs/go, read 2026-10-05), so its size columns stay `—`. **Do not guess figures.** An unknown model ID falls back to a conservative default (128k context, 4k output reserve, cost rendered as `$?`) and logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
 
 Token/cost: track input/output/cache tokens per turn and cumulative per session; show in status bar; persist totals to `~/.local/share/kirsch/usage.json`.
 
@@ -339,26 +339,25 @@ Compaction is itself a model call, which has consequences worth pinning down:
 One event per line, append-only, schema versioned:
 
 ```json
-{"v":1,"type":"session.started","session_id":"...","workspace":"...","model":"...","project_type":"go"}
-{"v":1,"type":"session.resumed","session_id":"...","from_event":142}
 {"v":1,"type":"turn.started","turn":3}
 {"v":1,"type":"user.message","content":"..."}
-{"v":1,"type":"assistant.delta","text":"..."}
 {"v":1,"type":"assistant.thinking","content":"...","signature":"..."}
-{"v":1,"type":"assistant.message","content":"...","tool_calls":[{"id":"toolu_01...","tool":"read_file","input":{}}],"stop_reason":"tool_use"}
-{"v":1,"type":"tool.requested","id":"toolu_01...","tool":"read_file","input":{}}
-{"v":1,"type":"approval.requested","id":"toolu_01...","action":"apply_patch","detail":{}}
-{"v":1,"type":"approval.resolved","id":"toolu_01...","granted":true,"scope":"once"}
+{"v":1,"type":"assistant.message","content":"...","tool_calls":[{"id":"toolu_01...","tool":"read_file","input":{}}]}
 {"v":1,"type":"approval.scope_granted","action":"run_command","pattern":"go test"}
 {"v":1,"type":"approval.scopes_cleared"}
-{"v":1,"type":"tool.completed","id":"toolu_01...","tool":"read_file","ok":true,"duration_ms":4,"content":"...","truncated":false}
+{"v":1,"type":"tool.completed","id":"toolu_01...","ok":true,"content":"...","truncated":false}
 {"v":1,"type":"compaction.applied","replaced_from":3,"replaced_to":98,"summary":"..."}
 {"v":1,"type":"usage","input_tokens":1234,"output_tokens":567,"cache_read":8900,"cache_write":0}
 {"v":1,"type":"turn.completed","status":"success"}
-{"v":1,"type":"error","kind":"command_timeout","detail":"..."}
 ```
 
-**Reconstruction rule.** `assistant.delta` exists for live UI replay only. The authoritative record of what was exchanged with the model is `user.message`, `assistant.message` (carrying `tool_calls` with their provider `id`s), `assistant.thinking`, and `tool.completed` (carrying `content`). Resume rebuilds the provider message array from those alone and **never** from deltas. Every tool call carries the provider's own `id` so requests, approvals, and results correlate unambiguously — this is what makes multi-tool-call turns resumable.
+**Omitted when empty.** `signature` (on `assistant.thinking`), `tool_calls` (on `assistant.message`) and `tool.completed`'s `content` are omitted when empty. `turn.completed.status` is `success`, `cancelled` or `error`: `internal/session/store.go` documents these values, and `internal/app/app.go` sets each of them.
+
+**Reconstruction rule.** The session file does not hold `assistant.delta`, and nothing writes it (see the notes below). The authoritative record of what was exchanged with the model is `user.message`, `assistant.message` (carrying `tool_calls` with their provider `id`s), `assistant.thinking`, `tool.completed` (carrying `content`), and `compaction.applied`. Resume rebuilds the provider message array from those, applying each `compaction.applied` in file order (`internal/session/resume.go`), and **never** from deltas. Each tool call's provider `id` is written as `assistant.message.tool_calls[].id`, and the matching `tool.completed` carries the same value as `id`; resume refuses a `tool.completed` whose `id` matches no pending call, so a call and its result correlate. This is what makes multi-tool-call turns resumable. `approval.scope_granted` carries `action` and `pattern`; it does not name a tool call.
+
+**Flattened assistant message.** Decision C43 ("Accept the flattening, and amend §7 to state it") is recorded as follows: each assistant message is written as one `assistant.message` line, in which every text block is joined into `content` and every tool call into `tool_calls`, so the order of text between tool calls is lost. Each `assistant.thinking` line is written before the message's `assistant.message` line, whatever the thinking block's original position in the message (`internal/session/event.go`). The relative order of thinking, text and tool calls is therefore lost, not only the order of text between tool calls.
+
+**Types this section does not list.** `session.started` and `session.resumed` are absent because the code does not write them. Decision C46 reads: "Keep the code, which does not write `session.started` or `session.resumed`, and amend §7 to match." The types `tool.requested`, `approval.requested`, `approval.resolved`, `error` and `assistant.delta` are also absent, because the code does not write them.
 
 Rules: single writer goroutine; buffered flush with `fsync` every ~500ms and on turn completion; on load, a corrupt line truncates the session there and marks it `recovered` (never block startup on one bad file); `kirsch resume` restores transcript, pending state, and session-scoped approval grants. A later `approval.scopes_cleared` cancels the grants recorded before it.
 
@@ -374,7 +373,7 @@ Rules: single writer goroutine; buffered flush with `fsync` every ~500ms and on 
   usage.json      cumulative token/cost totals
 ```
 
-`<workspace-hash>` is a short hash of the canonical workspace path; the human-readable path lives in `index.json` and in each session's own `session.started` event. Filenames sort chronologically. `auto_resume` reads `index.json`.
+`<workspace-hash>` is a short hash of the canonical workspace path; the human-readable path lives in `index.json`. Filenames sort chronologically. `auto_resume` reads `index.json`.
 
 **Single-instance guard.** On start Kirsch takes an advisory lock (`flock`) on `<workspace-hash>/.lock`. A second instance in the same workspace is not blocked, but it: does not auto-resume (it starts a fresh session), shows `⚠ another Kirsch is running here` in the status bar, and disables session-scoped approval grants so every patch and command is approved individually. Two agents patching one working tree is a foot-gun worth degrading for.
 
@@ -389,7 +388,7 @@ Rules: single writer goroutine; buffered flush with `fsync` every ~500ms and on 
 Tasks:
 
 - `go mod init`, MIT `LICENSE`, `README.md`, `AGENTS.md`, `CHANGELOG.md`.
-- Design docs are already settled, not drafts: `plan/spec/architecture.md`, `plan/spec/ui-spec-v0.1.md`, `plan/spec/kirsch-ui-screens.md`, and `plan/adr/` (0001–0007). M0 builds against them and corrects any drift it discovers, rather than writing them. Note the folder split: `plan/` is build instructions, `doc/` is reserved for end-user documentation written in M5.
+- Design docs are already settled, not drafts: `plan/spec/architecture.md`, `plan/spec/ui-spec-v0.1.md`, `plan/spec/kirsch-ui-screens.md`, and `plan/adr/` (0001–0007, the ADRs in the planning baseline; ADR 0008 onward are later and are indexed in `plan/adr/README.md`). M0 builds against them and corrects any drift it discovers, rather than writing them. Note the folder split: `plan/` is build instructions, `doc/` is reserved for end-user documentation written in M5.
 - CI: formatting, `go vet`, `golangci-lint`, `go test ./...` on GitHub Actions. Formatting is `golangci-lint`'s to enforce; `gofmt` alone is not the bar.
 - Bubble Tea prototype at `cmd/kirsch` with: header, scrollable transcript with fake user/assistant/tool entries, multiline composer, status bar, fake approval modal, fake diff modal, resize-safe layout, `Ctrl+C` handling.
 - Use `bubbles` (textarea, viewport, spinner) + `lipgloss`; rune-aware width math (`go-runewidth`).
@@ -1236,7 +1235,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
 90. **The `opencode` default model is `minimax-m3` again** (2026-10-29, mission-20261029-01). This supersedes the default choice in amendment 83. Amendments 80, 83 and 87 stay as history and are not rewritten.
     - **Evidence.** The operator's probe on 2026-10-29 returned HTTP 200 for `minimax-m3` on every scenario: S0 (`testdata/probe/opencode/2026-10-29T0538Z/_global/S0-models.status`) and S1 to S6 (`testdata/probe/opencode/2026-10-29T0538Z/minimax-m3/*.status`, including S5a to S5d and S6). The summary is `testdata/probe/opencode/2026-10-29T0538Z/SUMMARY.md`. The HTTP 403 "Model access is disabled" of 2026-10-05, which led to amendment 82, no longer occurs.
     - **Change.** `config.Defaults` (`internal/config/config.go:92`) sets `Model: "minimax-m3"` for the `opencode` endpoint. The §5 sample and the model table's `(opencode default)` label follow it. The `minimax-m2.7` row stays as a known flat-rate model without the label.
-    - **Unchanged.** `minimax-m2.7` stays a known model. The size columns for `minimax-m3` stay `—`, because OpenCode publishes no context or output figures for it. The code's `minimax-m3` entry (`internal/provider/models.go:87`) keeps the fallback values, 128000 context and 4096 output. At thinking `off`, `minimax-m3` does no thinking, because no thinking field is sent (amendment 87). The live smoke test's 256-token allowance is unchanged. The live tests take their default from `config.Defaults()`, so they run on `minimax-m3` unless `KIRSCH_LIVE_MODEL` is set.
+    - **Unchanged.** `minimax-m2.7` stays a known model. The size columns for `minimax-m3` stay `—`, because OpenCode publishes no context or output figures for it. The code's `minimax-m3` entry (`internal/provider/models.go:92–96`) keeps the fallback values, 128000 context and 4096 output. At thinking `off`, `minimax-m3` does no thinking, because no thinking field is sent (amendment 87). The live smoke test's 256-token allowance is unchanged. The live tests take their default from `config.Defaults()`, so they run on `minimax-m3` unless `KIRSCH_LIVE_MODEL` is set.
     - **Test.** The partial-override test `TestGlobalBuiltInEndpointPartialOverride` (`internal/config/config_test.go`) now overrides to non-default models, `minimax-m2.7` for `opencode` and `claude-opus-5-5` for `anthropic`, and sets `want.Model` to the same value. Its model check can therefore fail. The `config_test.go:57` review item in `plan/PROGRESS.md` is resolved by this mission.
     - **Status.** The operator's live re-run on `minimax-m3` is owed: `npm run test:live` with `OPENCODE_API_KEY` set. This amendment does not claim it.
 
@@ -1253,6 +1252,10 @@ These record where the locked v0.1 text contradicts what the milestones after Mi
 95. **(A5) ADR 0010 — Model catalog and roles** (2026-10-30, mission-20261030-05; the build plan proposed it as ADR 0009; renumbered because 0009 was taken). Supersedes ADR 0003's "one provider" and ADR 0008's two fixed endpoints. Decision: one neutral `Request`; model data lives in `models.toml` (embedded snapshot plus user file), not in Go; three roles and no fourth; fallback is an ordered list the user wrote, never a heuristic. (This is the build plan's wording. ADR 0008 ships built-in endpoints and lets a user define more; ADR 0010's Supersession paragraph states what it supersedes once accepted.) ADR filed as Proposed.
 96. **(A6) ADR 0011 — Wire-format adapters** (2026-10-30, mission-20261030-05; the build plan proposed it as ADR 0010; renumbered because 0009 was taken). One adapter package per `api` value, each translating to and from the neutral types; per-model `compat` flags replace code branches; thinking from Chat-format servers is decoded, shown, never echoed. ADR filed as Proposed.
 97. **(A7) ADR 0012 — Execution seam** (2026-10-30, mission-20261030-05; the build plan proposed it as ADR 0011; renumbered because 0009 was taken). An `Executor` interface behind every filesystem, search, git and command call; containment is checked on the path string before any executor call; patches travel as text; local first, ssh second, container only if cheap. Contract table row "Providers" becomes "any Messages- or Chat-format endpoint; model chosen per role" at the M6 tag. ADR filed as Proposed.
+
+**Spec amendments from Milestone 5 follow-ups (2026-11-06, mission-20261106-01)**
+
+98. **§7 lists only the events the code writes** (2026-11-06, mission-20261106-01, m5-d21f). `session.started` and `session.resumed` are dropped under decision C46 (keep the code, amend §7 to match). `tool.requested`, `approval.requested`, `approval.resolved`, `error` and `assistant.delta` are dropped because the code does not write them. No decision covered their removal, so, as of 2026-11-06, they were listed under *Open from m5-d21f* in `plan/PROGRESS.md` for the operator to confirm or schedule. The §7 notes also state the flattened `assistant.message` (decision C43): text blocks are joined into `content` and tool calls into `tool_calls`, and each `assistant.thinking` line is written before its message, so the order of thinking, text and tool calls is not kept.
 
 **Still open**
 

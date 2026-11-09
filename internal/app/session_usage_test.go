@@ -184,10 +184,10 @@ func TestSessionCostPricesEachCallAtItsOwnModel(t *testing.T) {
 	e.a.recordUsage(u2, "claude-opus-5-5")
 	got := e.a.buildSessionUsageMsg("claude-sonnet-5-5")
 
-	// Written out from the table's prices: sonnet 2.0/10.0/0.2/2.5, opus 4.0/20.0/0.2/5.0.
-	sonnet1 := (1000*2.0 + 200*10.0 + 30*0.2 + 7*2.5) / 1e6
+	// Written out from the table's prices: sonnet 2.0/10.0/0.1/2.5, opus 4.0/20.0/0.2/5.0.
+	sonnet1 := (1000*2.0 + 200*10.0 + 30*0.1 + 7*2.5) / 1e6
 	opus2 := (2000*4.0 + 100*20.0 + 10*0.2 + 5*5.0) / 1e6
-	repriced := (3000*2.0 + 300*10.0 + 40*0.2 + 12*2.5) / 1e6
+	repriced := (3000*2.0 + 300*10.0 + 40*0.1 + 12*2.5) / 1e6
 	if math.Abs(got.CostUSD-(sonnet1+opus2)) > 1e-12 {
 		t.Errorf("CostUSD = %v, want per-call sum %v", got.CostUSD, sonnet1+opus2)
 	}

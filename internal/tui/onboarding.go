@@ -22,7 +22,8 @@ func (m Model) onboardingRows(lay Layout) []string {
 	}
 
 	// The wordmark and tagline are shared with the ordinary empty-session
-	// screen; they scroll away once the user sends the first message.
+	// screen; the normal transcript replaces them under the rule in
+	// Model.introRows.
 	showWordmark := lay.TermW >= 40 && lay.H >= 10
 	if showWordmark {
 		mark := wordmarkUTF8

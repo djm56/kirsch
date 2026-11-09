@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -15,8 +16,13 @@ import (
 	"github.com/djm56/kirsch/internal/workspace"
 )
 
-// sessionIDPattern picks the id out of /status's "session <id>" segment.
-var sessionIDPattern = regexp.MustCompile(`session ([0-9A-Za-z_-]+)`)
+// sessionIDPattern picks the id out of /status's "session <id>" segment. The
+// notice joins its segments with the glyph bullet (update.go, the "session "+id
+// part, followed by the "tokens in ..." part), so the pattern takes the id only
+// when one non-space glyph and "tokens in" follow it. Free text on the same
+// frame, such as the empty-state suggestion "Where is the session lock taken?",
+// has no "tokens in" behind it and cannot match.
+var sessionIDPattern = regexp.MustCompile(`session ([0-9A-Za-z_-]+) \S tokens in`)
 
 // slash types line into the composer, presses Enter and returns the model and
 // the command Update returned.
@@ -83,6 +89,25 @@ func TestSlashNewThroughRealWiringStartsANewSession(t *testing.T) {
 	var tm tea.Model = m
 	tm, _ = tm.Update(tea.WindowSizeMsg{Width: 200, Height: 30})
 
+	// The session StartNewSession created is still empty, and an empty
+	// session is deliberately removed when /new replaces it (m5-d17a). The
+	// test is about a real session surviving /new, so give the old one an
+	// event first. ClearGrants is the app's own path for that: it records
+	// approval.scopes_cleared on the live store and flushes it. Package main
+	// cannot reach the store itself, and a second session.New on the file
+	// would be a second writer.
+	a.ClearGrants()
+	// The setup above relies on ClearGrants writing to the store, which is a
+	// side effect of that call rather than its purpose. Check it here, so a
+	// change to ClearGrants fails setup instead of the assertions after /new.
+	oldFiles, _ := filepath.Glob(filepath.Join(dir, "sessions", "*", "*.jsonl"))
+	if len(oldFiles) != 1 {
+		t.Fatalf("setup: session files before /new = %v, want exactly 1", oldFiles)
+	}
+	if info, err := os.Stat(oldFiles[0]); err != nil || info.Size() == 0 {
+		t.Fatalf("setup: the old session %s is empty or unreadable before /new (err %v); ClearGrants recorded nothing", oldFiles[0], err)
+	}
+
 	tm, before := statusSessionID(t, tm)
 
 	tm, cmd := slash(tm, "/new")
@@ -106,5 +131,17 @@ func TestSlashNewThroughRealWiringStartsANewSession(t *testing.T) {
 	if len(files) != 2 {
 		all, _ := filepath.Glob(filepath.Join(dir, "sessions", "*", "*"))
 		t.Errorf("session files = %v (all entries %v), want the old and the new", files, all)
+	}
+	// Exactly one of the two files holds content: the old session's event. The
+	// new session is empty, so a surviving old file that was itself empty would
+	// show as zero here.
+	var nonEmpty int
+	for _, f := range files {
+		if info, err := os.Stat(f); err == nil && info.Size() > 0 {
+			nonEmpty++
+		}
+	}
+	if nonEmpty != 1 {
+		t.Errorf("%d non-empty session files after /new, want exactly 1 (the old session's event)", nonEmpty)
 	}
 }
