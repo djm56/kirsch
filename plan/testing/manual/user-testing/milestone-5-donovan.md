@@ -1365,7 +1365,7 @@ If GitHub's buttons are named a little differently, look for the closest match; 
 You should see a green tick on the run. On its page, an artifact named `release-dry-run` is listed. The *Releases* page shows no new release. This step publishes nothing.
 
 If the run is red, or a step says permission denied, stop and tell Bishop the section and step number.
-- [ ] The run is green, the `release-dry-run` artifact is on its page, and the *Releases* page shows no new release
+- [✅] The run is green, the `release-dry-run` artifact is on its page, and the *Releases* page shows no new release
 
 **Anything odd?** Write it here:
 
@@ -1543,7 +1543,7 @@ no-key-check: PASS (the line was emitted to the terminal)
 exit=0
 ```
 The key line starts with one space, then the dot, and both are part of the text Kirsch prints. The check passed when its output contains the `no-key-check: PASS (the line was emitted to the terminal)` line and `exit=0` is the last line. Lines between them do not change the result. If the PASS line is missing, or `exit=0` is not the last line, the check did not pass. Copy the last lines of the output and tell Bishop.
-- [ ] I saw the `No API key` line, the `PASS` line, and `exit=0`
+- [✅] I saw the `No API key` line, the `PASS` line, and `exit=0`
 
 **Step 2 — Look at a fresh start with no key.**
 Set this Terminal window to 80 columns wide and 24 rows tall. In Terminal, the Window settings for the profile hold the Columns and Rows fields.
@@ -1563,7 +1563,7 @@ You should see, from the top:
 - near the bottom, the typing line: `> Ask anything (Enter to send, /help for help)`
 
 Quit with two `Ctrl+C`.
-- [ ] I saw the key lines with both key names, the `Keys are never read` line, then one blank line, the OpenCode note that starts `. Using opencode sends prompts`, one blank line, the `no previous session` line, and the typing line at the bottom
+- [✅] I saw the key lines with both key names, the `Keys are never read` line, then one blank line, the OpenCode note that starts `. Using opencode sends prompts`, one blank line, the `no previous session` line, and the typing line at the bottom
 
 **Step 3 — Type a command at the same size.**
 Paste the same command from step 2 again. Then type `/status` and press Enter.
@@ -1571,7 +1571,7 @@ Paste the same command from step 2 again. Then type `/status` and press Enter.
 The onboarding goes away. The screen shows the messages instead: the `no previous session` line, then the status text (model, endpoint, key source and so on). The typing line at the bottom shows only the cursor. That is expected at this size, because the status text is too tall to fit under the onboarding.
 
 Quit with two `Ctrl+C`.
-- [ ] After `/status`, the onboarding was gone and the typing line showed only the cursor
+- [✅] After `/status`, the onboarding was gone and the typing line showed only the cursor
 
 **Step 4 — The same command with a taller window.**
 Set the window to 80 columns wide and 40 rows tall. Paste the same command from step 2 again, and type `/status` and press Enter.
@@ -1579,7 +1579,7 @@ Set the window to 80 columns wide and 40 rows tall. Paste the same command from 
 This time the onboarding should stay, with the `no previous session` line and the status text beneath it. The typing line at the bottom should show `Ask anything (Enter to send, /help for help)` again.
 
 Quit with two `Ctrl+C`.
-- [ ] With 40 rows, the onboarding stayed, with the status text beneath it, and the typing line showed `Ask anything`
+- [✅] With 40 rows, the onboarding stayed, with the status text beneath it, and the typing line showed `Ask anything`
 
 The folders made by steps 2 to 4 hold only test data, and this test does not remove them.
 
@@ -1633,7 +1633,7 @@ In plain words, each PASS means this:
 - `TestFreshLaunchSessionIsAbandonedLikeANewOne`: it checks these situations in turn. A launch with nothing written, then quit, leaves no session file and no index entry. A launch with nothing written, then `/new`, then quit, leaves no session file and no index entry. A launch with one event written, then `/new`, then quit (the control), leaves only the first session's file, and `index.json` points at it.
 
 A `--- FAIL` line, or an `exit=` value other than 0, means the check did not pass. Copy the last lines and tell Bishop.
-- [ ] I saw `--- PASS` for each named test, the `ok` line, and `exit=0` as the last line
+- [✅] I saw `--- PASS` for each named test, the `ok` line, and `exit=0` as the last line
 
 **Step 2 — Run the `/new` test through the real wiring.**
 Paste:
@@ -1651,7 +1651,7 @@ ok  	github.com/djm56/kirsch/cmd/kirsch	0.669s
 exit=0
 ```
 The output above ends with `exit=0`, as yours should.
-- [ ] I saw `--- PASS` for the test, the `ok` line, and `exit=0` as the last line
+- [✅] I saw `--- PASS` for the test, the `ok` line, and `exit=0` as the last line
 
 **What the code does (read from the code, not seen in a run).** A session file that this Kirsch created and that nothing was written to is removed when you quit (`Close`, `internal/app/app.go:890`) or when `/new` replaces it (`installSession`, `internal/app/app.go:1303`). A session that received any event, or that was resumed, is never removed. When the removed session is the one `index.json` names for this workspace (at quit, the session you were in), the entry is put back to what it held before Kirsch created that session, skipping any earlier empty sessions that `/new` already removed, or deleted if there was nothing earlier or that earlier session's file is gone (`restoreIndexLocked`, `internal/app/app.go:1085`; `restorePoint`, `internal/app/app.go:1111`). After `/new`, the entry names the new session; at quit it goes back as described only if that session is still empty. So, after a normal quit, the next launch does not find an empty session that this Kirsch created. Which notice that launch shows depends on how it is started (`chooseSessionInit`, `cmd/kirsch/main.go:277–310`). `/new` also sets a new provider session id (`randomSessionID()`, `internal/app/app.go:1039`, set in `NewSession` at `internal/app/app.go:1281`). Nothing in this change needs a key or a model.
 
@@ -2020,7 +2020,7 @@ Paste:
 cd /Volumes/DATA/Github/kirsch
 ```
 You should see your prompt again, with no message.
-- [ ] Done
+- [✅] Done
 
 **Step 2 — Check the Install section on the front page.**
 Paste:
@@ -2037,7 +2037,7 @@ You should see these lines. The numbers are line numbers in `README.md`, and the
 36:You need Go and `git`. [`doc/install.md`](doc/install.md) gives the Go version. The binary is written to `bin/kirsch` inside the checkout. The same page cove
 doc/install.md is there
 ```
-- [ ] The lines match
+- [✅] The lines match
 
 **Step 3 — Check the decision-record range in `AGENTS.md`.**
 Paste:
@@ -2047,7 +2047,7 @@ grep -n 'Why was X decided' AGENTS.md | cut -c1-160
 ls plan/adr/
 ```
 You should see line 21 ending in `ADRs 0001–0012`, and then the file names from `0001-go-bubble-tea.md` to `0012-execution-seam.md`, followed by `README.md` and `TEMPLATE.md`.
-- [ ] The lines match
+- [✅] The lines match
 
 **Step 4 — Check the npm note in `README.md`.**
 Paste:
@@ -2058,7 +2058,7 @@ grep -n 'python3 scripts/lint-screens.py' README.md | cut -c1-160
 grep -c 'every script is one line' README.md
 ```
 You should see line 167, which ends with the words `npm run screens` runs, then line 168, which reads `python3 scripts/lint-screens.py`. The last line should be `0`, which means the old wording is gone.
-- [ ] The lines match
+- [✅] The lines match
 
 **Step 5 — Check the narrow-width note in `CHANGELOG.md`.**
 Paste:
@@ -2067,7 +2067,7 @@ cd /Volumes/DATA/Github/kirsch
 grep -n 'corrected 2026-11-06, m5-d15' CHANGELOG.md | cut -c1-100
 ```
 You should see line 22, which starts `- **Milestone 4, m4-d9 — Token and Cost Tracking.**`. The correction sits after the original sentence, and the original is still there.
-- [ ] The line matches
+- [✅] The line matches
 
 **Step 6 — Check the Providers row in `README.md`.**
 Paste:
@@ -2076,7 +2076,7 @@ cd /Volumes/DATA/Github/kirsch
 grep -n '^| Providers' README.md
 ```
 You should see line 69, which names `opencode` and `anthropic` as the built-in endpoints.
-- [ ] The line matches
+- [✅] The line matches
 
 **Step 7 — Check the progress tracker.**
 Paste:
@@ -2086,7 +2086,7 @@ grep -n '^| m5-d15 |' plan/PROGRESS.md
 grep -o 'm5-d15 is done ([^)]*)' plan/milestones/milestone-5-start-here.md
 ```
 You should see line 292 of `plan/PROGRESS.md`. Its status cell reads `done (not yet operator-tested; section 23 ready to test)`, and its owner cell reads `mission-20261106-02`. The last line should be `m5-d15 is done (mission-20261106-02)`.
-- [ ] The lines match
+- [✅] The lines match
 
 **Step 8 — Check the resolved marks in the tracker.**
 Paste:
@@ -2095,7 +2095,7 @@ cd /Volumes/DATA/Github/kirsch
 grep -n 'Resolved 2026-11-06 (m5-d15)' plan/PROGRESS.md | cut -c1-60
 ```
 You should see a line for each of these rows: the `max_turns_exceeded` row, the *Unwired settings and hooks* row, the *Configured command timeout ignored* row, the *Stale code comments* row, and the *Deferred review suggestion — `usage.json` cost field* row. The rows marked for part of their scope are the *Unwired settings and hooks* row and the *Stale code comments* row. Each row writes its open part in its own text.
-- [ ] The lines match
+- [✅] The lines match
 
 **Step 9 — Check that a stale sentence is gone.**
 Paste:
@@ -2104,7 +2104,7 @@ cd /Volumes/DATA/Github/kirsch
 grep -c 'unless O4 changes' plan/milestones/milestone-5.md
 ```
 You should see `0`.
-- [ ] The count is 0
+- [✅] The count is 0
 
 If a line differs from what you should see, do not tick the box. Tell Bishop which step and what the screen showed.
 
@@ -2236,7 +2236,7 @@ Paste:
 cd /Volumes/DATA/Github/kirsch
 ```
 You should see your prompt again, with no message.
-- [ ] Done
+- [✅] Done
 
 **Step 2 — Read the three new files.**
 Paste:
@@ -2252,7 +2252,7 @@ Each file opens in the app your Mac uses for plain text, because of the `-t` fla
 - in `NOTICE`, the line *Third-party software*, then a list of libraries, each with its licence.
 
 Read them. You run nothing from them yet; that starts in step 3.
-- [ ] I opened all three files and read them
+- [✅] I opened all three files and read them
 
 **Step 3 — The regeneration note names the right flag.**
 Paste:
@@ -2269,7 +2269,7 @@ You should see:
 - The second command prints nothing. That means no old `-update` flag is left in the three files.
 - The third command prints `1:run with -update`. It is the control: it shows the second command would have printed a line if the old flag were there.
 - The last two commands each print `1`. They read the spec as it was before this change, so the old flag was there and the check means something.
-- [ ] The first command showed `KIRSCH_REGEN=1`, the second printed nothing, the third printed `1:run with -update`, and the last two each printed `1`
+- [✅] The first command showed `KIRSCH_REGEN=1`, the second printed nothing, the third printed `1:run with -update`, and the last two each printed `1`
 
 **Step 4 — The security notes say what they should.**
 Paste:
@@ -2283,7 +2283,7 @@ grep -n 'An approved command' SECURITY.md
 printf 'An approved command\n' | grep -n 'An approved command'
 ```
 You should see one line from each of the first four commands: the reporting link, the seven-day reply line, the line about the latest release, and the line about the full request body in the debug log. The fifth command prints nothing, because the old sentence about approved commands has gone. The sixth command is the control, and it prints `1:An approved command`. That shows the fifth command would have printed a line if the old sentence were there.
-- [ ] Four lines, nothing from the fifth command, and `1:An approved command` from the sixth
+- [✅] Four lines, nothing from the fifth command, and `1:An approved command` from the sixth
 
 **Step 5 — Every library the program uses is in NOTICE.**
 Paste:
@@ -2299,7 +2299,7 @@ printf 'require (\n\tgithub.com/example/planted v1.0.0\n)\n' > "$T_CFG/planted.m
 awk '/^require \(/{f++} f==1&&/^\t/{print $1}' "$T_CFG/planted.mod" | while read m; do grep -q -F "$m" NOTICE && echo "ok $m" || echo "MISSING $m"; done
 ```
 It should print `MISSING github.com/example/planted`.
-- [ ] Every line from the first loop starts with `ok`, and the control prints `MISSING github.com/example/planted`
+- [✅] Every line from the first loop starts with `ok`, and the control prints `MISSING github.com/example/planted`
 
 **Step 6 — Turn on private vulnerability reporting (you do this on GitHub).**
 This needs your GitHub login as the owner of the repository. The crew cannot do it for you.
@@ -2309,7 +2309,7 @@ This needs your GitHub login as the owner of the repository. The crew cannot do 
 4. Check it from outside. Open a private (incognito) browser window, where you are not signed in to GitHub, and go to `https://github.com/djm56/kirsch/security`. You should see a button labelled *Report a vulnerability*. Before you turn the setting on, that button is not there, so this check shows whether the setting took effect.
 
 Until this is on, the link in `SECURITY.md` does not open the report form.
-- [ ] I turned on private vulnerability reporting, and a signed-out window shows the *Report a vulnerability* button
+- [✅] I turned on private vulnerability reporting, and a signed-out window shows the *Report a vulnerability* button
 
 **Step 7 — Run the commands from CONTRIBUTING on a clean copy (after you commit).**
 This step copies the project from its last commit, so commit your changes first. Changes that are not committed are not in the copy.
@@ -2340,7 +2340,7 @@ Then tidy up the throwaway copy. This line is optional:
 ```
 rm -rf "${T_CFG:?}/clean"
 ```
-- [ ] Every command ended with `exit=0`, kirsch opened and closed on `/quit`, and I went back to the kirsch folder
+- [✅] Every command ended with `exit=0`, kirsch opened and closed on `/quit`, and I went back to the kirsch folder
 
 **Anything odd?** Write it here:
 
@@ -2404,7 +2404,7 @@ In plain words, the lines above mean this:
 - `TestNewSessionDoneEndsBusyAfterLateTurnMessages`: the message that ends `/new` clears the busy state even after late messages have arrived. There are two cases. `success` empties the transcript. `failure` keeps the transcript, and the late error box is still there.
 
 A `--- FAIL` line means the check did not pass. Copy the last lines and tell Bishop.
-- [ ] I saw `--- PASS` for each test named in step 1, the `ok` line, and `exit=0` as the last line, with no `--- FAIL` line
+- [✅] I saw `--- PASS` for each test named in step 1, the `ok` line, and `exit=0` as the last line, with no `--- FAIL` line
 
 **Step 2 — Run the session-fence tests.**
 Paste:
@@ -2443,7 +2443,7 @@ In plain words, the lines above mean this:
 - `TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne`: after `/new`, it sends one message through each sender that carries the old session's number, and one through the same sender with the new number. The old message must not arrive. The new one must arrive, which shows that the sender works at all.
 - `TestTurnPathsUseOnlyFencedSenders`: it reads the Go source of the app package, not the tests, and checks that the functions in package app that send a turn's messages use the checked senders, unless the function is on a short list of known exceptions. Its own comment lists what it cannot see. It does not run the program. Its `control` line plants three kinds of bad call and one allowed one in a small piece of text, and checks that the test reports the three bad ones.
 
-- [ ] I saw `--- PASS` for each test named in step 2, the `ok` line, and `exit=0` as the last line, with no `--- FAIL` line
+- [✅] I saw `--- PASS` for each test named in step 2, the `ok` line, and `exit=0` as the last line, with no `--- FAIL` line
 
 **What changed for you (read from the code and tests, not seen in a run).** When you press Esc during a reply and then type `/new` while that reply is still finishing, the status bar stays on "new session" until the new session is ready. Enter does not send your text, and no error box appears, until then. Messages from the old reply no longer appear in the new session; an approval answer from the old reply is not covered (see *Open from m5-d17b*, S-4, in `plan/PROGRESS.md`). The status bar reads the busy verb through `stateVerb` (`internal/tui/statusbar.go:196`, used at `:52`); `/new` sets it at `internal/tui/update.go:1204`; Esc reaches `cancelTurn` at `internal/tui/update.go:792`.
 
@@ -2606,7 +2606,7 @@ exit=0
 ```
 Above those lines you should also see `--- PASS` lines for each test. The last line of each run is `exit=0`. In the output of the third command you should also see the two lines `compaction % before /compact: 60` and `compaction % after /compact: 37 (estimate 9727 tokens)`. A `--- FAIL` line means a check did not pass. Copy the last lines and tell Bishop.
 
-- [ ] I ran the three commands in step 1, I saw `ok` and `exit=0` after each one, I saw no `--- FAIL` line, and I saw both `compaction % before /compact: 60` and `compaction % after /compact: 37 (estimate 9727 tokens)` in the output of the third command
+- [✅] I ran the three commands in step 1, I saw `ok` and `exit=0` after each one, I saw no `--- FAIL` line, and I saw both `compaction % before /compact: 60` and `compaction % after /compact: 37 (estimate 9727 tokens)` in the output of the third command
 
 ---
 
@@ -2635,7 +2635,7 @@ exit=0
 ```
 Above those lines you should also see `--- PASS` lines for each test. The last line is `exit=0`. A `--- FAIL` line means a check did not pass. Copy the last lines and tell Bishop.
 
-- [ ] I ran the command in step 1, I saw `ok` and `exit=0`, and I saw no `--- FAIL` line
+- [✅] I ran the command in step 1, I saw `ok` and `exit=0`, and I saw no `--- FAIL` line
 
 ---
 
@@ -2665,7 +2665,7 @@ exit=0
 ```
 A run that passes ends with the line `exit=0`. A `--- FAIL` line means a check did not pass. Copy the last lines and tell Bishop.
 
-- [ ] I ran the commands in step 1, I saw an `exit=0` line after every command, `ok` after each test command and `grids OK` after the screen check, and I saw no `--- FAIL` line
+- [✅] I ran the commands in step 1, I saw an `exit=0` line after every command, `ok` after each test command and `grids OK` after the screen check, and I saw no `--- FAIL` line
 
 **Step 2 — Look at the line that changed.**
 The saved picture of the Help box is in `plan/spec/kirsch-ui-screens.md`, under the heading `06 · Help overlay`. It is drawn 80 columns wide and 28 rows tall. Its footer line, the line under the divider, changed. In plain words:
@@ -2683,9 +2683,9 @@ Bishop's own diff of the saved picture before this change against the tree now, 
 
 O16 decided that the help footer's `docs: doc/usage.md` becomes `docs: github.com/djm56/kirsch`, because an installed program does not have the `doc/` folder. Tick the box below only if the change above is what you decided. The 80-column picture above shows no link. That is a fact to look at, not something O16 decided. Whether the 80-column picture should keep a link is open: see *Open from m5-d21b* item a in `plan/PROGRESS.md`. Bishop has a recommendation there, for you to decide.
 
-- [ ] The change above is what I decided under O16: the help footer's docs line now reads `docs: github.com/djm56/kirsch` instead of `docs: doc/usage.md`
+- [✅] The change above is what I decided under O16: the help footer's docs line now reads `docs: github.com/djm56/kirsch` instead of `docs: doc/usage.md`
 
-Question for you (O23): your answer goes in the decisions table in `plan/PROGRESS.md`. The O23 row there reads `Go with a`. Bishop read `a` as regenerate the moved pictures, then have a person review the golden diff. Please confirm that reading; see *Open from m5-d21b* item d in `plan/PROGRESS.md`.
+O23 (answered 2026-11-11): the O23 row in `plan/PROGRESS.md` reads `Go with a`. You confirmed that `a` means regenerate the moved pictures, then a person reviews the golden diff, and that your tick of step 2 above is that review. See *Open from m5-d21b* item d in `plan/PROGRESS.md`.
 
 ---
 
@@ -2738,7 +2738,7 @@ exit=0
 ```
 The last line is `exit=0`. If you see `exit=1` instead, or no line above it, copy the output and tell Bishop.
 
-- [ ] I ran the commands in steps 1, 2 and 3. The line from step 1 contains the word `disclosed`, the line from step 2 contains `MissingSessionID`, the line from step 3 contains `writes the text of each message you send`, the last line I saw after each was `exit=0`, and I did not edit `SECURITY.md`
+- [✅] I ran the commands in steps 1, 2 and 3. The line from step 1 contains the word `disclosed`, the line from step 2 contains `MissingSessionID`, the line from step 3 contains `writes the text of each message you send`, the last line I saw after each was `exit=0`, and I did not edit `SECURITY.md`
 
 ---
 
@@ -2800,7 +2800,7 @@ exit=0
 ```
 If you see `exit=1` instead, or no line above it, copy the output and tell Bishop. Step 2 proves nothing unless this step finds its line.
 
-- [ ] I ran steps 1, 2 and 3 in the kirsch folder. Step 1 listed a line for each kind of event named above, and its last line was `exit=0`. Step 2 printed no line, only `exit=1`. Step 3 printed a line that contains `turn.started`, and its last line was `exit=0`. I did not edit `plan/spec/kirsch-plan.md`.
+- [✅] I ran steps 1, 2 and 3 in the kirsch folder. Step 1 listed a line for each kind of event named above, and its last line was `exit=0`. Step 2 printed no line, only `exit=1`. Step 3 printed a line that contains `turn.started`, and its last line was `exit=0`. I did not edit `plan/spec/kirsch-plan.md`.
 
 ---
 

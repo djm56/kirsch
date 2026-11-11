@@ -1,6 +1,6 @@
 # Milestone 2 — Instruction Set
 
-> **Status: Complete — accepted by the operator on 2026-10-02, with the items listed after Task 9 deferred; 16 of 18 Task 9 boxes ticked.** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 1 completed 2026-09-12. This is the
+> **Status: Complete — accepted by the operator on 2026-10-02, with the items listed after Task 9 deferred; Task 9 boxes not ticked are listed in Task 9.** See [`plan/PROGRESS.md`](../PROGRESS.md) for execution status. Milestone 1 completed 2026-09-12. This is the
 > complete, ordered instruction set for Milestone 2 (patches, commands,
 > approvals). Execute tasks in order. This is the milestone where Kirsch first
 > changes something on disk, so the approval path is the point of the whole
@@ -429,13 +429,14 @@ wrong and gets updated in this milestone's commit.
       the process group within 500ms of the deadline", unticked; relaxed by
       O15, C29, 2026-10-29; the 3s value is in plan/PROGRESS.md row C29
       detail)
-- [ ] A cancelled command's process is actually gone, not merely detached
+- [x] A cancelled command's process is actually gone, not merely detached
+      Ticked 2026-11-09 on the operator's decision (milestone-5 checklist section 11, step 3).
       Note (2026-11-05, m5-d19b): m5-d19a (mission-20261027-05) made
       `TestRunCommandCancellationProcessGroupDead` record the PIDs out of band
       and assert they are gone (ESRCH). The test fails when `Setpgid` is
       set to `false` ("still alive 3s after the command ended",
-      plan/testing/manual/milestone-5.md section 6). That meets the condition
-      the status note below sets for ticking. Ticking is the operator's call.
+      plan/testing/manual/milestone-5.md section 6). That met the condition
+      the status note below sets for ticking, and the box was ticked on the operator's decision (line above).
 - [ ] A command that reads input gets end-of-input at once and cannot
       wait for typing
       (was: "A command reading stdin fails immediately", ticked; reworded
@@ -462,7 +463,7 @@ known point.
   - To close this, fix that test (record the PID out of band) and tighten the bound, or relax the requirement.
   - Update 2026-11-05 (m5-d19b): the operator chose to relax the requirement (O15, C29, 2026-10-29), and the box now states 3s after the deadline. `TestRunCommandTimeoutProcessGroupDead` was fixed by m5-d19a (mission-20261027-05): it records the PIDs out of band and asserts the shell and grandchild are gone.
 - **Cancelled-process death is not proven.** Walkthrough §9 cancels an approval card before any process starts (`plan/testing/manual/user-testing/milestone-2-donovan.md:411`), and `TestRunCommandCancellationProcessGroupDead` has no PID check. To close this, record the PID out of band and assert `ESRCH` after cancelling, then tick the box.
-  Update 2026-11-05 (m5-d19b): m5-d19a added the PID check, and `TestRunCommandCancellationProcessGroupDead` now asserts ESRCH after cancelling. The box awaits the operator's tick.
+  Update 2026-11-05 (m5-d19b): m5-d19a added the PID check, and `TestRunCommandCancellationProcessGroupDead` now asserts ESRCH after cancelling. The box was ticked on 2026-11-09 on the operator's decision (milestone-5 checklist section 11, step 3).
 - **The configured command timeout is ignored.** See the last item under *Where execution departed*.
 - **Two more settings and output streaming are not wired.** See *Where execution departed* (plan amendments 72 and 73).
 - **Some ticked boxes rest on the operator's walkthrough, not on a test that can fail.** The evidence table below says which. The tests that cannot detect a regression are listed under *Open defects*.
@@ -486,7 +487,7 @@ known point.
 | `apply_patch` never offers `[a]` | `TestForPatchNeverAllows`, `TestForPatchNoConfigurationAllows`, `TestApprovalPatchNeverOffersSessionApproval`; walkthrough §4 |
 | Allowlist; `sh -c` and evasions ask | `TestShellsCanNeverBeAllowlisted`, `TestShellDetectionByBasename`, `TestRunCommandShellCommandRequiresApproval` |
 | `go test` grant scope | `TestGrantSemantics`, `TestGrantRefusesInvalidPrefixes` |
-| Cancelled process is gone | **Not proven — box open.** Walkthrough §9 cancels an approval card before any process starts (`milestone-2-donovan.md:411`). `TestRunCommandCancellationProcessGroupDead` checks only the error kind and a 3s return. Update 2026-11-05 (m5-d19b): m5-d19a added the PID check (ESRCH); the box awaits the operator's tick |
+| Cancelled process is gone | **Was not proven; box ticked 2026-11-09 on the operator's decision.** Walkthrough §9 cancels an approval card before any process starts (`milestone-2-donovan.md:411`). `TestRunCommandCancellationProcessGroupDead` checks only the error kind and a 3s return. Update 2026-11-05 (m5-d19b): m5-d19a added the PID check (ESRCH); the box was ticked on 2026-11-09 on the operator's decision |
 | A command reading stdin fails immediately | Walkthrough §9 (`/run cat`, approved: "The command does not block"); `TestRunCommandStdinIsDevNull` shows a stdin-reading command returns at once. A stdin reader sees EOF and exits; it does not error. The test would also pass without the explicit `/dev/null` assignment, because `exec` reads `/dev/null` when `Stdin` is nil. Update 2026-11-05 (m5-d19b): the box is reworded by C34 (2026-11-03), and m5-d19a fixed `TestRunCommandStdinIsDevNull` so it fails when the `/dev/null` assignment is replaced by an empty reader |
 | Env stripping even when allowlisted | `TestRunCommandEnvironmentFiltering` (`*_TOKEN`, with a real environment and passthrough); walkthrough §9 (`SECRET_KEY` stripped although allowlisted). `*_SECRET` and `AWS_*` have no test |
 | Approve, reject and grant from the TUI | Walkthrough §3 and §7 (operator run). `TestApprovalSessionGrantDeadlock` drives a real `tea.Program` with a stub model and proves only that resolving does not deadlock |
