@@ -4327,7 +4327,7 @@ Checks one and two each have one command, run as written, with its raw output pa
 
 - [ ] The table matches the recorded decision (`plan/milestones/milestone-5.md`, m5-d21a *Acceptance*, first box). Command and output below, first block. The test that proves the figures is `TestPublishedPerTokenFigures`. The other names in that `-run` pattern run the cost arithmetic against the same table.
 - [ ] `go test ./internal/provider/` passes (`plan/milestones/milestone-5.md`, m5-d21a *Acceptance*, first box). Command and output below, second block.
-- [ ] The review step is recorded in `plan/PROGRESS.md` (`plan/milestones/milestone-5.md`, m5-d21a *Acceptance*, second box). No command checks it. This is a process check: the review record is in `.claude/memory/missions/mission-20261105-11/PROGRESS.md`, which is the record of every step and review. `plan/PROGRESS.md` row 300 records only the status and the mission id, not the review steps. Whether that meets this box is the operator's call.
+- [ ] The review step is recorded in `plan/PROGRESS.md` (`plan/milestones/milestone-5.md`, m5-d21a *Acceptance*, second box). No command checks it. This is a process check: the review record is in `.claude/memory/missions/mission-20261105-11/PROGRESS.md`, which is the record of every step and review. `plan/PROGRESS.md` row 300 records only the status and the mission id, not the review steps. Whether that meets this box is the operator's call. The operator accepted this record as the review (RD10, release-triage sheet in `plan/PROGRESS.md`, 2026-11-11); the operator ticks this box.
 
 ```bash
 # authored here
@@ -4482,8 +4482,8 @@ The automated outputs above were captured on 2026-11-05 by @lambert in mission-2
 
 **Automated checks**
 
-- [ ] The 400 log writes at most the bound quoted in the brief. The test asserts presence of the first N bytes and absence of the bytes after N, and it passes (`plan/milestones/milestone-5.md:1729`). Command: `TO EXPAND`.
-- [ ] `SECURITY.md` no longer carries the phrase "full request body" (`plan/milestones/milestone-5.md:1730`).
+- [ ] **Not applicable (deliverable not needed; RD10, 2026-11-11).** The 400 log writes at most the bound quoted in the brief. The test asserts presence of the first N bytes and absence of the bytes after N, and it passes (`plan/milestones/milestone-5.md:1729`). Command: `TO EXPAND`.
+- [ ] **Not applicable (deliverable not needed; RD10, 2026-11-11).** `SECURITY.md` no longer carries the phrase "full request body" (`plan/milestones/milestone-5.md:1730`).
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && grep -c 'full request body' SECURITY.md
@@ -4492,7 +4492,7 @@ The automated outputs above were captured on 2026-11-05 by @lambert in mission-2
 
   The first prints 0. The control on the pre-edit copy prints at least 1.
 
-- [ ] The review step is recorded (`plan/milestones/milestone-5.md:1731`). Process check.
+- [ ] **Not applicable (deliverable not needed; RD10, 2026-11-11).** The review step is recorded (`plan/milestones/milestone-5.md:1731`). Process check.
 
 **Hands-on checks**
 
@@ -4804,7 +4804,7 @@ The quote has no `disclosed`, so a check against it fails, as it should.
 
 **Automated checks**
 
-- [ ] `go test ./internal/session/` passes, and the review step is recorded (`plan/milestones/milestone-5.md:1788`).
+- [ ] **Not applicable (deliverable not needed; RD10, 2026-11-11).** (`go test` not run) `go test ./internal/session/` passes, and the review step is recorded (`plan/milestones/milestone-5.md:1788`).
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && go test ./internal/session/
@@ -4830,7 +4830,7 @@ Section 7 of `plan/spec/kirsch-plan.md` now lists only the session event types t
 
 **Automated checks**
 
-**Box.** The acceptance box, quoted verbatim from the *Acceptance* list of `## m5-d21f (conditional) — §7 amendment (C43, C46)` in `plan/milestones/milestone-5.md`, and found with `grep -F -e` (section J of the block below): "§7 matches the events the code writes, and the review step is recorded." Its review step is step 2 of mission-20261106-01, which had not run when this section was written. The box is the operator's, and it is not ticked here.
+**Box.** The acceptance box, quoted verbatim from the *Acceptance* list of `## m5-d21f (conditional) — §7 amendment (C43, C46)` in `plan/milestones/milestone-5.md`, and found with `grep -F -e` (section J of the block below): "§7 matches the events the code writes, and the review step is recorded." Its review step is step 2 of mission-20261106-01, which had not run when this section was written. The box is the operator's, and it is not ticked here. Review half, recorded 2026-11-11 (RD10): the review step has since run; its @apone rows in `.claude/memory/missions/mission-20261106-01/PROGRESS.md` end with an APPROVED review, after one NOT APPROVED round was fixed. The operator accepts that record as the review. The §7 half of the box is not covered by RD10, so the box in `plan/milestones/milestone-5.md` stays unticked.
 
 The block below is one bash script with every command in it. It was run from the repository root as `bash -c 'bash <file>'`, where the file holds the block's text. Its raw output, `exit=` lines included, is in the block after it.
 
@@ -5201,15 +5201,25 @@ _Empty. Fill at run._
 
 ## 37 · Demo, release smoke run, tag (m5-d22)
 
-**Context:** Terminal: a real terminal, run by the operator, with Setup rerun in it. Binary: `bash scripts/smoke-test.sh` on the release build (live; spends tokens); the demo launch (O12, TO EXPAND). Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on the demo launch (TO EXPAND). Key state: key entered for this live step only, for the smoke run. Config state: Setup, holding only `[session]`; confirm with the model check in Setup before the live step.
+**Context:** Terminal: a real terminal, run by the operator, with Setup rerun in it. Binary: `bash scripts/smoke-test.sh` run on the exact commit that gets tagged, with nothing uncommitted except checklist files under `plan/testing/` (live; spends tokens). The smoke test runs `go test` from the source tree, so "on the release build" means that commit, not the archive; the archive is checked after the tag (step 12), and an optional clean-machine install after the tag (step 12b). Also the demo launch (O12, `"$KIRSCH_BIN" --new --workspace "$WORKSPACE"`), the local snapshot build (`goreleaser release --snapshot --clean`), and the m5-d5 approvals check and C11 check, both with a key. Working directory: /Volumes/DATA/Github/kirsch. Workspace: `--workspace "$WORKSPACE"` on every kirsch launch in this section, including the `resume` calls in the m5-d5 check. `--new` on the launches of steps 4a, 4b, 4(c) and 7, so each check starts a fresh session. Key state: a key is entered only for the steps that need one (4, 6, 7 and 10), each with the key count before (expect `0`) and the clear and count after. Config state: Setup, holding only `[session]`; confirm with the model check in Setup before the live step.
 
 **What landed**
 
-> **TO EXPAND when m5-d22 runs:** the demo location (O12), the release smoke transcript, and the tag.
+_Empty until the run. Fill each line with its value as it lands. The steps that produce each line are in *Hands-on checks* of this section, numbered as in the plain checklist (`plan/testing/manual/user-testing/milestone-5-donovan.md`, section 37)._
 
-**Waits on:** the m5-d21 deliverables that ran, and O12, O15 and O16 recorded, from `plan/milestones/milestone-5.md:133`. No agent runs this deliverable. Its steps are operator-only (`plan/milestones/milestone-5.md:1876`).
+- **Local release snapshot (step 3):** `goreleaser release --snapshot --clean` run locally, with `brew install goreleaser`. Brew installs the newest goreleaser. The workflow pins v2.19.0 (`scripts/goreleaser-version`). A newer local version is accepted for this check only, because the snapshot publishes nothing and the workflow builds the real release with the pin. Value:
+- **Approvals survive quit and reopen (step 4a, the m5-d5 / section 3 check):** value:
+- **Final report survives `/compact` (step 4b, the C11 check):** value:
+- **Typing line with `NO_COLOR=1`, no tokens (step 4(c)):** value:
+- **Demo (O12, step 7):** two or three PNG files in `doc/images/` (`start-screen.png`, `approval-card.png`, `help-overlay.png`), linked from `README.md`. No asciinema. Value:
+- **Release smoke transcript (step 10):** on the tagged commit. Value:
+- **Tag (step 11):** `v0.1.0` on the commit above, after CI is green on that commit. Value:
+- **Installed version string (step 12):** what `kirsch --version` prints on the released archive for this Mac, `0.1.0` or `v0.1.0`. Unverified until this run. Value:
+- **Clean-machine install (step 12b, optional):** the install guide's release-archive route on a clean machine or container, or `not run`. Value:
 
-**Key-state check before the live step.** Authored here. It must print `CONTROL PASS`, then `0` before any key is entered.
+**Waits on:** the m5-d21 deliverables that ran, and O12, O15 and O16 recorded, from `plan/milestones/milestone-5.md:133`. No agent runs this deliverable. Its steps are operator-only (`plan/milestones/milestone-5.md:1889`).
+
+**Key-state check before the live step.** Authored here. It must print `CONTROL PASS`, then `0` before any key is entered. Run the same block before each key entry in steps 6 and 7.
 
 ```bash
 # authored here
@@ -5219,13 +5229,13 @@ keycount
 
 **Automated checks**
 
-- [ ] `git tag -l v0.1.0` prints `v0.1.0`, and the release page lists the artefacts (`plan/milestones/milestone-5.md:1891`). Run after the tag is pushed.
+- [ ] `git tag -l v0.1.0` prints `v0.1.0`, and the release page lists the artefacts (`plan/milestones/milestone-5.md:1926`). Run after the tag is pushed.
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && git tag -l v0.1.0
   ```
 
-- [ ] `ls opencode.json.bak .claude/memory/state/FLIGHT-RECORDER.md.bak` reports both files missing (`No such file or directory`). Control: `ls scripts/smoke-test.sh` lists its file, so the error is not a wrong path. Paste the output (`plan/milestones/milestone-5.md:1892`).
+- [ ] `ls opencode.json.bak .claude/memory/state/FLIGHT-RECORDER.md.bak` reports both files missing (`No such file or directory`). Control: `ls scripts/smoke-test.sh` lists its file, so the error is not a wrong path. Give the output to Bishop as evidence (`plan/milestones/milestone-5.md:1927`).
 
   ```bash
   cd /Volumes/DATA/Github/kirsch && ls opencode.json.bak .claude/memory/state/FLIGHT-RECORDER.md.bak
@@ -5234,13 +5244,37 @@ keycount
 
   Run this after the C14 deletion, not before.
 
-- [ ] The model table and its dates match the vendor pages as read on the day of tagging (`plan/milestones/milestone-5.md:1893`). Command: `TO EXPAND`.
+- [ ] The model table and its dates match the vendor pages as read on the day of tagging (`plan/milestones/milestone-5.md:1895`, `:1900`). There is no command to run. Bishop does the re-read when the operator says "re-read the prices" (plain step 8). The box is ticked when Bishop reports a match and the date read. A difference stops the tag until it is fixed through a step with its own review.
+
+- [ ] Local build for the binary, before step 4 and again after the step 9 commit: `npm run build && "$KIRSCH_BIN" --version`. Expect the build to finish with no error, then one line starting `kirsch`. `npm run build` runs `bash scripts/build.sh` and builds `bin/kirsch` (`package.json`).
+
+- [ ] Local release snapshot builds, and its names match the install guide (`plan/milestones/milestone-5.md:1903`, `doc/install.md`). Run from the kirsch folder, after `brew install goreleaser`:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && goreleaser release --snapshot --clean; echo "result: $?"
+  cd /Volumes/DATA/Github/kirsch && ls dist
+  cd /Volumes/DATA/Github/kirsch && ls -d dist/kirsch_darwin_arm64*
+  cd /Volumes/DATA/Github/kirsch && dist/kirsch_darwin_arm64*/kirsch --version
+  cd /Volumes/DATA/Github/kirsch && go version -m dist/kirsch_darwin_arm64*/kirsch | grep -- -ldflags
+  ```
+
+  Expect `release succeeded`, then `result: 0`. `ls dist` lists four archives (`kirsch_<version>_<os>_<arch>.tar.gz`, `os` `darwin` or `linux`, `arch` `amd64` or `arm64`) and `kirsch_<version>_checksums.txt`. The `ls -d` command prints one folder; an Intel Mac uses `darwin_amd64` in the pattern. The `--version` line carries a snapshot version, not `0.1.0`, and that is expected. The `-ldflags` line must contain `-X main.version=`. A newer local goreleaser than v2.19.0 is accepted: it is a check only.
+
+- [ ] CI is green on the commit that gets tagged, and the tagged commit equals `origin/main` (`plan/PROGRESS.md`, *Open from m5-d11*). Run in the browser, with the full commit id written down in step 9:
+
+  ```bash
+  cd /Volumes/DATA/Github/kirsch && git fetch origin main && git rev-parse HEAD && git rev-parse origin/main
+  ```
+
+  Both ids match the id written down in step 9, and the *CI* workflow run for that id is green. A tag push that is not on `main` fails the *Release* run before it builds (the `tagged commit is on main` step in `.github/workflows/release.yml`).
+
+- [ ] Crew-checked, not for the operator: O12, O15 and O16 are recorded in `plan/PROGRESS.md`. `grep -n -E '^\| O1(2|5|6)' plan/PROGRESS.md` shows the O12 row, the O16 row, and O15 in two rows, "O15 (C29 only)" and "O15 (rest)". Found on 2026-11-11 at lines 397, 410, 411 and 427.
 
 **Live checks**
 
-> Spends tokens — run only with a key you intend to use. Confirm the budget first (`plan/milestones/milestone-5.md:1901`). Enter the key with the secure pattern below, and not otherwise.
+> Spends tokens — run only with a key you intend to use. Confirm the budget first (`plan/milestones/milestone-5.md:1936`). Enter the key with the secure pattern below, and not otherwise.
 >
-> **ONE-WAY:** step 6 of *Hands-on checks* tags `v0.1.0`, and the tag publishes a public release through the release workflow (m5-d11). That is one-way. Do not push the tag until the smoke run has passed and the operator has confirmed it.
+> **ONE-WAY:** step 11 of *Hands-on checks* tags `v0.1.0`, and the tag publishes a public release through the release workflow (m5-d11). That is one-way. Do not push the tag until the smoke run has passed, CI is green on the same commit, steps 1 to 10 are ticked, and Bishop has confirmed it with the operator.
 
 Key entry, Milestone 4 pattern (`plan/testing/manual/milestone-4.md:63–73`):
 
@@ -5248,11 +5282,16 @@ Key entry, Milestone 4 pattern (`plan/testing/manual/milestone-4.md:63–73`):
 read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
 ```
 
-- [ ] `bash scripts/smoke-test.sh` on the release build prints PASS, and the transcript is pasted (`plan/milestones/milestone-5.md:1890`). Remove any scratch config override first (`plan/testing/manual/milestone-4.md:1331`), which the model check in Setup shows.
+- [ ] `bash scripts/smoke-test.sh` on the tagged commit (plain step 10) prints PASS, and the transcript is given to Bishop (`plan/milestones/milestone-5.md:1894`). The commit is the one that gets tagged; the run is from the source tree, not the archive. Before the transcript is handed over, search it for the key text. Remove any scratch config override first (`plan/testing/manual/milestone-4.md:1331`), which the model check in Setup shows.
 
   ```bash
-  cd /Volumes/DATA/Github/kirsch && bash scripts/smoke-test.sh
+  cd /Volumes/DATA/Github/kirsch && git rev-parse HEAD && git status --short
+  cd /Volumes/DATA/Github/kirsch && npm run build && "$KIRSCH_BIN" --version
+  cd /Volumes/DATA/Github/kirsch && "$KIRSCH_BIN" doctor; echo "exit=$?"
+  cd /Volumes/DATA/Github/kirsch && bash scripts/smoke-test.sh; echo "exit=$?"
   ```
+
+  `git rev-parse HEAD` prints the full id written down in step 9. `git status --short` may list only files under `plan/testing/`. The doctor model line reads `ok  model:` with the default model, `minimax-m3`. The run ends with `--- PASS: TestSmokeLive` and `exit=0`.
 
 When the run is done, the block below unsets every key variable. Authored here. The count after the unset must print `CONTROL PASS`, then `0`.
 
@@ -5265,19 +5304,47 @@ keycount
 
 **Hands-on checks**
 
-1. (operator) Make the demo (O12) on a real terminal. Store or link it, and embed or link it in `README.md` (`plan/milestones/milestone-5.md:1879`).
+The numbers below match the plain checklist's section 37, steps 1 to 13, with step 12b after step 12. Each step is run in order. No step moves on until the one before it is ticked.
 
-   > **TO EXPAND when O12 is recorded:** the demo format and where it is stored.
+**Opening commit, before step 1.** Commit the checklist edits from earlier sections in two pastes, with the list read between them. Do not add the `-a` flag to that commit, because `-a` commits every tracked change unseen. Paste one is `git status --short`, which lists changes and commits nothing; expect only `plan/` paths or no lines. Git ignores the two `.bak` files, so they never show there and are never committed. Their ignore sources, as `git check-ignore -v` printed them (Bishop, 11:21 UTC, 2026-11-11):
 
-2. (operator) Delete the `.bak` files `opencode.json.bak` and `.claude/memory/state/FLIGHT-RECORDER.md.bak` (C14, `plan/milestones/milestone-5.md:1881`). This is a deletion. Confirm before it runs.
-3. (operator) Re-read the vendor price pages and confirm the model table (C9, X5). Record the date read (`plan/milestones/milestone-5.md:1882`).
-4. (operator) Run the walkthrough retests (C38) and tick the outstanding verification boxes (C61) (`plan/milestones/milestone-5.md:1883`).
-5. (operator) Update the `README.md` banner and "What works today" to name v0.1.0 (S31, `plan/milestones/milestone-5.md:1884`).
-6. (operator) **ONE-WAY.** Tag `v0.1.0` (S33, `plan/milestones/milestone-5.md:1885`). The tag publishes a public release through the release workflow (m5-d11), which is one-way. Run this step only after the smoke run in the live check has passed.
+```
+.gitignore:21:opencode.json.bak	opencode.json.bak
+.git/info/exclude:7:/.claude/	.claude/memory/state/FLIGHT-RECORDER.md.bak
+```
+
+If anything outside `plan/` is listed, stop and tell Bishop. Paste two runs only if paste one listed lines and all of them are under `plan/`: `git add -- plan/`, `git commit -m "Milestone 5 checklist updates"`, `git status --short`, expecting the commit and then an empty list. After paste two, if `git status --short` lists anything, stop and tell Bishop. Step 2 deletes the `.bak` files.
+
+1. (operator, check only) GitHub Actions: *Settings → Actions → General → Workflow permissions* (`plan/PROGRESS.md`, *Open from m5-d11*). Write down the option selected; leave it. The release workflow sets its own `permissions:`. If the *Release* run in step 12 fails with a permission error, stop and tell Bishop. Do not change the setting without Bishop. The crew has not checked GitHub's label wording.
+2. (operator) Delete the `.bak` files `opencode.json.bak` and `.claude/memory/state/FLIGHT-RECORDER.md.bak` (C14, `plan/milestones/milestone-5.md:1897`). This is a deletion that git cannot undo. Confirm before it runs. Then the `ls` check in *Automated checks* above, with its control. Give the output to Bishop.
+3. (operator) Local release snapshot: `brew install goreleaser`, then the snapshot run, `ls dist`, the Mac build's `--version`, and `go version -m dist/kirsch_darwin_arm64*/kirsch | grep -- -ldflags`, as in *Automated checks* above. The snapshot is a check only and publishes nothing.
+4. (operator, key needed, spends tokens) Build and check the binary (`npm run build`, then `--version`). Count the key lines, expect `0`. Enter the key with the secure pattern in *Live checks*. Then:
+   - (a) m5-d5 / section 3 approvals check (`plan/milestones/milestone-5.md:737`). Launch with `--new`. Ask for `Run the command echo approval-check, then stop.`, grant it with `a`, wait for the reply to finish, and run `/approvals`: the grant must be listed (control; stop if nothing is listed). At the clear question, press `n`. Quit. `"$KIRSCH_BIN" resume --workspace "$WORKSPACE"`, then `/approvals`: the grant is listed again (control: resume restores grants). Answer `y` to clear. Quit. Resume again, and `/approvals` shows the notice `no active session grants`. Each resumed screen shows the earlier message.
+   - (b) C11 final-report check, adapted from `plan/testing/manual/milestone-4.md` section 10, step 4. Launch with `--new`. Turn 1 changes a file (`hello.txt`), and its reply ends with the labelled sections Summary, Files changed, Commands run (PASS/FAIL per command), and Limitations. Then five turns of `Reply with just the word ok.`, so there are six. Run `/compact`: it must print `compaction complete`. If it prints `nothing to compact yet`, add one more filler turn and run `/compact` again; if it still refuses, stop and tell Bishop. Ask for the *Commands run* section of the first report, word for word; it must match. The turns spend a few tokens: seven or more short turns and one compaction.
+   - Clear the key with the unset block above, and count.
+   - (c) Typing line with `NO_COLOR=1`, no tokens (RD28, release triage sheet in `plan/PROGRESS.md`; the carried item is the m5-d9 section 4 bullet). This runs after the clear above, with no key set, so kirsch shows a notice that no key is set; that is expected. Launch with `NO_COLOR=1 "$KIRSCH_BIN" --new --workspace "$WORKSPACE"`. Type `hello` without Enter and watch the input line: it should redraw in place. If each key leaves a new copy of the line, record it for Bishop; it does not block the release. Backspace five times, then `/quit` and Enter. Nothing is sent.
+5. (operator, optional) Section 27's *(not yet run)* box in `plan/testing/manual/user-testing/milestone-5-donovan.md`. Close it now if you want to; the release does not depend on it.
+6. (operator) Walkthrough retests (C38, C61). The operator ticks these in their own files, not in this section. Before the key-needing milestone-0 boxes, count the key lines (expect `0`), enter the key as in *Live checks*, and clear and count after.
+   - C38: `plan/testing/manual/user-testing/milestone-2-donovan.md`, §1, the unticked box at about line 119 (the expand check); §10, the `/run` line marked ❌ at about line 503 (retest with scrolling), and the two unticked `/patch` boxes at about lines 536 and 537.
+   - C61: `plan/testing/manual/user-testing/milestone-0-donovan.md`, §11.4 *Scroll and pin*, the unticked boxes at about lines 358, 359, 360, 363, 365, 366 and 369; and `plan/testing/manual/user-testing/milestone-1-donovan.md`, §1, the box at about line 34 (*Outside a repository it refuses with a message naming `--workspace`*). The list is `plan/testing/README.md` *Outstanding Verification* (`plan/milestones/milestone-5.md:1899`).
+7. (operator) Demo (O12, `plan/milestones/milestone-5.md:1892`): two or three PNG screenshots, not asciinema. Use a window at least 80 columns wide and 24 rows tall: below 24 rows the hint line is not drawn (`internal/tui/view.go:539–542`), so the card's `Esc cancel` hint does not show. Order: Cmd+K; launch with `--new`; `start-screen.png` before any input; `/help`, then `help-overlay.png` (no key needed); Esc to close the overlay (only Esc or Ctrl+C closes it, and typed text such as `/quit` is ignored while it is open); `/quit`. Then the key: count (expect `0`), enter it, Cmd+K, launch with `--new`, type `Run the command echo demo, then stop.`, and take `approval-card.png` last, while the card waits, unanswered. Esc to refuse the command (the approval is not given; expected). Esc refuses this one command; it does not stop the turn. The card's hint line reads `Esc cancel` (`internal/tui/view.go:846`). The input line's busy hint (`internal/tui/composer.go:216–224`) is not a reliable end-of-turn cue, because `busy` clears when the refused command's card completes (`internal/tui/update.go:651`) while the turn continues; in that gap Enter is not ignored (`internal/tui/update.go:807–809`), Esc does not cancel (`internal/tui/update.go:790–792`), and `/quit` exits at once (`internal/tui/update.go:1513–1514`). If the model asks again with a new card, press Esc again. Wait until the model's reply has appeared under the refused command and has stopped growing for a few seconds, then `/quit`, unset, count. The pictures go in `doc/images/` as `start-screen.png` (start screen), `help-overlay.png` (the `/help` overlay) and `approval-card.png` (a turn with an approval card). The README links them. The operator checks each picture by eye: no API key text anywhere in the picture, including the scrollback.
+8. (operator, through Bishop, in chat) Say `update the README for v0.1.0`. The crew updates the banner, *What works today* and the screenshot links (S31). Check with `git status --short` (only README.md, `doc/images/` and checklist files under `plan/testing/`), `git diff README.md`, `grep -n 'v0.1.0' README.md` (at least one line) and `grep -n 'doc/images' README.md` (at least three lines). Say `re-read the prices`. The crew re-reads the vendor pages and compares the model table (C9, X5). Tick each only when Bishop reports it done and the price check matches. A difference stops the run.
+9. (operator) Commit and push `main`, in a new Terminal window without Setup, with the README change inside the commit that gets tagged. Check the list first (`git status --short`, expecting only `README.md`, `doc/images/` and `plan/testing/` paths), then stage by path, not with an all-files add. There are two pastes, joined by one `&&` chain in paste one: `git add -- README.md doc/images plan/testing && git commit -m "kirsch v0.1.0 release prep" && git push origin main`. If that prints `fatal: pathspec`, a path is missing (for example, the pictures from step 7), and nothing is committed or pushed: stop and tell Bishop. Paste two runs only after paste one finished with no error. Record the full id with `TAG_COMMIT=$(git rev-parse HEAD); echo "$TAG_COMMIT"`, and write it down. Record the short id with `git rev-parse --short HEAD`. Then the status control, after the commit and push, with `touch section37-probe.txt` created only after the commit so it cannot be committed: `git status --short -- section37-probe.txt` (expect `?? section37-probe.txt`, which shows the command prints a line when a file exists; if it does not print, stop and tell Bishop, and do not go on to step 10), `rm section37-probe.txt`, then `git status --short` (expect nothing). If it lists anything, stop and tell Bishop. The output order is: commit and push, the full id, the short id, then `?? section37-probe.txt`, then the empty status. Then wait for the *CI* run on that commit id to be green, and check with the commands in *Automated checks* above. Ticks made from here on touch only `plan/testing/` and are committed after the tag.
+10. (operator, key needed, spends tokens) Live smoke test on that commit (S34, `plan/milestones/milestone-5.md:1894`), in the Setup window from *Before you start* (it holds `$KIRSCH_BIN` and `keycount`, not the step 9 window): `git rev-parse HEAD` against the id written down in step 9, `git status --short` (only `plan/testing/`), the build and `--version`, the doctor line, the key count (expect `0`), the key, the smoke run. Search the transcript for the key text before it is given to Bishop for *Notes / evidence*. Then the unset and the key count, as in *Live checks*.
+11. (operator) **ONE-WAY.** Tag `v0.1.0` (S33, `plan/milestones/milestone-5.md:1893`). The tag publishes a public release through the release workflow (m5-d11). It cannot be quietly undone. Run this step only after steps 1 to 10 are ticked, and only after Bishop has asked and you have answered yes. In the new window, with `TAG_COMMIT` set to the id from step 9: `git fetch origin main`, the two `git rev-parse` lines, a `COMMIT MATCH` / `COMMIT MISMATCH` test against `TAG_COMMIT`, the planted-line control `printf ' M README.md\n M plan/testing/x.md\n' | grep -v -E '^.. plan/testing/'` (it must print ` M README.md` alone), then a check that `git status --short` lists only `plan/testing/` (printed as `other changes: []`), and the controls `git tag -l` (must list `m3` and `m4`) and `git tag -l v0.1.0` (must print nothing). Then `git tag -a v0.1.0 -m "kirsch v0.1.0" "$TAG_COMMIT"`, `git push origin v0.1.0`, and `git tag -l v0.1.0`. Give the gate output and the tag line to Bishop. The ticks made after step 9 are committed after the tag, in the close-out.
+12. (operator) After the tag: the *Release* run for `v0.1.0` is green on the *Actions* tab; if it is red, stop, copy the error, tell Bishop, and do not delete or re-push the tag yourself. The release page lists the four archives and the checksums file; `git tag -l v0.1.0` prints `v0.1.0`; download the archive for this Mac (`darwin_arm64` on Apple silicon), check it against the checksums file, and run `./kirsch --version`. Record whether it prints `0.1.0` or `v0.1.0`, and give the version line to Bishop. The install guide says `kirsch 0.1.0`; this is the first real check of it.
+12b. (operator, optional, after the tag) Clean-machine install: on a clean Mac or a container with no `kirsch` on its PATH and no model key set, follow `doc/install.md` from the top, using *Install from a release archive* and its checksum check, then, from inside a new Git folder (`mkdir`, `git init -q`, `cd`), `kirsch --version` and `kirsch doctor`. The doctor report shows `warn  key:`, as expected with no key. If neither is available, tell Bishop; the step is recorded as not run. It is not needed for the tag.
+13. (operator) Tell Bishop `section 37 done`, so the close-out mission can record it.
 
 **Notes / evidence**
 
-_Empty. Fill at run. Paste the smoke transcript and the tag output. No key appears in this file or in any report._
+_Empty. Fill at run. No key appears in this file or in any report. Each item below is given to Bishop:_
+
+- Step 2: the `ls` output of the two `.bak` files, with the `scripts/smoke-test.sh` control.
+- Step 11: the gate output (`COMMIT MATCH`, `other changes: []`, the `git tag -l` controls) and the `git tag -l v0.1.0` output after the push.
+- Step 10: the smoke transcript, searched for key text before handover.
+- Step 12: the version line that `./kirsch --version` printed on the released archive.
+- Step 12b (optional): the clean-machine install outputs, or `not run`.
 
 ---
 

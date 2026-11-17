@@ -4,7 +4,7 @@ This file is yours. Each section tests one piece of Milestone 5 once it is finis
 
 ## How to use this file
 
-1. Only do a section when Bishop tells you it is ready. A ready section has numbered steps; a section that is not ready says *Not ready yet*.
+1. Only do a section when Bishop tells you it is ready. A ready section has numbered steps; a section that is not ready says *Not ready yet*, and a section with nothing to do says *Nothing to do here*.
 2. Do *Before you start* first.
 3. In a section, do each step in order: paste the command into Terminal, press Enter, and compare what you see with *You should see*.
 4. If it matches, tick the box: change `- [ ]` to `- [x]`. A check mark (✅) inside the brackets also counts as a tick.
@@ -2612,7 +2612,7 @@ Above those lines you should also see `--- PASS` lines for each test. The last l
 
 ## 29 · Record your decisions (m5-d20)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d20 is finished.
+Nothing to do here: m5-d20 is done (recorded 2026-11-03, mission-20261103-05).
 
 ---
 
@@ -2691,7 +2691,7 @@ O23 (answered 2026-11-11): the O23 row in `plan/PROGRESS.md` reads `Go with a`. 
 
 ## 32 · The size limit on the debug log (only if your decision calls for it) (m5-d21c)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d21c is finished.
+Nothing to do here: m5-d21c is not needed (C24 is disclose, 2026-11-03).
 
 ---
 
@@ -2744,7 +2744,7 @@ The last line is `exit=0`. If you see `exit=1` instead, or no line above it, cop
 
 ## 34 · A library that makes unique IDs (only if your decision calls for it) (m5-d21e)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d21e is finished.
+Nothing to do here: m5-d21e is not needed (C40 keeps the stdlib ULID, 2026-11-03).
 
 ---
 
@@ -2806,10 +2806,449 @@ If you see `exit=1` instead, or no line above it, copy the output and tell Bisho
 
 ## 36 · What happens when two copies run at once (only if your decision calls for it) (m5-d21g)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d21g is finished.
+Nothing to do here: m5-d21g is not needed (C8 accepted, 2026-11-03).
 
 ---
 
 ## 37 · Demo and final release check (m5-d22)
 
-Not ready yet. This section will be written in the same step-by-step style when m5-d22 is finished.
+**What this checks:** the last steps before kirsch v0.1.0 is released. You build the release files on your Mac and check them. You run the hands-on checks that need a key. You take the screenshots for the front page, update the README, re-read the prices, run the live smoke test on the exact commit you will tag, and then tag it. Last, you check the published release and the archive.
+
+**Steps that reach outside your Mac, or change something git cannot undo:**
+- Step 1: opens the GitHub settings page. You check it and change nothing.
+- Step 2: deletes two files that git does not track. Git cannot bring them back.
+- Step 3: installs a package with Homebrew (`brew install goreleaser`).
+- Steps 4, 6, 7 and 10: spend a few tokens from your model key.
+- Step 9: pushes `main` to GitHub, publicly.
+- Step 11: **ONE-WAY.** Pushes the tag, and the release workflow publishes a public release.
+- Step 12: downloads the release archive and its checksums file from GitHub, with `curl`.
+- Step 12b (optional): installs kirsch on a clean machine or in a container, not on your working Mac.
+
+**Before this section:** do *Before you start* in this Terminal window. Setup B must have said `Ready.`. Commit any uncommitted changes left from earlier sections before you start step 1, so the working tree is clean. Do this in a new Terminal window, without Setup, because Setup moves `XDG_CONFIG_HOME` and git may then not find your settings.
+
+First paste. It only lists the changed files, and it commits nothing. Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git status --short
+```
+Expect only files under `plan/`, or no lines at all. Git ignores the two `.bak` files, `opencode.json.bak` and `.claude/memory/state/FLIGHT-RECORDER.md.bak`. They never show in this list and are never committed. Step 2 deletes them.
+- If the list is empty, there is nothing to commit. Skip the second paste.
+- If anything outside `plan/` is listed, stop and tell Bishop.
+
+Second paste. Use it only if the list had lines and all of them were under `plan/`:
+```
+cd /Volumes/DATA/Github/kirsch
+git add -- plan/
+git commit -m "Milestone 5 checklist updates"
+git status --short
+```
+Expect the commit to finish, then an empty list. If anything is still listed, stop and tell Bishop. Then go back to the Setup window. Afterwards `git status --short` lists only what this section changes.
+
+Steps 4, 6, 7 and 10 need a model key. You enter it yourself, with the command shown in those steps. Never paste the key into this file, into a chat, or into a report. Every key entry in this section follows one pattern: count the key lines first and expect `0`, enter the key, do the check, clear the key, and count again and expect `0`.
+
+Two things are checked by you only, not by the crew. The crew has not checked GitHub's own button and label wording. The crew has not run the live smoke test on the tagged commit, or any release step that publishes.
+
+**Step 1 — Check the GitHub setting that lets the release workflow write. Change nothing.**
+The release workflow sets its own `permissions:` in its file, so it does not depend on the repository setting. This step is a check only. In your browser:
+1. Open `https://github.com/djm56/kirsch`, signed in as the owner.
+2. Click *Settings*, then *Actions*, then *General*.
+3. Find *Workflow permissions*. Write down which option is selected. Leave it as it is, and do not press Save.
+
+The crew has not checked GitHub's label wording. If you cannot find *Workflow permissions*, stop and tell Bishop. If the *Release* run in step 12 fails with a permission error, stop and tell Bishop. Do not change the setting without Bishop.
+- [ ] *Workflow permissions* is checked, the option shown is written down, and the setting is unchanged
+
+**Step 2 — Delete the two stray `.bak` files.** This is a deletion. Git does not track these two files, so git cannot bring them back. Only run it when you are ready to lose them. If `rm` says *No such file or directory*, the file is already gone; carry on.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+rm -- opencode.json.bak .claude/memory/state/FLIGHT-RECORDER.md.bak
+```
+You should see nothing, or a *No such file or directory* message.
+
+Then check that both files are gone, and that the control file is still there:
+```
+cd /Volumes/DATA/Github/kirsch
+ls opencode.json.bak .claude/memory/state/FLIGHT-RECORDER.md.bak
+ls scripts/smoke-test.sh
+```
+You should see two lines saying *No such file or directory*, one for each `.bak` file. The second command should list `scripts/smoke-test.sh`. That control shows the error above is about the two files, not a wrong folder. Give the output of both commands to Bishop.
+- [ ] Both `.bak` files are reported missing, `scripts/smoke-test.sh` is listed, and the output is with Bishop
+
+**Step 3 — Build the release files on your Mac, as a local check.**
+Install the release tool. This installs the newest version, which may be newer than the version the release workflow uses. That is fine for this check, because this build is only a check and publishes nothing. The release workflow pins its own version.
+Paste:
+```
+brew install goreleaser
+goreleaser --version
+```
+You should see a version number. Any version is acceptable here.
+
+Then build the snapshot:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+goreleaser release --snapshot --clean; echo "result: $?"
+```
+Wait for it to finish. You should see `release succeeded` near the end and `result: 0` as the last line. Any other number means the run failed; tell Bishop.
+
+Then look at what it made:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+ls dist
+```
+You should see four archives, one for each of `darwin` and `linux`, each in `amd64` and `arm64`. You should also see one file that ends in `_checksums.txt`. Each archive name has the form `kirsch_<version>_<os>_<arch>.tar.gz`, and the checksums name has the form `kirsch_<version>_checksums.txt`. Those are the names the install guide (`doc/install.md`, the list near the top) says to expect. The version part will be a snapshot version, not `0.1.0`. That is expected. You should also see one folder for each build. One of the folder names starts with `kirsch_darwin_arm64`. An Intel Mac uses `darwin_amd64` in the same place.
+
+Check that exactly one folder matches the Mac build, then run its binary:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+ls -d dist/kirsch_darwin_arm64*
+dist/kirsch_darwin_arm64*/kirsch --version
+go version -m dist/kirsch_darwin_arm64*/kirsch | grep -- -ldflags
+```
+The first command should print one folder name. Apple silicon uses `darwin_arm64`; an Intel Mac uses `darwin_amd64`, and you change the pattern to match. You should see one line starting `kirsch` with a snapshot version in it, and one line containing `-X main.version=` followed by the same version. The version is not expected to be `0.1.0` here. Write down both lines, and tell Bishop if the `-ldflags` line is missing.
+- [ ] `result: 0`, the four archives and the checksums file are listed, the names follow the install guide's pattern, and the `--version` line and the `-ldflags` line with `main.version` both printed
+
+**Step 4 — Hands-on checks that need a key. These spend a few tokens.**
+First, build the binary from this commit, and check that it runs:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch && npm run build && "$KIRSCH_BIN" --version
+```
+`npm run build` builds `bin/kirsch`. You should see the build finish with no error message, then one line starting `kirsch`.
+- [ ] The build finished with no error, and the `--version` line printed
+
+Then the key count and the model check, before any key is entered.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+keycount_control
+keycount
+"$KIRSCH_BIN" doctor; echo "exit=$?"
+```
+You should see `CONTROL PASS: a planted key line counts as 1`, then `0`. In the doctor report you should see `ok  model:` with the default model, `minimax-m3`, and a `warn  key:` line, because no key is set. The last line should read `exit=0`.
+- [ ] The count reads `0`, and the doctor report shows `ok  model:` with `minimax-m3` and a `warn  key:` line
+
+Now enter the key with the secure command. Nothing shows on screen while you type, and that is normal. Type the key and press Enter.
+Paste:
+```
+read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
+```
+You should see the prompt come back with no message.
+
+**Step 4a — Approvals survive quitting and reopening.** This is the check owed by section 3 of this file, which needed a model turn to run. It has a control at each stage, so an empty result can be told apart from a broken check. Launch with `--new`, so the session is fresh.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+"$KIRSCH_BIN" --new --workspace "$WORKSPACE"
+```
+1. Type `Run the command echo approval-check, then stop.` and press Enter. An approval card appears. Press `a` to approve for the session. Wait for the reply to finish before you type anything else.
+2. Type `/approvals` and press Enter. You should see the command listed as a grant. This is the first control: if nothing is listed, stop and tell Bishop, because the rest of the check would prove nothing. The screen then asks *Clear N session grants?*. Press `n`. Only `y` clears the grants; `n` and Esc both leave them.
+3. Type `/quit` and press Enter. Then reopen the same session:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+"$KIRSCH_BIN" resume --workspace "$WORKSPACE"
+```
+4. The screen should show your earlier message, `Run the command echo approval-check, then stop.` Type `/approvals` and press Enter. The grant should be listed again. This is the second control: resume restores the grants. If nothing is listed, stop and tell Bishop. The clear question appears again. This time press `y`.
+5. Type `/quit` and press Enter. Reopen the same session once more with the `resume` command above.
+6. The screen should show your earlier message again. Type `/approvals` and press Enter. The notice `no active session grants` should show, and no grant should be listed. Type `/quit` to leave.
+- [ ] The grant was listed before the clear (control 1, answered `n`), listed again after resume (control 2, answered `y`), and after the second resume `/approvals` listed none; the resumed screen showed the earlier message each time
+
+**Step 4b — The final report survives compaction.** This is the check that the final report stays in the conversation through `/compact`. The report must be the first turn of the session, so that its reply falls in the part that compaction replaces. Compaction keeps the first prompt and the last four turns, and only runs from six turns up. It spends a few tokens on seven or more short turns and one compaction.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+"$KIRSCH_BIN" --new --workspace "$WORKSPACE"
+```
+1. Type `Create a file named hello.txt in this folder with one line: hello. Then run cat hello.txt.` and press Enter. Approve any card that appears with `y`, which approves it once. This is turn 1.
+2. You should see a final reply with the labelled sections *Summary*, *Files changed*, *Commands run* (each command with PASS or FAIL), and *Limitations*.
+3. Type `Reply with just the word ok.` and press Enter. Do this five more times, one turn at a time, waiting for each reply. That makes six turns.
+4. Type `/compact` and press Enter. Wait until it finishes. You should see `compaction complete`. If it shows `nothing to compact yet`, type `Reply with just the word ok.` once more, then `/compact` again. If it still shows `nothing to compact yet`, stop and tell Bishop.
+5. Type `Repeat the Commands run section of your first report, word for word.` and press Enter.
+
+You should see the same commands and the same PASS or FAIL lines as in the first report. Type `/quit` to leave.
+- [ ] The first reply had the labelled sections, `/compact` printed `compaction complete`, and the repeated *Commands run* section matched the first report
+
+Clear the key from this window, and check the count:
+Paste:
+```
+unset ANTHROPIC_API_KEY KIRSCH_ANTHROPIC_API_KEY OPENCODE_API_KEY KIRSCH_OPENCODE_API_KEY
+keycount_control
+keycount
+```
+You should see `CONTROL PASS: a planted key line counts as 1`, then `0`.
+- [ ] The count reads `0` after the unset
+
+**Step 4c — Typing check, no tokens.** This checks how the typing line looks while you type. Nothing is sent to the model. This runs with no key set, so kirsch shows a notice that no key is set. That is expected.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+NO_COLOR=1 "$KIRSCH_BIN" --new --workspace "$WORKSPACE"
+```
+1. Type `hello` but do not press Enter. Watch the input line.
+2. The one input line should update in place as you type. If each key leaves a new copy of the line on the screen instead, write down what you saw and tell Bishop. It does not block the release.
+3. Press Backspace five times. Type `/quit` and press Enter.
+- [ ] The typing line with `NO_COLOR=1` was watched, and what it did is with Bishop
+
+**Step 5 — (Optional) Section 27's last box.** Section 27 of this file has one box marked *(not yet run)*. It is not needed for the release. If you want to close it, do it now, using the steps in section 27. Do not copy them here. If you skip it, say so to Bishop.
+- [ ] (optional) Section 27's *(not yet run)* box is done, or skipped on purpose
+
+**Step 6 — Walkthrough retests. Tick the boxes in their own files, not here.**
+Some of the milestone-0 boxes need a model turn, so they need a key. Before you enter one, run the key count and expect `0`:
+```
+keycount_control
+keycount
+```
+Then enter the key with the step 4 command, do the checks, clear the key with the unset block at the end of step 4b, and count again.
+
+Open these files, run the checks described beside each box, and tick the box there only when you have seen the result:
+- `plan/testing/manual/user-testing/milestone-2-donovan.md`, §1, the box that starts *The completed card appears collapsed* (about line 119). It asks you to expand the card with Up arrow and Enter.
+- The same file, §10. The `/run` line at about line 503 is marked ❌, and it needs a retest with scrolling. The two `/patch` boxes at about lines 536 and 537 are unticked: *An approval card appears listing `plain.txt`*, and *`/patch ../escape.txt` raises no approval card*.
+- `plan/testing/manual/user-testing/milestone-0-donovan.md`, §11.4 (*Scroll and pin*), the unticked boxes at about lines 358, 359, 360, 363, 365, 366 and 369. Some say *during a running turn*. Those need the key, as above.
+- `plan/testing/manual/user-testing/milestone-1-donovan.md`, §1, the box that starts *Outside a repository it refuses with a message naming `--workspace`* (about line 34).
+
+Tell Bishop what you ticked and what you did not.
+- [ ] The milestone-2 boxes, the milestone-0 boxes and the milestone-1 box are each either ticked in their file or noted as not done, and each key entry had its count before and after
+
+**Step 7 — Screenshots for the front page (three PNG files).** The pictures go in a new folder, `doc/images/`, and the README links to them. The pictures must not show an API key. Two of the three need no key at all. Only the approval card needs a model turn, so it is taken last, with the key.
+
+Create the folder:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+mkdir -p doc/images
+```
+Open a Terminal window at least 80 columns wide and at least 24 rows tall, so the hint line under the approval card shows. Clear its scrollback with Cmd+K before each launch, so no earlier line shows.
+
+Part one, no key needed:
+1. Press Cmd+K, then launch kirsch with `--new`:
+   ```
+   cd /Volumes/DATA/Github/kirsch
+   "$KIRSCH_BIN" --new --workspace "$WORKSPACE"
+   ```
+2. Before you type anything, take the start screen. Use Cmd+Shift+4, then Space, then a click on the Terminal window. macOS saves the picture to the Desktop. Move it into `doc/images/` as `start-screen.png`. It shows the start screen, with an empty typing area.
+3. Type `/help` and press Enter. Take the picture the same way, and move it into `doc/images/` as `help-overlay.png`.
+4. Press Esc to close the help overlay. Only Esc or Ctrl+C closes it; typed text such as `/quit` is ignored while it is open. Then type `/quit` and press Enter.
+
+Part two, needs the key. This picture is taken last:
+5. Count the key lines before you enter a key. Expect `0`:
+   ```
+   keycount_control
+   keycount
+   ```
+6. Enter the key with the step 4 command. Then press Cmd+K, and launch kirsch again with the same command as in part one, step 1.
+7. Type `Run the command echo demo, then stop.` and press Enter. Take the picture while the approval card is still waiting. Do not answer it. Move it into `doc/images/` as `approval-card.png`.
+8. Press Esc to refuse the command; the approval is not given, and that is expected. The hint line under the card shows `Esc cancel`. Here it refuses this one command; it does not stop the turn. The model gets the refusal, then replies or asks again. If a new approval card appears, press Esc on it. Wait until the model's reply has appeared under the refused command and has stopped growing for a few seconds. Then type `/quit` and press Enter. If you quit before the reply finishes, nothing this step needs is lost, because the pictures are already taken. Then clear the key and check the count, as in step 4b.
+
+Open each picture in Preview. Check that no key text is visible anywhere, including the Terminal bar and the scrollback. If one shows a key, delete that picture and take it again, and tell Bishop.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+ls doc/images
+```
+You should see the three names above, and nothing else.
+- [ ] Three PNG files are in `doc/images/` with the names above, none of them shows a key, and the count reads `0` after the unset
+
+**Step 8 — Ask Bishop to update the README and re-read the prices.** You ask in chat. The crew does the work. You review it.
+Say to Bishop: `update the README for v0.1.0`
+
+The crew changes the banner, the *What works today* list, and the screenshot links in `README.md`. Read the change with the commands below, then tell Bishop what you found.
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git status --short
+git diff README.md
+grep -n 'v0.1.0' README.md
+grep -n 'doc/images' README.md
+```
+You should see `README.md` listed as changed. Apart from the folder `doc/images/` and the checklist files under `plan/testing/`, no other file should be listed. Any other file, for example one under `doc/`, `internal/` or `scripts/`, means stop and tell Bishop.
+
+The `git diff README.md` output shows the changed lines: the banner, and the *What works today* list. `grep -n 'v0.1.0'` should print at least one line, in the banner or in *What works today*. `grep -n 'doc/images'` should print at least three lines, one linking each of `start-screen.png`, `approval-card.png` and `help-overlay.png`.
+
+Then say to Bishop: `re-read the prices`
+
+The crew reads the vendor pages again and compares them with the model table. It reports the date it read them, and whether the table matches. If Bishop reports a difference, stop. A price change is a code change that needs review first, and the tag waits until it is done. Tell Bishop.
+- [ ] Bishop reported the README update done, and you read the diff and the two `grep` results
+- [ ] Bishop reported the price re-read matches the model table, with the date it was read
+
+**Step 9 — Commit and push `main`, then wait for CI to go green on that commit.** The README change must be in the commit you tag, so commit it now.
+
+Run steps 9 and 11 in a new Terminal window, without Setup. Setup moves `XDG_CONFIG_HOME`, and git may then not find your settings. A new window does not keep shell variables, so step 11 uses the commit id you write down here.
+
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git status --short
+```
+You should see only `README.md`, the folder `doc/images/`, and checklist files under `plan/testing/`. Git shows a new folder as one line, `?? doc/images/` (it lists the folder itself because `doc/` already holds tracked files), not as its three pictures; the `ls doc/images` in step 7 is what checks the three files. If anything else is listed, stop and tell Bishop.
+
+If the list is as expected, stage those paths, then commit and push. If this prints `fatal: pathspec`, a path is missing (for example, the pictures from step 7), and nothing is committed or pushed: stop and tell Bishop.
+
+Paste 1:
+```
+cd /Volumes/DATA/Github/kirsch
+git add -- README.md doc/images plan/testing && git commit -m "kirsch v0.1.0 release prep" && git push origin main
+```
+
+Paste 2, only after paste 1 finished with no error:
+```
+cd /Volumes/DATA/Github/kirsch
+TAG_COMMIT=$(git rev-parse HEAD); echo "$TAG_COMMIT"
+git rev-parse --short HEAD
+touch section37-probe.txt
+git status --short -- section37-probe.txt
+rm section37-probe.txt
+git status --short
+```
+
+You should see, in this order: from paste 1, the commit made, then the push finish with no error. Then, from paste 2, one line with the full 40-character commit id. **Write that full id down.** It is the commit you will tag. Then the short id. Then `?? section37-probe.txt`. The probe file is created after the commit, so it can never be committed. That line proves that `git status --short` prints a line when a file exists. If `?? section37-probe.txt` does not print, stop and tell Bishop, and do not go on to step 10. The probe is then removed, so the last `git status --short` lists nothing. If it lists anything, stop and tell Bishop.
+
+Then, in your browser, open the *Actions* tab of `https://github.com/djm56/kirsch`, and open the *CI* run for that commit id. Wait for it to finish.
+
+From here on, the ticks you make in steps 10 and 11 change checklist files under `plan/testing/` only. They are committed after the tag, in the close-out. The tag stays on the commit you wrote down.
+- [ ] The commit is pushed, the full commit id is written down, `?? section37-probe.txt` printed, the last `git status --short` listed nothing, and the *CI* run for that commit is green
+
+**Step 10 — Live smoke test on that commit. This spends tokens. Confirm your budget first.** The smoke test runs `go test` from the source tree, not from the release archive. So "on the release build" here means this: the exact commit you will tag, with nothing uncommitted except checklist files under `plan/testing/`. The archive itself is checked after the tag, in step 12.
+
+Go back to the Setup window from *Before you start*. It holds `$KIRSCH_BIN` and `keycount`, which this step needs. Do not run this step in the window from step 9.
+
+Confirm the commit and the tree:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git rev-parse HEAD
+git status --short
+```
+The first line must be the full commit id you wrote down in step 9. `git status --short` may list only files under `plan/testing/`, which are your ticks. Any other line: stop and tell Bishop.
+
+Build the binary from this commit, and check that it runs:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch && npm run build && "$KIRSCH_BIN" --version
+```
+You should see the build finish with no error message, then one line starting `kirsch`.
+
+Check the model line again, as in step 4:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+"$KIRSCH_BIN" doctor; echo "exit=$?"
+```
+You should see `ok  model:` with `minimax-m3`, and `exit=0`.
+
+Before you enter the key, count the key lines and expect `0`:
+Paste:
+```
+keycount_control
+keycount
+```
+You should see `CONTROL PASS: a planted key line counts as 1`, then `0`.
+
+Enter the key with the secure command, then run the smoke test:
+Paste:
+```
+read -rs OPENCODE_API_KEY && export OPENCODE_API_KEY
+cd /Volumes/DATA/Github/kirsch
+bash scripts/smoke-test.sh; echo "exit=$?"
+```
+It can take several minutes. You should see a line `--- PASS: TestSmokeLive` near the end, and the last line should read `exit=0`. Copy the whole transcript. Before you hand it over, search it for the key you typed. If any part of the key appears, do not send the transcript; tell Bishop. Otherwise give the transcript to Bishop. Bishop records it under *Notes / evidence* for section 37. Do not paste the key with it.
+
+Then clear the key, and check the count:
+Paste:
+```
+unset ANTHROPIC_API_KEY KIRSCH_ANTHROPIC_API_KEY OPENCODE_API_KEY KIRSCH_OPENCODE_API_KEY
+keycount_control
+keycount
+```
+You should see `CONTROL PASS: a planted key line counts as 1`, then `0`.
+- [ ] `git rev-parse HEAD` matches the id written down in step 9, and the build and doctor lines are as expected
+- [ ] The smoke test ended with `--- PASS: TestSmokeLive` and `exit=0`, the transcript holds no key text, and it is with Bishop
+- [ ] The key count reads `0` after the unset
+
+**Step 11 — ONE-WAY: tag `v0.1.0`.**
+
+**This publishes a public release through the release workflow. It cannot be quietly undone.** Do not run this step until steps 1 to 10 are all ticked. Ask Bishop to confirm with you before you run it. Bishop asks one question, and you answer yes only if steps 1 to 10 are ticked.
+
+Run this in the new Terminal window from step 9, without Setup. Replace the placeholder with the full commit id you wrote down in step 9:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+TAG_COMMIT=<the full commit id you wrote down in step 9>
+git fetch origin main
+git rev-parse HEAD
+git rev-parse origin/main
+[ "$(git rev-parse HEAD)" = "$TAG_COMMIT" ] && [ "$(git rev-parse origin/main)" = "$TAG_COMMIT" ] && echo "COMMIT MATCH" || echo "COMMIT MISMATCH"
+printf ' M README.md\n M plan/testing/x.md\n' | grep -v -E '^.. plan/testing/'
+OTHER=$(git status --short | grep -v -E '^.. plan/testing/'); echo "other changes: [$OTHER]"
+git tag -l
+git tag -l v0.1.0
+```
+You should see, in order: the control line ` M README.md` alone, which shows the filter drops the planted `plan/testing/` line and keeps the other; then the two `git rev-parse` lines each print the same full id as `TAG_COMMIT`; then `COMMIT MATCH`; then `other changes: []`; then a `git tag -l` list that includes `m3` and `m4`, which shows that tags are being read; then nothing from `git tag -l v0.1.0`, because the tag does not exist yet. If you see `COMMIT MISMATCH`, or any text after `other changes:`, stop and tell Bishop.
+
+Only after Bishop has confirmed, paste:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git tag -a v0.1.0 -m "kirsch v0.1.0" "$TAG_COMMIT"
+git push origin v0.1.0
+git tag -l v0.1.0
+```
+You should see the push finish with no error, and the last line print `v0.1.0`. Give the gate output and these lines to Bishop. The checklist ticks you make after step 9 are committed after the tag, in the close-out. The tag stays on the commit in `TAG_COMMIT`.
+- [ ] Bishop confirmed the tag, steps 1 to 10 were ticked, the gate printed `COMMIT MATCH` and `other changes: []`, and the tag and push ran without error
+- [ ] The gate output and the tag line are with Bishop
+
+**Step 12 — After the tag: the release run, the release page, the tag, and the archive for this Mac.**
+
+1. In your browser, open the *Actions* tab. Open the *Release* run for `v0.1.0`. Wait for it to finish.
+2. If the *Release* run is red, stop. Copy the error text and tell Bishop. Do not delete the tag, and do not push it again, yourself.
+3. If it is green, open `https://github.com/djm56/kirsch/releases`. The `v0.1.0` release should list the four archives and the checksums file.
+
+You should see a green tick on the *Release* run, and the release page lists the four archives and the checksums file.
+- [ ] The *Release* run for `v0.1.0` is green
+- [ ] The release page lists the four archives and the checksums file
+
+Check the tag:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git tag -l v0.1.0
+```
+You should see `v0.1.0`.
+- [ ] `git tag -l v0.1.0` prints `v0.1.0`
+
+Download the archive for this Mac, check it, and run it. Apple silicon uses `darwin_arm64`. An Intel Mac uses `darwin_amd64`. Change `ARCH` if needed.
+Paste:
+```
+VERSION=0.1.0
+ARCH=arm64
+ARCHIVE="kirsch_${VERSION}_darwin_${ARCH}.tar.gz"
+DIR="$(mktemp -d)" && cd "$DIR"
+curl -fLO "https://github.com/djm56/kirsch/releases/download/v${VERSION}/${ARCHIVE}"
+curl -fLO "https://github.com/djm56/kirsch/releases/download/v${VERSION}/kirsch_${VERSION}_checksums.txt"
+grep -F "${ARCHIVE}" "kirsch_${VERSION}_checksums.txt" | shasum -a 256 -c -
+tar -xzf "${ARCHIVE}"
+./kirsch --version; echo "exit=$?"
+```
+You should see `OK` after the archive name, then the version line, then `exit=0`. The install guide says the version line reads `kirsch 0.1.0`. Until now nobody has checked that against a real tag. Write down exactly what it printed, and give that version line to Bishop. Bishop records whether it reads `kirsch 0.1.0` or `kirsch v0.1.0`.
+- [ ] The checksum line ends in `OK`, `./kirsch --version` printed a version line, and that line is with Bishop
+
+**Step 12b — (Optional, after the tag) Install on a clean machine.** This checks the install guide the way a new user meets it. Use a clean Mac, or a container with no `kirsch` on its PATH and no model key set. Do not use your working Mac. This step is not needed for the tag. If you have neither a clean machine nor a container, say so to Bishop, and this step is recorded as not run.
+
+1. Follow `doc/install.md` from the top. Use the route *Install from a release archive*, with its checksum check.
+2. Then make a Git folder, and run these commands from inside it, so the repository check passes:
+   ```
+   mkdir -p "$HOME/kirsch-doctor-check" && cd "$HOME/kirsch-doctor-check" && git init -q .
+   kirsch --version
+   kirsch doctor
+   ```
+You should see a version line, and a doctor report with a `warn  key:` line, because no key is set. Give both outputs to Bishop.
+- [ ] (optional) The install route worked on a clean machine or container, and both outputs are with Bishop; or the step is recorded as not run
+
+**Step 13 — Tell Bishop.** Say to Bishop, in chat: `section 37 done`. Bishop then records it for the close-out mission.
+- [ ] I told Bishop `section 37 done`
+
+**Anything odd?** Write it here:
+
+_(nothing yet)_

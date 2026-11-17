@@ -1071,6 +1071,7 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Must-know-before:**
 - O3 is the blocker.
 - Repository Actions settings must allow write. That is an operator setting.
+  - Superseded on 2026-11-11 by section 37 step 1 of the plain checklist, which checks this setting only. See group 4 of *Milestone 5 — release triage (2026-11-11)* in `plan/PROGRESS.md`.
 - The first real tag run is operator-owned.
 
 ---
