@@ -355,18 +355,18 @@ One `Esc`, not two.
 - [✅] Type — it still stays where it was
 - [✅] New content arriving while scrolled up raises a `↓ n new` indicator
       bottom-right
-- [ ] Press `↑` to browse, then `End` — it re-pins and clears the indicator
-- [ ] Still browsing, scroll up again and press `G` — same result
-- [ ] Back in the composer (`Esc`), scroll up with `PgUp`, then press **`Ctrl+G`**
+- [✅] Press `↑` to browse, then `End` — it re-pins and clears the indicator
+- [✅] Still browsing, scroll up again and press `G` — same result
+- [✅] Back in the composer (`Esc`), scroll up with `PgUp`, then press **`Ctrl+G`**
       — the view re-pins and the indicator clears, and you are still in the
       composer
-- [ ] `Ctrl+G` leaves the composer's text exactly as it was — type `hello`,
+- [✅] `Ctrl+G` leaves the composer's text exactly as it was — type `hello`,
       scroll up, press `Ctrl+G`, and `hello` is still there, uncommitted
-- [ ] `Ctrl+G` sends nothing — no new user message appears in the transcript
-- [ ] `Ctrl+G` **during a running turn** re-pins too. Send a message, scroll up
+- [✅] `Ctrl+G` sends nothing — no new user message appears in the transcript
+- [✅] `Ctrl+G` **during a running turn** re-pins too. Send a message, scroll up
       while the assistant is streaming, press `Ctrl+G`: the view returns to the
       bottom even though the composer is input-disabled
-- [ ] `g` and `G` typed in the composer are still ordinary characters — they do
+- [✅] `g` and `G` typed in the composer are still ordinary characters — they do
       not scroll anything
 - [✅] Scroll up, then submit `/status` — the view re-pins so the answer is visible
 - [✅] Scroll up, then submit `/nonsense` — the view does **not** re-pin, because

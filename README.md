@@ -1,6 +1,6 @@
 # Kirsch
 
-> **Status: Milestones 0–4 complete (Milestone 4, the real task loop + sessions, operator-accepted 2026-10-23, tag `m4`); Milestone 5 (polish and release, v0.1.0) is in progress; per-deliverable status, including what is still open, is in plan/PROGRESS.md.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. A second instance in the same workspace is detected and degraded gracefully (fresh start, status-bar warning, grants disabled). Long conversations are compacted to stay within the context window, and `/compact` does so on demand. The slash commands work on real session state, the status bar shows session token and cost totals, and the system prompt asks the agent to end each task that took actions with a final-task report. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+> **Status: v0.1.0 is the first release. See the [v0.1.0 release page](https://github.com/djm56/kirsch/releases/tag/v0.1.0). While `plan/` remains, the items carried after the release are in plan/PROGRESS.md.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. A second instance in the same workspace is detected and degraded gracefully (fresh start, status-bar warning, grants disabled). Long conversations are compacted to stay within the context window, and `/compact` does so on demand. The slash commands work on real session state, the status bar shows session token and cost totals, and the system prompt asks the agent to end each task that took actions with a final-task report. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
 > Developer path, from a clone of the repository (for a built binary, see [Install](#install)):
 > ```
@@ -22,9 +22,9 @@ It works inside a Git repository, where it can:
 
 ## Install
 
-> **v0.1.0 is not published yet.** Until it is, build Kirsch from a clone of the repository. The release-archive route and `go install` by release tag, which [`doc/install.md`](doc/install.md) describes, need a published release, so they do not apply yet.
+> **v0.1.0 is the first release.** [`doc/install.md`](doc/install.md) covers installing from a release archive on the [releases page](https://github.com/djm56/kirsch/releases), installing with `go install github.com/djm56/kirsch/cmd/kirsch@v0.1.0`, and building from a clone.
 
-Build from a clone. These are the commands from the *Build from source* section of [`doc/install.md`](doc/install.md):
+These are the commands for building from a clone, from the *Build from source* section of [`doc/install.md`](doc/install.md):
 
 ```bash
 git clone https://github.com/djm56/kirsch.git
@@ -115,9 +115,17 @@ or someone using it?* Building → `plan/`. Using → `doc/`.
 
 ## Progress
 
-Milestones 0–4 are complete. Milestone 4 (the real task loop + sessions) was operator-accepted on 2026-10-23 and tagged `m4`; all of its deliverables are done. Milestone 5 (polish and release, v0.1.0) is in progress. Its instruction set and testing skeletons are written. Every crew deliverable is done and operator-tested (the latest on 2026-11-09; the checks still open are listed in [`plan/milestones/milestone-5-start-here.md`](plan/milestones/milestone-5-start-here.md)); m5-d22 (demo, release smoke run, tag) is the operator's and is not done. The status of each is in plan/PROGRESS.md. Live status — what's in progress, what's blocked, who owns each deliverable, and the items carried forward — is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md). To start Milestone 5, read [`plan/milestones/milestone-5-start-here.md`](plan/milestones/milestone-5-start-here.md).
+Milestone 4 (the real task loop + sessions) was operator-accepted on 2026-10-23 and tagged `m4`. Milestone 5 (polish and release) ends with the `v0.1.0` tag. While `plan/` remains, live status and the items carried after the release are in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 
 ## What works today
+
+This is what v0.1.0 does. The screenshots were taken on the build made just before the tag, so the start screen and the /help overlay show the version as `v0.1.0-dev`.
+
+![Kirsch start screen showing the KIRSCH title, version line, provider notice and the typing line with its placeholder text](doc/images/start-screen.png)
+
+![Kirsch approval card for the command echo demo, with the choices approve, approve for session, reject and detail](doc/images/approval-card.png)
+
+![Kirsch /help overlay listing the keys and slash commands](doc/images/help-overlay.png)
 
 Developer path, from a clone:
 
@@ -145,7 +153,7 @@ session (a fresh session after `/new` shows it again), and Kirsch falls back to
 the smallest known context window. The system prompt asks the agent to end each
 task that took actions with a final-task report.
 
-The slash commands now work on your real session. For example, `/status`
+The slash commands work on your real session. For example, `/status`
 reports the session's state and `/diff` shows the unstaged diff in a modal.
 The command table in [`doc/usage.md`](doc/usage.md) lists the rest.
 

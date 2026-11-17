@@ -31,7 +31,7 @@ Test the override and the failure path:
 ```bash
 cd /tmp && npm --prefix /path/to/kirsch run start
 ```
-- [ ] Outside a repository it refuses with a message naming `--workspace`,
+- [✅] Outside a repository it refuses with a message naming `--workspace`,
       rather than a panic or a bare exit code
 
 ```bash

@@ -116,7 +116,7 @@ Try an allowlisted command (the allowlist is: `go build`, `go test`, `git diff`,
 - [✅] No approval card appears at all
 - [✅] The command runs immediately
   At the Kirsch checkout root a bare `go test` finds no Go files, so the card shows `✗ exit status 1`. That is expected: this check is only that no approval card appears.
-- [ ] The completed card appears collapsed, showing its head line; expand it by focusing the transcript (Up arrow) and pressing Enter (ui-spec §3.3)
+- [✅] The completed card appears collapsed, showing its head line; expand it by focusing the transcript (Up arrow) and pressing Enter (ui-spec §3.3)
 
 Findings
 I still have to go to the run_command and click eneter to view the command
@@ -500,7 +500,7 @@ The debug commands are labelled `debug (M1–M2)` in `/help`, rendered by `helpL
 ```
 
 - [✅] `/patch` appears with the label `debug (M1–M2)`
-- [❌] `/run` appears with the label `debug (M1–M2)` (scroll with `j`/`k`, `g`/`G`, or PgUp/PgDn if the modal clamps content to available height — see Known Limitations)
+- [✅] `/run` appears with the label `debug (M1–M2)` (scroll with `j`/`k`, `g`/`G`, or PgUp/PgDn if the modal clamps content to available height — see Known Limitations)
 
 Findings
 No I am not seeing debug (M1–M2) I am seeing M1-M2 with patch only, also I am not seeing anything with run

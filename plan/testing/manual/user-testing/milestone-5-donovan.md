@@ -2855,7 +2855,7 @@ The release workflow sets its own `permissions:` in its file, so it does not dep
 3. Find *Workflow permissions*. Write down which option is selected. Leave it as it is, and do not press Save.
 
 The crew has not checked GitHub's label wording. If you cannot find *Workflow permissions*, stop and tell Bishop. If the *Release* run in step 12 fails with a permission error, stop and tell Bishop. Do not change the setting without Bishop.
-- [ ] *Workflow permissions* is checked, the option shown is written down, and the setting is unchanged
+- [✅] *Workflow permissions* is checked, the option shown is written down, and the setting is unchanged
 
 **Step 2 — Delete the two stray `.bak` files.** This is a deletion. Git does not track these two files, so git cannot bring them back. Only run it when you are ready to lose them. If `rm` says *No such file or directory*, the file is already gone; carry on.
 Paste:
@@ -2872,7 +2872,7 @@ ls opencode.json.bak .claude/memory/state/FLIGHT-RECORDER.md.bak
 ls scripts/smoke-test.sh
 ```
 You should see two lines saying *No such file or directory*, one for each `.bak` file. The second command should list `scripts/smoke-test.sh`. That control shows the error above is about the two files, not a wrong folder. Give the output of both commands to Bishop.
-- [ ] Both `.bak` files are reported missing, `scripts/smoke-test.sh` is listed, and the output is with Bishop
+- [✅] Both `.bak` files are reported missing, `scripts/smoke-test.sh` is listed, and the output is with Bishop
 
 **Step 3 — Build the release files on your Mac, as a local check.**
 Install the release tool. This installs the newest version, which may be newer than the version the release workflow uses. That is fine for this check, because this build is only a check and publishes nothing. The release workflow pins its own version.
@@ -2908,7 +2908,7 @@ dist/kirsch_darwin_arm64*/kirsch --version
 go version -m dist/kirsch_darwin_arm64*/kirsch | grep -- -ldflags
 ```
 The first command should print one folder name. Apple silicon uses `darwin_arm64`; an Intel Mac uses `darwin_amd64`, and you change the pattern to match. You should see one line starting `kirsch` with a snapshot version in it, and one line containing `-X main.version=` followed by the same version. The version is not expected to be `0.1.0` here. Write down both lines, and tell Bishop if the `-ldflags` line is missing.
-- [ ] `result: 0`, the four archives and the checksums file are listed, the names follow the install guide's pattern, and the `--version` line and the `-ldflags` line with `main.version` both printed
+- [✅] `result: 0`, the four archives and the checksums file are listed, the names follow the install guide's pattern, and the `--version` line and the `-ldflags` line with `main.version` both printed
 
 **Step 4 — Hands-on checks that need a key. These spend a few tokens.**
 First, build the binary from this commit, and check that it runs:
@@ -2917,7 +2917,7 @@ Paste:
 cd /Volumes/DATA/Github/kirsch && npm run build && "$KIRSCH_BIN" --version
 ```
 `npm run build` builds `bin/kirsch`. You should see the build finish with no error message, then one line starting `kirsch`.
-- [ ] The build finished with no error, and the `--version` line printed
+- [✅] The build finished with no error, and the `--version` line printed
 
 Then the key count and the model check, before any key is entered.
 Paste:
@@ -2928,7 +2928,7 @@ keycount
 "$KIRSCH_BIN" doctor; echo "exit=$?"
 ```
 You should see `CONTROL PASS: a planted key line counts as 1`, then `0`. In the doctor report you should see `ok  model:` with the default model, `minimax-m3`, and a `warn  key:` line, because no key is set. The last line should read `exit=0`.
-- [ ] The count reads `0`, and the doctor report shows `ok  model:` with `minimax-m3` and a `warn  key:` line
+- [✅] The count reads `0`, and the doctor report shows `ok  model:` with `minimax-m3` and a `warn  key:` line
 
 Now enter the key with the secure command. Nothing shows on screen while you type, and that is normal. Type the key and press Enter.
 Paste:
@@ -2954,7 +2954,7 @@ cd /Volumes/DATA/Github/kirsch
 4. The screen should show your earlier message, `Run the command echo approval-check, then stop.` Type `/approvals` and press Enter. The grant should be listed again. This is the second control: resume restores the grants. If nothing is listed, stop and tell Bishop. The clear question appears again. This time press `y`.
 5. Type `/quit` and press Enter. Reopen the same session once more with the `resume` command above.
 6. The screen should show your earlier message again. Type `/approvals` and press Enter. The notice `no active session grants` should show, and no grant should be listed. Type `/quit` to leave.
-- [ ] The grant was listed before the clear (control 1, answered `n`), listed again after resume (control 2, answered `y`), and after the second resume `/approvals` listed none; the resumed screen showed the earlier message each time
+- [✅] The grant was listed before the clear (control 1, answered `n`), listed again after resume (control 2, answered `y`), and after the second resume `/approvals` listed none; the resumed screen showed the earlier message each time
 
 **Step 4b — The final report survives compaction.** This is the check that the final report stays in the conversation through `/compact`. The report must be the first turn of the session, so that its reply falls in the part that compaction replaces. Compaction keeps the first prompt and the last four turns, and only runs from six turns up. It spends a few tokens on seven or more short turns and one compaction.
 Paste:
@@ -2969,7 +2969,7 @@ cd /Volumes/DATA/Github/kirsch
 5. Type `Repeat the Commands run section of your first report, word for word.` and press Enter.
 
 You should see the same commands and the same PASS or FAIL lines as in the first report. Type `/quit` to leave.
-- [ ] The first reply had the labelled sections, `/compact` printed `compaction complete`, and the repeated *Commands run* section matched the first report
+- [✅] The first reply had the labelled sections, `/compact` printed `compaction complete`, and the repeated *Commands run* section matched the first report
 
 Clear the key from this window, and check the count:
 Paste:
@@ -2979,7 +2979,7 @@ keycount_control
 keycount
 ```
 You should see `CONTROL PASS: a planted key line counts as 1`, then `0`.
-- [ ] The count reads `0` after the unset
+- [✅] The count reads `0` after the unset
 
 **Step 4c — Typing check, no tokens.** This checks how the typing line looks while you type. Nothing is sent to the model. This runs with no key set, so kirsch shows a notice that no key is set. That is expected.
 Paste:
@@ -2990,10 +2990,10 @@ NO_COLOR=1 "$KIRSCH_BIN" --new --workspace "$WORKSPACE"
 1. Type `hello` but do not press Enter. Watch the input line.
 2. The one input line should update in place as you type. If each key leaves a new copy of the line on the screen instead, write down what you saw and tell Bishop. It does not block the release.
 3. Press Backspace five times. Type `/quit` and press Enter.
-- [ ] The typing line with `NO_COLOR=1` was watched, and what it did is with Bishop
+- [✅] The typing line with `NO_COLOR=1` was watched, and what it did is with Bishop
 
 **Step 5 — (Optional) Section 27's last box.** Section 27 of this file has one box marked *(not yet run)*. It is not needed for the release. If you want to close it, do it now, using the steps in section 27. Do not copy them here. If you skip it, say so to Bishop.
-- [ ] (optional) Section 27's *(not yet run)* box is done, or skipped on purpose
+- [✅] (optional) Section 27's *(not yet run)* box is done, or skipped on purpose
 
 **Step 6 — Walkthrough retests. Tick the boxes in their own files, not here.**
 Some of the milestone-0 boxes need a model turn, so they need a key. Before you enter one, run the key count and expect `0`:
@@ -3010,7 +3010,7 @@ Open these files, run the checks described beside each box, and tick the box the
 - `plan/testing/manual/user-testing/milestone-1-donovan.md`, §1, the box that starts *Outside a repository it refuses with a message naming `--workspace`* (about line 34).
 
 Tell Bishop what you ticked and what you did not.
-- [ ] The milestone-2 boxes, the milestone-0 boxes and the milestone-1 box are each either ticked in their file or noted as not done, and each key entry had its count before and after
+- [✅] The milestone-2 boxes, the milestone-0 boxes and the milestone-1 box are each either ticked in their file or noted as not done, and each key entry had its count before and after
 
 **Step 7 — Screenshots for the front page (three PNG files).** The pictures go in a new folder, `doc/images/`, and the README links to them. The pictures must not show an API key. Two of the three need no key at all. Only the approval card needs a model turn, so it is taken last, with the key.
 
@@ -3049,7 +3049,7 @@ cd /Volumes/DATA/Github/kirsch
 ls doc/images
 ```
 You should see the three names above, and nothing else.
-- [ ] Three PNG files are in `doc/images/` with the names above, none of them shows a key, and the count reads `0` after the unset
+- [✅] Three PNG files are in `doc/images/` with the names above, none of them shows a key, and the count reads `0` after the unset
 
 **Step 8 — Ask Bishop to update the README and re-read the prices.** You ask in chat. The crew does the work. You review it.
 Say to Bishop: `update the README for v0.1.0`
@@ -3070,8 +3070,8 @@ The `git diff README.md` output shows the changed lines: the banner, and the *Wh
 Then say to Bishop: `re-read the prices`
 
 The crew reads the vendor pages again and compares them with the model table. It reports the date it read them, and whether the table matches. If Bishop reports a difference, stop. A price change is a code change that needs review first, and the tag waits until it is done. Tell Bishop.
-- [ ] Bishop reported the README update done, and you read the diff and the two `grep` results
-- [ ] Bishop reported the price re-read matches the model table, with the date it was read
+- [✅] Bishop reported the README update done, and you read the diff and the two `grep` results
+- [✅] Bishop reported the price re-read matches the model table, with the date it was read
 
 **Step 9 — Commit and push `main`, then wait for CI to go green on that commit.** The README change must be in the commit you tag, so commit it now.
 
@@ -3250,5 +3250,5 @@ You should see a version line, and a doctor report with a `warn  key:` line, bec
 - [ ] I told Bishop `section 37 done`
 
 **Anything odd?** Write it here:
-
+Step 1: Workflow permissions = "Read repository contents and packages permissions". Not changed.
 _(nothing yet)_
