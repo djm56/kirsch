@@ -211,7 +211,6 @@ func TestApprovalSendAsyncSequenceWithoutSendFn(t *testing.T) {
 	// Don't set sendFn - forces the real path through program.Send
 	a.sendFn = nil
 
-	stdin := bytes.NewReader([]byte("q"))
 	stdout := bytes.NewBuffer(nil)
 
 	// Create a program that tracks Send calls
@@ -234,7 +233,7 @@ func TestApprovalSendAsyncSequenceWithoutSendFn(t *testing.T) {
 		},
 	}
 
-	p := tea.NewProgram(m, tea.WithInput(stdin), tea.WithOutput(stdout))
+	p := tea.NewProgram(m, tea.WithInput(nil), tea.WithOutput(stdout))
 	a.Attach(p)
 
 	// Run program in goroutine
