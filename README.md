@@ -1,6 +1,6 @@
 # Kirsch
 
-> **Status: v0.1.0 is the first release. See the [v0.1.0 release page](https://github.com/djm56/kirsch/releases/tag/v0.1.0). While `plan/` remains, the items carried after the release are in plan/PROGRESS.md.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. A second instance in the same workspace is detected and degraded gracefully (fresh start, status-bar warning, grants disabled). Long conversations are compacted to stay within the context window, and `/compact` does so on demand. The slash commands work on real session state, the status bar shows session token and cost totals, and the system prompt asks the agent to end each task that took actions with a final-task report. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
+> **Status: v0.1.0 is the first release. v0.1.1 is the current release (v0.1.0 rebuilt with Go 1.26.11; see [`CHANGELOG.md`](CHANGELOG.md)). See the [v0.1.0 release page](https://github.com/djm56/kirsch/releases/tag/v0.1.0). While `plan/` remains, the items carried after the release are in plan/PROGRESS.md.** Kirsch runs real model turns against a repository: it reads, lists, searches and diffs the workspace through its tools, proposes small reviewable patches (every patch waits for your approval), and runs commands under a policy (exact-match allowlist, session-scoped grants, or explicit approval — shells always ask). Every turn is recorded to a durable local JSONL session log, and `kirsch resume` (or auto-resume on launch) restores the transcript and session-scoped grants. A second instance in the same workspace is detected and degraded gracefully (fresh start, status-bar warning, grants disabled). Long conversations are compacted to stay within the context window, and `/compact` does so on demand. The slash commands work on real session state, the status bar shows session token and cost totals, and the system prompt asks the agent to end each task that took actions with a final-task report. The authoritative build spec is [`plan/spec/kirsch-plan.md`](plan/spec/kirsch-plan.md); progress is tracked in [`plan/PROGRESS.md`](plan/PROGRESS.md).
 >
 > Developer path, from a clone of the repository (for a built binary, see [Install](#install)):
 > ```
@@ -22,7 +22,7 @@ It works inside a Git repository, where it can:
 
 ## Install
 
-> **v0.1.0 is the first release.** [`doc/install.md`](doc/install.md) covers installing from a release archive on the [releases page](https://github.com/djm56/kirsch/releases), installing with `go install github.com/djm56/kirsch/cmd/kirsch@v0.1.0`, and building from a clone.
+> **v0.1.0 is the first release.** [`doc/install.md`](doc/install.md) covers installing from a release archive on the [releases page](https://github.com/djm56/kirsch/releases), installing with `go install github.com/djm56/kirsch/cmd/kirsch@v0.1.1`, and building from a clone. v0.1.1 is the current release: it is v0.1.0 built with Go 1.26.11, which fixes the standard-library advisory GO-2026-6859. Upgrade from v0.1.0; see [`CHANGELOG.md`](CHANGELOG.md).
 
 These are the commands for building from a clone, from the *Build from source* section of [`doc/install.md`](doc/install.md):
 
@@ -82,8 +82,8 @@ UI tuning. Do not build these early.
 
 ```
 plan/     everything needed to BUILD Kirsch — spec, architecture, ADRs,
-          UI spec, per-milestone instruction sets. Scaffolding; goes away
-          after v0.1.0.
+          UI spec, per-milestone instruction sets. Scaffolding; plan/ stays
+          for now and will be removed in a later release.
 doc/      everything needed to USE Kirsch — install, configuration, usage,
           troubleshooting. The pages are in place, and `doc/README.md`
           indexes them.

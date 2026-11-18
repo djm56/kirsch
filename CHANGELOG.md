@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Security
+
+- **The Go toolchain is 1.26.11, which fixes GO-2026-6859 in the standard library's `net/http`.** `go.mod` moves from `go 1.26.10` to `go 1.26.11`, and `go.sum` is unchanged. `govulncheck` found GO-2026-6859 under go1.26.10, and the advisory is reachable from Kirsch's code. The release workflow builds with the Go version in `go.mod` (`.github/workflows/release.yml:52`), which was go1.26.10 at `492bd17`, so the v0.1.0 binaries were built with it. Upgrade to v0.1.1 (plan amendment 99, superseding amendment 88's pin).
+
+## [0.1.0] — 2026-11-17
+
 ### Added
 
 - **The README has an Install section, and the narrow-width `N tok` claim is corrected.** The new *Install* section in `README.md` links `doc/install.md` and says v0.1.0 is not yet published, so it gives build-from-clone commands only. `AGENTS.md` names the ADRs that exist now, 0001–0012. The m4-d9 entry below now says the `N tok` fallback applies at 80 columns and wider only, as `plan/spec/ui-spec-v0.1.md:131` states.
@@ -363,3 +371,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `go 1.25.13`; CI follows it through `go-version-file`.
 
 [Unreleased]: https://github.com/djm56/kirsch/commits/main
+[0.1.0]: https://github.com/djm56/kirsch/releases/tag/v0.1.0

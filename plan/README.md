@@ -24,6 +24,7 @@ Using → `doc/`.
 | [`testing/`](testing/) | How to verify Kirsch — manual walkthroughs per milestone, what the automated suite covers, and the security tooling. See [`testing/README.md`](testing/README.md) for detail. |
 | [`adr/`](adr/) | Architecture decision records, documenting why major design decisions were made. See [`adr/README.md`](adr/README.md) for the index and what an ADR is. |
 | [`milestones/`](milestones/) | Per-milestone instruction sets. See [`milestones/README.md`](milestones/README.md) for the confidence levels and how milestones map to shipped code. |
+| [`docs-site-plan.md`](docs-site-plan.md) | Planning only, nothing built: how the user documentation in `doc/` would be restructured, built as a website on release tags, and published, with the operator's open decisions. |
 
 ## Milestone Instruction Sets
 
@@ -37,7 +38,7 @@ ahead is usually wrong by the time anyone reads it.
 
 M2, M3 and M4 were drafted together on 2026-09-12 at the owner's request, so
 that trade has been made deliberately and is recorded as plan §11 amendment 50.
-**M0–M4 are complete** (tag `m4`, 2026-10-23) and M5 is in progress. Each of the
+**M0–M5 are complete** — with one exception: GitHub CI on the tagged commit was red on its security job (GO-2026-6859). v0.1.1 fixes it. (Tag `m4`, 2026-10-23; M5 ends with tag `v0.1.0`, 2026-11-17.) Each of the
 drafted instruction sets carried a status banner saying how far it could be
 trusted: **M2 was executable as written**, M3 was settled in shape but
 provisional in detail, and M4 was a scope statement that was rewritten into a

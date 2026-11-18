@@ -91,6 +91,7 @@ This forgets the test setup in this window. It also prints one line starting `rm
 | 35 | A written change to the specification (its section 7) (only if your decision calls for it) |
 | 36 | What happens when two copies run at once (only if your decision calls for it) |
 | 37 | Demo and final release check |
+| 38 | Release v0.1.1 (security fix) |
 
 ## If something does not match
 
@@ -3108,7 +3109,7 @@ You should see, in this order: from paste 1, the commit made, then the push fini
 Then, in your browser, open the *Actions* tab of `https://github.com/djm56/kirsch`, and open the *CI* run for that commit id. Wait for it to finish.
 
 From here on, the ticks you make in steps 10 and 11 change checklist files under `plan/testing/` only. They are committed after the tag, in the close-out. The tag stays on the commit you wrote down.
-- [ ] The commit is pushed, the full commit id is written down, `?? section37-probe.txt` printed, the last `git status --short` listed nothing, and the *CI* run for that commit is green
+- [✅] The commit is pushed, the full commit id is written down, `?? section37-probe.txt` printed, the last `git status --short` listed nothing, and the *CI* run for that commit is green
 
 **Step 10 — Live smoke test on that commit. This spends tokens. Confirm your budget first.** The smoke test runs `go test` from the source tree, not from the release archive. So "on the release build" here means this: the exact commit you will tag, with nothing uncommitted except checklist files under `plan/testing/`. The archive itself is checked after the tag, in step 12.
 
@@ -3163,9 +3164,9 @@ keycount_control
 keycount
 ```
 You should see `CONTROL PASS: a planted key line counts as 1`, then `0`.
-- [ ] `git rev-parse HEAD` matches the id written down in step 9, and the build and doctor lines are as expected
-- [ ] The smoke test ended with `--- PASS: TestSmokeLive` and `exit=0`, the transcript holds no key text, and it is with Bishop
-- [ ] The key count reads `0` after the unset
+- [✅] `git rev-parse HEAD` matches the id written down in step 9, and the build and doctor lines are as expected
+- [✅] The smoke test ended with `--- PASS: TestSmokeLive` and `exit=0`, the transcript holds no key text, and it is with Bishop
+- [✅] The key count reads `0` after the unset
 
 **Step 11 — ONE-WAY: tag `v0.1.0`.**
 
@@ -3196,8 +3197,8 @@ git push origin v0.1.0
 git tag -l v0.1.0
 ```
 You should see the push finish with no error, and the last line print `v0.1.0`. Give the gate output and these lines to Bishop. The checklist ticks you make after step 9 are committed after the tag, in the close-out. The tag stays on the commit in `TAG_COMMIT`.
-- [ ] Bishop confirmed the tag, steps 1 to 10 were ticked, the gate printed `COMMIT MATCH` and `other changes: []`, and the tag and push ran without error
-- [ ] The gate output and the tag line are with Bishop
+- [✅] Bishop confirmed the tag, steps 1 to 10 were ticked, the gate printed `COMMIT MATCH` and `other changes: []`, and the tag and push ran without error
+- [✅] The gate output and the tag line are with Bishop
 
 **Step 12 — After the tag: the release run, the release page, the tag, and the archive for this Mac.**
 
@@ -3206,8 +3207,8 @@ You should see the push finish with no error, and the last line print `v0.1.0`. 
 3. If it is green, open `https://github.com/djm56/kirsch/releases`. The `v0.1.0` release should list the four archives and the checksums file.
 
 You should see a green tick on the *Release* run, and the release page lists the four archives and the checksums file.
-- [ ] The *Release* run for `v0.1.0` is green
-- [ ] The release page lists the four archives and the checksums file
+- [✅] The *Release* run for `v0.1.0` is green
+- [✅] The release page lists the four archives and the checksums file
 
 Check the tag:
 Paste:
@@ -3216,7 +3217,7 @@ cd /Volumes/DATA/Github/kirsch
 git tag -l v0.1.0
 ```
 You should see `v0.1.0`.
-- [ ] `git tag -l v0.1.0` prints `v0.1.0`
+- [✅] `git tag -l v0.1.0` prints `v0.1.0`
 
 Download the archive for this Mac, check it, and run it. Apple silicon uses `darwin_arm64`. An Intel Mac uses `darwin_amd64`. Change `ARCH` if needed.
 Paste:
@@ -3232,7 +3233,7 @@ tar -xzf "${ARCHIVE}"
 ./kirsch --version; echo "exit=$?"
 ```
 You should see `OK` after the archive name, then the version line, then `exit=0`. The install guide says the version line reads `kirsch 0.1.0`. Until now nobody has checked that against a real tag. Write down exactly what it printed, and give that version line to Bishop. Bishop records whether it reads `kirsch 0.1.0` or `kirsch v0.1.0`.
-- [ ] The checksum line ends in `OK`, `./kirsch --version` printed a version line, and that line is with Bishop
+- [✅] The checksum line ends in `OK`, `./kirsch --version` printed a version line, and that line is with Bishop
 
 **Step 12b — (Optional, after the tag) Install on a clean machine.** This checks the install guide the way a new user meets it. Use a clean Mac, or a container with no `kirsch` on its PATH and no model key set. Do not use your working Mac. This step is not needed for the tag. If you have neither a clean machine nor a container, say so to Bishop, and this step is recorded as not run.
 
@@ -3244,11 +3245,131 @@ You should see `OK` after the archive name, then the version line, then `exit=0`
    kirsch doctor
    ```
 You should see a version line, and a doctor report with a `warn  key:` line, because no key is set. Give both outputs to Bishop.
-- [ ] (optional) The install route worked on a clean machine or container, and both outputs are with Bishop; or the step is recorded as not run
+- [✅] (optional) The install route worked on a clean machine or container, and both outputs are with Bishop; or the step is recorded as not run
 
 **Step 13 — Tell Bishop.** Say to Bishop, in chat: `section 37 done`. Bishop then records it for the close-out mission.
-- [ ] I told Bishop `section 37 done`
+- [✅] I told Bishop `section 37 done`
 
 **Anything odd?** Write it here:
 Step 1: Workflow permissions = "Read repository contents and packages permissions". Not changed.
 _(nothing yet)_
+
+## 38 · Release v0.1.1 (security fix)
+
+**What this is:** v0.1.0 shipped with a Go security issue, GO-2026-6859, in the standard library's `net/http`. v0.1.1 is the same program built with Go 1.26.11, which fixes it.
+
+**What this checks:** the fix is committed and pushed, GitHub CI goes green on that commit (including the `security` job), the tag `v0.1.1` is pushed, and the published release and the archive for this Mac are checked the way section 37 checked v0.1.0. This section spends no tokens and needs no model key, so no Setup window is needed. Never paste an API key into this file, into a chat, or into a report.
+
+**Before this section:** the install guide and the README now name v0.1.1 before its tag exists. That is deliberate: the docs have to be in the tagged commit. Until step 4 is done, the `go install ...@v0.1.1` line and the archive download will fail. That is expected, and it is not a bug.
+
+**Steps that reach outside your Mac, or change something git cannot undo:**
+- Step 2: pushes `main` to GitHub, publicly.
+- Step 4: **ONE-WAY.** Pushes the tag, and the release workflow publishes a public release.
+- Step 5: downloads the release archive and its checksums file from GitHub, with `curl`.
+
+**Step 1 — Check the changed files. Change nothing.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git status --short
+```
+You should see these lines, in any order, and no others:
+```
+ M CHANGELOG.md
+ M README.md
+ M doc/install.md
+ M go.mod
+ M plan/PROGRESS.md
+ M plan/README.md
+ M plan/milestones/README.md
+ M plan/milestones/milestone-5-start-here.md
+ M plan/spec/kirsch-plan.md
+ M plan/testing/manual/user-testing/milestone-5-donovan.md
+?? plan/docs-site-plan.md
+```
+- If a line is listed that is not in this list, stop and tell Bishop.
+- [ ] `git status --short` lists only the files above, and nothing else
+
+**Step 2 — Commit and push the fix.**
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git add -A -- go.mod CHANGELOG.md README.md doc plan && git commit -m "kirsch v0.1.1: Go 1.26.11 (GO-2026-6859); Milestone 5 close-out" && git push origin main
+git status --short
+git rev-parse HEAD
+```
+You should see the commit and the push finish with no error. Then `git status --short` prints nothing, and `git rev-parse HEAD` prints one full commit id, 40 characters long. Write that id down in full. Steps 3 and 4 use it.
+- If `git status --short` still lists anything, stop and tell Bishop.
+- [ ] The commit and push finished with no error, `git status --short` is empty, and the full commit id is written down
+
+**Step 3 — Wait for CI on GitHub to go green.**
+1. In your browser, open `https://github.com/djm56/kirsch/actions`.
+2. Open the *CI* run for the commit id from step 2. Check that its commit id is the one you wrote down.
+3. Wait for it to finish. **Every job must be green, including `security`.**
+4. If any job is red, stop. Copy the job name and the error text, and tell Bishop. Do not tag.
+- [ ] The *CI* run for the step 2 commit is green in every job, including `security`
+
+**Step 4 — ONE-WAY: tag `v0.1.1`.**
+
+**This publishes a public release through the release workflow. It cannot be quietly undone.** Do not run this step until steps 1 to 3 are all ticked. Ask Bishop to confirm with you before you run it. Bishop asks one question, and you answer yes only if steps 1 to 3 are ticked.
+
+Run the gate first. Replace the placeholder with the full commit id from step 2:
+Paste:
+```
+cd /Volumes/DATA/Github/kirsch
+TAG_COMMIT=<the full commit id from step 2>
+git fetch origin main
+git rev-parse HEAD
+git rev-parse origin/main
+[ "$(git rev-parse HEAD)" = "$TAG_COMMIT" ] && [ "$(git rev-parse origin/main)" = "$TAG_COMMIT" ] && echo "COMMIT MATCH" || echo "COMMIT MISMATCH"
+CONTROL=0000000000000000000000000000000000000000; [ "$(git rev-parse HEAD)" = "$CONTROL" ] && echo "control: matched (the gate is broken)" || echo "control: mismatch, as expected"
+printf ' M README.md\n M plan/testing/x.md\n' | grep -v -E '^.. plan/testing/'
+OTHER=$(git status --short | grep -v -E '^.. plan/testing/'); echo "other changes: [$OTHER]"
+git tag -l
+git tag -l v0.1.1
+```
+You should see, in order: the two `git rev-parse` lines, each printing the same full id as `TAG_COMMIT`; then `COMMIT MATCH`; then `control: mismatch, as expected`; then the planted-line control, the line ` M README.md` alone, which shows the filter drops the planted `plan/testing/` line and keeps the other; then `other changes: []`; then a `git tag -l` list that includes `v0.1.0`, which shows that tags are being read; then nothing from `git tag -l v0.1.1`, because the tag does not exist yet. Your ticks in files under `plan/testing/` are the only changes allowed here; they are committed after the tag. If you see `COMMIT MISMATCH`, or `control: matched`, or any text after `other changes:`, stop and tell Bishop.
+
+Only after Bishop has confirmed, paste:
+```
+cd /Volumes/DATA/Github/kirsch
+git tag -a v0.1.1 -m "kirsch v0.1.1" "$TAG_COMMIT"
+git push origin v0.1.1
+git tag -l v0.1.1
+```
+You should see the push finish with no error, and the last line print `v0.1.1`. Give the gate output and these lines to Bishop. The ticks you make in this section are committed after the tag, in the close-out. The tag stays on the commit in `TAG_COMMIT`.
+- [ ] Bishop confirmed the tag, steps 1 to 3 were ticked, the gate printed `COMMIT MATCH`, the planted-line control printed ` M README.md` alone, and `other changes: []`, and the tag and push ran without error
+- [ ] The gate output and the tag line are with Bishop
+
+**If you stop before the tag.** Tell Bishop. Bishop's crew then reverts the `0.1.1` pins in `README.md` and `doc/install.md` (a doc change, with review), and you commit that change.
+
+**Step 5 — After the tag: the release run, the release page, and the archive for this Mac.**
+1. In your browser, open the *Actions* tab. Open the *Release* run for `v0.1.1`. Wait for it to finish.
+2. If the *Release* run is red, stop. Copy the error text and tell Bishop. Do not delete the tag, and do not push it again, yourself.
+3. If it is green, open `https://github.com/djm56/kirsch/releases`. The `v0.1.1` release should list the archives and the checksums file.
+- [ ] The *Release* run for `v0.1.1` is green
+- [ ] The release page lists the archives and the checksums file
+
+Download the archive for this Mac, check it, and run it. Apple silicon uses `darwin_arm64`. An Intel Mac uses `darwin_amd64`. Change `ARCH` if needed.
+Paste:
+```
+VERSION=0.1.1
+ARCH=arm64
+ARCHIVE="kirsch_${VERSION}_darwin_${ARCH}.tar.gz"
+DIR="$(mktemp -d)" && cd "$DIR"
+curl -fLO "https://github.com/djm56/kirsch/releases/download/v${VERSION}/${ARCHIVE}"
+curl -fLO "https://github.com/djm56/kirsch/releases/download/v${VERSION}/kirsch_${VERSION}_checksums.txt"
+grep -c -F "${ARCHIVE}" "kirsch_${VERSION}_checksums.txt"
+grep -F "${ARCHIVE}" "kirsch_${VERSION}_checksums.txt" | shasum -a 256 -c -
+tar -xzf "${ARCHIVE}"
+./kirsch --version; echo "exit=$?"
+```
+You should see, in order: `1` from the `grep -c` line, which shows the checksums file has a line for the archive; then `OK` after the archive name; then the version line; then `exit=0`. The install guide says the version line reads `kirsch 0.1.1`. Write down exactly what it printed, and give that version line to Bishop. If the `grep -c` line prints `0`, stop and tell Bishop.
+- [ ] The checksum line ends in `OK`, `./kirsch --version` printed a version line, and that line is with Bishop
+
+**Step 6 — Tell Bishop.** Say to Bishop, in chat: `section 38 done`. Bishop then records it for the close-out.
+- [ ] I told Bishop `section 38 done`
+
+**Anything odd?** Write it here:
+_(nothing yet)_
+

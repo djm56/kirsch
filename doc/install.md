@@ -55,17 +55,17 @@ Release archives are on the
 
 Each release has a `.tar.gz` archive for every supported platform, and a
 checksum file for the whole release. The names follow this pattern, where
-`<version>` is the release number without the leading `v`, such as `0.1.0`:
+`<version>` is the release number without the leading `v`, such as `0.1.1`:
 
 - `kirsch_<version>_<os>_<arch>.tar.gz`, where `<os>` is `darwin` or `linux`
   and `<arch>` is `amd64` or `arm64`
 - `kirsch_<version>_checksums.txt`
 
-The steps below use version `0.1.0` on macOS with Apple silicon. Change the
+The steps below use version `0.1.1` on macOS with Apple silicon. Change the
 variables at the top for your release and platform.
 
 ```bash
-VERSION=0.1.0
+VERSION=0.1.1
 OS=darwin
 ARCH=arm64
 ARCHIVE="kirsch_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -123,13 +123,13 @@ kirsch --version
 A release binary prints the release version, for example:
 
 ```text
-kirsch 0.1.0
+kirsch 0.1.1
 ```
 
 ## Install with `go install`
 
 `go install` builds Kirsch from its source on the module proxy. You need Go
-1.26.10 or later, the version named in the module's `go` line. Run `go version`
+1.26.11 or later, the version named in the module's `go` line. Run `go version`
 to see what you have. If your Go is older, recent Go releases fetch the
 required toolchain automatically. They do this unless `GOTOOLCHAIN` is set to
 `local`.
@@ -143,7 +143,7 @@ go install github.com/djm56/kirsch/cmd/kirsch@latest
 Or install one release, by tag:
 
 ```bash
-go install github.com/djm56/kirsch/cmd/kirsch@v0.1.0
+go install github.com/djm56/kirsch/cmd/kirsch@v0.1.1
 ```
 
 The binary goes to `$(go env GOBIN)` when `GOBIN` is set. Otherwise it goes to
@@ -153,7 +153,7 @@ The version text depends on what you built from:
 
 | You installed | `kirsch --version` prints |
 |---|---|
-| A release tag, such as `@v0.1.0`, or `@latest` once a release exists | The tag without its leading `v`, such as `kirsch 0.1.0` |
+| A release tag, such as `@v0.1.1`, or `@latest`, which is the newest release | The tag without its leading `v`, such as `kirsch 0.1.1` |
 | Anything else, such as a branch (`@main`) or a commit | `kirsch 0.1.0-dev` |
 
 Go records a commit as a pseudo-version, which is not a release tag, so a
@@ -226,7 +226,7 @@ counts the results.
 This is an example. Your lines and paths depend on your machine:
 
 ```text
-kirsch 0.1.0
+kirsch 0.1.1
 ok  git: found at /usr/bin/git
 ok  rg: found at /usr/local/bin/rg
 ok  repository: /home/you/project
