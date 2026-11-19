@@ -22,7 +22,7 @@ It works inside a Git repository, where it can:
 
 ## Install
 
-> **v0.1.0 is the first release.** [`doc/install.md`](doc/install.md) covers installing from a release archive on the [releases page](https://github.com/djm56/kirsch/releases), installing with `go install github.com/djm56/kirsch/cmd/kirsch@v0.1.1`, and building from a clone. v0.1.1 is the current release: it is v0.1.0 built with Go 1.26.11, which fixes the standard-library advisory GO-2026-6859. Upgrade from v0.1.0; see [`CHANGELOG.md`](CHANGELOG.md).
+> **v0.1.0 is the first release.** [`doc/install.md`](doc/install.md) covers installing from a release archive on the [releases page](https://github.com/djm56/kirsch/releases), installing with `go install github.com/djm56/kirsch/cmd/kirsch@v0.1.1`, and building from a clone. v0.1.1 is the current release: it is v0.1.0 built with Go 1.26.11, which fixes the standard-library advisory GO-2026-6859. Upgrade from v0.1.0; see [`CHANGELOG.md`](CHANGELOG.md). The user documentation is at **[maidens.co.za/kirsch/docs/](https://maidens.co.za/kirsch/docs/)**.
 
 These are the commands for building from a clone, from the *Build from source* section of [`doc/install.md`](doc/install.md):
 
