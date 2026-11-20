@@ -27,23 +27,20 @@ type BindingGroup struct {
 // bindingGroups is what the help overlay renders, mode by mode. ui-spec §5.2.
 //
 // It is the authority on what help *says*, not on what the program accepts.
-// Some keys are handled and deliberately unlisted — among them Home in the
-// transcript, Home, End, PgUp and PgDn in a modal, Esc in Browsing, approval
-// and the confirm prompt, Tab in Browsing and approval, and the double
-// Ctrl+C — because the grid itself is pinned by screen 06 in
-// plan/spec/kirsch-ui-screens.md, so adding a row here is a spec amendment
-// rather than a code change. Some rows name more than one key: the
-// Shift+Enter row also names Ctrl+J, the browsing PgUp/PgDn row also names j/k,
-// and the g/G row also names End (plan amendment 100). Read a missing row as
-// "not documented yet", never as "not bound": the handlers in this file are
-// what decide that.
+// Some bound keys have no row here: the grid itself is pinned by screen 06 in
+// plan/spec/kirsch-ui-screens.md, so adding a row is a spec amendment rather
+// than a code change. Plan amendment 100 merged keys into existing rows: the
+// Shift+Enter row also names Ctrl+J, the browsing PgUp/PgDn row also names
+// j/k, and the g/G row also names End. Read a missing row as "not in the
+// overlay", never as "not bound": the handlers in this file are what decide
+// that.
 //
 // Quitting has no key row. A bare `q` used to quit from an empty composer and
 // from the transcript; both are gone, because a key that ends the session on
 // the first character of "query" is a key that ends it by accident. /quit and
 // /exit are the ordinary way out, and they are listed in the commands column
-// rather than here; the double Ctrl+C named above is the unlisted force quit
-// (handleKey, ui-spec §5.3).
+// rather than here; the double Ctrl+C is the force quit (handleKey, ui-spec
+// §5.3), and it has no row either.
 var bindingGroups = []BindingGroup{
 	{"composing", []Binding{
 		{"Enter", "send"},
@@ -56,12 +53,12 @@ var bindingGroups = []BindingGroup{
 		{"PgUp/PgDn", "scroll"},
 	}},
 	{"browsing", []Binding{
-		{"↑/↓", "select card"},
+		{"↑/↓", "select card/reply"},
 		{"PgUp/PgDn j/k", "scroll"},
 		{"Enter", "toggle preview"},
 		{"d", "diff / content"},
 		{"g/G End", "top / bottom, re-pin"},
-		{"?", "help"},
+		{"c", "copy reply"},
 	}},
 	{"approval", []Binding{
 		{"y", "approve"},
@@ -242,7 +239,7 @@ func (m *Model) tickSpinnerOnce() tea.Cmd {
 func (m *Model) clearApprovalRelease() {
 	m.approvalReleased = false
 	if m.comp.Hint == approvalReleaseHint {
-		m.comp.Hint = ""
+		m.setHint("", false)
 	}
 }
 
@@ -409,6 +406,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case CopyResultMsg:
+		m.applyCopyResult(msg)
+		return m, nil
+
 	case TranscriptLoadedMsg:
 		for i := range msg.Items {
 			m.appendBlock(msg.Items[i])
@@ -504,7 +505,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			it := &m.tr.Items()[i]
 			if it.Kind == KindAssistant && it.Text != nil && it.Text.Streaming {
 				it.Text.Streaming = false
-				it.Text.Raw = "" // Lines holds the sanitised text; with Streaming false, AppendText refuses the block before it would read or seed Raw
+				it.Text.Source = it.Text.Raw // the copy path reads Source once the stream has ended
+				it.Text.Raw = ""             // Lines holds the sanitised text; with Streaming false, AppendText refuses the block before it would read or seed Raw
 			}
 		}
 		m.textBlocks = map[int64]ItemID{}
@@ -525,7 +527,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			it := &m.tr.Items()[i]
 			if it.Kind == KindAssistant && it.Text != nil && it.Text.Streaming {
 				it.Text.Streaming = false
-				it.Text.Raw = "" // as in TurnCompleteMsg
+				it.Text.Source = it.Text.Raw // as in TurnCompleteMsg
+				it.Text.Raw = ""
 			}
 		}
 		m.textBlocks = map[int64]ItemID{}
@@ -743,7 +746,7 @@ func (m Model) receiveApprovalRequest(msg ApprovalRequestedMsg) (tea.Model, tea.
 	m.pendingApproval = cardID
 	m.pendingApprovalID = msg.ID
 	m.clearApprovalRelease()
-	m.comp.Hint = ""
+	m.setHint("", false) // an arriving approval card clears any hint, a copy notice included
 	m.approvalCards[msg.ID] = cardID
 
 	m.relayout(m.layout())
@@ -937,7 +940,7 @@ func (m Model) keyComposing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	// sentence makes the composer unusable. ui-spec §5.1.
 	var cmd tea.Cmd
 	m.comp.ta, cmd = m.comp.ta.Update(k)
-	m.comp.Hint = ""
+	m.setHint("", false) // any key that reaches the text area clears the hint, a copy notice included
 	return m, cmd
 }
 
@@ -968,7 +971,7 @@ func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 			m.revealSelection(lay.TranscriptH)
 			return m, nil
 		}
-		m.setBase(BaseComposing) // past the last card: focus returns to the composer
+		m.setBase(BaseComposing) // past the last selectable item: focus returns to the composer
 		return m, nil
 
 	case tea.KeyPgUp:
@@ -989,26 +992,33 @@ func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 		m.relayout(lay)
 		return m, nil
 
+	// Enter acts on the selected card and then scrolls the minimum distance to
+	// keep it in view. A tool card toggles between its preview and its head
+	// line; any other card toggles expanded. A reply or a user message has
+	// nothing to expand, so Enter on one returns before any of that: no toggle,
+	// no relayout, no scroll, and the pin is left as it was. ui-spec §5.2.
 	case tea.KeyEnter:
-		if m.sel != 0 {
-			// Get the item to check if it's a tool card
-			it, _, ok := m.tr.Find(m.sel)
-			if ok && it.Kind == KindTool {
-				// For tool cards, toggle collapsed (false = preview, true = head only)
-				m.collapsed[m.sel] = !m.collapsed[m.sel]
-				m.relayout(lay)
-				// After collapsing, clamp scroll offset to the new maximum so no blank rows
-				// pad the pane. This is especially important when unpinned.
-				if !m.scroll.Pinned {
-					m.scroll.setOffset(m.scroll.Offset, len(m.lines), lay.TranscriptH)
-				}
-			} else {
-				// For other items, toggle expanded
-				m.expanded[m.sel] = !m.expanded[m.sel]
-				m.relayout(lay)
-			}
-			m.revealSelection(lay.TranscriptH)
+		if m.sel == 0 {
+			return m, nil
 		}
+		it, _, ok := m.tr.Find(m.sel)
+		if !ok || it.Kind == KindAssistant || it.Kind == KindUser {
+			return m, nil
+		}
+		if it.Kind == KindTool {
+			// collapsed false is the preview, true is the head line only.
+			m.collapsed[m.sel] = !m.collapsed[m.sel]
+			m.relayout(lay)
+			// Collapsing shortens the transcript, so clamp the offset to the new
+			// maximum; otherwise blank rows pad the pane while unpinned.
+			if !m.scroll.Pinned {
+				m.scroll.setOffset(m.scroll.Offset, len(m.lines), lay.TranscriptH)
+			}
+		} else {
+			m.expanded[m.sel] = !m.expanded[m.sel]
+			m.relayout(lay)
+		}
+		m.revealSelection(lay.TranscriptH)
 		return m, nil
 
 	case tea.KeyCtrlC:
@@ -1018,6 +1028,11 @@ func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	switch string(k.Runes) {
 	case "d":
 		return m.openDetail(lay), nil
+
+	// c copies the selected reply. It is a Browsing key only: in ApprovalPending
+	// it is an ordinary key that releases the card. It never scrolls or re-pins.
+	case "c":
+		return m.copySelected()
 
 	// j/k scroll one row without moving the selection and stop at the top and
 	// bottom (setOffset clamps); j reaching the bottom re-pins, as PgDn does.
@@ -1108,7 +1123,7 @@ func (m Model) keyApproval(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	if !isNavigation {
 		// This is a typed key. Release the card if not already released.
 		m.approvalReleased = true
-		m.comp.Hint = approvalReleaseHint
+		m.setHint(approvalReleaseHint, false)
 	}
 
 	return m, nil
@@ -1279,7 +1294,9 @@ func (m *Model) resetForNewSession() {
 	m.unknownModelNoticeShown = false
 }
 
-// openDetail opens the content or diff modal for the selected card.
+// openDetail opens the content or diff modal for the selected item. Only tool,
+// approval and error cards have one; on anything else, a selected reply
+// included, it returns the model unchanged.
 func (m Model) openDetail(lay Layout) Model {
 	it, _, ok := m.tr.Find(m.sel)
 	if !ok {
@@ -1470,7 +1487,8 @@ func (m Model) cancelTurn() Model {
 		}
 		if it.Kind == KindAssistant && it.Text.Streaming {
 			it.Text.Streaming = false
-			it.Text.Raw = "" // as in TurnCompleteMsg
+			it.Text.Source = it.Text.Raw // as in TurnCompleteMsg
+			it.Text.Raw = ""
 			it.Text.Cancelled = true
 		}
 	}
@@ -1530,9 +1548,13 @@ func (m Model) submit(lay Layout) (tea.Model, tea.Cmd) {
 // reader their place to tell them about a typo. Any arm added here that puts
 // something in the transcript belongs on the tail.
 //
-// The hint-only path does not relayout, and does not need to: setting a hint
-// adds a composer row and so changes the geometry, and dispatchKey rebuilds
+// The unknown-command path does not relayout, and does not need to: setting a
+// hint adds a composer row and so changes the geometry, and dispatchKey rebuilds
 // whenever the layout a handler leaves behind differs from the one it was given.
+// /copy is also hint-only and also returns before the tail. copyCommand sets
+// its hint inside the key path, where dispatchKey rebuilds the layout; the
+// CopyResultMsg case relayouts itself, because a copy's result arrives as a
+// message, outside dispatchKey.
 //
 // /help and /diff need nothing extra: they open a modal over a transcript that
 // is now pinned underneath, so closing it lands at the bottom. /diff opens its
@@ -1658,6 +1680,11 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.notice(SanitizeSingleLine(text))
+	case "copy":
+		// Every outcome is a hint or a background copy, so /copy is on the
+		// hint-only path: it returns before the re-pin below and never moves
+		// the viewport. ui-spec §2.4, §6.
+		return m.copyCommand(args)
 	case "compact":
 		// Check if a turn is in flight; refuse to compact while busy
 		if m.busy.Active {
@@ -1677,7 +1704,7 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 	default:
 		// Unknown commands get a dim inline hint, never an error card, and are
 		// never sent to the model. ui-spec §6.
-		m.comp.Hint = "unknown command /" + cmd
+		m.setHint("unknown command /"+cmd, false)
 		return m, nil
 	}
 	m.scroll.repin() // re-pin: a slash command is a request, so its answer is shown

@@ -154,10 +154,10 @@ The version text depends on what you built from:
 | You installed | `kirsch --version` prints |
 |---|---|
 | A release tag, such as `@v0.1.1`, or `@latest`, which is the newest release | The tag without its leading `v`, such as `kirsch 0.1.1` |
-| Anything else, such as a branch (`@main`) or a commit | A development version ending in `-dev`, such as `kirsch 0.1.2-dev` |
+| Anything else, such as a branch (`@main`) or a commit | A development version ending in `-dev`, such as `kirsch 0.1.3-dev` |
 
 Go records a commit as a pseudo-version, which is not a release tag, so a
-commit build prints the development version, such as `kirsch 0.1.2-dev`.
+commit build prints the development version, such as `kirsch 0.1.3-dev`.
 
 ## Build from source
 
@@ -177,7 +177,7 @@ version into the binary:
   `v1.2.3` also stamps `1.2.3`.
 - `bash scripts/build.sh` with no argument stamps the version only when the
   checkout is exactly on a `v` release tag and has no uncommitted changes.
-  Otherwise the binary reports the development version, such as `kirsch 0.1.2-dev`.
+  Otherwise the binary reports the development version, such as `kirsch 0.1.3-dev`.
 
 ## Set up your API key
 

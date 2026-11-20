@@ -1,8 +1,10 @@
 # Manual tests — UX round v0.1
 
 These are hands-on checks for the UX round (`plan/milestones/ux-round-v0.1.md`).
-Each release has its own section. You run the steps by hand before its tag, and
-you tick a box only when the screen shows what the step says.
+Each release has its own section. The v0.1.2 steps were run by hand before its
+tag. The v0.1.3 to v0.1.5 steps run together as one combined test at the end of
+the round, as the operator directed on 2026-11-20. You tick a box only when the
+screen shows what the step says.
 
 How to read a section:
 
@@ -77,8 +79,8 @@ If the footer is cut off at 28 rows, write that beside step 3. Do not tick it.
 **Context:** Section 1 ends in Browsing. If the help box is still open, press
 `Esc` to close it. Then press `Esc` (or `Tab`) to return to the composer. Press
 `Ctrl+G` to start at the bottom, whatever section 1's `Shift+↑` did. The setup
-prompt has finished, so the transcript is tall enough to scroll. The bottom row
-should show the composer hint, not card keys. The composer is empty. This
+prompt has finished, so the transcript is tall enough to scroll. The key-hint row
+should show the composer's keys, not card keys. The composer is empty. This
 section ends in Composing.
 
 1. Type `half a sentence` into the composer. Do not press Enter.
@@ -260,6 +262,255 @@ right on this run. Say so in the report, and do not treat one pass as proof.
 
 ---
 
+## v0.1.3 · Copy and select replies
+
+**Context:** This section is run as part of the combined end-of-round test
+(operator direction, 2026-11-20). It is not run on its own before the v0.1.3 tag.
+Use the build and the test folder from the v0.1.2 section. Run `npm run build`,
+then start Kirsch in `~/kirsch-ux-test` with `~/path/to/kirsch/bin/kirsch --new`.
+`--new` starts a fresh session, so the transcript starts empty. Plain `kirsch`
+resumes the last session instead. Check the window size with `tput cols` and
+`tput lines`. The key-hint row at the bottom of the screen needs at least 24 rows,
+and section 11 needs 80 columns by 28 rows.
+
+Setup comes first, and it uses the model. Type these two prompts, one after the
+other. Press `Enter` after each, and wait for Kirsch to be idle in the composer
+before you type the next:
+
+> say hello in one sentence
+
+> say goodbye in one sentence
+
+The transcript now holds your first message, its reply, your second message and
+its reply, in that order. A start-up notice, such as `no previous session —
+starting fresh`, may sit above them. A notice is a selectable item too. The
+expected results below assume the transcript starts with your first message. If
+a notice sits above it, write that beside section 1, step 3, because that is the
+step where the `↑` press reaches the notice.
+
+For each step, the `┃` gutter is the accent bar on the left of a selected item.
+In an ASCII locale it is `|`.
+
+### 1. Arrows stop on replies and skip your messages (no model)
+
+**Context:** Setup is done. The composer is empty, Kirsch is idle, and nothing is
+selected. This section ends in Composing, with the `┃` on the second reply.
+
+1. Press `Shift+↑`. The focus moves to the transcript, and the last reply is
+   selected.
+   You should see the `┃` beside the second reply, on every row of that reply.
+   - [ ] The `┃` marks the second reply, on each of its rows.
+2. Press `↑`.
+   You should see the `┃` move up to the first reply. Your second message sits
+   between the two replies, and it gets no `┃`.
+   - [ ] One `↑` moves the `┃` from the second reply to the first.
+   - [ ] Your second message has no `┃` when the selection passes it.
+3. Press `↑` again.
+   You should see the `┃` stay on the first reply. Nothing lies above it. If a
+   start-up notice sits above your first message, this press selects the notice
+   instead. Write `notice above` beside this step, and leave both boxes below empty.
+   - [ ] The `┃` stays on the first reply.
+   - [ ] Your first message gets no `┃`.
+4. Press `↓` twice. The first press moves the `┃` back to the second reply. The
+   second press takes the focus back to the composer.
+   - [ ] The second `↓` returns the cursor to the composer.
+   - [ ] The `┃` stays on the second reply after the focus returns to the composer.
+
+### 2. `Enter` and `d` do nothing on a reply (no model)
+
+**Context:** Composing, with the composer empty and the `┃` on the second reply,
+as section 1 leaves it. This section ends in Browsing, with the second reply
+selected.
+
+1. Press `Shift+↑` to enter Browsing.
+   - [ ] The `┃` is still on the second reply.
+2. Press `Enter`.
+   - [ ] `Enter` does not expand or collapse the reply.
+   - [ ] `Enter` opens no box.
+   - [ ] `Enter` does not move the view.
+3. Press `d`. You should see no box open, and the screen stays as it was.
+   - [ ] `d` opens no box for the reply.
+4. Read the bottom row of the screen, the key-hint row. You should see
+   `↑↓ select · c copy · Tab/Esc prompt`.
+   - [ ] The key-hint row reads `↑↓ select · c copy · Tab/Esc prompt`.
+
+### 3. Copy a reply with `c`, then paste it into another app (no model)
+
+**Context:** Browsing, with the second reply selected, as section 2 leaves it.
+Open a plain text window in another app, such as TextEdit. Before each paste,
+clear the text window. This section ends in Browsing, with the second reply
+selected.
+
+1. Press `c`. You should see the hint under the composer read
+   `copied N characters`, with `N` a plain number. Write `N` beside this step.
+   If the hint reads `sent N characters (OSC 52)` or
+   `copy failed: no clipboard route`, write that beside this step and leave the
+   box empty.
+   - [ ] The hint under the composer reads `copied N characters`.
+2. Switch to the text window. Clear it, then paste. You should see the text of the
+   second reply, with the same words and punctuation.
+   - [ ] The paste holds the second reply's text.
+3. Switch back to Kirsch. You should see the transcript where it was.
+   - [ ] The view did not move.
+   - [ ] The `┃` is still on the second reply.
+
+### 4. `c` on a card gives the hint, and copies nothing (no model)
+
+**Context:** Browsing, with the second reply selected, as section 3 leaves it.
+This section makes a notice card and selects it. This section ends in Browsing,
+with the notice selected.
+
+1. Press `Tab` to return to the composer. Type `/status` and press `Enter`.
+   You should see a notice card appear at the bottom of the transcript.
+   - [ ] The status notice appears in the transcript.
+2. Press `Shift+↑` to enter Browsing, then press `↓`. The `┃` moves from the second
+   reply to the notice card.
+   - [ ] The `┃` marks the status notice.
+3. Press `c`. You should see the hint `c copies replies only` under the composer.
+   - [ ] The hint reads `c copies replies only`.
+   - [ ] Nothing is copied.
+
+### 5. `/copy` copies the last reply (no model)
+
+**Context:** Browsing, with the status notice selected, as section 4 leaves it.
+The last reply in the transcript is the second reply. The status notice is not a
+reply, so `/copy` does not use it. This section ends in Composing, with the
+composer empty. The copy notice may still show; typing clears it.
+
+1. Press `Tab` to return to the composer. Type `/copy` and press `Enter`.
+   You should see the hint under the composer read `copied N characters`. The
+   transcript does not move.
+   - [ ] The hint under the composer reads `copied N characters`.
+   - [ ] The transcript stays where it was.
+2. Clear the text window, switch to it, and paste. You should see the second reply's
+   text, the same as in section 3.
+   - [ ] The paste holds the second reply's text.
+
+### 6. `/copy code` and `/copy code 2` on a reply with two code blocks (model)
+
+**Context:** Composing, with the composer empty, as section 5 leaves it. This
+section sends a prompt, so it uses the model. Type this prompt, and press `Enter`:
+
+> Write two short Go functions. Put each in its own fenced code block with the language tag go. Put one sentence of plain text between the two blocks.
+
+Count the lines that open a fence, which look like ```` ```go ````, in the reply.
+Models vary, so the count may differ. The steps below assume two, which is the
+number the prompt asks for. If the count is not two, write the count beside step 1,
+and do not tick the boxes that depend on it. Wait until the reply has finished
+and Kirsch is idle in the composer, with no turn running, before step 1. This
+section ends in Composing, with the composer empty.
+
+1. Type `/copy code` and press `Enter`. You should see the hint under the composer
+   read `copied N characters`. Clear the text window, switch to it, and paste. You
+   should see the lines of the second code block only, with no fence line and no
+   `go`.
+   - [ ] The hint under the composer reads `copied N characters`.
+   - [ ] The paste holds the second block's lines.
+   - [ ] The paste has no fence line.
+   - [ ] The paste has no `go`.
+2. Type `/copy code 2` and press `Enter`. Clear the text window, switch to it, and
+   paste. Block 2 is the last block, so you should see the same text as step 1.
+   - [ ] `/copy code 2` pastes the same text as `/copy code`.
+3. Type `/copy code 1` and press `Enter`. Clear the text window, switch to it, and
+   paste. You should see the lines of the first code block, and not the second.
+   - [ ] The paste holds the first block's lines.
+   - [ ] The paste does not hold the second block's lines.
+
+### 7. `/copy code 9` gives the range notice (no model)
+
+**Context:** Composing, with the composer empty, as section 6 leaves it. Kirsch is idle, and the reply has finished. The reply
+with two code blocks is still the last reply. The clipboard holds the first block's
+lines from section 6, step 3. This section ends in Composing, with the composer empty.
+
+1. Type `/copy code 9` and press `Enter`. You should see the hint under the
+   composer read `the last reply has 2 code blocks`.
+   - [ ] The hint under the composer reads `the last reply has 2 code blocks`.
+2. Clear the text window, switch to it, and paste. You should see the first block's
+   lines again, because the out-of-range request copied nothing.
+   - [ ] The paste still holds the first block's lines.
+
+### 8. `/copy foo` gives the usage hint (no model)
+
+**Context:** Composing, with the composer empty, as section 7 leaves it. This
+section ends in Composing, with the composer empty and the usage hint showing.
+
+1. Type `/copy foo` and press `Enter`. You should see the hint under the composer
+   read `usage: /copy [code [N]]`.
+   - [ ] The hint under the composer reads `usage: /copy [code [N]]`.
+   - [ ] No new item appears in the transcript.
+
+### 9. The copy notice clears when you type (no model)
+
+**Context:** Composing, with the composer empty, as section 8 leaves it. The usage
+hint is showing. This section ends in Composing, with the composer empty.
+
+1. Type `/copy` and press `Enter`. You should see the hint under the composer read
+   `copied N characters`.
+   - [ ] The hint under the composer reads `copied N characters`.
+2. Type the letter `x`. You should see the copy notice disappear, and the `x` appear
+   in the composer.
+   - [ ] One keypress removes the copy notice.
+   - [ ] The `x` appears in the composer.
+3. Press `Esc` to clear the composer.
+   - [ ] The composer is empty.
+
+### 10. `/c` and `/co` do not complete, and `/cop` does (no model)
+
+**Context:** Composing, with the composer empty, as section 9 leaves it. This
+section ends in Composing, with the composer empty.
+
+1. Type `/c` and press `Tab`. The composer still reads `/c`.
+   - [ ] `/c` does not complete.
+   Type the letter `x`. The composer reads `/cx`, so the focus is still in the
+   composer. Press `Esc` to clear it.
+   - [ ] After `Tab`, the focus is still in the composer.
+   - [ ] The `x` lands in the composer.
+2. Type `/co` and press `Tab`. The composer still reads `/co`.
+   - [ ] `/co` does not complete.
+   Press `Esc` to clear the composer.
+3. Type `/cop` and press `Tab`. You should see the composer read `/copy`.
+   - [ ] `/cop` completes to `/copy`.
+   Press `Esc` to clear the composer.
+   - [ ] The composer is empty.
+
+### 11. The help overlay shows the copy rows, and `?` closes it (no model)
+
+**Context:** Composing, with the composer empty and no notice showing, as section
+10 leaves it. Section 10 ends with `Esc`, which clears the composer and the hint
+under it. The status notice card from section 4 is still the selected item. Kirsch
+is idle. The window is 80 columns by 28 rows, as in v0.1.2 section 1. This section
+ends in Browsing, with the help box closed and the hint under the composer
+reading `c copies replies only`, as step 5 leaves it.
+
+1. Press `Shift+↑` to enter Browsing, then press `?`. You should see a box titled
+   `help`, with its footer `Esc or ? closes` at the bottom.
+   - [ ] The help box opens.
+   - [ ] Its footer reads `Esc or ? closes`.
+2. Read the left column of the help box. With the composer empty and no notice
+   showing, the whole box shows on the first view at 80 by 28, with the footer
+   `kirsch v0.1.3-dev · Esc or ? closes`. Under `browsing`, you should see `↑/↓`
+   with `select card/reply`, and `c` with `copy reply`. There is no `?` row. If a
+   notice is showing under the composer, the box is one row short, and `G`, which
+   moves to the bottom of the help box, shows the last rows.
+   - [ ] The first view shows the whole box, from its top border to its bottom border.
+   - [ ] The first view has no `↓ N more` marker.
+   - [ ] The browsing block shows `↑/↓` with `select card/reply`.
+   - [ ] The browsing block shows `c` with `copy reply`.
+   - [ ] The browsing block has no `?` row.
+3. Read the right column. Its last row in the commands list should read `/exit  /copy`.
+   - [ ] The last commands row reads `/exit  /copy`.
+4. Press `?`. The help box closes, and you stay in Browsing.
+   - [ ] `?` closes the help box.
+5. Press `c`. The card is still selected. You should see the hint under the composer
+   read `c copies replies only`.
+   - [ ] The hint under the composer reads `c copies replies only`.
+   If nothing appears, write `no hint after help` beside this box. Do not tick it.
+
+If a notice is showing and a row is still cut off after `G`, write that beside
+step 2. Do not tick it.
+
+---
+
 ## Known gaps after v0.1.2
 
 These are not checked by the steps above. They are listed here so the operator
@@ -272,3 +523,29 @@ knows they are open. The full list is in `plan/milestones/ux-round-v0.1.md`.
   composer clear the `↓ N new` indicator.
 - The no-scroll test for the approval prompt depends on a mutant, not on a
   control run through the same path.
+
+## Known gaps after v0.1.3
+
+These are not checked by the v0.1.3 steps above. They are listed here so the
+operator knows they are open. The full list is in `plan/spec/kirsch-plan.md`,
+amendment 101.
+
+- Copying through OSC 52 works only when tmux allows it (`set-clipboard on`), and
+  the terminal accepts the sequence.
+- Some terminals drop a very large OSC 52 copy. The notice then names the route
+  Kirsch used, not what reached the clipboard.
+- `/copy code` reads only the last reply. To copy a block from an older reply,
+  select that reply with `c`, which copies the whole reply.
+- The screen does not number code blocks, so you count the fences yourself. From
+  v0.1.4, markdown rendering may stop drawing fences, and that release revisits
+  this.
+- macOS Terminal.app ignores OSC 52, so the clipboard tool is the only route there.
+- Over SSH, `copied N characters` can mean the text reached a clipboard on the
+  remote machine, not on yours.
+- On a very short terminal, the layout gives the composer no spare row for its
+  hint, so a copy notice in the hint under the composer is not visible.
+- A draft of five or more lines fills the composer, and then a copy notice is not
+  shown under it. A draft of four lines or fewer shows the notice.
+- When any notice is showing under the composer, the help overlay at 80 by 28 is
+  one row short, and `G` shows its last rows.
+- A very large copy can garble the screen once, until the next redraw.

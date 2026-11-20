@@ -123,7 +123,7 @@ changes only by an explicit key.
 | `Ctrl+J` | Newline — the one form every terminal can produce. Works while a turn is running |
 | `Tab` | While typing a slash-command name (no space yet), complete a unique prefix; an ambiguous or unknown prefix does nothing. In any other text, move to the cards (→ Browsing). Works while a turn is running |
 | `Ctrl+G` | Scroll back to the bottom of the transcript and re-pin it. Works while a turn is running |
-| `PgUp` / `PgDn` | Scroll the transcript one page. Your typed text, the mode and the card selection stay as they are. Works while a turn is running |
+| `PgUp` / `PgDn` | Scroll the transcript one page. Your typed text, the mode and the selection stay as they are. Works while a turn is running |
 | `↑` / `↓` on the first / last row | Previous / next entry from this session's history (up to 100); past the newest, back to your unsent draft. Ignored while a turn is running |
 | `Shift+↑` | Move focus to the cards (→ Browsing). Works while a turn is running |
 | `Esc` / `Ctrl+C` | Cancel the running turn; if nothing is running, clear the composer |
@@ -139,7 +139,7 @@ not to send, and want the bottom back. It works *during* a running turn, which i
 when watching the bottom of a stream is worth the most, and `PgUp` and `PgDn` work
 then too. While a turn runs, the composer refuses ordinary typing, but `Ctrl+J` and
 `Alt+Enter` still add a newline, and `Esc` still cancels the turn.
-`Ctrl+G` moves the viewport and nothing else: your half-typed message, the card
+`Ctrl+G` moves the viewport and nothing else: your half-typed message, the
 selection and the mode are all left exactly as they were. `End` would have been
 the obvious key and is not available: the text area already uses it for
 end-of-line, as it uses `Ctrl+End` for end-of-input.
@@ -150,16 +150,17 @@ end-of-line, as it uses `Ctrl+End` for end-of-input.
 
 | Key | Action |
 |---|---|
-| `↑` / `↓` | Move the card selection (plain text blocks are skipped) |
+| `↑` / `↓` | Move the selection between cards and assistant replies; your own messages are skipped |
+| `c` | Copy the selected reply (see [Copying](#copying)) |
 | `PgUp` / `PgDn` | Scroll without moving the selection |
 | `j` / `k` | Scroll one line without moving the selection. Stops at the top and the bottom |
 | `Home` / `End` | Top / bottom — `End` re-pins |
 | `g` / `G` | Top / bottom, for terminals that swallow `Home` and `End` |
-| `Enter` | Tool cards: switch between the 10-line preview and the head line only |
-| `d` | Open the full content or diff in a modal |
+| `Enter` | Tool cards: switch between the 10-line preview and the head line only. On a reply: nothing |
+| `d` | Open the full content or diff in a modal. On a reply: nothing |
 | `?` | Help overlay |
 | `Tab` / `Esc` | Back to the composer — does **not** move the view |
-| `↓` past the last card | Back to the composer |
+| `↓` past the last selectable item | Back to the composer |
 
 Scrolling and selection are separate: `PgUp`/`PgDn` move the view and leave the
 selection where it is, `↑`/`↓` move the selection and scroll only as far as they
@@ -299,7 +300,8 @@ it stops but not after a resume.
 
 Type `/` at the start of a single line. A command must be the whole line:
 multi-line text beginning with `/` is an ordinary message, so a pasted diff or
-stack trace is never mistaken for one. `Tab` completes a unique prefix.
+stack trace is never mistaken for one. `Tab` completes a unique prefix. `/c` and
+`/co` do not complete, because `/compact` and `/copy` share those prefixes.
 
 | Command | What it does |
 |---|---|
@@ -312,9 +314,98 @@ stack trace is never mistaken for one. `Tab` completes a unique prefix.
 | `/compact` | Compact the conversation history |
 | `/quit` | Quit |
 | `/exit` | Quit — the same thing, spelt the other way |
+| `/copy` | Copy the last reply's text to the clipboard. See [Copying](#copying) |
+| `/copy code` | Copy the last code block in the last reply |
+| `/copy code N` | Copy code block N, counted from 1, in the last reply |
 
 An unknown command produces a dim hint under the composer, never an error card,
 and is **never sent to the model**.
+
+---
+
+## Copying
+
+You can copy a model reply to your clipboard in two ways: select the reply in
+Browsing and press `c`, or type a `/copy` command in the composer.
+
+- `c` copies the selected reply. Select a reply with `↑` or `↓` in Browsing first.
+- `/copy` copies the last reply.
+- `/copy code` copies the last code block in the last reply.
+- `/copy code 2` copies code block 2 in the last reply. Blocks are counted from 1.
+
+**What is copied.** The reply's text as the model sent it, so markdown is kept:
+`**bold**` stays as `**bold**`, and the screen's line wrapping is not. Kirsch
+cleans the text before it copies it, so it pastes safely. It removes terminal
+escape sequences and control characters, and it turns Windows line ends into
+plain ones. Tabs are kept, and long lines are not cut. A reply that is still
+streaming, or whose turn was cancelled, copies the text received so far.
+
+**Code blocks.** A code block starts with a line of three or more backticks
+(` ``` `) or tildes (`~~~`). That line may be indented, as a fence inside a list
+item often is. The block ends with a closing line of the same character, at least
+as long as the opening run, with nothing after it but spaces or tabs. A block that
+is never closed runs to the end of the reply. Count the opening lines from the top
+of the reply to find a block's number; Kirsch does not number them on screen.
+The copy holds only the text between the fence lines, without the fence lines or
+the language name after the opening fence. An empty block copies
+nothing. `/copy code` and `/copy code N` look only at the last reply. To copy a
+code block from an older reply, select that reply and press `c`, which copies
+the whole reply.
+
+**`/copy` is refused while a turn is running**, like every other slash command.
+`c` works from Browsing.
+
+**Two routes.** Kirsch sends the text two ways. It hands it to the clipboard tool
+on the computer Kirsch runs on, and it waits up to 3 seconds for that tool. It
+also writes an escape sequence, OSC 52, to the terminal, which a terminal can use
+to set the clipboard. Kirsch sends the sequence only when it is writing to a real
+terminal and `TERM` is not `dumb`.
+
+**Notices.** The result appears as a hint under the composer:
+
+| Notice | What it means |
+|---|---|
+| `copied N characters` | The clipboard tool took the text. `N` counts characters, not bytes |
+| `sent N characters (OSC 52)` | The clipboard tool failed or took longer than 3 seconds, and the sequence went to the terminal. Kirsch cannot tell whether the terminal used it, so paste to check |
+| `copy failed: no clipboard route` | Neither route worked |
+| `nothing to copy` | There is no reply yet, `c` was pressed with nothing selected, or the text is empty once cleaned |
+| `c copies replies only` | `c` was pressed on a selected card. Only replies can be copied |
+| `no code block in the last reply` | `/copy code` or `/copy code N` was used, and the last reply has no code block |
+| `the last reply has 1 code block`, or `the last reply has M code blocks` | The block number was 0, larger than the number of blocks, or too large to read. `M` counts every block, empty ones included |
+| `code block K is empty` | Block `K` has no text between its fences |
+| `usage: /copy [code [N]]` | The text after `/copy` is not one of the accepted forms |
+
+**When a notice goes.** A copy notice is a hint under the composer, like the
+unknown-command hint. Any key that reaches the composer's text area clears it:
+typing, or moving the cursor. Sending a message, pressing `Esc` in the composer,
+and an approval card arriving also clear it. A newer copy notice replaces the
+one showing. If another hint is showing, such as the unknown-command hint or the
+usage hint, a copy result that arrives later does not replace it. `Ctrl+G` and
+`PgUp`/`PgDn` leave a copy notice alone.
+
+**Known gaps that matter to you.**
+
+- OSC 52 reaches the clipboard only when tmux allows it. Kirsch writes a bare
+  OSC 52 sequence, so tmux needs `set-clipboard on`, and the terminal must accept
+  the sequence.
+- macOS Terminal.app ignores OSC 52. On that terminal only the clipboard tool
+  on the computer can copy.
+- Over SSH, `copied` can mean the text reached a clipboard tool on the remote
+  machine, not on yours. The OSC 52 route is the one that reaches your own
+  computer.
+- Some terminals cap or drop large OSC 52 copies, so a very long copy can fail
+  on that route. The notice still names the route Kirsch used, not what your
+  screen shows. To copy less, use `/copy code N` for one block.
+- On a very short terminal, the layout gives the composer no spare row for its
+  hint, so a copy notice in the hint under the composer is not visible.
+- A draft of five or more lines fills the composer, and then a copy notice is not
+  shown under it. A draft of four lines or fewer shows the notice.
+- When any notice is showing under the composer, the help overlay at 80 by 28 is
+  one row short, and `G` shows its last rows.
+- A very large copy can garble the screen once. The next redraw clears it.
+
+See [Copy did not reach my clipboard](troubleshooting.md#copy-did-not-reach-my-clipboard)
+for what to do when a copy fails.
 
 ---
 

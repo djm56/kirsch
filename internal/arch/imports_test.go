@@ -51,6 +51,12 @@ var forbidden = map[string][]string{
 		"internal/app",
 		"internal/agent",
 	},
+	// The clipboard package is a leaf: it imports no internal package at all, so
+	// the one prefix "internal" bans every package of ours (architecture.md §3
+	// rule 6).
+	"internal/clipboard": {
+		"internal",
+	},
 	"internal/session": {
 		"internal/tui",
 		"internal/provider",
@@ -79,9 +85,9 @@ func isAllowed(pkg, dep string) bool {
 
 // TestImportRules fails if any forbidden edge exists.
 //
-// It passes vacuously today for agent and provider, which do not exist yet.
-// That is the point: a test that only starts working once the package it
-// guards is written has already missed its moment.
+// It runs go list over the module and checks the imports of each package the
+// forbidden table guards. An entry whose package is missing is skipped, and the
+// test fails only when no guarded package is inspected at all.
 func TestImportRules(t *testing.T) {
 	out, err := exec.Command("go", "list", "-deps=false",
 		"-f", "{{.ImportPath}} {{join .Imports \" \"}}", "../...").Output()
@@ -111,10 +117,9 @@ func TestImportRules(t *testing.T) {
 			}
 			for _, b := range banned {
 				if dep == b || strings.HasPrefix(dep, b+"/") {
-					t.Errorf("illegal import: %s must not import %s\n\n"+
-						"plan §2 / architecture.md §3. %s receives typed messages and "+
-						"emits typed intents; it never reaches into an implementation "+
-						"package directly.", pkg, dep, pkg)
+					t.Errorf("illegal import: %s must not import %s "+
+						"(rule %q in the forbidden table, internal/arch/imports_test.go)",
+						pkg, dep, b)
 				}
 			}
 		}
@@ -149,8 +154,9 @@ func TestAllowedIsExact(t *testing.T) {
 	}
 }
 
-// TestGuardedPackagesAreReal keeps the rule table honest: a typo in a package
-// name would make TestImportRules pass by never matching anything.
+// TestGuardedPackagesAreReal keeps part of the rule table honest: a typo in the
+// package name of one of the entries it names would make TestImportRules skip
+// that entry and pass.
 func TestGuardedPackagesAreReal(t *testing.T) {
 	out, err := exec.Command("go", "list", "../...").Output()
 	if err != nil {
@@ -160,10 +166,14 @@ func TestGuardedPackagesAreReal(t *testing.T) {
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		exists[strings.TrimPrefix(line, modulePrefix)] = true
 	}
-	// Only packages that exist today need to be present; the rest are
-	// deliberately pre-registered for later milestones.
+	// The packages below must exist. TestImportRules skips a table
+	// entry whose package is missing, so a typo in one of these names would
+	// pass silently. The other entries are not checked here.
 	if !exists["internal/tui"] {
 		t.Error("internal/tui not found; the rule table or the module path is wrong")
+	}
+	if !exists["internal/clipboard"] {
+		t.Error("internal/clipboard not found; the rule table or the module path is wrong")
 	}
 	if !exists["internal/doctor"] {
 		t.Error("internal/doctor not found; the rule table or the module path is wrong")

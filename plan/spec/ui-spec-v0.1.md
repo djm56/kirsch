@@ -193,7 +193,7 @@ dropped**; at narrow widths they are the entire reason the bar exists.
   reader who scrolled up and then decided not to send needs a key that returns the
   view without sending. `PgDn` from the composer also re-pins, but only when its
   page reaches the bottom. `Ctrl+G` moves the viewport only: the composer's
-  contents, its hint and the card selection are all left alone, and the mode does
+  contents, its hint and the selection are all left alone, and the mode does
   not change. It works **while a turn is running**, as do `PgUp` and `PgDn`: a
   transcript streaming past is when getting back to the bottom is worth the most.
   `Ctrl+G` rather than `End` or `Ctrl+End`: all three spell "go to the bottom",
@@ -206,23 +206,23 @@ dropped**; at narrow widths they are the entire reason the bar exists.
   never a candidate: it has to stay an ordinary character while typing.
 - **A slash command re-pins.** Submitting one is a request, and §3.1 renders the
   invocation as a message, so the transcript goes to the bottom where its answer
-  will be. The hint-only path is the exception — an unknown command answers
-  entirely in the dim hint under the composer and puts nothing in the transcript,
-  so re-pinning would cost
-  the reader their scroll position to report a typo.
+  will be. The hint-only path is the exception — an unknown command, `/copy`, and `c`
+  answer entirely in the dim hint under the composer and put nothing in the
+  transcript, so re-pinning would cost the reader their scroll position to report
+  a typo or a copy.
 - **`Esc` does not re-pin.** Leaving Browsing hands focus back to the composer and
   leaves the viewport exactly where it is. Re-pinning there would make the rule
   below unreachable in practice: `Esc` is the key a reader takes back to the
   composer, so scrolling up to read something would be undone by the act of going
-  to type about it. `Tab`, and the `↓` that moves past the last card, hand focus
+  to type about it. `Tab`, and the `↓` that moves past the last selectable item, hand focus
   back the same way and leave the offset alone. Walking the selection down with
   `↓` is different: each step scrolls only as far as needed to show the selected
-  card, and if that scroll reaches the bottom it re-pins. So the walk can re-pin,
+  item, and if that scroll reaches the bottom it re-pins. So the walk can re-pin,
   and the keypress that returns focus cannot. (Amendment 100 corrected the earlier
   claim that `Esc` was the only such route.)
 - **Typing does not re-pin.** Composing a message while reading scrollback must
   not yank the view to the bottom — the user is reading it deliberately.
-- `PgUp`/`PgDn` scroll a page without moving the card selection, in Browsing and
+- `PgUp`/`PgDn` scroll a page without moving the selection, in Browsing and
   in Composing. In Composing they run ahead of the busy guard, like `Ctrl+G`, so
   they work while a turn is running, and they do not change the mode. `j`/`k` in
   Browsing move one row and stop at the top and bottom. A page is the transcript
@@ -381,12 +381,14 @@ the user watched arrive is worse than leaving it.
 
 ### 3.9 Selection
 
-Only **cards** are selectable: tool, approval, thinking, error, system notice.
-User and assistant text blocks are skipped by `↑`/`↓`, because `Enter` does
-nothing on them and stopping there is pure friction.
+Selectable items are **cards and assistant replies**. A reply is one assistant text block in the transcript
+(v0.1.3, amendment 101). User messages are skipped by `↑`/`↓`, because nothing
+can be done with them. A reply with no lines is skipped. `Enter` and `d` do nothing on a reply (v0.1.3, amendment 101).
 
-The selected card shows an accent-colored `┃` in the left gutter. Selection
-survives new content arriving; it does not jump to the newest card.
+The selected card or reply shows an accent-colored `┃` in the left gutter, on every
+row of the item, whenever it is the selection, in every mode, Composing included, exactly as for a selected card; its 2-column-narrower wrap holds for as long as it stays selected (v0.1.3, amendment 101).
+The gutter takes 2 columns. Selection survives new content arriving; it does not jump to the newest item.
+Entering Browsing keeps the current selection; when nothing is selected, it selects the last selectable item, which may now be a reply.
 
 ## 4. Modals
 
@@ -413,6 +415,11 @@ Single screen: key bindings grouped by mode (§5.2), then slash commands (§6),
 then a footer with version and the docs path. `Esc` or `?` closes. The minimum
 terminal for the full-help overlay is 80×28. From v0.1.2 the left column is 17 rows,
 the same as the right, so the overlay keeps this minimum (amendment 100).
+From v0.1.3 (amendment 101) the browsing block's movement row reads
+`select card/reply`, its `?  help` row is replaced by `c  copy reply`, and the
+commands column's last row is `/exit  /copy`. The left column keeps its height,
+so the minimum stays 80×28. `?` is still bound, and the footer's `Esc or ?
+closes` names it.
 
 ### 4.3 Confirm prompt
 
@@ -434,10 +441,10 @@ to lose and a confirm-on-quit is a tax on every exit.
                  │ ApprovalPending  │◄──────────┘  exclusive capture
                  └───────▲──────────┘
       approval requested │ │ y/a/n resolves
-                 ┌───────┴─▼────────┐   ⇧↑ / Tab      ┌──────────┐
-                 │    Composing     │────────────────►│ Browsing │
-                 │ (composer focus) │◄────────────────│(card sel)│
-                 └──────────────────┘   ↓ at bottom   └──────────┘
+                 ┌───────┴─▼────────┐   ⇧↑ / Tab     ┌───────────┐
+                 │    Composing     │───────────────►│ Browsing  │
+                 │ (composer focus) │◄───────────────│(selection)│
+                 └──────────────────┘   ↓ at bottom  └───────────┘
                           │                                │
                           └────────► Confirm ◄─────────────┘
 ```
@@ -505,24 +512,28 @@ see plan amendment 40.
 
 | Key | Action |
 |---|---|
-| `↑` / `↓` | Move card selection |
+| `↑` / `↓` | Move selection (cards and assistant replies) (v0.1.3, amendment 101) |
 | `PgUp` / `PgDn` | Scroll without moving selection |
 | `j` / `k` | Scroll one line without moving selection |
 | `Home` / `End` | Top / bottom (`End` re-pins) |
 | `g` / `G` | Top / bottom — the keyboard-reachable form of `Home` / `End` (`G` re-pins) |
-| `Enter` | Tool card: toggle between the 10-line preview and collapsed |
-| `d` | Open content or diff modal for selected card |
+| `Enter` | Tool card: toggle between the 10-line preview and collapsed. Assistant reply: nothing (v0.1.3, amendment 101) |
+| `d` | Open content or diff modal for selected card. Assistant reply: nothing (v0.1.3, amendment 101) |
+| `c` | Copy the selected reply's source text (§6; v0.1.3, amendment 101). On a selected card it copies nothing and shows the hint `c copies replies only`. With nothing selected it gives `nothing to copy` |
 | `?` | Help overlay |
 | `Tab` / `Esc` | Return to Composing (does **not** re-pin — §2.4) |
-| `↓` at last card | Return to Composing |
+| `↓` at the last selectable item | Return to Composing (v0.1.3, amendment 101) |
+
+**Selected reply (v0.1.3, amendment 101).** On a selected reply the key-hint row (§2.1) reads `↑↓ select · c copy · Tab/Esc prompt`, built from the same glyphs as today's row. On a card the row is unchanged.
 
 **On `g` / `G`.** They mirror the modal's own `g`/`G` rather than inventing a second
 vocabulary for the same gesture, and they exist because `Home` and `End` are not
 universally reachable: on macOS Terminal both arrive as SS3, which Bubble Tea v1.3.10
 does not decode. The help overlay's **`browsing`** block has no separate `g`/`G` row: its `g/G End`
 row names them, and `j/k` shares the `PgUp/PgDn` row (screen 06, amendment 100).
-The overlay still omits `Home` and `Esc`, both of which are bound.
-The overlay is a one-screen summary, not this table.
+The overlay is a summary, not these tables: some bound keys are not listed in it.
+From v0.1.3 (amendment 101) the overlay's `?` row is replaced by `c`, `?` stays
+bound, and the footer's `Esc or ? closes` names it.
 
 **ApprovalPending**
 
@@ -535,7 +546,7 @@ The overlay is a one-screen summary, not this table.
 | Any other non-navigation key | Release the card and show `approval pending — Tab to return to the card`. While released, `y`/`a`/`n` do nothing until the card is re-armed. |
 | Bracketed paste | Dropped, does not release |
 
-`j`/`k` are Browsing bindings. In ApprovalPending they are ordinary keys and release the card. `PgUp`/`PgDn` are navigation keys there: they do not release the card, and they do not scroll.
+`j`/`k` are Browsing bindings. In ApprovalPending they are ordinary keys and release the card. `c` is a Browsing binding too (v0.1.3, amendment 101): in ApprovalPending it is an ordinary key and releases the card, like `j`/`k`. `PgUp`/`PgDn` are navigation keys there: they do not release the card, and they do not scroll.
 
 When armed, `y`, `a`, and `n` act immediately. `a` is inert unless the approval
 offers a session grant. When released, `d`, `?`, `Tab`/`Shift+↑` (re-arm) and
@@ -562,7 +573,7 @@ mode. The session log stays intact because of the flush-on-turn rule
 **Grammar.** The composer content must be a **single line beginning with `/`**.
 Multi-line content starting with `/` is an ordinary message — pasting a path or
 a diff must not be mistaken for a command. Arguments are the rest of the line,
-trimmed, unparsed.
+trimmed, unparsed, except for `/copy` (below).
 
 | Command | Behaviour |
 |---|---|
@@ -575,9 +586,115 @@ trimmed, unparsed.
 | `/compact` | Manual compaction (plan §6.4); notice confirms, status bar shows `compacting` |
 | `/quit` | Quit |
 | `/exit` | Quit — an alias of `/quit`, sharing one arm rather than a second behaviour |
+| `/copy` | Copies the last assistant reply's source text (v0.1.3, amendment 101) |
+| `/copy code` | Copies the last fenced code block in the last assistant reply (v0.1.3, amendment 101) |
+| `/copy code N` | Copies block N, counted from 1, in the last assistant reply (v0.1.3, amendment 101) |
+
+**Source text and payload (v0.1.3, amendment 101).** A reply's **source text** is the
+text as the model sent it, markdown source included, before the screen sanitiser
+(`Sanitize`, §7.1) runs. It is not the wrapped screen lines. Live, the source is kept
+when the stream ends, cancelled or not. On resume, it is the text stored in the
+session's `assistant.message`. A reply that is still streaming copies the text
+received so far.
+
+The clipboard payload is the source text, cleaned for safe pasting. ANSI escape
+sequences are removed; CRLF becomes LF; then these are removed: C0 controls other
+than tab and newline; DEL; C1 controls (U+0080–U+009F); and the Unicode
+bidirectional controls U+202A–U+202E and U+2066–U+2069. Unicode tag characters U+E0000–U+E007F are removed too. Other invisible characters, such as zero-width characters and the directional marks U+200E, U+200F and U+061C, are kept. Tabs are kept; no line-width cap applies. A payload that cleans to the empty
+string gives `nothing to copy`.
+
+**Code blocks (v0.1.3, amendment 101).** Fences are found in the cleaned payload
+text, after the cleaning above, not in the source. An opening fence is a line whose
+first characters that are not spaces or tabs are three or more backticks or three or more tildes. Any
+indentation is allowed, because models indent fences inside list items. A backtick
+fence whose info string contains a backtick is not a fence. In indentation, a tab
+counts as advancing to the next multiple of 4 columns. A content line loses leading
+spaces and tabs up to the opening fence's indentation, measured in columns. A tab that straddles that cut is replaced by spaces for the columns past the cut. A closing
+fence uses the same character, is at least as long as the opening fence, may be
+indented, and may be followed only by spaces or tabs. An unclosed fence runs to the
+end of the reply, and the newline that ends the reply does not add an empty content
+line to it. What is copied is the content lines only: no fence lines, no info string,
+no trailing newline. A block is empty when its copied text is the empty string: it has no content lines, or its only content line is empty. Whitespace-only lines are content, so a block of spaces is not empty. An empty block copies nothing, and its notice is
+`code block K is empty`.
+
+**Arguments (v0.1.3, amendment 101).** `/copy` splits its arguments on whitespace. The accepted forms are:
+
+- nothing: the last reply's source text;
+- `code`: the last code block in the last reply;
+- `code` followed by one token of ASCII digits only: block N, counted from 1. Leading
+  zeros are allowed; no sign is allowed.
+
+`code` is lower case only. Anything else gives `usage: /copy [code [N]]`. If the last
+reply has no code block, the notice is `no code block in the last reply`, whatever N
+is. If N is 0, greater than the block count, or too large to parse, the notice is the
+range notice in the table below. `/copy` is refused while a turn runs, like every
+slash command; that is existing behaviour.
+
+**Precedence (v0.1.3, amendment 101).** When more than one condition holds, the
+first that applies decides the notice:
+
+1. an argument that is not an accepted form gives the usage hint;
+2. no assistant reply, or `c` with nothing selected, gives `nothing to copy`, and `c` on a selected card gives `c copies replies only`;
+3. for the `code` forms, a last reply with no code block gives
+   `no code block in the last reply`;
+4. N of 0, greater than the block count, or too large to parse, gives the range notice;
+5. an empty block gives `code block K is empty`.
+
+After that, a payload that cleans to the empty string gives `nothing to copy`.
+
+Placeholders. Each placeholder stands for one kind of number, and the notice table
+uses them as follows. `C` is the copied character count, in Unicode code points of the
+payload: `copied C characters` and `sent C characters (OSC 52)`. `K` is a block number:
+`code block K is empty`. `M` is the block count in the range notice, and it counts
+every block, empty ones included. A bare `/copy code` refers to the last block, so its
+`K` is that block's number. All numbers print as plain decimal with no leading zeros,
+so `code 01` refers to block 1.
+
+**Copy routes and notices (v0.1.3, amendment 101).** `c` and every `/copy` form share
+one copy path. It runs in a background command, never on the update loop, and its
+result comes back as a message that sets the notice. Each copy:
+
+- The payload goes to the clipboard tool that `github.com/atotto/clipboard` finds
+  on the host. That tool gets 3 seconds; if it has not finished by then, the route
+  counts as failed.
+- An OSC 52 sequence (`ESC ] 52 ; c ; <base64> BEL`) is written as one write to the
+  terminal output the screen is drawn on. It is sent only when that output is a
+  terminal and `TERM` is not `dumb`. Over SSH it can reach the clipboard of the
+  machine the user sits at.
+
+The notice shows in the composer's dim inline hint, the same place as the
+unknown-command hint. `/copy` and `c` are hint-only paths (§2.4): they do not re-pin
+or scroll the transcript, and the hint is the whole answer. A copy notice is a
+composer hint like any other. It is cleared the same way: by any key that reaches the composer's text area, typing or cursor movement; when the composer is reset, on submit or `Esc`; and when an approval card arrives. A newer copy notice replaces it. A copy result that arrives while another kind of hint is showing (the unknown-command hint, the approval-release hint, or a usage hint) does not replace it. The
+viewport keys that §2.4 says leave the hint alone (`Ctrl+G`, `PgUp`/`PgDn`) leave a
+copy notice alone too. Notices are ASCII and fit the 40-column minimum (36 cells
+after the indent); one that still does not fit is cut from the end, as other hints
+are.
+
+| Result | Notice |
+|---|---|
+| Local tool succeeded (whether or not OSC 52 was also sent) | `copied C characters` |
+| Local tool failed or timed out, OSC 52 sent | `sent C characters (OSC 52)` |
+| Neither route worked | `copy failed: no clipboard route` |
+| No assistant reply, or `c` with nothing selected | `nothing to copy` |
+| Last reply has no code block | `no code block in the last reply` |
+| N is 0, above the block count, or too large to parse | `the last reply has 1 code block`, or `the last reply has M code blocks` otherwise |
+| Block K is empty | `code block K is empty` |
+| Argument not accepted | `usage: /copy [code [N]]` |
+| `c` on a selected card | `c copies replies only` |
+
+K, M and C are plain integers with no separators, as in §3.7. C counts the payload's
+Unicode code points. The program cannot confirm that OSC 52 arrived, so the OSC 52
+notice says the sequence was sent, not that the clipboard changed.
+
+Copies in flight: the result of the most recent copy wins, and an older result that
+arrives later is ignored.
 
 Unknown `/command` → a dim inline hint under the composer, not an error card,
-and **never sent to the model**. `Tab` completes a unique prefix.
+and **never sent to the model**. `Tab` completes a unique prefix. `/copy` is appended
+last in the command list, so `/exit  /copy` is the last row of the help overlay's
+commands column. `/c` and `/co` are now ambiguous between `/compact` and `/copy`, and complete
+nothing.
 
 ## 7. Edge Cases
 
@@ -662,9 +779,9 @@ width the margin leaves (§2.1), so it survives at the advertised 40-column
 minimum. Beneath it sits the tagline
 `v<version> · terminal-native coding agent`, truncated to the content width with
 the §7.3 marker. Its width is **not** a constant — the version is a build-time
-string, and the shipped `0.1.2-dev` already makes the tagline 41 cells against
+string, and the shipped `0.1.3-dev` already makes the tagline 41 cells against
 the 38 a 40-column terminal leaves — so it is cut by its own renderer and reads
-`v0.1.2-dev · terminal-native coding a⋯` rather than breaking off mid-air. The
+`v0.1.3-dev · terminal-native coding a⋯` rather than breaking off mid-air. The
 version leads because it is the part worth keeping when the row is cut. The
 lead-in and the three suggestions survive at sizes where the wordmark does not:
 they are the part that tells a new user what to do.
@@ -728,7 +845,7 @@ modals, resize, and quit all work with no panic or visual corruption.
   for the gesture, and the reachable form of `Home`/`End` where those arrive as
   undecoded SS3. See §5.2.
 - **`j`/`k` scroll one line in Browsing** (UX-D2, v0.1.2). They move the transcript,
-  not the card selection. See §2.4 and plan amendment 100.
+  not the selection. See §2.4 and plan amendment 100.
 - **Composing `PgUp`/`PgDn` scroll a page** (UX-D3, v0.1.2). They run ahead of the
   busy guard and do not change the mode. See §2.4 and plan amendment 100.
 - **Cut-off notice on resume** (v0.1.2). A reply that stops on `max_tokens` gets a

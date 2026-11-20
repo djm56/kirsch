@@ -34,6 +34,7 @@ an investment. See §9, Anti-goals.
 cmd/kirsch/main.go          entry point: flags, subcommands, builds the App
 internal/app                coordinator: wiring, adapters, root context
 internal/tui                Bubble Tea program: renders state, emits intents
+internal/clipboard          reply text to clipboard payload, and its delivery to the clipboard (v0.1.3)
 internal/agent              turn state machine, prompts, budget, compaction
 internal/provider           Provider interface + anthropic adapter + Fake
 internal/tool               tool registry + implementations + envelope
@@ -85,11 +86,13 @@ it, and none is skipped.
 | 3 | **One goroutine owns all JSONL writes.** | Durability (§1.4). Concurrent appends produce interleaved partial lines, which is exactly the corruption the format is meant to survive. |
 | 4 | **TUI state is mutated only inside `Update`.** Other goroutines reach it through `program.Send` and nothing else. | Bubble Tea's model is single-threaded by construction; a direct write from a tool goroutine is a data race that manifests as corrupted rendering, not a panic. |
 | 5 | **Every filesystem path crosses `workspace.Resolve`.** No tool opens a path it built itself. | No silent side effects (§1.3). Containment enforced at one chokepoint cannot be forgotten at seven call sites. |
+| 6 | `internal/clipboard` imports **no internal package.** It turns reply text into a clipboard payload, and delivers that payload to the clipboard through routes its caller injects; `cmd/kirsch` supplies the real routes through `tui.Model.Copy`. | Testability, and `tui` can import it without any risk of a cycle or of reaching an implementation package. |
 
-Rules 1 and 2 are **enforced by a test**, not by review — see
-[milestone-1.md](../milestones/milestone-1.md) Task 10. The test exists before the packages it
-guards, because the day `internal/provider` first appears is precisely the day
-nobody is thinking about import rules.
+The import rules in this table are **enforced by a test** in `internal/arch`
+(`imports_test.go`), not by review. That test was introduced by
+[milestone-1.md](../milestones/milestone-1.md) Task 10, while `internal/agent` and
+`internal/provider` did not yet exist, because the day such a package first
+appears is precisely the day nobody is thinking about import rules.
 
 **The `internal/doctor` exception.** `internal/doctor` may not import `internal/agent` or any package under it, with one exception: `internal/agent/prompt`, which it imports to load the project-context file with the same inputs the app gives it. `internal/arch/imports_test.go` names that exception in its `allowed` list, and `TestAllowedIsExact` pins it, so no other package gains it and no other `internal/agent` package is opened. Doctor only reads. O5 (*Milestone 5 — decisions recorded* in `plan/PROGRESS.md`) rules out creating a folder, taking a lock and any network call; `TestRunDoctorChangesNothing` in `cmd/kirsch/main_test.go` checks that the run changes no file.
 

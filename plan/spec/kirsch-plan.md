@@ -91,7 +91,7 @@ The header is two rows — wordmark and rule, then the session line — and the 
 
 Key bindings: `Enter` send · newline `Ctrl+J`, or `Alt+Enter` where the terminal sends it · `Ctrl+G` re-pin the transcript to the bottom · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit. There is no bare-key quit — `q` is an ordinary character in the composer.
 
-Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit`.
+Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit` `/copy`.
 
 The sketch above is indicative only. [`plan/spec/ui-spec-v0.1.md`](ui-spec-v0.1.md) is normative for everything visual, and [`plan/spec/kirsch-ui-screens.md`](kirsch-ui-screens.md) draws every state it describes as a literal 80-column character grid with a per-region colour map — the render target for M0 and the source for the §9.6 golden files.
 
@@ -1300,6 +1300,50 @@ Every row fits the 37-column left column: the key is padded to 13 characters, th
 A reply that stops on `max_tokens` gets a system notice. A model not in the model table gets 16384 output tokens instead of the smallest row's figure. Mouse support stays out of scope. The round is defined in `plan/milestones/ux-round-v0.1.md`.
 
 **Cut-off notice on resume (v0.1.2).** §7 `assistant.message` gains two optional fields. `stop_reason` is the provider's stop reason, written when the provider reports one. `max_tokens` is the output limit sent with that request. On resume, a message whose `stop_reason` is `max_tokens` gets the same notice, using its stored `max_tokens`. A session written before v0.1.2 has neither field and shows no notice. This supersedes amendment 98 for these two fields only.
+
+101. **UX round, v0.1.3 selection and copy** (2026-11-20, mission-20261120-02). Answers UX-D5 in `plan/milestones/ux-round-v0.1.md`. The answer is Bishop's recommendation, taken under the operator's standing go-ahead on judgement calls; the operator may overturn it. The changes are these, and §3.9, §5.2 and §6 of the UI spec carry them, each marked "v0.1.3, amendment 101":
+  1. **Selection.** In Browsing, `↑`/`↓` stop on assistant replies as well as on cards. A reply is one assistant text block in the transcript. User messages stay skipped. A reply with no lines is skipped. A selected reply takes the same accent `┃` gutter as a selected card, on every row of the item, whenever it is the selection, in every mode, Composing included, exactly as for a selected card; its 2-column-narrower wrap holds for as long as it stays selected. The gutter takes 2 columns. `Enter` and `d` do nothing on a reply. Entering Browsing keeps the current selection; when nothing is selected, it selects the last selectable item, which may now be a reply. Selection still survives new content arriving.
+  2. **`c` in Browsing.** `c` copies the selected reply's source text (defined in §6), not the wrapped screen lines. On a selected card, `c` copies nothing and shows the hint `c copies replies only`. With nothing selected, `c` gives `nothing to copy`. `c` is a Browsing key only. In ApprovalPending it is an ordinary key and releases the card, like `j`/`k`.
+  3. **`/copy`.** `/copy` copies the last assistant reply's source text. `/copy code` copies the last fenced code block in that reply, and `/copy code N` copies block N, counted from 1. The accepted forms, the code-block grammar and the notices are in §6. Any other argument gives the hint `usage: /copy [code [N]]`.
+  4. **Routes and notices.** Every copy, by `c` or by `/copy`, goes to the clipboard tool that `github.com/atotto/clipboard` finds on the host, and writes an OSC 52 sequence to the terminal, unless output is not a terminal or `TERM` is `dumb`. The copy runs in a background command, never on the update loop, and its result sets the notice. The local tool gets 3 seconds before its route counts as failed. The notice shows in the dim inline hint under the composer; its texts are in §6. A copy notice is a hint under the composer like any other: it is cleared the same way: by any key that reaches the composer's text area, typing or cursor movement; when the composer is reset, on submit or `Esc`; and when an approval card arrives. A newer copy notice replaces it. A copy result that arrives while another kind of hint is showing (the unknown-command hint, the approval-release hint, or a usage hint) does not replace it. `Ctrl+G` and `PgUp`/`PgDn` leave it alone. The program cannot confirm that OSC 52 arrived, so the OSC 52 notice says only that the sequence was sent.
+  5. **Help overlay.** The browsing block's movement row reads `select card/reply`, and its `?  help` row is replaced by `c  copy reply`. `?` stays bound, and the footer's `Esc or ? closes` names it. The commands column's last row becomes `/exit  /copy`. The left column keeps amendment 100's height, so the overlay keeps the 80×28 minimum. The §5.2 paragraph on what the overlay omits is replaced by one rule, with no list: the overlay is a summary, not the §5.2 tables, and some bound keys are not listed in it. The left column reads:
+
+```
+composing
+Enter         send
+Shift+Enter   newline (or Ctrl+J)
+↑/↓           history
+Shift+↑       cards
+Tab           complete /cmd · cards
+Esc           cancel turn
+Ctrl+G        bottom, re-pin
+PgUp/PgDn     scroll
+
+browsing
+↑/↓           select card/reply
+PgUp/PgDn j/k scroll
+Enter         toggle preview
+d             diff / content
+g/G End       top / bottom, re-pin
+c             copy reply
+```
+
+Every row fits the left column: the key is padded to the key column, then one space, then the description; the golden test holds the rows to screen 06. Screen 06 is redrawn with the code: the commands row in ux-d3, the browsing rows in ux-d4. The Composing rows `Shift+↑  cards` and `Tab  complete /cmd · cards`, and the Composing key-hint `⇧↑/Tab cards`, keep the word `cards` by decision: those keys move focus to the transcript, and a short label is kept over a precise one.
+  6. **Dependency.** `github.com/atotto/clipboard` moves from an indirect to a direct dependency in `go.mod`. `NOTICE` gains its attribution line (BSD-3-Clause) in the code step.
+
+**Deliverables.** ux-d3 is the copy path: `/copy` in all its forms, the routes and the notices. ux-d4 is selection, `c`, the key-hint row and the help-overlay redraw.
+
+**Known gaps (v0.1.3).**
+- OSC 52 reaches the clipboard only if tmux has `set-clipboard on`, and the terminal allows it. Kirsch writes a bare OSC 52 sequence, so only `set-clipboard on` applies.
+- Some terminals cap or drop large OSC 52 payloads, so a very long copy can fail on that route. The notice then reports the route it used, not the result the user sees.
+- `/copy code` reaches only the code blocks of the last reply. A code block in an older reply is copied by selecting that reply with `c`, which copies the whole reply.
+- The screen does not number code blocks; the user counts fences in the reply. `/copy code` with no N covers the common case. From v0.1.4, markdown rendering may stop drawing fences; that release revisits this.
+- macOS Terminal.app ignores OSC 52, so the local tool is the only route there.
+- Over SSH, the local tool may succeed on the remote host, in which case the notice says `copied` while only OSC 52 reached the user's own machine.
+- On a very short terminal, the layout gives the composer no spare row for its hint, so a copy notice in the hint under the composer is not visible.
+- A draft of five or more lines fills the composer, and then a copy notice is not shown under it. `contentLines` in `internal/tui/composer.go` clamps the draft to five lines and adds one row for the hint, and `computeLayout` in `internal/tui/view.go` clamps the composer to five rows. `rows()` then drops the hint, because the draft's lines fill the window. A draft of four lines or fewer shows the notice.
+- When any notice is showing under the composer, the help overlay at 80 by 28 is one row short, and `G` shows its last rows. The composer then takes two rows, not one, so the transcript region, and the overlay drawn in it, lose one row.
+- OSC 52 is written outside Bubble Tea's renderer. A frame drawn during a very large write can be garbled once, until the next redraw.
 
 **Still open**
 

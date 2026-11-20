@@ -1,6 +1,10 @@
 package tui
 
-import "time"
+import (
+	"time"
+
+	"github.com/djm56/kirsch/internal/clipboard"
+)
 
 // Typed messages the TUI receives from internal/app.
 //
@@ -215,6 +219,13 @@ type StatusInfoMsg struct {
 type DiffResultMsg struct {
 	Result DiffResult
 	Seq    int // sequence number for /diff requests; ignored if stale (W-B)
+}
+
+// CopyResultMsg delivers the outcome of a copy, which runs in a tea.Cmd so that
+// the clipboard tool never blocks Update.
+type CopyResultMsg struct {
+	Result clipboard.Result
+	Seq    int // sequence number of the copy request; ignored if stale
 }
 
 // TranscriptLoadedMsg bulk-loads a transcript snapshot, for example when a

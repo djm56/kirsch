@@ -344,11 +344,11 @@ func TestApprovalJKReleaseTheCardAndPgKeysDoNot(t *testing.T) {
 	}
 }
 
-// TestHelpBindingRowsMatchAmendment100 asserts the rendered left column of the
-// help overlay, read from helpColumn (what helpLines composes), carries the 17
-// rows amendment 100 gives. Screen 06's golden pins the whole frame; this names
+// TestHelpBindingRowsMatchAmendment101 asserts the rendered left column of the
+// help overlay, read from helpColumn (what helpLines composes), carries the
+// rows amendment 101 gives. Screen 06's golden pins the whole frame; this names
 // the rows so a restored old row fails here with a readable message.
-func TestHelpBindingRowsMatchAmendment100(t *testing.T) {
+func TestHelpBindingRowsMatchAmendment101(t *testing.T) {
 	want := []string{
 		"composing",
 		"Enter         send",
@@ -361,12 +361,12 @@ func TestHelpBindingRowsMatchAmendment100(t *testing.T) {
 		"PgUp/PgDn     scroll",
 		"",
 		"browsing",
-		"↑/↓           select card",
+		"↑/↓           select card/reply",
 		"PgUp/PgDn j/k scroll",
 		"Enter         toggle preview",
 		"d             diff / content",
 		"g/G End       top / bottom, re-pin",
-		"?             help",
+		"c             copy reply",
 	}
 	got := helpColumn(13, "composing", "browsing")
 	if len(got) != len(want) {

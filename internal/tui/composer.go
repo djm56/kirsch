@@ -17,7 +17,12 @@ type Composer struct {
 	Disabled   bool   // mirrors Busy; the only thing Busy does here
 	Focused    bool   // the composer holds input capture
 	Onboarding bool   // Model.showIntro: show the placeholder
-	Hint       string // dim inline hint for an unknown /command, §6
+	Hint       string // dim inline hint under the composer: unknown /command, approval release, usage or copy notice, §6
+	// hintIsCopy is true while Hint holds a copy notice. A CopyResultMsg may
+	// replace a hint only when it is empty or a copy notice, so every path that
+	// sets or clears Hint also sets this: Reset, setHint and the key and
+	// approval paths in update.go.
+	hintIsCopy bool
 
 	// History for command and message recall. Stores up to 100 entries,
 	// newest first (index 0 is the most recent submission).
@@ -55,6 +60,7 @@ func (c *Composer) SetValue(s string) { c.ta.SetValue(s) }
 func (c *Composer) Reset() {
 	c.ta.Reset()
 	c.Hint = ""
+	c.hintIsCopy = false
 	c.resetHistory()
 }
 
@@ -451,7 +457,7 @@ func parseSlash(v string) (cmd, args string, ok bool) {
 // session-ending command is the one command a reader should not have to guess
 // the spelling of.
 var SlashCommands = []string{
-	"help", "status", "diff", "files", "approvals", "new", "compact", "quit", "exit",
+	"help", "status", "diff", "files", "approvals", "new", "compact", "quit", "exit", "copy",
 }
 
 // completeSlash completes a unique prefix, returning the completion and whether

@@ -570,7 +570,7 @@ func (m Model) confirmRow(prompt string, w int) string {
 // update.go. That table is data for this overlay only: the key handlers in
 // update.go dispatch on their own switch statements and never read it, so a
 // binding whose behaviour changes needs its row changed by hand. Screen 06's
-// golden and TestHelpBindingRowsMatchAmendment100 pin the rendered rows to the
+// golden and TestHelpBindingRowsMatchAmendment101 pin the rendered rows to the
 // spec, not to the handlers: nothing mechanical ties a row to the key it
 // describes.
 func helpLines() []string {

@@ -86,19 +86,19 @@ porting the palette.
 █▄▀ █ █▀█ █▀▀ █▀▀ █ █
 █▀▄ █ █▀▄ ▄▄█ █▄▄ █▀█
 
-v0.1.2-dev · terminal-native coding agent
+v0.1.3-dev · terminal-native coding agent
 
 — non-UTF-8 / ASCII fallback —
 
 K I R S C H
-v0.1.2-dev . terminal-native coding agent
+v0.1.3-dev . terminal-native coding agent
 ```
 
 **Colours**
 
 ```text
 wordmark            "█▄▀ █ █▀█ █▀▀ █▀▀ █ █" (both rows)          accent    117  #87d7ff
-tagline             "v0.1.2-dev · terminal-native coding agent"  dim       245  #8a8a8a
+tagline             "v0.1.3-dev · terminal-native coding agent"  dim       245  #8a8a8a
 (ASCII fallback)    same assignment, both rows                   accent    117  #87d7ff
 ```
 
@@ -115,9 +115,9 @@ tagline             "v0.1.2-dev · terminal-native coding agent"  dim       245 
   40 and 41 columns the two disagree, and reading content width would retire the wordmark from
   the advertised minimum as a side effect of the margin.
 - The tagline is truncated to the content width with the `⋯` marker (`...` in ASCII). Its width
-  is not fixed: the version is a build-time string, and the shipped `0.1.2-dev` already makes
+  is not fixed: the version is a build-time string, and the shipped `0.1.3-dev` already makes
   the row 41 cells against the 38 a 40-column terminal leaves. At that width the row reads
-  `v0.1.2-dev · terminal-native coding a⋯`. The version leads because it is the part
+  `v0.1.3-dev · terminal-native coding a⋯`. The version leads because it is the part
   worth keeping when the row is cut, and the marker is there because the frame's own
   bound is a hard edge with no marker — unbounded, the row broke off mid-word with
   nothing to say it had been cut.
@@ -133,7 +133,7 @@ tagline             "v0.1.2-dev · terminal-native coding agent"  dim       245 
  █▄▀ █ █▀█ █▀▀ █▀▀ █ █
  █▀▄ █ █▀▄ ▄▄█ █▄▄ █▀█
 
- v0.1.2-dev · terminal-native coding agent
+ v0.1.3-dev · terminal-native coding agent
 
 
  Ask anything. Three things to try:
@@ -155,7 +155,7 @@ header.rule         trailing "─" fill on row 1               border    244  #8
 header.title        "my-project ─ main" (row 2)              accent    117  #87d7ff
 header.dirty        "●"                                      warning   215  #ffaf5f
 wordmark            both block rows                              accent    117  #87d7ff
-tagline             "v0.1.2-dev · terminal-native coding agent"  dim       245  #8a8a8a
+tagline             "v0.1.3-dev · terminal-native coding agent"  dim       245  #8a8a8a
 lead_in             "Ask anything. Three things to try:"         muted     248  #a8a8a8
 suggestions         the three "· …" lines                        dim       245  #8a8a8a
 status.bar          "claude-sonnet-5-5 · idle · 0 tok"            muted     248  #a8a8a8
@@ -395,14 +395,14 @@ status+composer     unchanged, still live                    muted     248  #a8a
          │ PgUp/PgDn     scroll                 g/G       top/bottom  │
          │                                      Esc       close       │
          │ browsing                                                   │
-         │ ↑/↓           select card            commands              │
+         │ ↑/↓           select card/reply      commands              │
          │ PgUp/PgDn j/k scroll                 /help  /status        │
          │ Enter         toggle preview         /diff  /files         │
          │ d             diff / content         /approvals  /new      │
          │ g/G End       top / bottom, re-pin   /compact  /quit       │
-         │ ?             help                   /exit                 │
+         │ c             copy reply             /exit  /copy          │
          ├────────────────────────────────────────────────────────────┤
-         │ kirsch v0.1.2-dev · Esc or ? closes                        │
+         │ kirsch v0.1.3-dev · Esc or ? closes                        │
          └────────────────────────────────────────────────────────────┘
  ──────────────────────────────────────────────────────────────────────────────
  claude-sonnet-5-5 · idle · 12.4k tok
@@ -419,7 +419,7 @@ modal.title         "help"                                   accent    117  #87d
 section.headings    "composing" "browsing" "approval"        warning   215  #ffaf5f
                     "modal" "commands"
 bindings            key + description columns                muted     248  #a8a8a8
-footer              "kirsch v0.1.2-dev · Esc or ? closes"    dim       245  #8a8a8a
+footer              "kirsch v0.1.3-dev · Esc or ? closes"    dim       245  #8a8a8a
 BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8a8a
 ```
 
@@ -694,7 +694,7 @@ NOTE                this screen is the golden-test fixture. Compare Kirsch's str
  █▄▀ █ █▀█ █▀▀ █▀▀ █ █
  █▀▄ █ █▀▄ ▄▄█ █▄▄ █▀█
 
- v0.1.2-dev · terminal-native coding agent
+ v0.1.3-dev · terminal-native coding agent
 
  · No API key: set KIRSCH_OPENCODE_API_KEY → OPENCODE_API_KEY.
  · Keys are never read from config files.
@@ -732,7 +732,7 @@ header.rule         trailing "─" fill on row 1               border    244  #8
 header.title        "my-project ─ main" (row 2)              accent    117  #87d7ff
 header.dirty        "●"                                      warning   215  #ffaf5f
 wordmark            both block rows                          accent    117  #87d7ff
-tagline             "v0.1.2-dev · terminal-native coding agent"  dim   245  #8a8a8a
+tagline             "v0.1.3-dev · terminal-native coding agent"  dim   245  #8a8a8a
 onboarding.notice   every "· …" notice line                    dim       245  #8a8a8a
 status.bar          "unknown-model · idle · 0 tok"             muted     248  #a8a8a8
 composer.prompt     ">"                                      accent    117  #87d7ff

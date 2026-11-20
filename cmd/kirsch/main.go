@@ -18,9 +18,11 @@ import (
 	"runtime/debug"
 	"strings"
 
+	atotto "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/djm56/kirsch/internal/app"
+	"github.com/djm56/kirsch/internal/clipboard"
 	"github.com/djm56/kirsch/internal/config"
 	"github.com/djm56/kirsch/internal/doctor"
 	"github.com/djm56/kirsch/internal/session"
@@ -34,7 +36,7 @@ import (
 // are in CONTRIBUTING.md, "After a release tag". Until that bump lands, an
 // unstamped build still reports the just-released version's -dev (for example
 // 0.1.2-dev after v0.1.2 is tagged).
-const devVersion = "0.1.2-dev"
+const devVersion = "0.1.3-dev"
 
 // version is overridden at release time via -ldflags, for example
 // -X main.version=0.1.0. The injected value is bare: the TUI adds its own "v".
@@ -360,6 +362,19 @@ func newSessionID() string {
 	return hex.EncodeToString(b)
 }
 
+// oscAllowed reports whether an OSC 52 sequence may be written to out: out is a
+// character device and TERM is not "dumb". A failed Stat counts as not a
+// terminal, so nothing is written on doubt. DetectCaps in internal/tui makes the
+// same device test, and treats an empty TERM like "dumb" for colour; for OSC 52
+// the rule is TERM "dumb" only (ui-spec §6).
+func oscAllowed(out *os.File) bool {
+	if os.Getenv("TERM") == "dumb" {
+		return false
+	}
+	fi, err := out.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
 // wireCallbacks wires the TUI model's callbacks to the app and telemetry logger.
 // This function encapsulates the callback assignments that connect the TUI to the app.
 // By extracting this, we enable tests to use the same wiring path instead of
@@ -409,6 +424,26 @@ func wireCallbacks(m *tui.Model, a *app.App, log *telemetry.Logger) {
 	// GetDiff wires the /diff command to read the working tree.
 	m.GetDiff = func() tui.DiffResult {
 		return a.GetDiff()
+	}
+	// Copy wires /copy to the two clipboard routes. The local tool is the one
+	// github.com/atotto/clipboard finds on the host, with clipboard.DefaultTimeout
+	// to answer.
+	// The OSC 52 route writes to os.Stdout, which is the terminal Bubble Tea
+	// draws on, and only when stdout is a character device and TERM is not
+	// "dumb", the same device test DetectCaps applies. That write goes around
+	// Bubble Tea's renderer, which cannot interleave it with a frame: accepted,
+	// because the renderer has no hook for raw terminal output, and the cost is
+	// that a frame drawn during a very large write can be garbled until the next
+	// redraw (plan amendment 101, known gaps).
+	m.Copy = func(text string) clipboard.Result {
+		opts := clipboard.Options{
+			WriteLocal: atotto.WriteAll,
+			Timeout:    clipboard.DefaultTimeout,
+		}
+		if oscAllowed(os.Stdout) {
+			opts.OSC = os.Stdout
+		}
+		return clipboard.Copy(text, opts)
 	}
 	// GetTouchedFiles wires the /files command to the app's tracked touched files.
 	m.GetTouchedFiles = func() []string {

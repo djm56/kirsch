@@ -1,8 +1,10 @@
 // Package tui renders Kirsch's terminal interface.
 //
-// The package imports no other internal package and never will: it receives
-// typed messages and emits typed intents, so it cannot reach a tool, a provider
-// or the filesystem. architecture.md §3 rule 2.
+// The package imports one internal package, internal/clipboard: a leaf of text
+// functions and a result type that itself imports no internal package. The real
+// copy routes (the host clipboard tool, the terminal) are supplied from
+// cmd/kirsch through Model.Copy. architecture.md §3 rule 2 forbids tui from
+// importing provider, tool, workspace and agent, and internal/arch enforces it.
 package tui
 
 import (
@@ -11,6 +13,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/djm56/kirsch/internal/clipboard"
 )
 
 // BaseMode is the resting focus: the composer, or the transcript.
@@ -148,6 +152,11 @@ type Model struct {
 	ClearGrants     func()
 	StatusInfo      func() StatusInfoMsg
 	GetDiff         func() DiffResult
+	// Copy delivers text to the clipboard by every route and returns what
+	// worked. It blocks for up to the local tool's timeout, so the TUI calls it
+	// only from a tea.Cmd. Nil means no route is wired, and a copy reports
+	// "copy failed: no clipboard route".
+	Copy            func(text string) clipboard.Result
 	GetTouchedFiles func() []string
 	NewSession      func(getenv func(string) string) error
 	// ManualCompact runs a manual compaction to completion and returns its real
@@ -191,6 +200,12 @@ type Model struct {
 	lastCtrlC    time.Time
 
 	pendingDiffSeq int // sequence number for /diff requests; ignored if stale. Only ever increases.
+
+	// copySeq numbers /copy invocations that start a copy or show a copy notice;
+	// the usage hint is not a copy notice and does not take a number. A copy that
+	// starts carries the value in its CopyResultMsg, so a result older than the
+	// latest such invocation is ignored. Only ever increases.
+	copySeq int
 
 	// compacting is set from /compact until its ManualCompactMsg arrives (or
 	// resetForNewSession runs), and newSessionPending from /new until its
@@ -543,9 +558,9 @@ func (m *Model) computeExpanded(it Item) bool {
 }
 
 // revealSelection scrolls the minimum distance needed to bring the selected
-// card into view — and does nothing at all when it is already visible, which is
-// the literal implementation of "scrolling and selection must not be collapsed
-// into one". ui-spec §2.4.
+// item, a card or a reply, into view — and does nothing at all when it is
+// already visible, which is the literal implementation of "scrolling and
+// selection must not be collapsed into one". ui-spec §2.4.
 func (m *Model) revealSelection(viewH int) {
 	r, ok := m.rowFor(m.sel)
 	if !ok || viewH <= 0 {
@@ -555,7 +570,7 @@ func (m *Model) revealSelection(viewH int) {
 	total := len(m.lines)
 	switch {
 	case r.N > viewH:
-		m.scroll.setOffset(top, total, viewH) // over-tall card: align its summary line
+		m.scroll.setOffset(top, total, viewH) // over-tall card or reply: align its first row (a card's head line, a reply's first line)
 	case top < m.scroll.Offset:
 		m.scroll.setOffset(top, total, viewH)
 	case bot > m.scroll.Offset+viewH-1:

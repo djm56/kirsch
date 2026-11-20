@@ -1,11 +1,12 @@
 package tui
 
 import (
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/mattn/go-runewidth"
+
+	"github.com/djm56/kirsch/internal/clipboard"
 )
 
 // ItemID identifies a transcript item. Zero is the none sentinel.
@@ -49,13 +50,16 @@ type Item struct {
 	Thinking *ThinkingCard
 }
 
-// Selectable reports whether ↑/↓ stop on this item. Only cards are selectable;
-// text blocks are skipped, because Enter does nothing on them and stopping
-// there is pure friction. ui-spec §3.9.
+// Selectable reports whether ↑/↓ stop on this item. Cards are selectable, and so
+// is an assistant reply whose text block has at least one line. A reply with no
+// lines is skipped, and so is a user message, because nothing can be done with
+// either. ui-spec §3.9.
 func (i Item) Selectable() bool {
 	switch i.Kind {
 	case KindTool, KindApproval, KindError, KindNotice, KindThinking:
 		return true
+	case KindAssistant:
+		return i.Text != nil && len(i.Text.Lines) > 0
 	default:
 		return false
 	}
@@ -79,20 +83,41 @@ func (s CardState) Terminal() bool { return s >= StateOK }
 // TextBlock is a user or assistant message. Lines are stored unwrapped —
 // wrapping is a function of the current width, and the width changes on resize.
 //
-// Raw is the unsanitised text accumulated by streaming deltas. It is empty for
-// a block built from Lines directly, until its first delta seeds it with those
-// already-sanitised Lines (see AppendText), and for every block finished
-// outside tests: cancelTurn and the TurnCompleteMsg and TurnErrorMsg handlers
-// clear Streaming and empty Raw together, so only Lines outlives the stream. (The test-only fake stream driver clears Streaming and
-// leaves Raw; outside tests, only AppendText reads Raw, and it refuses a block
-// once Streaming is false.) While streaming, Lines is always recomputed from
-// the whole of Raw, never per delta, because an escape sequence, a CRLF or a
-// multi-byte rune can be split across two deltas.
+// Raw and Source both hold the text as the model sent it, unsanitised; they
+// differ in when. Raw is the text accumulated by streaming deltas. It is empty
+// for a block built from Lines directly, until its first delta seeds it with
+// those already-sanitised Lines (see AppendText). While streaming, Lines is
+// always recomputed from the whole of Raw, never per delta, because an escape
+// sequence, a CRLF or a multi-byte rune can be split across two deltas.
+//
+// When a stream ends — the TurnCompleteMsg and TurnErrorMsg handlers and
+// cancelTurn — Streaming is cleared, Raw is copied into Source and Raw is
+// emptied, so only Lines and Source outlive the stream. (The test-only fake
+// stream driver clears Streaming and leaves Raw; outside tests only AppendText
+// reads Raw, and it refuses a block once Streaming is false.) A reply rebuilt
+// on resume has Source set from the stored message and no Raw. Source is what
+// the copy path reads once the stream has ended; see SourceText.
 type TextBlock struct {
 	Raw       string
+	Source    string // the unsanitised text as the model sent it, kept after the stream ends
 	Lines     []string
 	Streaming bool // assistant only: render a trailing caret
 	Cancelled bool // partial text from a cancelled turn stays, marked
+}
+
+// SourceText returns the text the copy path starts from: Source when the block
+// has one, else Raw (a block still streaming), else its Lines joined with
+// newlines. The Lines fallback is not reached in production, where every
+// assistant block has Raw or Source; it exists for blocks that tests build from
+// Lines alone. ui-spec §6, "Source text and payload".
+func (t *TextBlock) SourceText() string {
+	switch {
+	case t.Source != "":
+		return t.Source
+	case t.Raw != "":
+		return t.Raw
+	}
+	return strings.Join(t.Lines, "\n")
 }
 
 // ToolCard is one tool invocation. Out holds the full output: the preview is
@@ -316,9 +341,9 @@ func (t *Transcript) Find(id ItemID) (Item, int, bool) {
 //
 // Text has the same shape and one less method. cancelTurn, the TurnComplete
 // and TurnError handlers and the scripted turn helper all clear
-// it.Text.Streaming in the open, and the first three also empty it.Text.Raw;
-// AppendText only appends, so there is no guarded way to end a stream and that
-// flag has no seam at all.
+// it.Text.Streaming in the open, and the first three also move it.Text.Raw into
+// it.Text.Source; AppendText only appends, so there is no guarded way to end a
+// stream and that flag has no seam at all.
 func (t *Transcript) MutateTool(id ItemID, fn func(*ToolCard)) bool {
 	it, _, ok := t.Find(id)
 	if !ok || it.Kind != KindTool || it.Tool.State.Terminal() {
@@ -498,20 +523,6 @@ func (s *Scroll) repin() {
 
 // ── Sanitisation ────────────────────────────────────────────────────────────
 
-// ansiRe matches CSI, OSC and two-byte escape sequences, in both their 7-bit
-// (ESC-prefixed) and 8-bit (C1) forms.
-//
-// The 8-bit forms are written as runes (\x{009b}) rather than raw bytes: a bare
-// 0x9b is not valid UTF-8, and Go's regexp rejects the pattern outright. Stray
-// C1 bytes that are not part of a sequence are caught by replaceControls.
-var ansiRe = regexp.MustCompile(
-	"\x1b\\][^\x07\x1b]*(?:\x07|\x1b\\\\)" + // OSC ... BEL or ST
-		"|\x1b\\[[0-?]*[ -/]*[@-~]" + // CSI
-		"|\\x{009b}[0-?]*[ -/]*[@-~]" + // 8-bit CSI
-		"|\x1b[@-Z\\\\-_]" + // two-byte escapes
-		"|\x1b\\([A-Za-z0-9]", // charset selection
-)
-
 // Sanitize makes captured output safe to render. ui-spec §7.1, applied in this
 // order.
 //
@@ -524,7 +535,7 @@ var ansiRe = regexp.MustCompile(
 // *cannot* leak an escape, which makes the property provable rather than
 // merely tested.
 func Sanitize(s string) string {
-	s = ansiRe.ReplaceAllString(s, "")
+	s = clipboard.StripANSI(s)
 
 	// Normalise CRLF to LF before collapsing \r runs. Order matters: collapsing
 	// first would reduce a whole CRLF file to its last line.
@@ -612,9 +623,10 @@ func expandTabs(s string) string {
 
 // replaceControls swaps remaining control characters for a visible bullet.
 //
-// Covers C0 (0x00–0x1f), DEL, the C1 range (0x80–0x9f) left over after ansiRe,
-// and the replacement rune that invalid UTF-8 decodes to — none of which have a
-// sensible width and any of which can move a terminal's cursor. §7.1.
+// Covers C0 (0x00–0x1f), DEL, the C1 range (0x80–0x9f) left over after
+// clipboard.StripANSI, and the replacement rune that invalid UTF-8 decodes to —
+// none of which have a sensible width and any of which can move a terminal's
+// cursor. §7.1.
 func replaceControls(s string) string {
 	return strings.Map(func(r rune) rune {
 		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == 0xfffd {

@@ -1577,7 +1577,7 @@ func (a *App) transcriptToItems(trans session.Transcript) []tui.Item {
 					if b.Text != "" {
 						items = append(items, tui.Item{
 							Kind: tui.KindAssistant,
-							Text: &tui.TextBlock{Lines: tui.SanitizeLines(b.Text)},
+							Text: &tui.TextBlock{Lines: tui.SanitizeLines(b.Text), Source: b.Text},
 						})
 					}
 				case agent.BlockThinking:

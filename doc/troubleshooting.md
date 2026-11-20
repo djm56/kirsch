@@ -37,7 +37,7 @@ doctor: <ok> ok, <warn> warn, <fail> fail
 ```
 
 - `kirsch <version>` is the opening line. The version is the release version,
-  or the development version, such as `0.1.2-dev`, in a build that carries no release version. See
+  or the development version, such as `0.1.3-dev`, in a build that carries no release version. See
   [install.md](install.md) for how a build gets its version.
 - `<status>` is `ok`, `warn`, or `fail`. Spaces follow it, as in the examples below.
 - `<check>` is the name of the check, in lower case.
@@ -56,7 +56,7 @@ Example output from a repository with no key variables set. Your lines and
 paths will differ:
 
 ```text
-kirsch 0.1.2-dev
+kirsch 0.1.3-dev
 ok  git: found at /usr/bin/git
 ok  rg: found at /usr/local/bin/rg
 ok  repository: /home/you/project
@@ -726,6 +726,51 @@ with no text, that is cut off shows the line as it stops but not after a resume.
 To give a reply more room, use a model with a larger output limit, by setting
 `provider.<name>.model` (see [configuration.md](configuration.md)). A model that
 Kirsch does not know gets 16384 tokens.
+
+### Copy did not reach my clipboard
+
+**What you see.** You pressed `c`, or ran `/copy`, and the hint under the
+composer says one of these:
+
+```text
+copy failed: no clipboard route
+```
+
+```text
+sent 1204 characters (OSC 52)
+```
+
+The number is the length of your text, and it varies.
+
+**What happens.** Kirsch tries two routes. The first is the clipboard tool on the
+computer Kirsch runs on. The second is an escape sequence, OSC 52, written to the
+terminal, which the terminal can use to set the clipboard.
+
+- `copy failed: no clipboard route` means neither route worked. Kirsch found no
+  working clipboard tool: the tool may be missing, or it may exist but fail or
+  time out. Kirsch also did not write the sequence, because its output is not a
+  terminal or `TERM` is `dumb`. That happens when the output is piped or
+  redirected, or when `TERM` is set to `dumb`.
+- `sent 1204 characters (OSC 52)` means the clipboard tool failed or took longer
+  than 3 seconds, so the sequence went to the terminal. Kirsch cannot see whether
+  the terminal used it. If nothing pastes, the terminal or a multiplexer dropped
+  the sequence. Kirsch does not know which, so the notice says only that the
+  sequence was sent.
+
+**What to do.**
+
+- **tmux.** Turn on clipboard passing. Add `set -g set-clipboard on` to your
+  `~/.tmux.conf`, start tmux again or reload the file, then copy again.
+- **macOS Terminal.app.** Terminal.app ignores OSC 52. A copy there works only
+  through the clipboard tool on the Mac, so a `sent … (OSC 52)` notice means nothing
+  will paste. Copy from a terminal that accepts OSC 52 instead.
+- **SSH.** On the server, the clipboard tool may be missing, so a copy becomes
+  `sent … (OSC 52)`. That sequence reaches your own computer only if the terminal
+  on your side accepts OSC 52, and only if nothing between the two drops it, such
+  as a multiplexer without the setting above. If you see `copied N characters` over
+  SSH, the text reached a clipboard on the server, not on your computer.
+- **Large copies.** Some terminals drop a very long OSC 52 sequence. Copy less at a
+  time: `/copy code N` takes one code block, and `c` takes one reply.
 
 ---
 

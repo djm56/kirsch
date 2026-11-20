@@ -21,8 +21,8 @@ Fix the daily usability problems found after v0.1.1, before Milestone 6 starts. 
 | --- | --- | --- | --- | --- |
 | v0.1.2 | ux-d1 | Output limit and cut-off notice | 6, 8 | Unknown models get 16384 output tokens; model-table rows changed only with a cited source. The `minimax-m3` and `minimax-m2.7` rows stay at 4096 unless a published source is found, so v0.1.2 does not lift the cut-off on the default model by itself; the 16384 default helps models not in the table, such as `claude-haiku-5-5`. A reply that stops on `max_tokens` shows the notice from ui-spec §3.7, and the stop reason and the limit sent are written on `assistant.message` (§7, amendment 100), so the notice shows on resume. Tests pin all of it. |
 | v0.1.2 | ux-d2 | Keyboard scrolling and help screen | 9, 10, 13 | `PgUp`/`PgDn` scroll from Composing; `j`/`k` scroll one line in Browsing; the help overlay, in the 17-row layout of amendment 100, lists `Ctrl+G`, `PgUp`/`PgDn` (composing) and `j`/`k`, `g`/`G` (browsing); screen 06 and the goldens match. |
-| v0.1.3 | ux-d3 | Copy the last reply | 5 | `/copy` puts the last assistant reply's raw text on the clipboard through OSC 52 and the local clipboard tool; a notice says how many characters were copied, or that no route worked. |
-| v0.1.3 | ux-d4 | Select and copy a reply or code block | 12, 5 | Assistant replies can be selected in Browsing; a key copies the selected reply; a way exists to copy one fenced code block. |
+| v0.1.3 | ux-d3 | Copy the last reply | 5 | `/copy` in all its forms (`/copy`, `/copy code`, `/copy code N`) puts source text on the clipboard through the local clipboard tool and OSC 52, with the routes and notices of ui-spec §6 and plan amendment 101; tests pin the code-block grammar and the notices. |
+| v0.1.3 | ux-d4 | Select a reply and copy it with `c` | 12, 5 | Assistant replies can be selected in Browsing, and `↑`/`↓` stop on them; `c` copies the selected reply; the key-hint row and the help-overlay redraw show both (ui-spec §3.9, §4.2, §5.2; plan amendment 101). |
 | v0.1.4 | ux-d5 | Markdown rendering | 1 | Assistant replies render bold, headings, lists and code fences; no background is painted; `NO_COLOR` and `TERM=dumb` fall back to plain text; a config key turns it off. |
 | v0.1.4 | ux-d6 | Code highlighting | 4 | Code in the content view, in diff lines and in reply code fences is coloured by language; `+`/`-` stay the line markers. |
 | v0.1.5 | ux-d7 | Scrollbar | 2 | A one-column position indicator on the transcript's right edge, with a non-Unicode fallback; no mouse. |
@@ -30,7 +30,7 @@ Fix the daily usability problems found after v0.1.1, before Milestone 6 starts. 
 
 ## Manual tests
 
-The operator's hands-on checks for each release are in [`plan/testing/manual/ux-round-v0.1.md`](../testing/manual/ux-round-v0.1.md). The v0.1.2 section is run before its tag.
+The operator's hands-on checks for each release are in [`plan/testing/manual/ux-round-v0.1.md`](../testing/manual/ux-round-v0.1.md). The v0.1.2 section was run on 2026-11-20 before its tag. On the operator's direction (2026-11-20), the sections for v0.1.3 to v0.1.5 are run together as one test at the end of the round.
 
 ## Deferred
 
@@ -45,7 +45,7 @@ The operator's hands-on checks for each release are in [`plan/testing/manual/ux-
 | UX-D2 | Line scroll keys in Browsing | Answered 2026-11-19: `j`/`k` scroll the transcript one line in Browsing mode. | v0.1.2 (answered) |
 | UX-D3 | Page scroll from Composing | Answered 2026-11-19: `PgUp`/`PgDn` in Composing scroll the transcript a page, without changing mode or moving the card selection. | v0.1.2 (answered) |
 | UX-D4 | How many missions per release | Answered 2026-11-19: one mission per release. | — (answered) |
-| UX-D5 | Copy keys, and how a code block is picked | Open. Also open: whether `↑`/`↓` stop on replies, or a separate key pair moves between them. | v0.1.3 |
+| UX-D5 | Copy keys, and how a code block is picked | Answered 2026-11-20 by Bishop's recommendation (operator's standing go-ahead; the operator may overturn it): `↑`/`↓` stop on assistant replies as well as cards, `c` in Browsing copies the selected reply's source text, and `/copy`, `/copy code` and `/copy code N` copy the last reply, its last fenced code block, or block N. Details in plan amendment 101. | v0.1.3 (answered) |
 | UX-D6 | Markdown while a reply streams | Open: plain text until the reply completes, or format each finished block as it closes. | v0.1.4 |
 | UX-D7 | Long lines in the modal | Open: wrap them, or add sideways scroll with `h`/`l`. | v0.1.5 |
 | UX-D8 | Config key name and default for markdown rendering | Open. Suggested: `ui.render_markdown = true`. | v0.1.4 |
@@ -55,7 +55,7 @@ The operator's hands-on checks for each release are in [`plan/testing/manual/ux-
 Each release amends the UI spec before its code step.
 
 - **v0.1.2** by plan amendment 100: the keys, the help overlay, the cut-off notice, and the §7 stop-reason fields on `assistant.message`.
-- **v0.1.3** selecting replies (ui-spec §3.9), copy keys (§5.2), and a second help-overlay redraw within the same height rule as v0.1.2.
+- **v0.1.3** by plan amendment 101: selecting replies (ui-spec §3.9), copy keys (§5.2), `/copy` (§6), and a second help-overlay redraw within the same height rule as v0.1.2.
 - **v0.1.4** must reverse "no syntax highlighting in v0.1" (ui-spec §3.2 and §9).
 - **v0.1.5** adds the scrollbar glyphs to §10.2, and amends §4.1 (modal) for UX-D7.
 

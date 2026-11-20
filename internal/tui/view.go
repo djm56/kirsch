@@ -828,6 +828,15 @@ func (m Model) hintRow(lay Layout) string {
 			"d detail",
 			"Tab/Esc prompt",
 		}
+		// On a selected reply Enter and d do nothing and c copies, so the row
+		// names c in place of the two.
+		if it, _, ok := m.tr.Find(m.sel); ok && it.Kind == KindAssistant {
+			items = []string{
+				upDown + " select",
+				"c copy",
+				"Tab/Esc prompt",
+			}
+		}
 		hint = strings.Join(items, " "+m.gly.Bullet+" ")
 
 	case ModeApprovalPending:

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Replies can be selected in Browsing.** `↑` and `↓` stop on assistant replies as well as on cards, and skip your own messages. A selected reply shows the same `┃` gutter as a selected card, and `Enter` and `d` do nothing on it. On a selected reply the key-hint row reads `↑↓ select · c copy · Tab/Esc prompt`. Spec: ui-spec §3.9 and §5.2; plan amendment 101.
+- **`c` copies the selected reply.** In Browsing, `c` copies the reply's text as the model sent it, cleaned for safe pasting. On a selected card it shows `c copies replies only` and copies nothing. Spec: ui-spec §5.2 and §6; plan amendment 101.
+- **`/copy`, `/copy code` and `/copy code N` copy from the composer.** `/copy` copies the last reply, `/copy code` its last fenced code block, and `/copy code N` block N, counted from 1. Any other argument shows `usage: /copy [code [N]]`. `/c` and `/co` no longer complete, because `/compact` and `/copy` share them. Spec: ui-spec §6; plan amendment 101.
+- **Copies go to the clipboard two ways and report the result.** Each copy goes to the clipboard tool on the host, which gets 3 seconds, and writes an OSC 52 sequence to the terminal where the terminal output allows it. The notice reads `copied N characters`, `sent N characters (OSC 52)` or `copy failed: no clipboard route`, and it clears when you type. Spec: ui-spec §6.
+- **The help overlay lists the browsing copy keys.** Its browsing block reads `select card/reply` on the `↑/↓` row, and `c copy reply` replaces `?  help`. `?` still opens the help overlay, and the footer still reads `Esc or ? closes`. The commands column ends with `/exit  /copy`. Spec: ui-spec §4.2 and §5.2; plan amendment 101.
+- **`github.com/atotto/clipboard` is a direct dependency.** It moves from indirect to direct in `go.mod`, and `NOTICE` carries its BSD 3-Clause attribution line.
+
+### Changed
+
+- **Development builds report `0.1.3-dev`.** A build with no release stamp now reports `0.1.3-dev`, the version after v0.1.2. A build from a release tag is unchanged.
+
 ## [0.1.2] — 2026-11-20
 
 ### Added

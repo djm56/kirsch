@@ -47,7 +47,7 @@ func taglineOf(rows []string) (string, bool) {
 //
 // The row is assembled from a build-time version string, so its width is not a
 // constant: the fixtures rendered "0.1.0" and measured 37 cells, while the
-// shipped binary renders "0.1.2-dev" (cmd/kirsch/main.go) and measures 41
+// shipped binary renders "0.1.3-dev" (cmd/kirsch/main.go) and measures 41
 // against the 38 content columns a 40-column terminal leaves. It carried no
 // width bound at all, so between 40 and 42 columns it overran and View's final
 // cut took it — markerless, mid-word, reading "…terminal-native coding ag" while
