@@ -72,9 +72,13 @@ type assistantMessageEvent struct {
 	baseEvent
 	Content   string          `json:"content"`
 	ToolCalls []toolCallEvent `json:"tool_calls,omitempty"`
-	// StopReason is not populated in m4-d1; the agent layer does not yet
-	// surface it. The field is reserved for m4-d3 end-to-end verification.
+	// StopReason is the provider's stop reason, copied from agent.Message.
+	// encodeAssistantAppend writes it whenever it is non-empty; a line written
+	// before v0.1.2 has none.
 	StopReason string `json:"stop_reason,omitempty"`
+	// MaxTokens is the output limit sent with the request, copied from
+	// agent.Message.MaxTokens. It is omitted when zero.
+	MaxTokens int `json:"max_tokens,omitempty"`
 }
 
 // assistantThinkingEvent records an assistant thinking block.
@@ -245,6 +249,10 @@ func encodeUserAppend(m agent.Message) ([][]byte, error) {
 // tool-call blocks are emitted as a single assistant.message event; the plan §7
 // representation places text in content and tool calls in tool_calls, so the
 // original interleaving of text and tool calls within one message is flattened.
+//
+// m.StopReason and m.MaxTokens are written on the assistant.message line, each
+// omitted when empty or zero. A message of thinking blocks only writes no
+// assistant.message line, so its stop reason and limit are not recorded.
 func encodeAssistantAppend(m agent.Message) ([][]byte, error) {
 	var lines [][]byte
 	var text string
@@ -281,9 +289,11 @@ func encodeAssistantAppend(m agent.Message) ([][]byte, error) {
 	}
 	if text != "" || len(calls) > 0 {
 		line, err := marshalLine(assistantMessageEvent{
-			baseEvent: baseEvent{Version: eventVersion, Type: eventTypeAssistantMessage},
-			Content:   text,
-			ToolCalls: calls,
+			baseEvent:  baseEvent{Version: eventVersion, Type: eventTypeAssistantMessage},
+			Content:    text,
+			ToolCalls:  calls,
+			StopReason: m.StopReason,
+			MaxTokens:  m.MaxTokens,
 		})
 		if err != nil {
 			return nil, err

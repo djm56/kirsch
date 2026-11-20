@@ -374,6 +374,9 @@ type App struct {
 	// sendFn overrides delivery. Tests set it; production leaves it nil and
 	// goes through program.Send.
 	sendFn func(any)
+	// out is the queue every message for the TUI goes through, in the order it
+	// was enqueued (see outbox).
+	out outbox
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -1558,7 +1561,17 @@ func (a *App) transcriptToItems(trans session.Transcript) []tui.Item {
 			}
 
 		case agent.RoleAssistant:
+			// The cut-off notice goes after the message's text and before its
+			// first tool card, or at the end when it has no tool call.
+			// buildAssistantMessage puts the text blocks first, so "before the
+			// first tool call block" is "after the text".
+			noticePending := tm.StopReason == string(provider.StopMaxTokens)
+			cutOffItem := tui.Item{Kind: tui.KindNotice, Notice: &tui.NoticeCard{Text: cutOffNoticeText(tm.MaxTokens)}}
 			for _, b := range tm.Content {
+				if noticePending && b.Kind == agent.BlockToolCall {
+					items = append(items, cutOffItem)
+					noticePending = false
+				}
 				switch b.Kind {
 				case agent.BlockText:
 					if b.Text != "" {
@@ -1603,6 +1616,9 @@ func (a *App) transcriptToItems(trans session.Transcript) []tui.Item {
 				case agent.BlockToolResult:
 					// Tool results are rendered as part of the assistant's tool-call card.
 				}
+			}
+			if noticePending {
+				items = append(items, cutOffItem)
 			}
 		}
 	}
@@ -1961,39 +1977,133 @@ func (a *App) deliverIfCurrent(gen uint64, deliver func()) {
 	deliver()
 }
 
+// outboxItem is one message waiting in the outbox. fenced items are delivered
+// only while gen is still the current session generation; unfenced items belong
+// to no session. done, when not nil, is closed once the item has been delivered,
+// dropped by the fence, or abandoned because the root context was cancelled.
+type outboxItem struct {
+	msg    tea.Msg
+	gen    uint64
+	fenced bool
+	done   chan struct{}
+}
+
+// outbox is the one FIFO queue every message for the TUI goes through, and so
+// the thing that fixes the order the TUI sees them in: the order they were
+// enqueued. One goroutine at a time drains it (drainOutbox), started by the
+// enqueue that finds the queue idle and exiting when it finds the queue empty,
+// so there is no resident goroutine and nothing to stop at shutdown. The zero
+// value is ready to use.
+type outbox struct {
+	mu      sync.Mutex
+	queue   []outboxItem
+	running bool
+	// wg counts the drain goroutine (zero or one). Tests wait on it to see that
+	// the goroutine has exited.
+	wg sync.WaitGroup
+}
+
+// rootDone returns the root context's Done channel, or nil (never ready) when
+// the App has no root context.
+func (a *App) rootDone() <-chan struct{} {
+	if a.rootCtx == nil {
+		return nil
+	}
+	return a.rootCtx.Done()
+}
+
+// enqueue appends items to the outbox, contiguously and in order, and starts
+// the drain goroutine if none is running. It takes only the outbox's own mutex,
+// for the length of an append, and never waits for delivery, so it is safe to
+// call from the Bubble Tea event loop.
+func (a *App) enqueue(items []outboxItem) {
+	a.out.mu.Lock()
+	a.out.queue = append(a.out.queue, items...)
+	start := !a.out.running
+	if start {
+		a.out.running = true
+		a.out.wg.Add(1)
+	}
+	a.out.mu.Unlock()
+	if start {
+		go a.drainOutbox()
+	}
+}
+
+// drainOutbox delivers the outbox's items one at a time, in order. It exits
+// only when it finds the queue empty. Delivery stops once the root context is
+// cancelled, but the goroutine keeps looping: it discards each remaining item,
+// closing its done channel so a blocked send returns, and exits once the queue
+// is empty. Checking for empty and clearing running happen under the same
+// mutex that enqueue appends under, so an item enqueued after the last check
+// starts a new drain goroutine instead of being stranded.
+func (a *App) drainOutbox() {
+	defer a.out.wg.Done()
+	for {
+		a.out.mu.Lock()
+		if len(a.out.queue) == 0 {
+			a.out.queue = nil
+			a.out.running = false
+			a.out.mu.Unlock()
+			return
+		}
+		it := a.out.queue[0]
+		a.out.queue[0] = outboxItem{}
+		a.out.queue = a.out.queue[1:]
+		a.out.mu.Unlock()
+
+		select {
+		case <-a.rootDone():
+		default:
+			a.deliverItem(it)
+		}
+		if it.done != nil {
+			close(it.done)
+		}
+	}
+}
+
+// deliverItem hands one item to the TUI: through deliverIfCurrent for a fenced
+// item, directly for an unfenced one.
+func (a *App) deliverItem(it outboxItem) {
+	if !it.fenced {
+		a.deliverOne(it.msg)
+		return
+	}
+	gen := it.gen
+	a.deliverIfCurrent(gen, func() { a.deliverOne(it.msg) })
+}
+
 // send delivers a message to the TUI, or drops it if there is nowhere to put
 // it or if gen is no longer the current session generation (a /new has
 // replaced the session the sender belongs to).
+//
+// The message goes through the outbox, so every message enqueued before it
+// (sendAsyncSequenceFenced, sendAsyncSequence or another send) is delivered
+// first, and send returns only once its own message has been accepted by the
+// TUI, dropped by the generation check, or abandoned. That order is what keeps
+// a tool card from overtaking the reply text that came before it.
 //
 // Delivery is abandoned once the root context is cancelled. Without that, a
 // tool that finishes just as the user quits blocks forever handing its result
 // to a program that has stopped reading.
 //
 // send is called by RunTool's goroutine, by the tool executor's Invoke and by
-// Request. It returns only once the message has been accepted by the TUI,
-// dropped by the generation check, or abandoned because the root context was
-// cancelled.
+// Request, never from the event loop.
 func (a *App) send(gen uint64, msg tea.Msg) {
-	if a.sendFn != nil {
-		a.deliverIfCurrent(gen, func() { a.sendFn(msg) })
+	if a.sendFn == nil && a.program == nil {
 		return
 	}
-	if a.program == nil {
-		return
-	}
-	delivered := make(chan struct{})
-	go func() {
-		a.deliverIfCurrent(gen, func() { a.program.Send(msg) })
-		close(delivered)
-	}()
+	done := make(chan struct{})
+	a.enqueue([]outboxItem{{msg: msg, gen: gen, fenced: true, done: done}})
 	select {
-	case <-delivered:
-	case <-a.rootCtx.Done():
+	case <-done:
+	case <-a.rootDone():
 	}
 }
 
-// sendAsyncSequence delivers multiple messages to the TUI in order, from a
-// single background goroutine, without blocking the caller.
+// sendAsyncSequence queues multiple messages for the TUI, in order, without
+// blocking the caller.
 //
 // It is called from Resolve, which runs on the event loop goroutine and
 // must never block. A blocking send from Update would deadlock Bubble Tea:
@@ -2001,33 +2111,31 @@ func (a *App) send(gen uint64, msg tea.Msg) {
 // to read from an unbuffered channel, and the event loop cannot run until
 // Update returns.
 //
-// This is used when message ordering must be guaranteed (e.g., a notice
-// followed by a resolved message). Sending each message from its own
-// goroutine would let them race and arrive out of order; sendAsyncSequence
-// sends all messages from one goroutine instead, so they arrive in the
-// order provided.
+// The messages go into the outbox contiguously, so they arrive in the order
+// given and in order relative to every other message queued before or after
+// this call, whichever sender queued it. Giving each message (or each call) its
+// own goroutine would let them race and arrive out of order.
 //
 // The non-blocking guarantee holds unconditionally, including when sendFn is
-// set: sendAsyncSequence always spawns one goroutine and returns immediately,
-// whether delivery goes through sendFn (tests) or program.Send (production).
-// An earlier version called sendFn synchronously on the caller's goroutine
-// when set, which was safe for the mutex-and-append collector in
-// app_test.go but not in general — internal/app/integration_test.go's
-// driveTUI wires sendFn to an unbuffered channel read from the same
-// goroutine that calls Resolve synchronously from Update, deliberately, to
-// catch this class of deadlock (see its comment). A synchronous sendFn call
-// from inside that call chain would deadlock the harness built to catch the
-// bug this mission exists to fix. Spawning unconditionally removes the
-// asymmetry rather than documenting around it.
+// set: sendAsyncSequence only appends to the outbox and returns, whether
+// delivery goes through sendFn (tests) or program.Send (production); the
+// outbox's own goroutine does the delivering. An earlier version called sendFn
+// synchronously on the caller's goroutine when set, which was safe for the
+// mutex-and-append collector in app_test.go but not in general —
+// internal/app/integration_test.go's driveTUI wires sendFn to an unbuffered
+// channel read from the same goroutine that calls Resolve synchronously from
+// Update, deliberately, to catch this class of deadlock (see its comment). A
+// synchronous sendFn call from inside that call chain would deadlock the
+// harness built to catch the bug this mission exists to fix.
 //
 // If the program is shutting down or no program is attached, messages are
 // abandoned silently.
 //
-// NOTE: The goroutine spawned here is not tracked by a.inFlight. The
-// program's context cancellation during shutdown prevents it from blocking
-// indefinitely (see Close and the program's event loop).
+// NOTE: The outbox goroutine is not tracked by a.inFlight. Delivery stops at
+// root-context cancel; the goroutine then discards what is queued and exits once
+// the queue is empty (see drainOutbox).
 func (a *App) sendAsyncSequence(msgs []tea.Msg) {
-	a.sendSequence(msgs, a.deliverOne)
+	a.sendSequence(msgs, 0, false)
 }
 
 // sendAsyncSequenceFenced is sendAsyncSequence with each message fenced to gen:
@@ -2039,37 +2147,31 @@ func (a *App) sendAsyncSequence(msgs []tea.Msg) {
 // sendAsyncSequence stays for messages that belong to no turn, for example
 // notices, approval resolutions and onboarding.
 func (a *App) sendAsyncSequenceFenced(gen uint64, msgs []tea.Msg) {
-	a.sendSequence(msgs, func(msg tea.Msg) {
-		a.deliverIfCurrent(gen, func() { a.deliverOne(msg) })
-	})
+	a.sendSequence(msgs, gen, true)
 }
 
 // sendSequence is the body shared by sendAsyncSequence and
-// sendAsyncSequenceFenced: one goroutine, messages in order, deliver called for
-// each.
-func (a *App) sendSequence(msgs []tea.Msg, deliver func(tea.Msg)) {
+// sendAsyncSequenceFenced: it appends msgs to the outbox in order, fenced to
+// gen when fenced is set, and returns without waiting for delivery.
+func (a *App) sendSequence(msgs []tea.Msg, gen uint64, fenced bool) {
 	if len(msgs) == 0 {
 		return
 	}
 	if a.sendFn == nil && a.program == nil {
 		return
 	}
-	// Spawn a single goroutine to send all messages in order, whatever the
-	// delivery path. This ensures ordering and keeps the non-blocking
-	// guarantee true for both the test path (sendFn) and the real path
-	// (program.Send) — see deliverOne.
-	go func() {
-		for _, msg := range msgs {
-			deliver(msg)
-		}
-	}()
+	items := make([]outboxItem, len(msgs))
+	for i, msg := range msgs {
+		items[i] = outboxItem{msg: msg, gen: gen, fenced: fenced}
+	}
+	a.enqueue(items)
 }
 
 // deliverOne sends a single message via sendFn when a test has set one, or
-// via program.Send otherwise. It exists so sendAsyncSequence can call it
-// uniformly from inside its one goroutine without branching on the delivery
-// path at the call site, which is what let a synchronous sendFn branch creep
-// in previously (see sendAsyncSequence's docblock).
+// via program.Send otherwise. It exists so deliverItem can call it uniformly
+// from the outbox goroutine without branching on the delivery path at the call
+// site, which is what let a synchronous sendFn branch creep in previously (see
+// sendAsyncSequence's docblock).
 func (a *App) deliverOne(msg tea.Msg) {
 	if a.sendFn != nil {
 		a.sendFn(msg)
@@ -2257,10 +2359,11 @@ func (a *App) RunTurn(ag *agent.Agent, conv *agent.Conversation, userText string
 			store.RecordTurnStarted(turn)
 		}
 
+		var cutOff cutOffTracker
 		emit := func(ev agent.Event) {
-			for _, msg := range a.adaptTurnEvent(ev, &textBlock, &thinkingBlock, callIDs, compParams.modelID) {
-				a.sendAsyncSequenceFenced(gen, []tea.Msg{msg})
-			}
+			// One call per event: the event's messages enter the outbox
+			// together and in order, behind everything sent before them.
+			a.sendAsyncSequenceFenced(gen, a.turnEventMsgs(ev, &textBlock, &thinkingBlock, callIDs, compParams.modelID, &cutOff, ag.MaxTokens))
 		}
 
 		err := ag.Turn(ctx, conv, userText, emit)
@@ -2494,6 +2597,65 @@ func (a *App) adaptTurnEvent(ev agent.Event, textBlock, thinkingBlock *int64, ca
 		return nil
 	}
 
+	return nil
+}
+
+// turnEventMsgs returns the TUI messages for one agent event of a turn, in the
+// order RunTurn queues them (and the outbox delivers them): first what adaptTurnEvent makes, then the cut-off
+// notice when the event ends a message that stopped at the output limit. The
+// notice comes second so that the tool id adaptTurnEvent allocates for a
+// ToolCallStart is in callIDs when the tracker reads it. maxTokens is the limit
+// sent with the turn's requests (agent.Agent.MaxTokens).
+func (a *App) turnEventMsgs(ev agent.Event, textBlock, thinkingBlock *int64, callIDs map[string]int64, modelID string, cutOff *cutOffTracker, maxTokens int) []tea.Msg {
+	msgs := a.adaptTurnEvent(ev, textBlock, thinkingBlock, callIDs, modelID)
+	return append(msgs, cutOff.observe(ev, callIDs, maxTokens)...)
+}
+
+// cutOffNoticeText is the transcript notice for a reply that stopped at the
+// output limit (ui-spec §3.7). The notice card draws the leading bullet itself.
+// maxTokens is the limit sent with the request; zero means none was recorded,
+// and the count is left out.
+func cutOffNoticeText(maxTokens int) string {
+	if maxTokens <= 0 {
+		return "reply cut off — output limit reached"
+	}
+	return fmt.Sprintf("reply cut off — output limit reached (%d tokens)", maxTokens)
+}
+
+// cutOffTracker turns the end of a model message that stopped at the output
+// limit into a notice for the TUI. It exists because of event order: a
+// message's ToolCallStart events, and so its tool cards, come before its
+// MessageDone, which is the first event to carry the stop reason. The notice
+// therefore has to be placed before the message's first tool card rather than
+// appended. The zero value is ready; one tracker serves one turn.
+type cutOffTracker struct {
+	// firstTool is the app-side id of the first tool started by the message
+	// in progress, or zero when it has started none.
+	firstTool int64
+}
+
+// observe is called with every agent event of a turn, after adaptTurnEvent has
+// handled it. callIDs maps provider call ids to the app-side tool ids that
+// adaptTurnEvent allocated; maxTokens is the limit sent with the turn's
+// requests. It returns the notice for a MessageDone whose stop reason is
+// max_tokens and nothing for any other event.
+func (c *cutOffTracker) observe(ev agent.Event, callIDs map[string]int64, maxTokens int) []tea.Msg {
+	switch ev.Type {
+	case agent.EventToolCallStart:
+		if ev.ToolCall != nil && c.firstTool == 0 {
+			c.firstTool = callIDs[ev.ToolCall.ID]
+		}
+	case agent.EventMessageDone:
+		first := c.firstTool
+		c.firstTool = 0
+		if ev.StopReason == string(provider.StopMaxTokens) {
+			return []tea.Msg{tui.NoticeMsg{Text: cutOffNoticeText(maxTokens), BeforeTool: first}}
+		}
+	case agent.EventTextDelta, agent.EventThinkingDelta, agent.EventThinkingDone,
+		agent.EventToolCallDelta, agent.EventToolCallEnd, agent.EventUsage, agent.EventError:
+		// Nothing to track: only the start of a tool call and the end of the
+		// message matter to the notice.
+	}
 	return nil
 }
 
@@ -2747,9 +2909,8 @@ func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
 	// Send confirmation of the actual outcome to the TUI so it can update the card.
 	// This is only necessary when the outcome might differ from what the user chose,
 	// which happens when a session grant is attempted (and might fail).
-	// Use sendAsyncSequence to ensure messages arrive in the correct order.
-	// This avoids the race that would occur if each message were sent from
-	// its own goroutine, which would let them arrive out of order.
+	// Use sendAsyncSequence: it appends the messages to the outbox together, so
+	// they reach the TUI in the order given and behind everything already queued.
 	if grantAttempted {
 		var msgs []tea.Msg
 		// If the grant failed, queue a notice first.
@@ -2765,7 +2926,7 @@ func (a *App) Resolve(id int64, outcome ApprovalOutcome) {
 			ID:      id,
 			Outcome: tui.FromAppOutcome(int(confirmedOutcome)),
 		})
-		// Send all messages in sequence from a single goroutine, ensuring order.
+		// Queue all messages together; the outbox delivers them in order.
 		a.sendAsyncSequence(msgs)
 	}
 

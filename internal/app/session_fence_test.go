@@ -579,11 +579,14 @@ func hasToolCompleted(msgs []any, name string) bool {
 }
 
 // unfencedSenders are the names that deliver to the TUI without a generation
-// check: the unfenced sequence sender and its parts, the App helpers built on
-// it, the sendFn override, and program.Send (matched as any method Send).
+// check: the unfenced sequence sender and its parts, the outbox's enqueue that
+// every sender ends in (a turn path calling it directly would skip the fence,
+// which is why the scan lists it), the App helpers built on them, the sendFn override, and
+// program.Send (matched as any method Send).
 var unfencedSenders = map[string]bool{
 	"sendAsyncSequence": true,
 	"sendSequence":      true,
+	"enqueue":           true,
 	"deliverOne":        true,
 	"SendNotice":        true,
 	"SendStatusWarning": true,
@@ -607,11 +610,13 @@ var fencedSenders = map[string]bool{
 // safe to deliver after /new.
 var knownUnfenced = map[string]string{
 	"App.sendAsyncSequence":       "the unfenced sequence sender itself",
-	"App.deliverOne":              "the delivery step of both sequence senders",
+	"App.sendSequence":            "the shared body of both sequence senders: builds the outbox items, fenced or not as its caller says, and enqueues them",
+	"App.send":                    "the fenced blocking sender: enqueues one fenced item (its callers are checked against fencedCallers) and waits for it",
+	"App.deliverOne":              "the delivery step of the outbox goroutine",
+	"App.deliverItem":             "the outbox goroutine's delivery: unfenced items directly, fenced items through deliverIfCurrent",
 	"App.SendNotice":              "unfenced helper; its callers in package app are checked here",
 	"App.SendStatusWarning":       "unfenced helper; its callers in package app are checked here",
-	"App.send":                    "fenced sender: its sendFn and program.Send calls run inside deliverIfCurrent",
-	"App.sendAsyncSequenceFenced": "fenced sender: its sendSequence call delivers through deliverIfCurrent",
+	"App.sendAsyncSequenceFenced": "fenced sender: its sendSequence call queues fenced items, which deliverItem delivers through deliverIfCurrent",
 	"App.AcquireLock":             "startup lock warnings (cmd/kirsch/main.go), before any turn",
 	"App.ResumeLastSession":       "startup session load (cmd/kirsch/main.go), before any turn",
 	"App.CheckOnboarding":         "startup onboarding check (cmd/kirsch/main.go), before any turn",
@@ -624,17 +629,16 @@ var knownUnfenced = map[string]string{
 // the parameter that carries it), turnGen() for callers that hold only a
 // context, or currentGen() for callers on the Update goroutine.
 var fencedCallers = map[string][]string{
-	"App.Submit":                  {"gen", "currentGen()"},
-	"App.ClearGrants":             {"currentGen()"},
-	"App.RunTurn":                 {"gen"},
-	"App.flushStore":              {"gen"},
-	"App.recordCompactionUsage":   {"gen"},
-	"App.ManualCompact":           {"gen"},
-	"App.RunTool":                 {"gen"},
-	"App.Request":                 {"turnGen()"},
-	"toolExecutor.Invoke":         {"turnGen()"},
-	"App.send":                    {"gen"},
-	"App.sendAsyncSequenceFenced": {"gen"},
+	"App.Submit":                {"gen", "currentGen()"},
+	"App.ClearGrants":           {"currentGen()"},
+	"App.RunTurn":               {"gen"},
+	"App.flushStore":            {"gen"},
+	"App.recordCompactionUsage": {"gen"},
+	"App.ManualCompact":         {"gen"},
+	"App.RunTool":               {"gen"},
+	"App.Request":               {"turnGen()"},
+	"toolExecutor.Invoke":       {"turnGen()"},
+	"App.deliverItem":           {"gen"},
 }
 
 // calleeName returns the name a call is made through: the selector for
@@ -832,8 +836,9 @@ func parsePackageApp(t *testing.T) (*token.FileSet, []*ast.File) {
 // of its kind is reported, so a rename or a moved call cannot leave a stale
 // entry. The "control" subtest runs the same check on a small source text in
 // which each kind of breach appears once: an unlisted function calling
-// sendAsyncSequence, an unlisted function calling send, and a RunTool passing
-// currentGen() to send where its entry allows only gen. Each must be reported.
+// sendAsyncSequence, an unlisted function calling enqueue, an unlisted function
+// calling send, and a RunTool passing currentGen() to send where its entry
+// allows only gen. Each must be reported.
 // In the same text an allowlisted AcquireLock calls SendStatusWarning and must
 // not be, which shows the check admits as well as fires.
 func TestTurnPathsUseOnlyFencedSenders(t *testing.T) {
@@ -855,6 +860,7 @@ func (a *App) AcquireLock() error { a.SendStatusWarning("w"); return nil }
 func (a *App) newHelper() { a.sendAsyncSequence(nil) }
 func (a *App) unlisted(gen uint64) { a.send(gen, nil) }
 func (a *App) RunTool() { a.send(a.currentGen(), nil) }
+func (a *App) sneaky() { a.enqueue(nil) }
 `
 		fset := token.NewFileSet()
 		f, err := parser.ParseFile(fset, "control.go", src, 0)
@@ -865,6 +871,7 @@ func (a *App) RunTool() { a.send(a.currentGen(), nil) }
 		for _, want := range []string{
 			"App.newHelper: control.go:4: calls unfenced sendAsyncSequence and is not in knownUnfenced",
 			"App.unlisted: control.go:5: calls send and is not in fencedCallers",
+			"App.sneaky: control.go:7: calls unfenced enqueue and is not in knownUnfenced",
 			`App.RunTool: control.go:6: send is given generation "currentGen()", want one of [gen]`,
 		} {
 			if !strings.Contains(got, want) {

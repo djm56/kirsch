@@ -74,8 +74,8 @@ nothing else paints an outer border.
   or the empty-session screen is showing (§7.5), and not otherwise. Below 40
   columns, or when the transcript region has no rows, the empty session shows no
   placeholder.
-  Dimmed and input-disabled while a turn is in flight; `Esc`/`Ctrl+C` cancels
-  the turn and re-enables it.
+  Dimmed, and ordinary typing is refused while a turn is in flight; `Esc`/`Ctrl+C`
+  cancels the turn and re-enables it. Some keys still act during a turn; §5.2 lists them.
 
 ### 2.1 Sizing rules
 
@@ -189,14 +189,13 @@ dropped**; at narrow widths they are the entire reason the bar exists.
   mode, **`Ctrl+G` in Composing mode**, sending a message, or submitting a slash
   command.
 - **`Ctrl+G` is the way back to the bottom from the composer.** It re-pins
-  without leaving Composing and without putting anything in the transcript —
-  every other re-pin reachable from the composer sends something first, so a
-  reader who scrolled up and then decided not to send had no single key that
-  returned the view. It moves the viewport only: the composer's contents, its
-  hint and the card selection are all left alone, and the mode does not change.
-  It is live **while a turn is running**, unlike the rest of the composer's
-  bindings — a transcript streaming past is when getting back to the bottom is
-  worth the most.
+  without leaving Composing and without putting anything in the transcript. A
+  reader who scrolled up and then decided not to send needs a key that returns the
+  view without sending. `PgDn` from the composer also re-pins, but only when its
+  page reaches the bottom. `Ctrl+G` moves the viewport only: the composer's
+  contents, its hint and the card selection are all left alone, and the mode does
+  not change. It works **while a turn is running**, as do `PgUp` and `PgDn`: a
+  transcript streaming past is when getting back to the bottom is worth the most.
   `Ctrl+G` rather than `End` or `Ctrl+End`: all three spell "go to the bottom",
   but bubbles v1.0.0 already binds `End` to LineEnd and `Ctrl+End` to InputEnd
   in the textarea, so taking either would buy a scroll at the price of a cursor
@@ -213,14 +212,26 @@ dropped**; at narrow widths they are the entire reason the bar exists.
   the reader their scroll position to report a typo.
 - **`Esc` does not re-pin.** Leaving Browsing hands focus back to the composer and
   leaves the viewport exactly where it is. Re-pinning there would make the rule
-  below unreachable in practice: `Esc` is the only way back to the composer that
-  does not first walk the selection past the last card, so scrolling up to read
-  something would be undone by the act of going to type about it.
+  below unreachable in practice: `Esc` is the key a reader takes back to the
+  composer, so scrolling up to read something would be undone by the act of going
+  to type about it. `Tab`, and the `↓` that moves past the last card, hand focus
+  back the same way and leave the offset alone. Walking the selection down with
+  `↓` is different: each step scrolls only as far as needed to show the selected
+  card, and if that scroll reaches the bottom it re-pins. So the walk can re-pin,
+  and the keypress that returns focus cannot. (Amendment 100 corrected the earlier
+  claim that `Esc` was the only such route.)
 - **Typing does not re-pin.** Composing a message while reading scrollback must
   not yank the view to the bottom — the user is reading it deliberately.
-- `PgUp`/`PgDn` scroll without moving the card selection. `↑`/`↓` move the
-  selection and scroll only as far as needed to keep it visible. Scrolling and
-  selection are separate concerns and must not be collapsed into one.
+- `PgUp`/`PgDn` scroll a page without moving the card selection, in Browsing and
+  in Composing. In Composing they run ahead of the busy guard, like `Ctrl+G`, so
+  they work while a turn is running, and they do not change the mode. `j`/`k` in
+  Browsing move one row and stop at the top and bottom. A page is the transcript
+  height minus one row, and at least one row, the same in Browsing and Composing.
+  Like `Ctrl+G`, `PgUp`/`PgDn` leave the composer's text and hint alone. Scrolling
+  up unpins; scrolling down to the bottom re-pins, and scrolling back to the bottom
+  clears the `↓ N new` indicator. `↑`/`↓` move the selection and scroll only
+  as far as needed to keep it visible. Scrolling and selection are separate
+  concerns and must not be collapsed into one.
 
 ## 3. Transcript Elements
 
@@ -323,11 +334,31 @@ ignore error cards.
 ### 3.7 System notice
 
 Single dim line, no border, for `/status`, `/files`, `/approvals`, `/compact`
-output, session recovery points, and unknown-command hints.
+output, session recovery points, unknown-command hints, and replies cut off at
+the output limit.
 
 ```
 · session recovered — 3 events after a torn line were discarded
 ```
+
+A reply that stops because it reached the output limit gets a notice directly
+under it, exactly `· reply cut off — output limit reached (N tokens)`, where N
+is the `max_tokens` value sent with the request. N is a plain integer with no
+separators (`16384`). The notice appears whenever the stop reason is `max_tokens`,
+including when the reply text is empty or the reply ends in tool calls. It sits
+after the reply's text and before any tool cards from the same message. It is shown
+live and on resume, with one stated exception. A reply made only of thinking
+blocks that is cut off shows the notice live but not on resume, because no
+`assistant.message` line is written for it (pinned by
+`TestThinkingOnlyReplyCutOffShowsNoticeLiveButNotOnResume`, `internal/app/cutoff_notice_test.go`).
+A session written before v0.1.2 has no stored stop reason and
+shows no notice on resume (`assistant.message` fields, plan §7, amendment 100).
+Every stored `stop_reason` comes with its `max_tokens`. If a stored message has
+`max_tokens` as its stop reason but no count, the notice is shown without it,
+exactly `· reply cut off — output limit reached`.
+
+The fallbacks for `·` and `—` are in §10.2: on a non-UTF-8 locale the leading `·`
+is drawn as `.` and the `—` as `-`.
 
 ### 3.8 Card lifecycle
 
@@ -380,7 +411,8 @@ card.
 
 Single screen: key bindings grouped by mode (§5.2), then slash commands (§6),
 then a footer with version and the docs path. `Esc` or `?` closes. The minimum
-terminal for the full-help overlay is 80×28.
+terminal for the full-help overlay is 80×28. From v0.1.2 the left column is 17 rows,
+the same as the right, so the overlay keeps this minimum (amendment 100).
 
 ### 4.3 Confirm prompt
 
@@ -440,20 +472,24 @@ Two consequences worth stating because they are easy to get wrong:
 | `Shift+↑` | Move to the cards |
 | `Tab` | While typing a slash-command name (no whitespace yet), complete a unique prefix; an ambiguous or unknown prefix does nothing. In any other text, move to the cards |
 | `Ctrl+G` | Re-pin the transcript to the bottom — works during a live turn (§2.4) |
+| `PgUp` / `PgDn` | Scroll the transcript a page without leaving Composing — works during a live turn (§2.4) |
 | `Esc` / `Ctrl+C` | Cancel the in-flight turn if busy; otherwise clear composer |
 | `Ctrl+C` ×2 within 1s | Force quit |
 
 There is no bare-key quit. `q` is an ordinary character in the composer, and
 quitting is `/quit`, `/exit`, or `Ctrl+C` twice — see §6.
 
-**On `Ctrl+G`.** It is the only composing binding that runs *ahead* of the
-busy guard, so it is live while a turn is in flight when everything below it in
-this table is not. It is deliberately absent from the **`composing`** block of
-the help overlay, for the same reason `g`/`G` are absent from the `browsing`
-block: that grid is pinned byte-for-byte by screen 06 in
-`plan/spec/kirsch-ui-screens.md`, so adding a row there is a spec amendment and a
-redraw rather than a code change. The overlay is a one-screen summary, not this
-table.
+**Keys that act while a turn runs.** These run *ahead* of the busy guard in
+`keyComposing` (`internal/tui/update.go`), so they stay live while a turn is in
+flight: `Esc` and `Ctrl+C` (cancel the turn), `Ctrl+J` and `Alt+Enter` (newline),
+`Shift+Enter` where the terminal sends it as `Alt+Enter` does (newline), `Tab`
+(slash-command completion, or into Browsing), `Shift+↑` (into Browsing), `Ctrl+G`
+(re-pin), and `PgUp`/`PgDn` (scroll). Ordinary typing and plain `Enter` are refused
+while a turn runs.
+The help overlay lists `Ctrl+G` and `PgUp`/`PgDn` in its **`composing`** block,
+each in its own row. Its `Shift+Enter` row also names `Ctrl+J` (screen 06,
+amendment 100).
+The overlay is a one-screen summary, not this table.
 
 **On the newline binding.** No binding here is "primary", because which one reaches the
 program is a property of the terminal rather than of Kirsch. Bubble Tea v1's `tea.Key` is
@@ -471,6 +507,7 @@ see plan amendment 40.
 |---|---|
 | `↑` / `↓` | Move card selection |
 | `PgUp` / `PgDn` | Scroll without moving selection |
+| `j` / `k` | Scroll one line without moving selection |
 | `Home` / `End` | Top / bottom (`End` re-pins) |
 | `g` / `G` | Top / bottom — the keyboard-reachable form of `Home` / `End` (`G` re-pins) |
 | `Enter` | Tool card: toggle between the 10-line preview and collapsed |
@@ -482,11 +519,10 @@ see plan amendment 40.
 **On `g` / `G`.** They mirror the modal's own `g`/`G` rather than inventing a second
 vocabulary for the same gesture, and they exist because `Home` and `End` are not
 universally reachable: on macOS Terminal both arrive as SS3, which Bubble Tea v1.3.10
-does not decode. They are deliberately absent from the **`browsing`** block of the help
-overlay — the overlay's `modal` block does list them — because that grid is pinned by
-screen 06 in `plan/spec/kirsch-ui-screens.md`, so adding a row there is a spec amendment
-rather than a code change. The overlay is a one-screen summary, not this table: its
-`browsing` block also omits `Home` and `Esc`, both of which are bound.
+does not decode. The help overlay's **`browsing`** block has no separate `g`/`G` row: its `g/G End`
+row names them, and `j/k` shares the `PgUp/PgDn` row (screen 06, amendment 100).
+The overlay still omits `Home` and `Esc`, both of which are bound.
+The overlay is a one-screen summary, not this table.
 
 **ApprovalPending**
 
@@ -498,6 +534,8 @@ rather than a code change. The overlay is a one-screen summary, not this table: 
 | `Esc` / `Ctrl+C` | Cancel the turn (resolves as Cancelled, not Rejected) |
 | Any other non-navigation key | Release the card and show `approval pending — Tab to return to the card`. While released, `y`/`a`/`n` do nothing until the card is re-armed. |
 | Bracketed paste | Dropped, does not release |
+
+`j`/`k` are Browsing bindings. In ApprovalPending they are ordinary keys and release the card. `PgUp`/`PgDn` are navigation keys there: they do not release the card, and they do not scroll.
 
 When armed, `y`, `a`, and `n` act immediately. `a` is inert unless the approval
 offers a session grant. When released, `d`, `?`, `Tab`/`Shift+↑` (re-arm) and
@@ -664,8 +702,10 @@ modals, resize, and quit all work with no panic or visual corruption.
 
 ## 9. Resolved Decisions
 
-- **Newline binding:** `Alt+Enter` primary, `Ctrl+J` fallback. `Shift+Enter` was
-  the original preference but is not representable on Bubble Tea v1, which
+- **Newline binding:** no binding is primary (§5.2). The composer accepts the
+  `ESC`+`CR` that `Shift+Enter` or `Alt+Enter` sends, depending on the terminal,
+  and `Ctrl+J`, the one always representable. `Shift+Enter` was the original
+  preference but is not representable on Bubble Tea v1, which
   carries no shift modifier — and most terminals send it as a bare CR anyway.
   M0 tests both bindings it can actually construct. See §5.2 and plan
   amendment 29.
@@ -682,11 +722,19 @@ modals, resize, and quit all work with no panic or visual corruption.
   `/quit`, `/exit`, or `Ctrl+C` twice. See §5.2 and §6.
 - **`Esc` does not re-pin.** Leaving Browsing returns focus to the composer and
   keeps the viewport where it is. See §2.4.
-- **Slash commands re-pin** on submission; the two hint-only paths do not, because
+- **Slash commands re-pin** on submission; the hint-only paths do not, because
   they put nothing in the transcript. See §2.4.
 - **`g`/`G` are bound in the transcript pane as well as in modals** — one vocabulary
   for the gesture, and the reachable form of `Home`/`End` where those arrive as
   undecoded SS3. See §5.2.
+- **`j`/`k` scroll one line in Browsing** (UX-D2, v0.1.2). They move the transcript,
+  not the card selection. See §2.4 and plan amendment 100.
+- **Composing `PgUp`/`PgDn` scroll a page** (UX-D3, v0.1.2). They run ahead of the
+  busy guard and do not change the mode. See §2.4 and plan amendment 100.
+- **Cut-off notice on resume** (v0.1.2). A reply that stops on `max_tokens` gets a
+  system notice with the `max_tokens` sent, shown live and on resume from the
+  `stop_reason` and `max_tokens` fields of `assistant.message`. See §3.7 and plan
+  amendment 100.
 
 **Open questions (not blocking Milestone 0):**
 
@@ -750,6 +798,8 @@ licence for it to be unreadable.
 | Composer caret, over its own glyph | `▐` | `#` |
 | Selection gutter | `┃` | `\|` |
 | Box drawing | `┌─┐│└┘` | `+-+\|+ +` |
+| Bullet (notices) | `·` | `.` |
+| Dash in notice text | `—` | `-` |
 
 Fallback triggers when the locale is not UTF-8. **Every state is identified by
 its glyph, not only by its colour** (§12).

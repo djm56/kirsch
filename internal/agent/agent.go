@@ -165,6 +165,15 @@ type Message struct {
 	Role Role
 	// Content is the message content blocks.
 	Content []Block
+	// StopReason is the provider's stop reason for an assistant message built
+	// from a stream, or read back from a session log. It is empty on every other
+	// message. It is metadata for the Recorder and the transcript: the model
+	// adapter encodes Role and Content only, so it never reaches a request.
+	StopReason string
+	// MaxTokens is the output limit sent with the request that produced an
+	// assistant message built from a stream, or read back from a session log;
+	// zero when none was recorded. Like StopReason it is never sent back.
+	MaxTokens int
 }
 
 // ToolSpec is a tool specification sent to the model.
@@ -503,6 +512,10 @@ func (a *Agent) record(kind RecordKind, m Message) {
 func (a *Agent) streamAssistant(ctx context.Context, req Request, emit func(Event)) (Message, error) {
 	asm := &assembly{msg: Message{Role: RoleAssistant}}
 	streamErr := a.Model.Stream(ctx, req, func(ev Event) {
+		// Events are forwarded as they are accepted, before asm.finish runs
+		// below: a max_tokens MessageDone with no content blocks therefore
+		// reaches emit (and the TUI's cut-off notice) before finish rejects the
+		// message with a protocol error.
 		if asm.accept(ev) && emit != nil {
 			emit(ev)
 		}
@@ -516,6 +529,11 @@ func (a *Agent) streamAssistant(ctx context.Context, req Request, emit func(Even
 	if err := asm.finish(); err != nil {
 		return Message{}, err
 	}
+	// The stop reason and the limit sent are carried on the message for the
+	// Recorder; see Message.StopReason. They are set here, after finish, so a
+	// failed stream returns no message.
+	asm.msg.StopReason = asm.stopReason
+	asm.msg.MaxTokens = req.MaxTokens
 	if asm.usage != nil && emit != nil {
 		emit(Event{Type: EventUsage, Usage: asm.usage})
 	}
@@ -707,6 +725,8 @@ type assembly struct {
 	done bool
 	// usage holds the Usage payload from EventMessageDone, if any.
 	usage *Usage
+	// stopReason is the StopReason of the accepted EventMessageDone.
+	stopReason string
 	// err is the first error of the stream. Once set, accept ignores every event.
 	err error
 }
@@ -784,6 +804,7 @@ func (s *assembly) accept(ev Event) bool {
 			return s.fail(fmt.Errorf("%w: thinking block not closed at MessageDone", ErrStreamProtocol))
 		}
 		s.done = true
+		s.stopReason = ev.StopReason
 		if ev.Usage != nil {
 			u := *ev.Usage
 			s.usage = &u

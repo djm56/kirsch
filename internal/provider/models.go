@@ -42,6 +42,9 @@ type ModelInfo struct {
 // https://platform.claude.com/docs/en/about-claude/models/overview.md.
 // claude-haiku-4-5-20251001's 200K/64K were not re-read: it is not in the overview page's
 // comparison table (only a link in its legacy-models line).
+// claude-haiku-5-5 has no row: both pages above, read 2026-11-19, price it by prompt
+// length ($0.10 input up to 100,000 prompt tokens, $0.50 above), and a ModelInfo
+// holds one set of prices. It is looked up as an unknown model.
 // Cache read pricing: 10% of input price (5% on claude-opus-5-5 and claude-sonnet-5-5,
 // 2.5% on claude-fable-5-1).
 var models = map[string]ModelInfo{
@@ -105,20 +108,27 @@ var models = map[string]ModelInfo{
 	},
 }
 
+// UnknownModelMaxOutput is the output limit for a model not in the table (plan amendment 100).
+const UnknownModelMaxOutput = 16384
+
 // LookupModel returns information about a model ID.
 // If the model is not known, it returns the fallback with Known: false.
-// The fallback uses the conservative budget (smallest known context window).
+// The fallback's context window is the conservative budget (smallest known
+// context window); its output limit is UnknownModelMaxOutput, not the table's
+// smallest MaxOutput.
 func LookupModel(id string) ModelInfo {
 	if m, ok := models[id]; ok {
 		return m
 	}
-	// Fallback for unknown ID: compute conservative budget from the table (m4-d9).
-	window, maxOut := conservativeLimits()
+	// Fallback for unknown ID: the window comes from the table (m4-d9); the
+	// output figure from the constant, so a model absent from the table is not
+	// capped at the smallest row's output.
+	window, _ := conservativeLimits()
 	return ModelInfo{
 		ID:            id,
 		Known:         false,
 		ContextWindow: window,
-		MaxOutput:     maxOut,
+		MaxOutput:     UnknownModelMaxOutput,
 		Pricing:       PricingUnknown,
 	}
 }
@@ -162,7 +172,9 @@ func ConservativeBudget() int {
 }
 
 // ConservativeMaxOutput returns the smallest MaxOutput among the table rows that
-// share the smallest context window.
+// share the smallest context window. It reports a figure from the table and is
+// not the output limit for a model the table does not know: that is
+// UnknownModelMaxOutput. Nothing in production calls it.
 func ConservativeMaxOutput() int {
 	_, o := conservativeLimits()
 	return o

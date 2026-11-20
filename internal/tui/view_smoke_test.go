@@ -554,13 +554,11 @@ func TestModalEscReturnsToPreviousMode(t *testing.T) {
 //
 // This test used to reach the composer through setBase rather than Esc, and
 // said so: Esc was itself a re-pin trigger, so pressing it would have masked
-// the thing under test. It is no longer one, and that is the point. Esc was the
-// only route back to the composer that does not first walk the selection off
-// the end of the transcript, so the rule held everywhere except on the path
-// someone scrolling up to read actually takes — which is how the operator hit
-// it in manual testing and reported the feature as broken. The walk below now
-// goes the way a user goes, and the old trigger is asserted gone rather than
-// avoided.
+// the thing under test. It is no longer one, and that is the point. Esc is the
+// key a reader who scrolled up takes back to the composer, so while it re-pinned
+// the operator hit the rule in manual testing and reported the feature as
+// broken. Esc no longer re-pins, and neither does Tab. The walk below now goes
+// the way a user goes, and the old trigger is asserted gone rather than avoided.
 func TestTypingDoesNotRepin(t *testing.T) {
 	// A viewport the fixture overflows, so there is something to scroll.
 	m := drive(newDrivenSize(t, 80, 12), key('y'))

@@ -55,7 +55,16 @@ type ErrorMsg struct {
 }
 
 // NoticeMsg is a one-line system notice.
-type NoticeMsg struct{ Text string }
+//
+// BeforeTool is optional. When it is the ID of a ToolStartedMsg whose card is in
+// the transcript, the notice is inserted directly before that card; otherwise,
+// including when it is zero, the notice is appended. The cut-off notice uses it:
+// the app learns the stop reason only at the end of the message, after the
+// message's tool cards have already been started.
+type NoticeMsg struct {
+	Text       string
+	BeforeTool int64
+}
 
 // ApprovalRequestedMsg asks the user for approval on an action. The ID
 // correlates it with the Resolve call that answers it.

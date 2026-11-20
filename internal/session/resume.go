@@ -32,6 +32,11 @@ type Transcript struct {
 type TranscriptMessage struct {
 	Role    agent.Role
 	Content []agent.Block
+	// StopReason and MaxTokens are the assistant.message fields of the same
+	// names; both are zero for a session written before v0.1.2 and for every
+	// entry that is not an assistant.message.
+	StopReason string
+	MaxTokens  int
 }
 
 // Resume reconstructs the provider conversation and a user-visible transcript
@@ -188,7 +193,12 @@ func buildAssistantMessage(e assistantMessageEvent) agent.Message {
 			},
 		})
 	}
-	return agent.Message{Role: agent.RoleAssistant, Content: blocks}
+	return agent.Message{
+		Role:       agent.RoleAssistant,
+		Content:    blocks,
+		StopReason: e.StopReason,
+		MaxTokens:  e.MaxTokens,
+	}
 }
 
 // mergeUserText appends a user text block, merging with the previous user
@@ -235,7 +245,12 @@ func appendTranscriptText(msgs []TranscriptMessage, text string) []TranscriptMes
 // appendTranscriptMessage appends a whole assistant message to the transcript,
 // using a deep copy so the transcript and conversation remain independent.
 func appendTranscriptMessage(msgs []TranscriptMessage, m agent.Message) []TranscriptMessage {
-	return append(msgs, TranscriptMessage{Role: m.Role, Content: cloneBlocks(m.Content)})
+	return append(msgs, TranscriptMessage{
+		Role:       m.Role,
+		Content:    cloneBlocks(m.Content),
+		StopReason: m.StopReason,
+		MaxTokens:  m.MaxTokens,
+	})
 }
 
 // appendTranscriptResult appends a tool result block to the transcript,

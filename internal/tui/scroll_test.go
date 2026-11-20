@@ -295,14 +295,17 @@ func declName(tok string, spec ast.Spec) string {
 	return tok + " declaration"
 }
 
-// browsingUnpinned is scrolledUp, and composingUnpinned is the same viewport
-// handed back to the composer.
+// composingUnpinned is the viewport scrolledUp leaves, handed back to the
+// composer. scrolledUp resolves the fixture's approval, then presses Shift+↑
+// and PgUp, so the transcript is unpinned with NewSince at zero.
 //
-// Esc is the route back because it is the only one that does not re-pin on the
-// way — walking the selection past the last card returns focus too, but a
-// transcript parked at the bottom is exactly the state these tests need to not
-// be in. That Esc leaves the offset alone is this mission's own change, so these
-// helpers stop working the moment it is reverted, which is intended.
+// Esc is the route back here. It hands focus to the composer and leaves the
+// offset alone, as Tab does and as the ↓ that moves past the last card does.
+// Walking ↓ down the cards can re-pin, when its scroll reaches the bottom, so
+// these helpers do not depend on it. A transcript parked at the bottom is
+// exactly the state these tests need to not be in. That Esc leaves the offset
+// alone is the behaviour amendment 55 decided and amendment 100 kept, so the
+// setup check below fails, and the helper stops working, if it is reverted.
 func composingUnpinned(t *testing.T) Model {
 	t.Helper()
 	m := drive(scrolledUp(t), keyType(tea.KeyEsc))

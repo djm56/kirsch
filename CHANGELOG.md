@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A reply that stops at the output limit says so.** A reply that stops because it reached its output limit shows `· reply cut off — output limit reached (N tokens)` directly under it, after its text and above any tool cards from the same reply, where `N` is the limit sent with the request. The line appears live and again on resume. Session `assistant.message` lines gain optional `stop_reason` and `max_tokens` fields; the event version `v` stays 1, and sessions written before v0.1.2 show no line. A reply made only of thinking blocks shows the line live but not on resume, because no `assistant.message` line is written for it. Spec: ui-spec §3.7; plan §7 and amendment 100.
+- **Page keys scroll from the composer.** `PgUp` and `PgDn` scroll the transcript one page from the composer, without changing mode or the text you have typed, and they work while a turn is running. A page is the transcript height less one row, and at least one row.
+- **Line keys scroll in Browsing.** `j` and `k` scroll the transcript one line at a time in Browsing, stopping at the top and the bottom. Scrolling down to the bottom re-pins the transcript and clears the `↓ N new` indicator.
+- **The help overlay lists the new keys.** Its left column names `Ctrl+G`, `PgUp/PgDn` and `PgUp/PgDn j/k`, `g/G End`, and `Shift+Enter` with `Ctrl+J`, in the layout of plan amendment 100.
+
+### Changed
+
+- **A model that is not in the model table gets 16384 output tokens.** It used to get the smallest table row's figure, 4096. Rows in the table keep their own figures; the `minimax-m3` and `minimax-m2.7` rows are unchanged, so the default model still stops at its table limit.
+
+### Fixed
+
+- **Turn messages reach the screen in the order they were produced.** Reply text, tool cards, usage and completion each used to be sent on their own goroutine, so delivery order was not guaranteed. They now go through one app-wide outbox that delivers in order.
+
 ## [0.1.1] — 2026-11-19
 
 ### Security

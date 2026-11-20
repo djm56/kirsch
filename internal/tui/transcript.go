@@ -266,6 +266,24 @@ func (t *Transcript) Append(it Item) ItemID {
 	return it.ID
 }
 
+// InsertBefore inserts it directly before the item with ID before and returns
+// its assigned ID. It returns 0 and false, inserting nothing, when no item has
+// that ID. It never calls Append, so Model.appendBlock stays the only append
+// path; Model.insertBlockBefore is the caller and does the "↓ n new" count.
+func (t *Transcript) InsertBefore(before ItemID, it Item) (ItemID, bool) {
+	_, idx, ok := t.Find(before)
+	if !ok {
+		return 0, false
+	}
+	t.nextID++
+	it.ID = t.nextID
+	t.items = append(t.items, Item{})
+	copy(t.items[idx+1:], t.items[idx:])
+	t.items[idx] = it
+	t.rev++
+	return it.ID, true
+}
+
 // Items returns the underlying slice. Callers must not mutate it; use the
 // Mutate* methods, which enforce the terminal-state guard.
 func (t *Transcript) Items() []Item { return t.items }

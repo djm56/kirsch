@@ -370,11 +370,11 @@ func wantConv() []Message {
 			{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Redacted: true, Data: "opaque", Signature: "sig-2"}},
 			{Kind: BlockText, Text: "let me look"},
 			{Kind: BlockToolCall, ToolCall: &ToolCall{ID: "call-1", Name: "read_file", Input: json.RawMessage(`{"path":"a.txt"}`)}},
-		}},
+		}, MaxTokens: 1024},
 		{Role: RoleUser, Content: []Block{
 			{Kind: BlockToolResult, Result: &ResultBlock{CallID: "call-1", Content: "file body", Truncated: true}},
 		}},
-		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "done"}}},
+		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "done"}}, MaxTokens: 1024},
 	}
 }
 
@@ -412,7 +412,7 @@ func TestRecorderTextOnly(t *testing.T) {
 	h.mustTurn(t, "Hello")
 	want := []Message{
 		{Role: RoleUser, Content: []Block{{Kind: BlockText, Text: "Hello"}}},
-		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "Hello world"}}},
+		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "Hello world"}}, MaxTokens: 1024},
 	}
 	expectEqual(t, "recorded entries", h.rec.entries, appendEntries(want))
 	expectEqual(t, "conversation", h.conv.Messages, want)
@@ -698,7 +698,7 @@ func TestThinkingOnlyMessageIsAccepted(t *testing.T) {
 	h.mustTurn(t, "go")
 	want := []Message{
 		{Role: RoleUser, Content: []Block{{Kind: BlockText, Text: "go"}}},
-		{Role: RoleAssistant, Content: []Block{{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "t", Signature: "sig"}}}},
+		{Role: RoleAssistant, Content: []Block{{Kind: BlockThinking, Thinking: &Thinking{DropOnSummary: true, Text: "t", Signature: "sig"}}}, MaxTokens: 1024},
 	}
 	expectEqual(t, "conversation", h.conv.Messages, want)
 	expectEqual(t, "recorded entries", h.rec.entries, appendEntries(want))
@@ -1230,7 +1230,7 @@ func TestMergeAfterErrorWithoutAssistantReply(t *testing.T) {
 
 	want := []Message{
 		{Role: RoleUser, Content: []Block{{Kind: BlockText, Text: "first"}, {Kind: BlockText, Text: "second"}}},
-		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "answer"}}},
+		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "answer"}}, MaxTokens: 1024},
 	}
 	expectEqual(t, "conversation", h.conv.Messages, want)
 	expectEqual(t, "second request", h.request(t, 1).Messages, want[:1])
@@ -1259,7 +1259,7 @@ func TestMergeAfterFailedRoundKeepsToolResults(t *testing.T) {
 		kept[2].Content[0],
 		{Kind: BlockText, Text: "try again"},
 	}}
-	want := []Message{kept[0], kept[1], resultsAndText, {Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "recovered"}}}}
+	want := []Message{kept[0], kept[1], resultsAndText, {Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "recovered"}}, MaxTokens: 1024}}
 	expectEqual(t, "conversation", h.conv.Messages, want)
 	expectEqual(t, "third request", h.request(t, 2).Messages, want[:3])
 
@@ -1283,9 +1283,9 @@ func TestNewUserMessageAfterAssistantReply(t *testing.T) {
 	h.mustTurn(t, "second")
 	want := []Message{
 		{Role: RoleUser, Content: []Block{{Kind: BlockText, Text: "first"}}},
-		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "one"}}},
+		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "one"}}, MaxTokens: 1024},
 		{Role: RoleUser, Content: []Block{{Kind: BlockText, Text: "second"}}},
-		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "two"}}},
+		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "two"}}, MaxTokens: 1024},
 	}
 	expectEqual(t, "conversation", h.conv.Messages, want)
 	expectEqual(t, "recorded entries", h.rec.entries, appendEntries(want))
@@ -1699,4 +1699,20 @@ func TestUsageNonzero(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAssistantMessageCarriesStopReasonAndLimit runs one Turn whose stream ends
+// with a MessageDone carrying StopReason "max_tokens", on an agent that sends
+// MaxTokens 1024. The assistant message in the conversation and in the Recorder's
+// entry holds both values; the user message holds neither.
+func TestAssistantMessageCarriesStopReasonAndLimit(t *testing.T) {
+	h := newHarness([]Event{textEv("cut"), {Type: EventMessageDone, StopReason: "max_tokens"}})
+	h.mustTurn(t, "go")
+
+	want := []Message{
+		{Role: RoleUser, Content: []Block{{Kind: BlockText, Text: "go"}}},
+		{Role: RoleAssistant, Content: []Block{{Kind: BlockText, Text: "cut"}}, StopReason: "max_tokens", MaxTokens: 1024},
+	}
+	expectEqual(t, "conversation", h.conv.Messages, want)
+	expectEqual(t, "recorded entries", h.rec.entries, appendEntries(want))
 }

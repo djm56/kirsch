@@ -219,7 +219,7 @@ composer.prompt     ">" (disabled state)                     dim       245  #8a8
 
 - The spinner appears twice by design: `◐` on the running tool card, and the verb in the
   status bar (`running go test`). §3.8.
-- Composer is dimmed and input-disabled while the turn is live; Esc cancels.
+- Composer is dimmed and refuses ordinary typing while the turn is live; Esc cancels. Some keys still act; §5.2 of `ui-spec-v0.1.md` lists them.
 - Assistant text soft-wraps at the viewport width. No horizontal scrolling in v0.1 (§2.2).
 - Tool cards show preview by default (glyph ▾ with first 10 lines of output if any); Enter toggles
   to collapsed (head only, glyph ▸).
@@ -386,21 +386,21 @@ status+composer     unchanged, still live                    muted     248  #a8a
          ┌─ help ─────────────────────────────────────────────────────┐
  ▾ read_f│ composing                            approval              │
          │ Enter         send                   y         approve     │
-         │ Shift+Enter   newline                a         + session   │
-         │ Ctrl+J        newline (alt)          n         reject      │
-         │ ↑/↓           history                d         detail      │
-         │ Shift+↑       cards                                        │
-         │ Tab           complete /cmd · cards  modal                 │
-         │ Esc           cancel turn            j/k ↑/↓   scroll      │
-         │                                      g/G       top/bottom  │
-         │ browsing                             Esc       close       │
-         │ ↑/↓           select card                                  │
-         │ PgUp/PgDn     scroll                 commands              │
-         │ Enter         toggle preview         /help  /status        │
-         │ d             diff / content         /diff  /files         │
-         │ End           bottom, re-pin         /approvals  /new      │
-         │ ?             help                   /compact  /quit       │
-         │                                      /exit                 │
+         │ Shift+Enter   newline (or Ctrl+J)    a         + session   │
+         │ ↑/↓           history                n         reject      │
+         │ Shift+↑       cards                  d         detail      │
+         │ Tab           complete /cmd · cards                        │
+         │ Esc           cancel turn            modal                 │
+         │ Ctrl+G        bottom, re-pin         j/k ↑/↓   scroll      │
+         │ PgUp/PgDn     scroll                 g/G       top/bottom  │
+         │                                      Esc       close       │
+         │ browsing                                                   │
+         │ ↑/↓           select card            commands              │
+         │ PgUp/PgDn j/k scroll                 /help  /status        │
+         │ Enter         toggle preview         /diff  /files         │
+         │ d             diff / content         /approvals  /new      │
+         │ g/G End       top / bottom, re-pin   /compact  /quit       │
+         │ ?             help                   /exit                 │
          ├────────────────────────────────────────────────────────────┤
          │ kirsch v0.1.0-dev · Esc or ? closes                        │
          └────────────────────────────────────────────────────────────┘
@@ -427,11 +427,13 @@ BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8
 - One screen, no scrolling: bindings by mode, then slash commands, then the version footer.
 - The footer's docs link, `docs: github.com/djm56/kirsch`, is one rung of the footer ladder, and the box width decides which rung is drawn. Fence 06 (80×28) shows the footer without the link. That follows from the current footer ladder; it is not a decided reference behaviour. Wider terminals can show the link: `TestHelpFooterNamesScrollKeysWhenClipped` asserts it at 120×27 and at 120×30.
 - Mode headings are `warning` (215); bindings are `muted` (248).
-- Two columns, both generated from the same binding table `update.go` dispatches on, so a
-  binding cannot change behaviour while keeping its old description here.
-- **The overlay needs 28 rows.** §4.2 says one screen, no scrolling. After the M3 debug
-  commands were removed the body is the taller of the two columns at 17 rows
-  (`max(left 16, right 17)`). Four rows of modal chrome make a 21-row box, and the frame
+- Two columns. Their binding rows are rendered from the `bindingGroups` table in
+  `update.go`, which is help text only: the key handlers dispatch on their own and never
+  read it, so a binding whose behaviour changes needs its row here changed by hand. The
+  golden test holds the rendered rows to this fence, not to the handlers.
+- **The overlay needs 28 rows.** §4.2 says one screen, no scrolling. The body is as tall
+  as the longer of the two columns in the grid above. Four rows of modal chrome around it
+  make a 21-row box, and the frame
   spends seven more around it: the two-row header, the two rules, the status bar, the
   composer and the key-hint row. The right-hand column uses a narrower key field than the
   left because its keys are single characters — a shared field pushes its descriptions past
@@ -792,7 +794,7 @@ Nothing sets a default background. `codeBg` and `selectionBg` apply only inside 
 1. Row order is always: header, transcript, status bar, composer, then a key-hint row at
    terminal height ≥ 24. Only the transcript flexes.
 2. The header is two rows — the wordmark and its rule, then the session line. The status bar
-   and composer are one row each. The composer grows to a maximum of 5 rows on `Alt+Enter`,
+   and composer are one row each. The composer grows to a maximum of 5 rows on a newline key (`Ctrl+J`, or `Alt+Enter` where the terminal sends it),
    taking rows from the transcript. The header is shown or hidden **as a unit**, so the
    height ladder frees two rows at the step that drops it.
 3. Modals overwrite the transcript region only. The status bar and composer stay visible.

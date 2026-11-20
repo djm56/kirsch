@@ -211,14 +211,18 @@ func TestSubmitSurfacesContextOverflowWhenEstimateExceedsBudget(t *testing.T) {
 // the request then goes on to RunTurn; the fake provider returns without
 // emitting any stream events.
 //
-// The test deliberately does not pin the order of BudgetMsg against the turn's
-// messages: it waits for two messages and asserts a BudgetMsg is among them.
-// The product does not guarantee that order either. Submit sends BudgetMsg and
-// RunTurn sends the turn's final message through separate sendAsyncSequence
-// calls, each on its own goroutine. The TUI zeroes the status-line estimate on
-// TurnCompleteMsg and TurnErrorMsg, so a BudgetMsg that arrives after the final
-// message leaves a stale estimate on the status line. That race is a known open
-// item and is not fixed here.
+// It waits for two messages and also pins their order: the BudgetMsg must be
+// delivered before the turn's final message (here a TurnErrorMsg, since the fake
+// provider emits no stream events). Submit enqueues the BudgetMsg before it
+// starts the turn, and the outbox delivers in enqueue order, so the final
+// message cannot overtake it. The order matters because the TUI zeroes the
+// status-line estimate on TurnCompleteMsg and TurnErrorMsg, so a BudgetMsg that
+// arrived after the final message would leave a stale estimate on the status
+// line.
+//
+// The order assertion pins Submit's enqueue order (BudgetMsg queued before
+// RunTurn is called). It is not a test of the outbox's own ordering: that is
+// pinned in outbox_test.go.
 func TestSubmitSendsBudgetMsgForSmallRequest(t *testing.T) {
 	c := newCollector(2)
 	a := testApp(t, "repo-small", c)
@@ -236,6 +240,22 @@ func TestSubmitSendsBudgetMsgForSmallRequest(t *testing.T) {
 		t.Fatalf("no BudgetMsg in %#v", msgs)
 	}
 	budget := *budgetPtr
+	// The fake provider emits no stream events, so this turn ends with a
+	// TurnErrorMsg (protocol violation); a turn ends with exactly one of the
+	// three final messages.
+	bi, ci := indexOfMsg[tui.BudgetMsg](msgs), -1
+	for i, m := range msgs {
+		switch m.(type) {
+		case tui.TurnCompleteMsg, tui.TurnErrorMsg, tui.TurnCancelledMsg:
+			ci = i
+		}
+	}
+	if ci < 0 {
+		t.Fatalf("no final turn message in %#v", msgs)
+	}
+	if bi > ci {
+		t.Errorf("BudgetMsg (index %d) delivered after the turn's final message (index %d): %#v", bi, ci, msgs)
+	}
 	if budget.ContextWindow != 128000 {
 		t.Errorf("ContextWindow = %d, want 128000", budget.ContextWindow)
 	}
@@ -1986,7 +2006,7 @@ func TestRunCommandCardShowsCommand(t *testing.T) {
 		a.Resolve(id, ApprovalOutcome(tui.ToAppOutcome(outcome)))
 	}
 
-	// Only this goroutine touches m. sendFn runs on App's goroutines and hands
+	// Only this goroutine touches m. sendFn runs on the app's outbox goroutine and hands
 	// messages over through the channel; done releases any sender left over.
 	inbox := make(chan tea.Msg, 100)
 	done := make(chan struct{})
@@ -2319,39 +2339,18 @@ func TestSubmitStartsTurn(t *testing.T) {
 	a.Submit("hello", func(string) string { return "secret-key" })
 	msgs := c.wait(t, 2*time.Second)
 
-	// Stream events and the final completion message are each delivered through
-	// independent sendAsyncSequence calls, so they may arrive in any order.
-	var gotBudget, gotDelta, gotUsage, gotSessionUsage, gotComplete bool
-	for _, msg := range msgs {
-		switch msg.(type) {
-		case tui.BudgetMsg:
-			gotBudget = true
-		case tui.AssistantTextDeltaMsg:
-			gotDelta = true
-		case tui.UsageMsg:
-			gotUsage = true
-		case tui.SessionUsageMsg:
-			gotSessionUsage = true
-		case tui.TurnCompleteMsg:
-			gotComplete = true
-		default:
-			t.Errorf("unexpected message type %T", msg)
-		}
+	// Every message goes through the outbox, which delivers in the order the
+	// messages were queued. Submit queues BudgetMsg before it starts RunTurn;
+	// RunTurn queues each stream event's messages as the event arrives (the text
+	// delta, then the usage event's UsageMsg and SessionUsageMsg together), and
+	// TurnCompleteMsg once Turn has returned.
+	want := []string{"tui.BudgetMsg", "tui.AssistantTextDeltaMsg", "tui.UsageMsg", "tui.SessionUsageMsg", "tui.TurnCompleteMsg"}
+	got := make([]string, len(msgs))
+	for i, msg := range msgs {
+		got[i] = fmt.Sprintf("%T", msg)
 	}
-	if !gotBudget {
-		t.Error("missing BudgetMsg")
-	}
-	if !gotDelta {
-		t.Error("missing AssistantTextDeltaMsg")
-	}
-	if !gotUsage {
-		t.Error("missing UsageMsg")
-	}
-	if !gotSessionUsage {
-		t.Error("missing SessionUsageMsg")
-	}
-	if !gotComplete {
-		t.Error("missing TurnCompleteMsg")
+	if !equalStrings(got, want) {
+		t.Errorf("messages = %v, want %v in that order", got, want)
 	}
 
 	if len(a.conv.Messages) != 2 {

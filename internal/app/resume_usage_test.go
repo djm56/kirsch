@@ -11,9 +11,9 @@ package app
 //     App.ManualCompact (the /compact callback) and App.StatusInfo (what the
 //     /status command reads). It does not call runCompaction directly.
 //
-// TUI messages reach the collector through one goroutine per
-// sendAsyncSequence call, so these tests assert which messages arrive, not the
-// order between calls.
+// TUI messages reach the collector through the app's outbox, in enqueue order.
+// These tests assert which messages arrive, not the order between them (that is
+// pinned in outbox_test.go).
 
 import (
 	"math"

@@ -10,10 +10,12 @@ approval model that stands between a tool and your files.
 > approval flow all work as described below. Sections that describe a limit
 > say so in place.
 >
-> The help overlay inside the program (`?`, or `/help`) is generated from the
-> same binding table the program dispatches on, so it cannot describe a key it
-> does not have. Where this page and the overlay disagree about a binding, the
-> overlay is right. Where they disagree about *why*, this page is.
+> The help overlay inside the program (`?`, or `/help`) prints its own short
+> table of keys. That table is text only: the key handlers do not read it, so a
+> row that is wrong has to be corrected by hand. The table also leaves out some
+> keys the program accepts, such as `Home` and `Esc` in Browsing. Where this page
+> and the overlay disagree, the program decides what a key does, and this page
+> describes that.
 
 ---
 
@@ -84,8 +86,9 @@ edge.
 height. Past that maximum the composer scrolls up and down to keep the line you
 are typing on in view. A line wider than the terminal is cut at the edge with a
 `⋯` marker; the composer does not scroll sideways. While a turn is running it
-dims and stops accepting input, and shows `(input disabled, Esc cancels)` at
-the right.
+dims, refuses ordinary typing, and shows `(input disabled, Esc cancels)` at the
+right. Some keys still act during a turn, for example `Esc`, `Ctrl+J`, `Alt+Enter`,
+`Tab`, `Ctrl+G` and `PgUp`/`PgDn`; the Composing table marks the ones it lists.
 
 **The frame keeps one blank column at each side**, and none at the top or
 bottom. A terminal's rows are scarcer than its columns: the layout already
@@ -115,13 +118,14 @@ changes only by an explicit key.
 | Key | Action |
 |---|---|
 | `Enter` | Send |
-| `Shift+Enter` | Newline, where the terminal sends `ESC`+`CR` for it |
-| `Alt+Enter` | Newline, same decode path — **Option+Enter on a Mac keyboard produces nothing** |
-| `Ctrl+J` | Newline — the one form every terminal can produce |
-| `Tab` | While typing a slash-command name (no space yet), complete a unique prefix; an ambiguous or unknown prefix does nothing. In any other text, move to the cards (→ Browsing) |
-| `Ctrl+G` | Scroll back to the bottom of the transcript and re-pin it |
+| `Shift+Enter` | Newline, where the terminal sends `ESC`+`CR` for it. Works while a turn is running |
+| `Alt+Enter` | Newline, same decode path — **Option+Enter on a Mac keyboard produces nothing**. Works while a turn is running |
+| `Ctrl+J` | Newline — the one form every terminal can produce. Works while a turn is running |
+| `Tab` | While typing a slash-command name (no space yet), complete a unique prefix; an ambiguous or unknown prefix does nothing. In any other text, move to the cards (→ Browsing). Works while a turn is running |
+| `Ctrl+G` | Scroll back to the bottom of the transcript and re-pin it. Works while a turn is running |
+| `PgUp` / `PgDn` | Scroll the transcript one page. Your typed text, the mode and the card selection stay as they are. Works while a turn is running |
 | `↑` / `↓` on the first / last row | Previous / next entry from this session's history (up to 100); past the newest, back to your unsent draft. Ignored while a turn is running |
-| `Shift+↑` | Move focus to the cards (→ Browsing) |
+| `Shift+↑` | Move focus to the cards (→ Browsing). Works while a turn is running |
 | `Esc` / `Ctrl+C` | Cancel the running turn; if nothing is running, clear the composer |
 | `Ctrl+C` twice within 1s | Force quit |
 
@@ -129,10 +133,13 @@ changes only by an explicit key.
 ordinary character too: a help overlay that fired mid-sentence would make the
 composer unusable. Quitting is `/quit`, `/exit`, or `Ctrl+C` twice.
 
-**`Ctrl+G` is worth knowing.** It is the only way back to the bottom that does
-not send something first, and it is the only composing key that works *during* a
-running turn — which is when watching the bottom of a stream is worth the most.
-It moves the viewport and nothing else: your half-typed message, the card
+**`Ctrl+G` is worth knowing.** It re-pins the transcript from the composer without
+sending anything, so it is the key to reach for when you have scrolled up, decided
+not to send, and want the bottom back. It works *during* a running turn, which is
+when watching the bottom of a stream is worth the most, and `PgUp` and `PgDn` work
+then too. While a turn runs, the composer refuses ordinary typing, but `Ctrl+J` and
+`Alt+Enter` still add a newline, and `Esc` still cancels the turn.
+`Ctrl+G` moves the viewport and nothing else: your half-typed message, the card
 selection and the mode are all left exactly as they were. `End` would have been
 the obvious key and is not available: the text area already uses it for
 end-of-line, as it uses `Ctrl+End` for end-of-input.
@@ -145,6 +152,7 @@ end-of-line, as it uses `Ctrl+End` for end-of-input.
 |---|---|
 | `↑` / `↓` | Move the card selection (plain text blocks are skipped) |
 | `PgUp` / `PgDn` | Scroll without moving the selection |
+| `j` / `k` | Scroll one line without moving the selection. Stops at the top and the bottom |
 | `Home` / `End` | Top / bottom — `End` re-pins |
 | `g` / `G` | Top / bottom, for terminals that swallow `Home` and `End` |
 | `Enter` | Tool cards: switch between the 10-line preview and the head line only |
@@ -155,11 +163,14 @@ end-of-line, as it uses `Ctrl+End` for end-of-input.
 
 Scrolling and selection are separate: `PgUp`/`PgDn` move the view and leave the
 selection where it is, `↑`/`↓` move the selection and scroll only as far as they
-must to keep it visible.
+must to keep it visible. `PgDn`, `j`, `End` and `G` re-pin the transcript and clear
+the `↓ N new` indicator when they scroll it to the bottom. `↓` re-pins only if the
+scroll it causes reaches the bottom, so a `↓` that stops one row short leaves the
+transcript unpinned.
 
 `g`/`G` exist because `Home` and `End` are not universally reachable — macOS
 Terminal sends both as a sequence the toolkit does not decode. Kirsch normalises
-that on the way in, so both pairs work; `g`/`G` are the belt to that braces.
+that on the way in, so the pairs work; `g`/`G` are the belt to that braces.
 
 ### An approval is pending
 
@@ -178,7 +189,9 @@ above and not a navigation key also *releases* the card: the composer shows
 `approval pending — Tab to return to the card`, and `y`, `a` and `n` do nothing until `Tab`
 or `Shift+↑` re-arms it. That is deliberate: typing a command while a card waits — the `n`
 in `/new` — must not be read as an answer. Navigation keys never release; pasted text is
-dropped.
+dropped. `j` and `k` are not navigation keys here, so they release the card.
+`PgUp` and `PgDn` are navigation keys: they neither release the card nor scroll
+the transcript.
 
 ### A modal is open
 
@@ -248,6 +261,37 @@ A slash command re-pins because it is a request and its answer belongs on
 screen. The exception is an unknown command. It answers in the dim hint under
 the composer and puts nothing in the transcript, so re-pinning would cost you
 your place to report a typo.
+
+---
+
+## A reply that stops early
+
+A model stops a reply when it reaches the output limit Kirsch sent with that
+request. When that happens Kirsch shows a dim line under the reply, after its
+text and above any tool cards from the same reply:
+
+```text
+· reply cut off — output limit reached (N tokens)
+```
+
+On a terminal whose locale is not UTF-8, the line starts with `.` instead of `·`,
+and `-` stands in for `—`.
+
+`N` is the limit sent with that request, as a plain number. The line appears as
+soon as the reply stops, and it appears again when you resume the session.
+Sessions written before v0.1.2 do not record whether a reply was cut off, so they
+show no line.
+
+The line means the model had more to say and the limit stopped it. These help:
+
+- Ask for less in one message, or split the work into two requests.
+- Use a model with a larger output limit. Set the model with
+  `provider.<name>.model` (see [configuration.md](configuration.md)). Each model
+  in Kirsch's table has its own limit. A model that is not in the table gets
+  16384 tokens.
+
+A reply made only of thinking, with no text, that is cut off shows the line as
+it stops but not after a resume.
 
 ---
 

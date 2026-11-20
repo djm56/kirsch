@@ -705,6 +705,28 @@ other Kirsch and start again. If you see the warning and expected no other
 Kirsch to be running, look for one in another terminal. Running
 `kirsch doctor` does not take the lock from a copy that is already running.
 
+### My reply stopped mid-way
+
+**What you see.** A dim line under the reply:
+
+```text
+· reply cut off — output limit reached (N tokens)
+```
+
+**What happens.** The model reached the output limit that Kirsch sent with that
+reply, so it stopped there. The line is shown under the reply, after its text and
+above any tool cards from the same reply. `N` is that limit as a plain number. The
+reply is incomplete. Nothing else went wrong.
+
+The line is shown again when you resume the session, for replies written by
+v0.1.2 or later. Older sessions do not show it. A reply made only of thinking,
+with no text, that is cut off shows the line as it stops but not after a resume.
+
+**What to do.** Ask for less in one message, or split the work into two requests.
+To give a reply more room, use a model with a larger output limit, by setting
+`provider.<name>.model` (see [configuration.md](configuration.md)). A model that
+Kirsch does not know gets 16384 tokens.
+
 ---
 
 ## If the report does not explain it

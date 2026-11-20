@@ -193,8 +193,8 @@ func TestApprovalGrantFailureDeadlock(t *testing.T) {
 }
 
 // TestApprovalSendAsyncSequenceWithoutSendFn tests sendAsyncSequence when sendFn
-// is NOT set (the real production path). This test verifies the goroutine and
-// program.Send calls are made. It will fail if Send is commented out (Gate A).
+// is NOT set (the real production path). This test verifies the outbox
+// goroutine's program.Send calls are made. It will fail if Send is commented out (Gate A).
 func TestApprovalSendAsyncSequenceWithoutSendFn(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "repo-small"))
 	if err != nil {
@@ -300,14 +300,14 @@ func (m *trackingSendModel) View() string {
 
 // TestApprovalSendAsyncRealPathDeliveryAndOrder verifies that sendAsyncSequence
 // delivers messages in the correct order when a grant fails. It asserts both
-// message content and ordering, catching regressions where multiple independent
-// goroutines would race on the message channel.
+// message content and ordering, catching regressions where each message is
+// delivered from its own goroutine instead of through the outbox.
 //
 // The test uses a send function to capture what sendAsyncSequence sends.
 // This avoids the complexity of verifying delivery through a real program's
 // asynchronous event loop, while still testing sendAsyncSequence logic on
-// the code path used in production (the synchronous sendFn branch verifies
-// the goroutine is spawned and messages queued correctly).
+// the code path used in production: sendFn is called by the outbox goroutine,
+// as program.Send is in production, not on the caller's goroutine.
 func TestApprovalSendAsyncRealPathDeliveryAndOrder(t *testing.T) {
 	msgs := make([]tea.Msg, 0)
 	var msgsMu sync.Mutex

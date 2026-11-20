@@ -19,14 +19,16 @@ func TestUnknownModelFallback(t *testing.T) {
 	if m.Known {
 		t.Error("Unknown model should have Known = false")
 	}
-	// The fallback is derived from the table, so the expectation is derived
+	// The window is derived from the table, so the expectation is derived
 	// from it too: a literal here would pin whatever the table holds today.
-	wantWindow, wantOut := tableMinimum()
+	wantWindow, _ := tableMinimum()
 	if m.ContextWindow != wantWindow {
 		t.Errorf("Unknown model ContextWindow = %d, want table minimum %d", m.ContextWindow, wantWindow)
 	}
-	if m.MaxOutput != wantOut {
-		t.Errorf("Unknown model MaxOutput = %d, want %d (smallest MaxOutput on the minimum-window rows)", m.MaxOutput, wantOut)
+	// The output limit is not derived from the table (amendment 100). The
+	// literal is deliberate: it pins the figure the amendment names.
+	if m.MaxOutput != 16384 {
+		t.Errorf("Unknown model MaxOutput = %d, want 16384", m.MaxOutput)
 	}
 	if m.Pricing != PricingUnknown {
 		t.Errorf("Unknown model Pricing = %v, want PricingUnknown", m.Pricing)
@@ -263,14 +265,14 @@ func withModels(t *testing.T, replacement map[string]ModelInfo) {
 func TestConservativeBudgetEqualsTableMinimum(t *testing.T) {
 	wantWindow, wantOut := tableMinimum()
 
-	t.Run("unknown model gets the table minimum", func(t *testing.T) {
+	t.Run("unknown model gets the table minimum window and the fixed output limit", func(t *testing.T) {
 		got := LookupModel("an-id-that-is-not-in-the-table")
 		if got.Known {
 			t.Fatal("control: the id is in the table")
 		}
-		if got.ContextWindow != wantWindow || got.MaxOutput != wantOut {
-			t.Errorf("unknown model window/maxOutput = %d/%d, want table minimum %d/%d",
-				got.ContextWindow, got.MaxOutput, wantWindow, wantOut)
+		if got.ContextWindow != wantWindow || got.MaxOutput != UnknownModelMaxOutput {
+			t.Errorf("unknown model window/maxOutput = %d/%d, want table minimum window %d and %d",
+				got.ContextWindow, got.MaxOutput, wantWindow, UnknownModelMaxOutput)
 		}
 		if ConservativeBudget() != wantWindow {
 			t.Errorf("ConservativeBudget() = %d, want %d", ConservativeBudget(), wantWindow)
@@ -303,8 +305,11 @@ func TestConservativeBudgetFollowsTheTable(t *testing.T) {
 			"small": {ID: "small", Known: true, ContextWindow: 50000, MaxOutput: 1234},
 		})
 		got := LookupModel("neither")
-		if got.ContextWindow != 50000 || got.MaxOutput != 1234 {
-			t.Errorf("window/maxOutput = %d/%d, want 50000/1234", got.ContextWindow, got.MaxOutput)
+		if got.ContextWindow != 50000 || got.MaxOutput != UnknownModelMaxOutput {
+			t.Errorf("window/maxOutput = %d/%d, want 50000/%d", got.ContextWindow, got.MaxOutput, UnknownModelMaxOutput)
+		}
+		if ConservativeMaxOutput() != 1234 {
+			t.Errorf("ConservativeMaxOutput() = %d, want 1234", ConservativeMaxOutput())
 		}
 	})
 
@@ -314,8 +319,11 @@ func TestConservativeBudgetFollowsTheTable(t *testing.T) {
 			"b": {ID: "b", Known: true, ContextWindow: 3000000, MaxOutput: 80000},
 		})
 		got := LookupModel("neither")
-		if got.ContextWindow != 2000000 || got.MaxOutput != 70000 {
-			t.Errorf("window/maxOutput = %d/%d, want 2000000/70000", got.ContextWindow, got.MaxOutput)
+		if got.ContextWindow != 2000000 || got.MaxOutput != UnknownModelMaxOutput {
+			t.Errorf("window/maxOutput = %d/%d, want 2000000/%d", got.ContextWindow, got.MaxOutput, UnknownModelMaxOutput)
+		}
+		if ConservativeMaxOutput() != 70000 {
+			t.Errorf("ConservativeMaxOutput() = %d, want 70000", ConservativeMaxOutput())
 		}
 	})
 
@@ -324,8 +332,11 @@ func TestConservativeBudgetFollowsTheTable(t *testing.T) {
 			"only": {ID: "only", Known: true, ContextWindow: 1000000, MaxOutput: 128000},
 		})
 		got := LookupModel("neither")
-		if got.ContextWindow != 1000000 || got.MaxOutput != 128000 {
-			t.Errorf("window/maxOutput = %d/%d, want 1000000/128000", got.ContextWindow, got.MaxOutput)
+		if got.ContextWindow != 1000000 || got.MaxOutput != UnknownModelMaxOutput {
+			t.Errorf("window/maxOutput = %d/%d, want 1000000/%d", got.ContextWindow, got.MaxOutput, UnknownModelMaxOutput)
+		}
+		if ConservativeMaxOutput() != 128000 {
+			t.Errorf("ConservativeMaxOutput() = %d, want 128000", ConservativeMaxOutput())
 		}
 	})
 
@@ -336,9 +347,8 @@ func TestConservativeBudgetFollowsTheTable(t *testing.T) {
 			"z": {ID: "z", Known: true, ContextWindow: 100000, MaxOutput: 5000},
 		})
 		for i := 0; i < 200; i++ {
-			got := LookupModel("neither")
-			if got.MaxOutput != 2000 {
-				t.Fatalf("run %d: MaxOutput = %d, want 2000", i, got.MaxOutput)
+			if got := ConservativeMaxOutput(); got != 2000 {
+				t.Fatalf("run %d: ConservativeMaxOutput() = %d, want 2000", i, got)
 			}
 		}
 	})

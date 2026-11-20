@@ -197,6 +197,7 @@ and type:
   re-pin, and it is the only way back to the composer that does not first walk
   the selection past the last card — so the act of returning to type undid the
   scroll. `Esc` no longer re-pins (ui-spec §2.4).
+  *(2026-11-20: correction beside the text above. It says `Esc` is the only way back to the composer that does not first walk the selection past the last card. That is not so: `Tab` also returns focus and leaves the offset alone. Walking the selection with `↓` can re-pin, when the scroll it causes reaches the bottom. The `↓` that moves past the last card returns focus without scrolling. `Esc` no longer re-pins, which still stands. See ui-spec §2.4 and plan amendment 100.)*
 
   *`Ctrl+G` is new this run, and it is the composer's re-pin key.* `End` and `G`
   re-pin in **Browsing** mode only; in the composer `End` belongs to the text

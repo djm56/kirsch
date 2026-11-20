@@ -27,34 +27,40 @@ type BindingGroup struct {
 // bindingGroups is what the help overlay renders, mode by mode. ui-spec §5.2.
 //
 // It is the authority on what help *says*, not on what the program accepts.
-// Keys are handled and deliberately unlisted — Home and End and their g/G
-// equivalents in the transcript among them, and Esc in more modes than the grid
-// shows — because the grid itself is pinned by screen 06 in
-// plan/spec/kirsch-ui-screens.md, so adding a row here is a spec amendment rather
-// than a code change. Read a missing row as "not documented yet", never as
-// "not bound": the handlers in this file are what decide that.
+// Some keys are handled and deliberately unlisted — among them Home in the
+// transcript, Home, End, PgUp and PgDn in a modal, Esc in Browsing, approval
+// and the confirm prompt, Tab in Browsing and approval, and the double
+// Ctrl+C — because the grid itself is pinned by screen 06 in
+// plan/spec/kirsch-ui-screens.md, so adding a row here is a spec amendment
+// rather than a code change. Some rows name more than one key: the
+// Shift+Enter row also names Ctrl+J, the browsing PgUp/PgDn row also names j/k,
+// and the g/G row also names End (plan amendment 100). Read a missing row as
+// "not documented yet", never as "not bound": the handlers in this file are
+// what decide that.
 //
-// Quitting has no key row because it has no key. A bare `q` used to quit from
-// an empty composer and from the transcript; both are gone, because a key that
-// ends the session on the first character of "query" is a key that ends it by
-// accident. /quit and /exit are the whole surface, and they are listed in the
-// commands column rather than here.
+// Quitting has no key row. A bare `q` used to quit from an empty composer and
+// from the transcript; both are gone, because a key that ends the session on
+// the first character of "query" is a key that ends it by accident. /quit and
+// /exit are the ordinary way out, and they are listed in the commands column
+// rather than here; the double Ctrl+C named above is the unlisted force quit
+// (handleKey, ui-spec §5.3).
 var bindingGroups = []BindingGroup{
 	{"composing", []Binding{
 		{"Enter", "send"},
-		{"Shift+Enter", "newline"},
-		{"Ctrl+J", "newline (alt)"},
+		{"Shift+Enter", "newline (or Ctrl+J)"},
 		{"↑/↓", "history"},
 		{"Shift+↑", "cards"},
 		{"Tab", "complete /cmd · cards"},
 		{"Esc", "cancel turn"},
+		{"Ctrl+G", "bottom, re-pin"},
+		{"PgUp/PgDn", "scroll"},
 	}},
 	{"browsing", []Binding{
 		{"↑/↓", "select card"},
-		{"PgUp/PgDn", "scroll"},
+		{"PgUp/PgDn j/k", "scroll"},
 		{"Enter", "toggle preview"},
 		{"d", "diff / content"},
-		{"End", "bottom, re-pin"},
+		{"g/G End", "top / bottom, re-pin"},
 		{"?", "help"},
 	}},
 	{"approval", []Binding{
@@ -269,7 +275,8 @@ func (m *Model) clearApprovalRelease() {
 // returns early while compacting is set), but a message whose case in update
 // clears busy can, if it is still in flight when /compact starts. One example
 // is ManualCompact's own flushStore: it reports a failed flush as an ErrorMsg
-// sent from a goroutine of its own, which can reach update before the
+// delivered by the app's outbox goroutine, independently of the Cmd that
+// returns the ManualCompactMsg, so it can reach update before the
 // ManualCompactMsg, and the ErrorMsg case clears busy. Another is a turn
 // cancelled with Esc just before /compact, whose late TurnCompleteMsg,
 // TurnErrorMsg, ToolCompletedMsg or flush ErrorMsg arrives after it. A /new
@@ -381,7 +388,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case NoticeMsg:
-		m.notice(msg.Text)
+		inserted := false
+		if msg.BeforeTool != 0 {
+			if card, ok := m.toolCards[msg.BeforeTool]; ok {
+				inserted = m.insertBlockBefore(card, Item{Kind: KindNotice, Notice: &NoticeCard{Text: msg.Text}})
+			}
+		}
+		if !inserted {
+			m.notice(msg.Text)
+		}
 		m.relayout(m.layout())
 		return m, nil
 
@@ -865,11 +880,25 @@ func (m Model) keyComposing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 		// rather than entering text, and a live turn streaming into the
 		// transcript is when getting back to the bottom is worth the most.
 		//
-		// ui-spec §2.4 lists no re-pin key reachable from Composing and §5.2's
-		// composing table has no row for this one. Amending both is tracked
-		// separately from this change.
+		// ui-spec §2.4 and §5.2's composing table both list this key (plan
+		// amendment 100 added the help row).
 		m.scroll.repin() // re-pin: Ctrl+G is "go to the bottom" from the composer
 		m.relayout(lay)
+		return m, nil
+
+	case tea.KeyPgUp, tea.KeyPgDown:
+		// Scrolls the transcript a page from the composer, exactly as Browsing's
+		// PgUp/PgDn do (same page size, same setOffset), and likewise ahead of the
+		// busy guard below so it works while a turn is live. It touches only the
+		// viewport: the mode, the composer's text and hint, and the card
+		// selection stay as they are, which is why it returns here and never
+		// reaches the textarea. Scrolling to the bottom re-pins and clears the
+		// "↓ N new" count inside setOffset. ui-spec §2.4, §5.2.
+		page := maxInt(1, lay.TranscriptH-1)
+		if k.Type == tea.KeyPgUp {
+			page = -page
+		}
+		m.scroll.setOffset(m.scroll.Offset+page, len(m.lines), lay.TranscriptH)
 		return m, nil
 
 	case tea.KeyShiftUp:
@@ -915,14 +944,12 @@ func (m Model) keyComposing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	switch k.Type {
 	case tea.KeyEsc, tea.KeyTab:
-		// Esc and Tab both hand focus back to the composer and leave the viewport exactly
-		// where it is. It used to re-pin as well, and that made §2.4's "typing
-		// does not re-pin" unreachable in practice: Esc is the only way back to
-		// the composer that does not first walk the selection past the last
-		// card, so scrolling up to read something was undone by the very act of
-		// going to type about it. The remaining triggers are End, sending, and
-		// `/new`. ui-spec §2.4 and §5.2 both still list Esc; amending them is
-		// tracked separately from this change.
+		// Esc and Tab both hand focus back to the composer through setBase and
+		// do nothing else, so neither touches the scroll state: setBase sets the
+		// base mode, the composer's focus and, when nothing is selected, the
+		// selection. ui-spec §2.4 says Esc does not re-pin, and §5.2's Browsing
+		// table says the same of `Tab` / `Esc`; the keys and actions that do
+		// re-pin are listed in §2.4.
 		m.setBase(BaseComposing)
 		return m, nil
 
@@ -992,13 +1019,20 @@ func (m Model) keyBrowsing(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	case "d":
 		return m.openDetail(lay), nil
 
+	// j/k scroll one row without moving the selection and stop at the top and
+	// bottom (setOffset clamps); j reaching the bottom re-pins, as PgDn does.
+	case "j":
+		m.scroll.setOffset(m.scroll.Offset+1, len(m.lines), lay.TranscriptH)
+		return m, nil
+	case "k":
+		m.scroll.setOffset(m.scroll.Offset-1, len(m.lines), lay.TranscriptH)
+		return m, nil
+
 	// g/G mirror the modal's own g/G rather than inventing a second vocabulary
 	// for the same gesture, and they are the keyboard-reachable form of Home and
 	// End: on macOS Terminal those two arrive as SS3, which Bubble Tea v1.3.10
-	// does not decode — see normalizeSS3. They are deliberately absent from
-	// bindingGroups: that table renders the help overlay, whose grid is pinned by
-	// screen 06 in plan/spec/kirsch-ui-screens.md, so listing them there is a spec
-	// amendment rather than a code change.
+	// does not decode — see normalizeSS3. The help overlay lists them on the
+	// `g/G End` row of the browsing block (screen 06, plan amendment 100).
 	case "g":
 		m.scroll.setOffset(0, len(m.lines), lay.TranscriptH)
 		return m, nil
@@ -1364,8 +1398,9 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 // Two things ruled this out before. It cannot correlate through
 // m.pendingApproval: resolveApproval calls back into app.Resolve
 // synchronously and then clears pendingApproval before returning, while
-// App.send dispatches the confirmation through program.Send in a goroutine
-// (app.go), so the confirmation always arrives after the slot is empty. And
+// Resolve queues the confirmation through sendAsyncSequence and the app's
+// outbox goroutine delivers it with program.Send (app.go), so the confirmation
+// always arrives after the slot is empty. And
 // it cannot correlate by treating msg.ID as a transcript item ID: msg.ID is
 // drawn from the app's own approval counter (approveID.Add(1) in app.go), a
 // space the transcript's item IDs do not share — Transcript.Append counts

@@ -604,10 +604,12 @@ approval model that stands between a tool and your files.
 > approval flow all work as described below. Sections that describe a limit
 > say so in place.
 >
-> The help overlay inside the program (`?`, or `/help`) is generated from the
-> same binding table the program dispatches on, so it cannot describe a key it
-> does not have. Where this page and the overlay disagree about a binding, the
-> overlay is right. Where they disagree about *why*, this page is.
+> The help overlay inside the program (`?`, or `/help`) prints its own short
+> table of keys. That table is text only: the key handlers do not read it, so a
+> row that is wrong has to be corrected by hand. The table also leaves out some
+> keys the program accepts, such as `Home` and `Esc` in Browsing. Where this page
+> and the overlay disagree, the program decides what a key does, and this page
+> describes that.
 
 ---
 

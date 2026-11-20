@@ -204,10 +204,11 @@ func Compact(ctx context.Context, m agent.Model, msgs []agent.Message, maxTokens
 		if i >= from && i <= to {
 			continue
 		}
-		msgsCopy[i] = agent.Message{
-			Role:    msgs[i].Role,
-			Content: cloneBlocks(msgs[i].Content),
-		}
+		// Copy the whole message, so StopReason and MaxTokens survive too:
+		// Resume rebuilds them from the log, and the live conversation must
+		// match what Resume would give.
+		msgsCopy[i] = msgs[i]
+		msgsCopy[i].Content = cloneBlocks(msgs[i].Content)
 	}
 
 	newMsgs, err := applyCompaction(msgsCopy, from, to, summary)

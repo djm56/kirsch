@@ -15,9 +15,10 @@ package app
 //   - The notice tests feed the messages the app really sent into a real
 //     tui.Model through Update, and count the notices in its rendered frame.
 //
-// TUI messages reach the collector through one goroutine per sendAsyncSequence
-// call, so the tests never assert an order between them. SessionUsageMsg
-// totals only grow, so they are ordered by TokensIn.
+// TUI messages reach the collector through the app's outbox, in enqueue order.
+// The tests never assert an order between messages of different senders (that
+// is pinned in outbox_test.go). SessionUsageMsg totals only grow, so the
+// helper below orders them by TokensIn.
 
 import (
 	"math"

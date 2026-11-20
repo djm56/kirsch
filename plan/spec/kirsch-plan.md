@@ -89,7 +89,7 @@ cmd/kirsch/main.go
 
 The header is two rows — wordmark and rule, then the session line — and the frame keeps one blank column at each edge. There is no box around it.
 
-Key bindings: `Enter` send · `Alt+Enter` newline (`Ctrl+J` fallback) · `Ctrl+G` re-pin the transcript to the bottom · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit. There is no bare-key quit — `q` is an ordinary character in the composer.
+Key bindings: `Enter` send · newline `Ctrl+J`, or `Alt+Enter` where the terminal sends it · `Ctrl+G` re-pin the transcript to the bottom · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit. There is no bare-key quit — `q` is an ordinary character in the composer.
 
 Slash commands: `/help` `/status` `/diff` `/files` `/approvals` `/new` `/compact` `/quit` `/exit`.
 
@@ -271,7 +271,7 @@ API key resolution: each endpoint names its key variable in `api_key_env`. Kirsc
 | `minimax-m2.7` | `opencode` | — | — | flat rate | flat rate | flat rate | flat rate |
 | `minimax-m3` (`opencode` default) | `opencode` | — | — | flat rate | flat rate | flat rate | flat rate |
 
-Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview.md (context window and max output) and https://platform.claude.com/docs/en/about-claude/pricing.md (per-token prices), both read 2026-11-05. The cache-write column is the published 5-minute cache-write rate. Cache reads are billed at 10% of the input price, except 5% on `claude-opus-5-5` and `claude-sonnet-5-5` and 2.5% on `claude-fable-5-1` (the pricing page's footnotes on those rows; the page says all other models use 0.1x). `claude-haiku-4-5-20251001`'s 200K and 64K were not re-read, because the model is not in the overview page's comparison table: the page links to it only from its legacy-models line. Its prices were read from the pricing page. The model-deprecations page (read 2026-11-05) lists it as Active, with retirement not sooner than October 15, 2026. The legacy `claude-sonnet-5` and `claude-opus-5` are not listed, and neither is `claude-haiku-5-5`, which the overview page compares and the pricing page prices. Kirsch's table does not carry it yet, so it uses the unknown-model fallback. OpenCode Go publishes per-token prices that count against a flat monthly allowance, but no context window or output limit (opencode.ai/docs/go, read 2026-10-05), so its size columns stay `—`. **Do not guess figures.** An unknown model ID falls back to a conservative default (128k context, 4k output reserve, cost rendered as `$?`) and logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
+Anthropic figures are from https://platform.claude.com/docs/en/about-claude/models/overview.md (context window and max output) and https://platform.claude.com/docs/en/about-claude/pricing.md (per-token prices), both read 2026-11-05. The cache-write column is the published 5-minute cache-write rate. Cache reads are billed at 10% of the input price, except 5% on `claude-opus-5-5` and `claude-sonnet-5-5` and 2.5% on `claude-fable-5-1` (the pricing page's footnotes on those rows; the page says all other models use 0.1x). `claude-haiku-4-5-20251001`'s 200K and 64K were not re-read, because the model is not in the overview page's comparison table: the page links to it only from its legacy-models line. Its prices were read from the pricing page. The model-deprecations page (read 2026-11-05) lists it as Active, with retirement not sooner than October 15, 2026. The legacy `claude-sonnet-5` and `claude-opus-5` are not listed, and neither is `claude-haiku-5-5`, which the overview page compares and the pricing page prices. Kirsch's table does not carry it yet, so it uses the unknown-model fallback. OpenCode Go publishes per-token prices that count against a flat monthly allowance, but no context window or output limit (opencode.ai/docs/go, read 2026-10-05), so its size columns stay `—`. **Do not guess figures** in table rows. An unknown model ID falls back to a conservative default: the cautious 128k context window, and from amendment 100 16384 output tokens (cost rendered as `$?`). It logs a warning rather than refusing to start, because a new model release must never brick the tool. A flat-rate endpoint shows usage, not money.
 
 Token/cost: track input/output/cache tokens per turn and cumulative per session; show in status bar; persist totals to `~/.local/share/kirsch/usage.json`.
 
@@ -342,7 +342,7 @@ One event per line, append-only, schema versioned:
 {"v":1,"type":"turn.started","turn":3}
 {"v":1,"type":"user.message","content":"..."}
 {"v":1,"type":"assistant.thinking","content":"...","signature":"..."}
-{"v":1,"type":"assistant.message","content":"...","tool_calls":[{"id":"toolu_01...","tool":"read_file","input":{}}]}
+{"v":1,"type":"assistant.message","content":"...","tool_calls":[{"id":"toolu_01...","tool":"read_file","input":{}}],"stop_reason":"tool_use","max_tokens":16384}
 {"v":1,"type":"approval.scope_granted","action":"run_command","pattern":"go test"}
 {"v":1,"type":"approval.scopes_cleared"}
 {"v":1,"type":"tool.completed","id":"toolu_01...","ok":true,"content":"...","truncated":false}
@@ -351,7 +351,9 @@ One event per line, append-only, schema versioned:
 {"v":1,"type":"turn.completed","status":"success"}
 ```
 
-**Omitted when empty.** `signature` (on `assistant.thinking`), `tool_calls` (on `assistant.message`) and `tool.completed`'s `content` are omitted when empty. `turn.completed.status` is `success`, `cancelled` or `error`: `internal/session/store.go` documents these values, and `internal/app/app.go` sets each of them.
+**Omitted when empty.** `signature` (on `assistant.thinking`), `tool_calls`, `stop_reason` and `max_tokens` (on `assistant.message`) and `tool.completed`'s `content` are omitted when empty. `turn.completed.status` is `success`, `cancelled` or `error`: `internal/session/store.go` documents these values, and `internal/app/app.go` sets each of them.
+
+**Stop-reason fields on `assistant.message` (v0.1.2, amendment 100).** `stop_reason` (the provider's stop reason) and `max_tokens` (the output limit sent with that request) are optional. Each is omitted when it has no value: `stop_reason` when the provider reports none, `max_tokens` when no limit was recorded. Whenever `stop_reason` is written, `max_tokens` is written with it, because every request carries an output limit. `stop_reason` takes one of four values, the constants of `StopReason` in `internal/provider/provider.go` (lines 207–218): `end_turn`, `tool_use`, `max_tokens` or `other`. A session written before v0.1.2 has neither field. Resume uses them to decide whether to show the cut-off notice (`stop_reason` of `max_tokens`). If a stored message has `stop_reason` `max_tokens` but no `max_tokens`, the notice is shown without the count, exactly `· reply cut off — output limit reached`. Both fields are optional, so the event version `v` stays 1: older readers ignore them. **Exception:** a reply made only of thinking blocks that is cut off shows the notice live but not on resume, because no `assistant.message` line is written for it. `TestThinkingOnlyReplyCutOffShowsNoticeLiveButNotOnResume` (`internal/app/cutoff_notice_test.go`) pins this.
 
 **Reconstruction rule.** The session file does not hold `assistant.delta`, and nothing writes it (see the notes below). The authoritative record of what was exchanged with the model is `user.message`, `assistant.message` (carrying `tool_calls` with their provider `id`s), `assistant.thinking`, `tool.completed` (carrying `content`), and `compaction.applied`. Resume rebuilds the provider message array from those, applying each `compaction.applied` in file order (`internal/session/resume.go`), and **never** from deltas. Each tool call's provider `id` is written as `assistant.message.tool_calls[].id`, and the matching `tool.completed` carries the same value as `id`; resume refuses a `tool.completed` whose `id` matches no pending call, so a call and its result correlate. This is what makes multi-tool-call turns resumable. `approval.scope_granted` carries `action` and `pattern`; it does not name a tool call.
 
@@ -943,6 +945,11 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
     it. The operator's walkthrough marked all three scroll-and-pin checks ❌ for
     this one cause. `Esc` now returns focus and leaves the viewport alone; §2.4
     and §5.2 are amended to match.
+    *(Corrected in amendment 100, 2026-11-20: `Esc` was not the only route back
+    to the composer. `Tab`, and the `↓` that moves past the last card, return focus
+    and leave the offset alone. Walking the selection down with `↓` can re-pin: each
+    step scrolls only as far as needed to show the selected card, and when that
+    scroll reaches the bottom, it re-pins. The decision itself stands.)*
 
 56. **Submitting a slash command re-pins.** A command is a request, and §3.1
     already renders the invocation as a message, so the two rules agree. The
@@ -1023,6 +1030,9 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
       `composing` block does not list it: that grid is a byte-for-byte test
       oracle, so the row is a redraw rather than a code change, and it is
       **still open** below.
+      *(Superseded by amendment 100: the help overlay's `composing` block now
+      lists `Ctrl+G`, in the grid redrawn for v0.1.2. Read the row above as
+      history.)*
     - **The onboarding tagline truncates with the `⋯` marker.** Its width is not
       a constant — the version is a build-time string, and `0.1.0-dev` already
       makes the row 41 cells against the 38 a 40-column terminal leaves — so it
@@ -1262,6 +1272,34 @@ These record where the locked v0.1 text contradicts what the milestones after Mi
     - **Evidence.** `govulncheck` reported GO-2026-6859 (`net/http`) under go1.26.10. The advisory is fixed in go1.26.11 (`https://pkg.go.dev/vuln/GO-2026-6859`, "before go1.26.11", fetched 2026-11-17 16:33 UTC). Bishop checked that the finding is reachable from Kirsch's code. Before the change, `bash scripts/ci.sh security` reported GO-2026-6859 (`Found in: net/http@go1.26.10`, `Fixed in: net/http@go1.26.11`); exit 3 is reported by `@hicks` only. After it, the same command printed "No vulnerabilities found". The release workflow builds with the Go version in `go.mod` (`.github/workflows/release.yml:52`), which was go1.26.10 at `492bd17`, so the v0.1.0 binaries were built with it.
     - **Status.** The local gate is green: `GOFLAGS=-count=1 bash scripts/ci.sh all` printed "ci.sh: all jobs passed" on go1.26.11. GitHub CI is pending the operator's push of this change. Release v0.1.1 is set out in section 38 of the plain checklist (`plan/testing/manual/user-testing/milestone-5-donovan.md`). That release is not claimed here until its tag exists.
 
+100. **UX round, v0.1.2 keys and cut-off notice** (2026-11-19, mission-20261119-03). `PgUp`/`PgDn` scroll the transcript from Composing; `j`/`k` scroll one line in Browsing. The help overlay's composing block merges `Ctrl+J` into the `Shift+Enter` row and adds `Ctrl+G` and `PgUp`/`PgDn`; its browsing block merges `j/k` into the `PgUp`/`PgDn` row and `g`/`G` into the `End` row. The left column is 17 rows, matching the right column, so the overlay keeps its height and the 80×28 minimum; screen 06 is redrawn to match in v0.1.2. The left column reads:
+
+```
+composing
+Enter         send
+Shift+Enter   newline (or Ctrl+J)
+↑/↓           history
+Shift+↑       cards
+Tab           complete /cmd · cards
+Esc           cancel turn
+Ctrl+G        bottom, re-pin
+PgUp/PgDn     scroll
+
+browsing
+↑/↓           select card
+PgUp/PgDn j/k scroll
+Enter         toggle preview
+d             diff / content
+g/G End       top / bottom, re-pin
+?             help
+```
+
+Every row fits the 37-column left column: the key is padded to 13 characters, then one space, then the description. The longest row is `Tab` (35 characters).
+
+A reply that stops on `max_tokens` gets a system notice. A model not in the model table gets 16384 output tokens instead of the smallest row's figure. Mouse support stays out of scope. The round is defined in `plan/milestones/ux-round-v0.1.md`.
+
+**Cut-off notice on resume (v0.1.2).** §7 `assistant.message` gains two optional fields. `stop_reason` is the provider's stop reason, written when the provider reports one. `max_tokens` is the output limit sent with that request. On resume, a message whose `stop_reason` is `max_tokens` gets the same notice, using its stored `max_tokens`. A session written before v0.1.2 has neither field and shows no notice. This supersedes amendment 98 for these two fields only.
+
 **Still open**
 
 - ~~Exact figures for the §5 model table~~ — Anthropic rows filled by amendment 79. The `opencode` default row is `minimax-m3` since amendment 90 (`minimax-m2.7` under amendment 83, `minimax-m3` under amendment 80); its size figures stay `—` until OpenCode publishes them.
@@ -1272,8 +1310,8 @@ These record where the locked v0.1 text contradicts what the milestones after Mi
 - Session file rotation for very long sessions (ADR 0002 flagged this; still deferred).
 - Screen 14 (onboarding) in `plan/spec/kirsch-ui-screens.md` — drawn at M3 with the
   provider onboarding path, per amendment 24.
-- A `Ctrl+G` row in the help overlay's `composing` block (amendment 60). The
-  binding ships; the overlay does not name it. Screen 06 is a byte-for-byte test
+- ~~A `Ctrl+G` row in the help overlay's `composing` block (amendment 60).~~ — settled by amendment 100. ~~The
+  binding ships; the overlay does not name it.~~ Amendment 60's reasoning, kept as history: *(Superseded by amendment 100: the composing block now names `Ctrl+G`, and the left column is 17 rows, not the 15 given below.)* Screen 06 is a byte-for-byte test
   oracle, so this is a redraw plus a `bindingGroups` entry — but it costs no
   height: body height is the taller column, and the row lands in the left one at
   15 rows against the right's 23. `max(16, 23)` is still 23, and after the debug

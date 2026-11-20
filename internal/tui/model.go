@@ -345,8 +345,10 @@ func (m *Model) askConfirm(c ConfirmState) {
 // and this stops being theoretical.
 func (m *Model) overlayOpen() bool { return m.modal != nil || m.confirm != nil }
 
-// appendBlock adds a block to the transcript, counting it against the "↓ n new"
-// indicator when the viewport is scrolled away from the bottom.
+// appendBlock adds a block to the transcript and does the scroll bookkeeping
+// for its arrival (noteArrival): an appended block always lands below the
+// viewport top, so while the viewport is scrolled away from the bottom it is
+// counted against the "↓ n new" indicator and nothing else moves.
 //
 // The count lives here rather than at each caller because ui-spec §2.4 defines
 // it as "blocks arrived since unpinning" — one fact about arrival, not a rule
@@ -368,10 +370,52 @@ func (m *Model) overlayOpen() bool { return m.modal != nil || m.confirm != nil }
 // would have "↓ n new" promise more unread blocks below the fold than exist.
 func (m *Model) appendBlock(it Item) ItemID {
 	id := m.tr.Append(it)
-	if !m.scroll.Pinned {
-		m.scroll.NewSince++
-	}
+	m.noteArrival(false, 0)
 	return id
+}
+
+// insertBlockBefore inserts it directly before the item with ID before and does
+// the scroll bookkeeping for its arrival (noteArrival). It reports false, with
+// nothing inserted, when no item has that ID.
+//
+// Unlike an append, an insert can land above the viewport. Whether it did is
+// read from the row the target item started on before the insert; how many rows
+// it added is measured by relaying out afterwards, so the figure is the
+// renderer's own (the item's rows plus the separator) and not a guess.
+func (m *Model) insertBlockBefore(before ItemID, it Item) bool {
+	start, known := 0, false
+	if r, ok := m.rowFor(before); ok {
+		start, known = r.Start, true
+	}
+	oldLen := len(m.lines)
+	if _, ok := m.tr.InsertBefore(before, it); !ok {
+		return false
+	}
+	m.relayout(m.layout())
+	// A target with no rows of its own (not expected for a tool card) has no
+	// known position; treat it as below the viewport top.
+	m.noteArrival(known && start <= m.scroll.Offset, len(m.lines)-oldLen)
+	return true
+}
+
+// noteArrival is the scroll bookkeeping for one block that has reached the
+// transcript, shared by appendBlock and insertBlockBefore. While pinned there is
+// nothing to do: relayout puts the viewport back at the bottom. While unpinned,
+// ui-spec §2.4 makes the scroll position the user's, so a block that arrived at
+// or above the viewport top (aboveTop) pushes every row below it down by rows,
+// and the viewport follows by the same amount so the visible rows do not move;
+// the user has not been told of a new block below the fold, so NewSince is left
+// alone. A block that arrived below the viewport top moves nothing the user is
+// looking at and is counted in NewSince.
+func (m *Model) noteArrival(aboveTop bool, rows int) {
+	if m.scroll.Pinned {
+		return
+	}
+	if aboveTop {
+		m.scroll.Offset += rows
+		return
+	}
+	m.scroll.NewSince++
 }
 
 // relayout rebuilds the flattened transcript and its per-item extents.

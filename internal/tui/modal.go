@@ -566,9 +566,13 @@ func (m Model) confirmRow(prompt string, w int) string {
 
 // helpLines builds the help overlay body as two columns, matching screen 06.
 //
-// Both columns are generated from the same binding table update.go dispatches
-// on, so a binding that changes behaviour cannot quietly keep its old
-// description here.
+// The binding rows in both columns are rendered from bindingGroups in
+// update.go. That table is data for this overlay only: the key handlers in
+// update.go dispatch on their own switch statements and never read it, so a
+// binding whose behaviour changes needs its row changed by hand. Screen 06's
+// golden and TestHelpBindingRowsMatchAmendment100 pin the rendered rows to the
+// spec, not to the handlers: nothing mechanical ties a row to the key it
+// describes.
 func helpLines() []string {
 	left := helpColumn(13, "composing", "browsing")
 	right := helpColumn(9, "approval", "modal")

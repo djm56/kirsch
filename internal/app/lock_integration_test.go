@@ -101,7 +101,7 @@ func TestAcquireLockNonHeldError(t *testing.T) {
 		defer a2.Close()
 		// The collector is sized beyond what the held path should send, so
 		// wait() cannot return on the first message; instead the test lets
-		// the per-message delivery goroutines (sendAsyncSequence) settle and
+		// the outbox goroutine (sendAsyncSequence) deliver and go idle and
 		// inspects everything that arrived.
 		c2 := newCollector(1 << 20)
 		a2.sendFn = c2.send
@@ -118,8 +118,9 @@ func TestAcquireLockNonHeldError(t *testing.T) {
 		for c2.count() < 1 && time.Now().Before(deadline) {
 			time.Sleep(5 * time.Millisecond)
 		}
-		// Settle window: a mutant that also emits the non-held warning does
-		// so from a separate goroutine, after the first message.
+		// Settle window: delivery is asynchronous, and a mutant that also
+		// emits the non-held warning enqueues it behind the first message, so it
+		// is delivered after the first message.
 		time.Sleep(200 * time.Millisecond)
 		msgs2 := c2.snapshot()
 
@@ -211,7 +212,7 @@ func TestLockSecondInstanceDegrades(t *testing.T) {
 	}
 
 	// Check that the status warning was sent. We give it a bit of time since
-	// SendStatusWarning spawns a goroutine.
+	// SendStatusWarning queues it and the outbox goroutine delivers it.
 	msgs := c.wait(t, 2*time.Second)
 	foundWarning := false
 	for _, m := range msgs {

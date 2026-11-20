@@ -93,7 +93,10 @@ func appendLines(t *testing.T, path string, lines ...[]byte) {
 func transcriptFromMessages(msgs []agent.Message) []TranscriptMessage {
 	out := make([]TranscriptMessage, len(msgs))
 	for i, m := range msgs {
-		out[i] = TranscriptMessage{Role: m.Role, Content: cloneBlocks(m.Content)}
+		out[i] = TranscriptMessage{
+			Role: m.Role, Content: cloneBlocks(m.Content),
+			StopReason: m.StopReason, MaxTokens: m.MaxTokens,
+		}
 	}
 	return out
 }

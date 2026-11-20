@@ -14,10 +14,11 @@ package app
 //
 //	window 30000, reserve 4096 -> budget 25904, threshold 19428 tokens
 //
-// TUI messages reach the collector through one goroutine per
-// sendAsyncSequence call, so their relative order is not defined. These tests
-// assert which messages arrive, never the order between them. Order is
-// asserted only on the JSONL log, which one writer goroutine produces.
+// TUI messages reach the collector through the app's outbox, which delivers
+// them one at a time in the order they were enqueued. These tests assert which
+// messages arrive, never the order between them; delivery order is pinned in
+// outbox_test.go. Order of the session's own events is asserted on the JSONL
+// log, which one writer goroutine produces.
 
 import (
 	"context"
@@ -244,7 +245,8 @@ func countOf(xs []string, want string) int {
 func cloneMsgs(in []agent.Message) []agent.Message {
 	out := make([]agent.Message, len(in))
 	for i, m := range in {
-		out[i] = agent.Message{Role: m.Role, Content: append([]agent.Block(nil), m.Content...)}
+		out[i] = m
+		out[i].Content = append([]agent.Block(nil), m.Content...)
 	}
 	return out
 }
