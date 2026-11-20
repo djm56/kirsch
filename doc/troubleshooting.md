@@ -37,7 +37,7 @@ doctor: <ok> ok, <warn> warn, <fail> fail
 ```
 
 - `kirsch <version>` is the opening line. The version is the release version,
-  or `0.1.0-dev` in a build that carries no release version. See
+  or the development version, such as `0.1.2-dev`, in a build that carries no release version. See
   [install.md](install.md) for how a build gets its version.
 - `<status>` is `ok`, `warn`, or `fail`. Spaces follow it, as in the examples below.
 - `<check>` is the name of the check, in lower case.
@@ -56,7 +56,7 @@ Example output from a repository with no key variables set. Your lines and
 paths will differ:
 
 ```text
-kirsch 0.1.0-dev
+kirsch 0.1.2-dev
 ok  git: found at /usr/bin/git
 ok  rg: found at /usr/local/bin/rg
 ok  repository: /home/you/project

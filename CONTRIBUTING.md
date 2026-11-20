@@ -83,6 +83,48 @@ configuration also lets most commands run without asking.
 [SECURITY.md](SECURITY.md) states these limits, and a change must not widen them
 without saying so.
 
+## After a release tag
+
+After you tag vX.Y.Z, raise the development version to the next patch's
+`-dev`. After v0.1.2, for example, it becomes `0.1.3-dev`. The grep below is the
+authoritative list of every place that holds the version. The bullets name the
+main places; the comments and prose the grep finds are included too.
+
+- `devVersion` in `cmd/kirsch/main.go`.
+- `"version"` in `package.json`.
+- `fixtureVersion` in `internal/tui/golden_test.go`, and the golden screens in
+  `plan/spec/kirsch-ui-screens.md`, which the screens test compares.
+- The version in the prose of `plan/spec/ui-spec-v0.1.md` §7.5, the onboarding
+  tagline.
+- The prose (not the grids) of `plan/spec/kirsch-ui-screens.md` that describes
+  the tagline.
+- The version quoted in comments in `internal/tui/empty.go`,
+  `internal/tui/empty_test.go` and `internal/tui/golden_test.go`.
+- `doc/install.md` and `doc/troubleshooting.md`.
+
+Find them with the old version in place of `<old>`:
+
+```bash
+git grep -n '<old>-dev' -- cmd internal package.json plan/spec doc
+```
+
+History is not rewritten. CHANGELOG released entries, dated history notes,
+amendment records and test evidence keep the version they were written with.
+The grep finds some of these too, and they are left as they are.
+
+If the new version has a different length, such as `0.1.10-dev`, the
+onboarding tagline's width changes with it. Re-measure the tagline. Update the
+width it is given in `plan/spec/ui-spec-v0.1.md` §7.5, in the notes under
+screen 00 of `plan/spec/kirsch-ui-screens.md`, and in the comments in
+`internal/tui/empty_test.go` and `internal/tui/golden_test.go`. Update the cut
+example shown at 40 columns in the two spec files. A bump that keeps the length,
+such as `0.1.2-dev` to `0.1.3-dev`, changes neither.
+
+The example in the `devVersion` docblock (`cmd/kirsch/main.go`) shows how the
+rule works and can stay as it is.
+
+Then run `npm test` and `npm run screens`.
+
 ## Pull requests
 
 - Keep each pull request to one logical change. Small changes are easier to review.

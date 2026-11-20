@@ -62,7 +62,7 @@ At revision the command returns 18 lines. Each is classed below. A class marked 
 | Status text that will age | `README.md:3`, `:25`, `:86` ("goes away after v0.1.0", describing `plan/`), `:118`, `:122`; `doc/install.md:126`, `:156` (the "`@latest` once a release exists" half of the line), `:229` (example output of a release binary) | Reworded by ds-d7 (README: `:3`, `:25`, `:86`, `:118`, `:122`) and ds-d1 or ds-d15 (install: `:126`, `:156`, `:229`). The `:86` wording names a release that has already shipped, so it is reworded, not kept. |
 | Keep: a milestone name | `README.md:113` ("polish + release (v0.1.0)") | Keep. It names a milestone. |
 | Keep: a format example | `doc/install.md:58` (`<version>` is "such as `0.1.0`"), `:156` (`@v0.1.0` as a tag example) | Keep. Examples of the pattern. |
-| Keep: dev builds, not a pin | `doc/install.md:157`, `:160`, `:180`; `doc/troubleshooting.md:40`, `:59` (`kirsch 0.1.0-dev`) | Keep. These are the version string a build from a branch or commit prints, not a release pin. |
+| Keep: dev builds, not a pin | `doc/install.md:157`, `:160`, `:180`; `doc/troubleshooting.md:40`, `:59` (`kirsch 0.1.0-dev`) | Keep. These are the version string a build from a branch or commit prints, not a release pin. *(2026-11-20: updated to `0.1.2-dev` when the dev default was raised; mission-20261120-01.)* |
 
 Other text that will change with the milestones:
 

@@ -30,7 +30,11 @@ import (
 )
 
 // devVersion is the value version holds when no release stamp was applied.
-const devVersion = "0.1.0-dev"
+// Raise it to the next patch's -dev version after each release tag. The steps
+// are in CONTRIBUTING.md, "After a release tag". Until that bump lands, an
+// unstamped build still reports the just-released version's -dev (for example
+// 0.1.2-dev after v0.1.2 is tagged).
+const devVersion = "0.1.2-dev"
 
 // version is overridden at release time via -ldflags, for example
 // -X main.version=0.1.0. The injected value is bare: the TUI adds its own "v".

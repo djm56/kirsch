@@ -23,7 +23,7 @@ const screensDoc = "../../plan/spec/kirsch-ui-screens.md"
 
 // fixtureVersion is the version string every fixture in this package renders.
 //
-// It is the binary's own default — `var version = "0.1.0-dev"` in
+// It is the binary's own default — `const devVersion = "0.1.2-dev"` in
 // cmd/kirsch/main.go — and not the rounder "0.1.0" the fixtures used to carry.
 // Four cells of difference, and they were the four that mattered: the onboarding
 // tagline is built from this string, and at "0.1.0" it measured 37 cells against
@@ -35,7 +35,7 @@ const screensDoc = "../../plan/spec/kirsch-ui-screens.md"
 // Anything width-sensitive that names a version takes this constant. If the
 // shipped default changes, this changes with it and the grids are regenerated —
 // which is the point: the goldens should move when the product does.
-const fixtureVersion = "0.1.0-dev"
+const fixtureVersion = "0.1.2-dev"
 
 type grid struct {
 	Screen string

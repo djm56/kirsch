@@ -70,7 +70,7 @@ func (m Model) emptyStateRows(lay Layout) []string {
 		}
 		add("")
 		// Bound to the content width, like every other row the package emits.
-		// The version is a build-time value — "0.1.0-dev" in the shipped
+		// The version is a build-time value — "0.1.2-dev" in the shipped
 		// binary, and longer again at a release candidate — so this row's
 		// width is not a constant and cannot be eyeballed against the 38
 		// content columns a 40-column terminal leaves. Unbounded it reached

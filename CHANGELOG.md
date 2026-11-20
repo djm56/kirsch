@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A model that is not in the model table gets 16384 output tokens.** It used to get the smallest table row's figure, 4096. Rows in the table keep their own figures; the `minimax-m3` and `minimax-m2.7` rows are unchanged, so the default model still stops at its table limit.
 
+- **Development builds report `0.1.2-dev`.** A build with no release stamp used to report `0.1.0-dev`, which is older than the v0.1.1 release. A build from a release tag is unchanged.
+
 ### Fixed
 
 - **Turn messages reach the screen in the order they were produced.** Reply text, tool cards, usage and completion each used to be sent on their own goroutine, so delivery order was not guaranteed. They now go through one app-wide outbox that delivers in order.

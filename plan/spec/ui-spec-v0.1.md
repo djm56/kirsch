@@ -662,9 +662,9 @@ width the margin leaves (§2.1), so it survives at the advertised 40-column
 minimum. Beneath it sits the tagline
 `v<version> · terminal-native coding agent`, truncated to the content width with
 the §7.3 marker. Its width is **not** a constant — the version is a build-time
-string, and the shipped `0.1.0-dev` already makes the tagline 41 cells against
+string, and the shipped `0.1.2-dev` already makes the tagline 41 cells against
 the 38 a 40-column terminal leaves — so it is cut by its own renderer and reads
-`v0.1.0-dev · terminal-native coding a⋯` rather than breaking off mid-air. The
+`v0.1.2-dev · terminal-native coding a⋯` rather than breaking off mid-air. The
 version leads because it is the part worth keeping when the row is cut. The
 lead-in and the three suggestions survive at sizes where the wordmark does not:
 they are the part that tells a new user what to do.

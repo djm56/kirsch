@@ -1038,6 +1038,7 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
       makes the row 41 cells against the 38 a 40-column terminal leaves — so it
       was reaching `View()`'s final bound, which is a hard frame edge carrying no
       marker, and breaking off mid-word with nothing to say it had been cut.
+      *(2026-11-20: the shipped default is now `0.1.2-dev`, the same width, so the 41-cell figure still holds. Read the value above as history.)*
 
     ui-spec §2, §2.1, §2.2, §2.4, §5.2, §7.3 and §7.5 are amended;
     `plan/spec/kirsch-ui-screens.md` gains layout invariant 6, three reading notes, and
