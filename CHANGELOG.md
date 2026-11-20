@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-11-20
+
 ### Added
 
 - **A reply that stops at the output limit says so.** A reply that stops because it reached its output limit shows `· reply cut off — output limit reached (N tokens)` directly under it, after its text and above any tool cards from the same reply, where `N` is the limit sent with the request. The line appears live and again on resume. Session `assistant.message` lines gain optional `stop_reason` and `max_tokens` fields; the event version `v` stays 1, and sessions written before v0.1.2 show no line. A reply made only of thinking blocks shows the line live but not on resume, because no `assistant.message` line is written for it. Spec: ui-spec §3.7; plan §7 and amendment 100.
 - **Page keys scroll from the composer.** `PgUp` and `PgDn` scroll the transcript one page from the composer, without changing mode or the text you have typed, and they work while a turn is running. A page is the transcript height less one row, and at least one row.
 - **Line keys scroll in Browsing.** `j` and `k` scroll the transcript one line at a time in Browsing, stopping at the top and the bottom. Scrolling down to the bottom re-pins the transcript and clears the `↓ N new` indicator.
-- **The help overlay lists the new keys.** Its left column names `Ctrl+G`, `PgUp/PgDn` and `PgUp/PgDn j/k`, `g/G End`, and `Shift+Enter` with `Ctrl+J`, in the layout of plan amendment 100.
+- **The help overlay lists more keys.** The new bindings appear: `PgUp/PgDn` under `composing`, and `j/k` on the browsing `PgUp/PgDn j/k` row. `Ctrl+G` and the browsing `g/G` were already bound and are now listed too, `g/G` on the `g/G End` row. `Ctrl+J` moves onto the `Shift+Enter` row. The layout is plan amendment 100's.
 
 ### Changed
 
@@ -388,4 +390,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `go 1.25.13`; CI follows it through `go-version-file`.
 
 [Unreleased]: https://github.com/djm56/kirsch/commits/main
+[0.1.2]: https://github.com/djm56/kirsch/releases/tag/v0.1.2
+[0.1.1]: https://github.com/djm56/kirsch/releases/tag/v0.1.1
 [0.1.0]: https://github.com/djm56/kirsch/releases/tag/v0.1.0
