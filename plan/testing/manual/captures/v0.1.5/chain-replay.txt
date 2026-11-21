@@ -1,0 +1,350 @@
+# chain replay: sections 1 to 10 of the v0.1.5 walkthrough, in order, in one Model
+# release: v0.1.5
+# no model, no network, no key: canned messages and real key messages through the real Model
+# canned: file names and texts, the replies, a one-file /diff, and the resumed transcript of section 10 (the live model's own items)
+# section 4 is run in each of these orderings of the same inputs. The main path, which the chain goes on from, presses Shift+↑, g and PgDn after the README.md tool card finishes and before the reply's first text: the walkthrough says to press them "as soon as the first tool card shows". In retry branch 1 the reply has started to stream (its first 100 lines have arrived) when the keys are pressed. In retry branch 2 the reply has finished, with the end of the turn, before the keys are pressed: the walkthrough's `reply finished first` case, which it says to try again with a longer prompt
+# state per section: selection, gutter, key-hint row, mode, scroll, modal, size and glyphs, read from the Model
+# the "selection" line is the item the gutter is on; "none" means no item is selected
+# the "gutter" line gives the selected item's rows and the transcript window's rows: the gutter is drawn only when a row of the item is in the window
+# the "hint row" line is the last row of the frame, or says there is none at that height
+# section 10 resume: App.ResumeLastSession sends [tui.NoticeMsg tui.TranscriptLoadedMsg tui.SessionUsageMsg]; this replay sends [tui.NoticeMsg tui.TranscriptLoadedMsg]; not sent: [tui.SessionUsageMsg]
+# the resumed items in section 10 are the live model's own, not what the app builds from a session log, so the offset recorded there is not evidence of what a real resume shows
+# live turns send further messages the replay leaves out, among them a BudgetMsg before each turn and a UsageMsg and a SessionUsageMsg for each usage report
+
+=== section 1 · a short transcript has no bar ===
+before:
+  selection: none
+  gutter: no item selected, so no gutter
+  hint row: "↑↓ history · ⇧↑/Tab cards · /help"
+  mode: Composing
+  scroll: offset 0, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+step: type "read README.md and reply in one short sentence"
+step: key Enter
+step: (the read_file call for README.md finishes)
+step: (the reply streams, the turn completes)
+after:
+  selection: tool read_file README.md (item 2 of 3)
+  gutter: selected item's rows 4-13, transcript window rows 0-16, a row in view: true
+  hint row: "↑↓ history · ⇧↑/Tab cards · /help"
+  mode: Composing
+  scroll: offset 0, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+
+=== section 2 · the bar at the bottom of an overflowing transcript ===
+before:
+  selection: tool read_file README.md (item 2 of 3)
+  gutter: selected item's rows 4-13, transcript window rows 0-16, a row in view: true
+  hint row: "↑↓ history · ⇧↑/Tab cards · /help"
+  mode: Composing
+  scroll: offset 0, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+step: type "count from 1 to 300, one number per line"
+step: key Enter
+step: (the reply streams, the turn completes)
+after:
+  selection: tool read_file README.md (item 2 of 5)
+  gutter: selected item's rows 4-13, transcript window rows 305-321, a row in view: false
+  hint row: "↑↓ history · ⇧↑/Tab cards · /help"
+  mode: Composing
+  scroll: offset 305, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+
+=== section 3 · the bar at the top ===
+before:
+  selection: tool read_file README.md (item 2 of 5)
+  gutter: selected item's rows 4-13, transcript window rows 305-321, a row in view: false
+  hint row: "↑↓ history · ⇧↑/Tab cards · /help"
+  mode: Composing
+  scroll: offset 305, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+step: key Shift+↑
+step: key g
+after:
+  selection: tool read_file README.md (item 2 of 5)
+  gutter: selected item's rows 4-13, transcript window rows 0-16, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 0, pinned false, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+
+=== section 4 · the bar in the middle, with ↓ N new (main path: keys pressed before the reply's first text) ===
+before:
+  selection: tool read_file README.md (item 2 of 5)
+  gutter: selected item's rows 4-13, transcript window rows 0-16, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 0, pinned false, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+step: key Tab
+step: type "read README.md, then count from 1 to 300, one number per line"
+step: key Enter
+step: (the read_file call for README.md finishes)
+step: key Shift+↑
+step: key g
+step: key PgDn
+step: (the reply streams, the turn completes)
+after:
+  selection: tool read_file README.md (item 7 of 8)
+  gutter: selected item's rows 325-334, transcript window rows 16-32, a row in view: false
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 16, pinned false, new 1
+  modal: none
+  size: 80x24, glyphs unicode
+
+=== section 4 · the bar in the middle, with ↓ N new (retry branch 1: the reply has started to stream before the keys) ===
+before:
+  selection: tool read_file README.md (item 2 of 5)
+  gutter: selected item's rows 4-13, transcript window rows 0-16, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 0, pinned false, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+step: key Tab
+step: type "read README.md, then count from 1 to 300, one number per line"
+step: key Enter
+step: (the read_file call for README.md finishes)
+step: (the reply starts to stream)
+step: key Shift+↑
+step: key g
+step: key PgDn
+step: (the rest of the reply streams, the turn completes)
+after:
+  selection: tool read_file README.md (item 7 of 8)
+  gutter: selected item's rows 325-334, transcript window rows 16-32, a row in view: false
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 16, pinned false, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+
+=== section 4 · the bar in the middle, with ↓ N new (retry branch 2: the reply has finished before the keys: the walkthrough's `reply finished first`) ===
+before:
+  selection: tool read_file README.md (item 2 of 5)
+  gutter: selected item's rows 4-13, transcript window rows 0-16, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 0, pinned false, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+step: key Tab
+step: type "read README.md, then count from 1 to 300, one number per line"
+step: key Enter
+step: (the read_file call for README.md finishes)
+step: (the reply streams, the turn completes)
+step: key Shift+↑
+step: key g
+step: key PgDn
+after:
+  selection: tool read_file README.md (item 7 of 8)
+  gutter: selected item's rows 325-334, transcript window rows 16-32, a row in view: false
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 16, pinned false, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+
+(the sections below continue from the main path)
+
+=== section 5 · no bar under an open modal ===
+before:
+  selection: tool read_file README.md (item 7 of 8)
+  gutter: selected item's rows 325-334, transcript window rows 16-32, a row in view: false
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 16, pinned false, new 1
+  modal: none
+  size: 80x24, glyphs unicode
+step: arrows until the gutter is on a read_file card for README.md: ↑ pressed 3 times, 0 Shift+↑ to return to Browsing
+gutter on the card:
+  selection: tool read_file README.md (item 2 of 8)
+  gutter: selected item's rows 4-13, transcript window rows 4-20, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 4, pinned false, new 1
+  modal: none
+  size: 80x24, glyphs unicode
+step: key d
+modal open:
+  selection: tool read_file README.md (item 2 of 8)
+  gutter: selected item's rows 4-13, transcript window rows 4-20, a row in view: true (a modal is open: its box covers part of the window, and these rows are the transcript's)
+  hint row: ""
+  mode: Modal
+  scroll: offset 4, pinned false, new 1
+  modal: content "read_file README.md", offset 0
+  size: 80x24, glyphs unicode
+step: key Esc
+after:
+  selection: tool read_file README.md (item 2 of 8)
+  gutter: selected item's rows 4-13, transcript window rows 4-20, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 4, pinned false, new 1
+  modal: none
+  size: 80x24, glyphs unicode
+
+=== section 6 · a wrapped line in a read_file modal ===
+before:
+  selection: tool read_file README.md (item 2 of 8)
+  gutter: selected item's rows 4-13, transcript window rows 4-20, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 4, pinned false, new 1
+  modal: none
+  size: 80x24, glyphs unicode
+step: key Tab
+step: type "read long.txt and reply with one word"
+step: key Enter
+step: (the read_file call for long.txt finishes)
+step: (the reply streams, the turn completes)
+step: key Shift+↑
+step: arrows until the gutter is on the read_file card for long.txt: the card is already selected with a row in view, 0 presses
+gutter on the card:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 641-654, transcript window rows 641-657, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 641, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+step: key d
+after:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 641-654, transcript window rows 641-657, a row in view: true (a modal is open: its box covers part of the window, and these rows are the transcript's)
+  hint row: ""
+  mode: Modal
+  scroll: offset 641, pinned true, new 0
+  modal: content "read_file long.txt", offset 0
+  size: 80x24, glyphs unicode
+
+=== section 7 · G lands on the last full page ===
+before:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 641-654, transcript window rows 641-657, a row in view: true (a modal is open: its box covers part of the window, and these rows are the transcript's)
+  hint row: ""
+  mode: Modal
+  scroll: offset 641, pinned true, new 0
+  modal: content "read_file long.txt", offset 0
+  size: 80x24, glyphs unicode
+step: key G
+after G:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 641-654, transcript window rows 641-657, a row in view: true (a modal is open: its box covers part of the window, and these rows are the transcript's)
+  hint row: ""
+  mode: Modal
+  scroll: offset 641, pinned true, new 0
+  modal: content "read_file long.txt", offset 73
+  size: 80x24, glyphs unicode
+step: key Esc
+after:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 641-654, transcript window rows 641-657, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 641, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+
+=== section 8 · a wrapped + line and a wrapped @@ line in /diff ===
+before:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 641-654, transcript window rows 641-657, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 641, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs unicode
+step: resize to 80x32
+step: key Tab
+step: type "/diff"
+step: key Enter
+step: (the /diff command's DiffResultMsg arrives)
+step: j or PgDn until the calc/divide.go hunk (the walkthrough's long.txt hunk) is in view: 0 presses, the modal's offset is 0, its 20 rows fit its 20-row body and the frame holds the hunk header "@@ -7,7 +7,7"
+diff modal open:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 641-654, transcript window rows 633-657, a row in view: true (a modal is open: its box covers part of the window, and these rows are the transcript's)
+  hint row: ""
+  mode: Modal
+  scroll: offset 633, pinned true, new 0
+  modal: diff "working tree", offset 0
+  size: 80x32, glyphs unicode
+step: key Esc
+after:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 641-654, transcript window rows 633-657, a row in view: true
+  hint row: "↑↓ history · ⇧↑/Tab cards · /help"
+  mode: Composing
+  scroll: offset 633, pinned true, new 0
+  modal: none
+  size: 80x32, glyphs unicode
+
+=== section 9 · help lines are cut, not wrapped, at 60x24 ===
+before:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 641-654, transcript window rows 633-657, a row in view: true
+  hint row: "↑↓ history · ⇧↑/Tab cards · /help"
+  mode: Composing
+  scroll: offset 633, pinned true, new 0
+  modal: none
+  size: 80x32, glyphs unicode
+step: resize to 60x24
+step: key Shift+↑
+step: key ?
+help open:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 642-655, transcript window rows 642-658, a row in view: true (a modal is open: its box covers part of the window, and these rows are the transcript's)
+  hint row: ""
+  mode: Modal
+  scroll: offset 642, pinned true, new 0
+  modal: help "help", offset 0
+  size: 60x24, glyphs unicode
+step: key Esc
+after:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 642-655, transcript window rows 642-658, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 642, pinned true, new 0
+  modal: none
+  size: 60x24, glyphs unicode
+
+=== section 10 · the bar with ASCII glyphs ===
+before:
+  selection: tool read_file long.txt (item 10 of 11)
+  gutter: selected item's rows 642-655, transcript window rows 642-658, a row in view: true
+  hint row: "↑↓ select · Enter preview · d detail · Tab/Esc prompt"
+  mode: Browsing
+  scroll: offset 642, pinned true, new 0
+  modal: none
+  size: 60x24, glyphs unicode
+step: resize to 80x24
+step: key Tab
+step: type "/quit"
+step: key Enter
+step: (a new process starts with LC_ALL=C: ascii glyphs, 80x24, no --new)
+new process, before the resume messages:
+  selection: none
+  gutter: no item selected, so no gutter
+  hint row: "Up/Down history . Shift+Up/Tab cards . /help"
+  mode: Composing
+  scroll: offset 0, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs ascii
+step: (the session resumes: a notice, then the transcript)
+after:
+  selection: none
+  gutter: no item selected, so no gutter
+  hint row: "Up/Down history . Shift+Up/Tab cards . /help"
+  mode: Composing
+  scroll: offset 643, pinned true, new 0
+  modal: none
+  size: 80x24, glyphs ascii

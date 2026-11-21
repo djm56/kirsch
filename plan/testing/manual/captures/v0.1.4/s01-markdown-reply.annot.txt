@@ -1,0 +1,24 @@
+# state: s01-markdown-reply
+# release: v0.1.4
+# size: 80x24
+# glyphs: unicode
+# steps: Reply with only this markdown: a heading `# Heading check`; a blank line; a paragraph with **bold words**, `inline code` and ~~struck words~~; a blank line; two bullets, `- first item` and `- second item`; a blank line; a go code fence containing `func f() int { return 1 }`. Do not wrap the whole reply in a code fence. | Enter | (the reply streams, the turn completes)
+# render_markdown: on
+# canned: the reply text (a walkthrough section that uses the model writes its own)
+# annotations: colour roles of the colour-on frame (emph)
+# no model, no network, no key: canned messages through the real Model
+=== annotations ===
+legend: row/cols count from 0 at the top-left of the frame; fg/bg=<role>(<SGR>)
+row 00 cols 1-6 fg=Accent(38;5;117) "Kirsch"
+row 01 cols 1-17 fg=Accent(38;5;117) "my-project ─ main"
+row 01 cols 19-19 fg=Warning(38;5;215) "●"
+row 10 cols 1-15 fg=Accent(38;5;117) bold "# Heading check"
+row 12 cols 18-27 fg=Text(38;5;253) bold "bold words"
+row 12 cols 30-42 fg=SynString(38;5;180) "`inline code`"
+row 12 cols 50-61 fg=Text(38;5;253) strike "struck words"
+row 17 cols 3-6 fg=SynKeyword(38;5;141) "func"
+row 17 cols 8-8 fg=Accent(38;5;117) "f"
+row 17 cols 12-14 fg=SynType(38;5;152) "int"
+row 17 cols 18-23 fg=SynKeyword(38;5;141) "return"
+row 17 cols 25-25 fg=SynNumber(38;5;216) "1"
+row 22 cols 1-1 fg=Accent(38;5;117) ">"

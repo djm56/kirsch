@@ -28,15 +28,33 @@ type WorkspaceInfoMsg struct {
 }
 
 // ToolStartedMsg announces a tool invocation. The ID correlates it with the
-// ToolCompletedMsg that follows.
+// ToolCompletedMsg that follows. Name and Target may hold model-written text and
+// are sanitised as single lines when the card is stored; a sender need not clean
+// them. A Name that is empty once sanitised is stored empty, as an empty Name is.
 type ToolStartedMsg struct {
 	ID     int64
 	Name   string
 	Target string
 }
 
+// ToolTargetMsg gives a running tool card its target once the complete call is
+// known. A provider's start event can carry the call's name and no input, so a
+// card made from ToolStartedMsg may have no target until the call has been
+// received in full. ID is the one ToolStartedMsg carried. Target is sanitised
+// when it is stored, as ToolStartedMsg's and ToolCompletedMsg's are. A message for
+// a card that is not running, or whose Target is empty once sanitised, changes
+// nothing.
+type ToolTargetMsg struct {
+	ID     int64
+	Target string
+}
+
 // ToolCompletedMsg carries a finished tool result, already flattened to
-// primitives.
+// primitives. Name, Target, Summary and ErrorMsg may hold model-written text and
+// are sanitised as single lines when they are stored, and Content is sanitised line
+// by line; a sender need not clean them. Name is read only when the tui holds no
+// card for ID, to make one. A Target that is empty once sanitised leaves the card's
+// own target alone, as an empty Target does. ErrorKind is compared, never drawn.
 type ToolCompletedMsg struct {
 	ID        int64
 	Name      string

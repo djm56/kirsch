@@ -1,0 +1,34 @@
+# state: s04-approval-rejected
+# release: v0.1.4
+# size: 80x24
+# glyphs: unicode
+# steps: Add a new file notes.go with package main and a function func Hello() string that returns "hi". Propose it with apply_patch and wait for my approval. | Enter | (the apply_patch call starts and asks for approval) | n | (the apply_patch call ends: patch rejected)
+# render_markdown: on
+# canned: the patch the model proposes and its description (a walkthrough section that uses the model writes its own), as testdata/capture-inputs.json holds them
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+ 
+ ── you ───────────────────────────────────────────────────────────────────────
+ Add a new file notes.go with package main and a function func Hello() string
+ that returns "hi". Propose it with apply_patch and wait for my approval.
+ 
+ ┃ ▾ apply_patch · ✗ patch rejected
+ 
+ ▸ apply_patch 1 file changed · 0ms · ✗ rejected
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle · 0 tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > ▌
+ ↑↓ history · ⇧↑/Tab cards · /help                                             

@@ -1,0 +1,42 @@
+# state: s05-diff-two-files
+# release: v0.1.4
+# size: 80x32
+# glyphs: unicode
+# steps: /diff | Enter | (the git diff result arrives)
+# render_markdown: on
+# canned: the changed files' text, which testdata/capture-inputs.json holds, and git's diff of them
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+         ┌─ working tree ────────────────────────────────────── +2 −0 ┐
+ █▄▀ █ █▀│ diff --git a/hello.go b/hello.go                           │
+ █▀▄ █ █▀│ index d6e0156..e2a03ba 100644                              │
+         │ --- a/hello.go                                             │
+ v0.1.5-d│ +++ b/hello.go                                             │
+         │ @@ -3,3 +3,4 @@ package main                               │
+         │  func main() {                                             │
+ Ask anyt│     println("hi")                                          │
+         │  }                                                         │
+ · What d│ +func extra() {}                                           │
+ · Add in│ diff --git a/tool.py b/tool.py                             │
+ · Where │ new file mode 100644                                       │
+         │ index 0000000..b476c83                                     │
+         │ --- /dev/null                                              │
+         │ +++ b/tool.py                                              │
+         │ @@ -0,0 +1 @@                                              │
+         │ +def extra(): pass                                         │
+         ├────────────────────────────────────────────────────────────┤
+         │ j/k scroll · g/G top/bottom · Esc close                    │
+         └────────────────────────────────────────────────────────────┘
+ 
+ 
+ 
+ 
+ 
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle · 0 tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > Ask anything (Enter to send, /help for help)
+                                                                               

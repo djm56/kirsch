@@ -1,0 +1,168 @@
+{
+ "_about": "Pinned inputs for the screen captures. Read by TestCaptureInputFormats in internal/tui and by TestCaptureInputsMatchProducers and its siblings in internal/app, so the canned inputs and the checks on the real producers cannot drift apart. diff.lines is the output of git diff --no-color --no-ext-diff --no-textconv for diff.old to diff.new, byte for byte, and diffTwoFiles.lines is the same command run on diffTwoFiles.files (a file registered with git add -N is intentToAdd). liveReadFile holds the messages a model-driven read_file call for modalReadFile.path sends, and patchApproval those a model-driven apply_patch call sends for its input, each as the live path sends them: a stream decoded by the real Anthropic decoder, whose tool-call start event carries the call ID and name and no input, through the agent loop, adaptTurnEvent and toolExecutor.Invoke. resumeMessages holds the types App.ResumeLastSession sends, in order. TestCaptureLiveReadFileMatchesProducers, TestCapturePatchApprovalMatchesProducers and TestCaptureResumeMessagesMatchProducers in internal/app hold them to the producers.",
+ "options": {
+  "version": "0.1.5-dev",
+  "project": "my-project",
+  "branch": "main",
+  "dirty": true,
+  "model": "claude-sonnet-5-5",
+  "family": "sonnet-5-5"
+ },
+ "frameSep": "=== frame ===\n",
+ "readFile": {
+  "text": "a\nb\n",
+  "summary": "lines 1-2",
+  "content": "1\ta\n2\tb\n",
+  "oneLineText": "a\n",
+  "oneLineSummary": "lines 1-1"
+ },
+ "modalReadFile": {
+  "path": "calc/usage.go",
+  "text": "package calc\n\nvar usage = \"alpha-0123456789 bravo-0123456789 charlie-0123456789 delta-0123456789 echo-0123456789 foxtrot-0123456789 golf-0123456789 hotel-0123456789\"\n\nfunc Usage() string { return usage }\n"
+ },
+ "liveReadFile": {
+  "started": {
+   "id": 1,
+   "name": "read_file",
+   "target": ""
+  },
+  "targeted": {
+   "id": 1,
+   "target": "calc/usage.go"
+  },
+  "completed": {
+   "id": 1,
+   "name": "read_file",
+   "target": "calc/usage.go",
+   "ok": true,
+   "summary": "lines 1-5",
+   "content": "1\tpackage calc\n2\t\n3\tvar usage = \"alpha-0123456789 bravo-0123456789 charlie-0123456789 delta-0123456789 echo-0123456789 foxtrot-0123456789 golf-0123456789 hotel-0123456789\"\n4\t\n5\tfunc Usage() string { return usage }\n"
+  }
+ },
+ "diff": {
+  "path": "calc/divide.go",
+  "old": "package calc\n\nimport \"errors\"\n\n// Quotient returns a/b, or an error when b is zero.\nfunc Quotient(a, b float64) (float64, error) { // 01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789\n\tif b == 0 {\n\t\treturn 0, errors.New(\"division by zero\")\n\t}\n\treturn legacyDivide(a, b, \"01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789\"), nil\n}\n\nfunc Mod(a, b int) int { return a % b }\n",
+  "new": "package calc\n\nimport \"errors\"\n\n// Quotient returns a/b, or an error when b is zero.\nfunc Quotient(a, b float64) (float64, error) { // 01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789\n\tif b == 0 {\n\t\treturn 0, errors.New(\"division by zero\")\n\t}\n\treturn divideChecked(a, b, \"01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789\"), nil\n}\n\nfunc Mod(a, b int) int { return a % b }\n",
+  "lines": [
+   "diff --git a/calc/divide.go b/calc/divide.go",
+   "index ef525de..1f34665 100644",
+   "--- a/calc/divide.go",
+   "+++ b/calc/divide.go",
+   "@@ -7,7 +7,7 @@ func Quotient(a, b float64) (float64, error) { // 012345678901234567890123456789",
+   " \tif b == 0 {",
+   " \t\treturn 0, errors.New(\"division by zero\")",
+   " \t}",
+   "-\treturn legacyDivide(a, b, \"01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789\"), nil",
+   "+\treturn divideChecked(a, b, \"01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789\"), nil",
+   " }",
+   " ",
+   " func Mod(a, b int) int { return a % b }"
+  ],
+  "added": 1,
+  "removed": 1,
+  "funcContextMax": 80,
+  "headerShapes": [
+   "^diff --git a/\\S+ b/\\S+$",
+   "^index [0-9a-f]{7,}\\.\\.[0-9a-f]{7,} [0-7]{6}$",
+   "^--- a/\\S+$",
+   "^\\+\\+\\+ b/\\S+$",
+   "^@@ -\\d+,\\d+ \\+\\d+,\\d+ @@"
+  ]
+ },
+ "diffTwoFiles": {
+  "files": [
+   {
+    "path": "hello.go",
+    "old": "package main\n\nfunc main() {\n\tprintln(\"hi\")\n}\n",
+    "new": "package main\n\nfunc main() {\n\tprintln(\"hi\")\n}\nfunc extra() {}\n",
+    "intentToAdd": false
+   },
+   {
+    "path": "tool.py",
+    "old": "",
+    "new": "def extra(): pass\n",
+    "intentToAdd": true
+   }
+  ],
+  "lines": [
+   "diff --git a/hello.go b/hello.go",
+   "index d6e0156..e2a03ba 100644",
+   "--- a/hello.go",
+   "+++ b/hello.go",
+   "@@ -3,3 +3,4 @@ package main",
+   " func main() {",
+   " \tprintln(\"hi\")",
+   " }",
+   "+func extra() {}",
+   "diff --git a/tool.py b/tool.py",
+   "new file mode 100644",
+   "index 0000000..b476c83",
+   "--- /dev/null",
+   "+++ b/tool.py",
+   "@@ -0,0 +1 @@",
+   "+def extra(): pass"
+  ],
+  "added": 2,
+  "removed": 0
+ },
+ "patchApproval": {
+  "input": {
+   "diff": "diff --git a/notes.go b/notes.go\nnew file mode 100644\n--- /dev/null\n+++ b/notes.go\n@@ -0,0 +1,3 @@\n+package main\n+\n+func Hello() string { return \"hi\" }\n",
+   "description": "Add notes.go with Hello"
+  },
+  "started": {
+   "id": 1,
+   "name": "apply_patch",
+   "target": ""
+  },
+  "requested": {
+   "id": 1,
+   "kind": "patch",
+   "subject": "1 file changed",
+   "description": "Add notes.go with Hello",
+   "detail": [
+    "files: 1 changed (notes.go)"
+   ],
+   "canApproveForSession": false,
+   "toolID": 1,
+   "diffFilename": "notes.go",
+   "diffLines": [
+    "@@ -0,0 +1,3 @@",
+    "+package main",
+    "+",
+    "+func Hello() string { return \"hi\" }"
+   ],
+   "diffAdded": 3,
+   "diffRemoved": 0
+  },
+  "completed": {
+   "ok": false,
+   "summary": "patch rejected",
+   "errorKind": "policy_denied",
+   "errorMsg": "patch rejected"
+  }
+ },
+ "resumeMessages": [
+  "tui.NoticeMsg",
+  "tui.TranscriptLoadedMsg",
+  "tui.SessionUsageMsg"
+ ],
+ "committed": [
+  {
+   "file": "scrollbar-bottom.txt",
+   "mustMatch": [
+    "read_file \\S+ · lines \\d+-\\d+ · "
+   ],
+   "mustNotMatch": [
+    " · read · "
+   ]
+  },
+  {
+   "file": "modal-readfile-wrapped.txt",
+   "mustMatch": [
+    "│ +3 3 +var usage"
+   ],
+   "mustNotMatch": []
+  }
+ ]
+}

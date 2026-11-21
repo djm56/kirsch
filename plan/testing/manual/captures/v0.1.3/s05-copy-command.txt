@@ -1,0 +1,34 @@
+# state: s05-copy-command
+# release: v0.1.3
+# size: 80x24
+# glyphs: unicode
+# steps: say hello in one sentence | Enter | (the reply streams, the turn completes) | say goodbye in one sentence | Enter | (the reply streams, the turn completes) | /copy | Enter (the copy result arrives)
+# render_markdown: on
+# canned: the replies' text (the walkthrough sections that use the model write their own); where a state uses them, the clipboard route, which reports success and writes nowhere, and the /status notice's field values
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+ 
+ ── you ───────────────────────────────────────────────────────────────────────
+ say hello in one sentence
+ 
+ Hello, it is good to meet you.
+ 
+ ── you ───────────────────────────────────────────────────────────────────────
+ say goodbye in one sentence
+ 
+ Goodbye, and take care.
+ 
+ 
+ 
+ 
+ 
+ 
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle · 0 tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > ▌
+   copied 23 characters
+ ↑↓ history · ⇧↑/Tab cards · /help                                             

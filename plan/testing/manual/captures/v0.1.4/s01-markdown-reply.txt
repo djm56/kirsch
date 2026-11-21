@@ -1,0 +1,34 @@
+# state: s01-markdown-reply
+# release: v0.1.4
+# size: 80x24
+# glyphs: unicode
+# steps: Reply with only this markdown: a heading `# Heading check`; a blank line; a paragraph with **bold words**, `inline code` and ~~struck words~~; a blank line; two bullets, `- first item` and `- second item`; a blank line; a go code fence containing `func f() int { return 1 }`. Do not wrap the whole reply in a code fence. | Enter | (the reply streams, the turn completes)
+# render_markdown: on
+# canned: the reply text (a walkthrough section that uses the model writes its own)
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+ 
+ ── you ───────────────────────────────────────────────────────────────────────
+ Reply with only this markdown: a heading `# Heading check`; a blank line; a
+ paragraph with **bold words**, `inline code` and ~~struck words~~; a blank
+ line; two bullets, `- first item` and `- second item`; a blank line; a go code
+ fence containing `func f() int { return 1 }`. Do not wrap the whole reply in a
+ code fence.
+ 
+ # Heading check
+ 
+ A paragraph with bold words, `inline code` and ~~struck words~~.
+ 
+ • first item
+ • second item
+ 
+   func f() int { return 1 }
+ 
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle · 0 tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > ▌
+ ↑↓ history · ⇧↑/Tab cards · /help                                             

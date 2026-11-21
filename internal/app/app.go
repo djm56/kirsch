@@ -117,11 +117,17 @@ func formatPatchDisplay(changes []patch.FileChange) (subject string, detail []st
 		}
 	}
 
-	// Format as "files: N changed (file1,\n       file2, ...)"
+	// Format as "files: N changed (file1,\n       file2, ...)". Every name but the
+	// last ends in a comma and the last ends in the closing parenthesis; for one
+	// file the first line is the last.
 	if len(files) > 0 {
-		detail = []string{
-			fmt.Sprintf("files: %d changed (%s", len(files), files[0]),
+		first := fmt.Sprintf("files: %d changed (%s", len(files), files[0])
+		if len(files) == 1 {
+			first += ")"
+		} else {
+			first += ","
 		}
+		detail = []string{first}
 		for i := 1; i < len(files); i++ {
 			if i == len(files)-1 {
 				detail = append(detail, fmt.Sprintf("       %s)", files[i]))
@@ -310,6 +316,10 @@ func (te *toolExecutor) Invoke(ctx context.Context, c agent.ToolCall) agent.Tool
 		te.app.send(te.app.turnGen(ctx), tui.ToolStartedMsg{ID: id, Name: c.Name, Target: target})
 	}
 
+	// Tag the context with the card's ID, as RunTool does, so that an approval
+	// the tool asks for carries it and the tui links the approval to the card
+	// (ui-spec §3.4 and §3.8: an approved approval folds into its tool card).
+	ctx = tool.WithToolID(ctx, id)
 	res := te.app.reg.Invoke(ctx, c.Name, c.Input)
 
 	// Track touched files when apply_patch succeeds.
@@ -2563,10 +2573,24 @@ func (a *App) adaptTurnEvent(ev agent.Event, textBlock, thinkingBlock *int64, ca
 		return nil
 
 	case agent.EventToolCallEnd:
-		// The agent has finished receiving the complete tool call. The actual
-		// tool execution and ToolCompletedMsg are produced by the agent.Tools
-		// adapter (RunTool / toolExecutor), which owns the app-side tool ID.
-		return nil
+		// The complete call has arrived, with its full input. The start event
+		// did not carry the input (the Anthropic decoder's startTool sends the
+		// call's ID and name only), so the card was made with no target; this
+		// gives it one before the tool runs. describeToolCallInput decodes the
+		// input for describeInput, the one function that turns a call's input
+		// into a target, sanitised. The tool's execution and its
+		// ToolCompletedMsg are produced by the agent.Tools adapter (toolExecutor),
+		// which owns the result. A call with no start event, or whose input
+		// names no target (apply_patch's does not), sends nothing.
+		if ev.ToolCall == nil {
+			return nil
+		}
+		id, ok := callIDs[ev.ToolCall.ID]
+		target := describeToolCallInput(ev.ToolCall.Input)
+		if !ok || target == "" {
+			return nil
+		}
+		return []tea.Msg{tui.ToolTargetMsg{ID: id, Target: target}}
 
 	case agent.EventMessageDone:
 		// A block boundary: the next assistant text or thinking stream starts
@@ -3185,13 +3209,24 @@ func (a *App) ManualCompact(getenv func(string) string) tui.ManualCompactMsg {
 	}
 }
 
-// describeInput picks the field worth showing on a tool card.
+// describeInput picks the field worth showing on a tool card and returns it as
+// single-line text, sanitised with tui.SanitizeSingleLine: escape sequences are
+// removed, a run split by carriage returns keeps its last segment, other control
+// characters are drawn as ·, and newlines become spaces. A model-driven call's
+// input is written by the model, so every field returned is sanitised, and a
+// field that sanitises to nothing is passed over. It is the one function that
+// turns a call's input into a target: RunTool calls it, and toolExecutor.Invoke,
+// adaptTurnEvent and transcriptToItems reach it through describeToolCallInput.
+// The tui sanitises a target again where it stores one, so a sender that
+// bypasses this function still cannot put raw text on the screen.
 func describeInput(input map[string]any) string {
 	// Check string fields first: path and query.
 	for _, key := range []string{"path", "query"} {
 		if v, ok := input[key]; ok {
-			if s, ok := v.(string); ok && s != "" {
-				return s
+			if s, ok := v.(string); ok {
+				if clean := tui.SanitizeSingleLine(s); clean != "" {
+					return clean
+				}
 			}
 		}
 	}

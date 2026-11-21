@@ -1,0 +1,13 @@
+# state: s06-no-color-diff
+# release: v0.1.4
+# size: 80x32
+# glyphs: unicode
+# steps: /diff | Enter | (the git diff result arrives)
+# env (colour and glyphs are detected from it): LC_ALL="en_US.UTF-8" NO_COLOR="1" TERM="xterm-256color"
+# render_markdown: on
+# canned: the changed files' text, which testdata/capture-inputs.json holds, and git's diff of them
+# annotations: colour roles of the frame under the env above (emph)
+# no model, no network, no key: canned messages through the real Model
+=== annotations ===
+legend: row/cols count from 0 at the top-left of the frame; fg/bg=<role>(<SGR>)
+no run of the frame has an attribute other than a Text, Muted, Dim or Border foreground

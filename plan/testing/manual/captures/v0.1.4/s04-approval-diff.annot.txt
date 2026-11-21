@@ -1,0 +1,38 @@
+# state: s04-approval-diff
+# release: v0.1.4
+# size: 80x32
+# glyphs: unicode
+# steps: Add a new file notes.go with package main and a function func Hello() string that returns "hi". Propose it with apply_patch and wait for my approval. | Enter | (the apply_patch call starts and asks for approval) | d
+# render_markdown: on
+# canned: the patch the model proposes and its description (a walkthrough section that uses the model writes its own), as testdata/capture-inputs.json holds them
+# annotations: colour roles of the colour-on frame (emph)
+# no model, no network, no key: canned messages through the real Model
+=== annotations ===
+legend: row/cols count from 0 at the top-left of the frame; fg/bg=<role>(<SGR>)
+row 00 cols 1-6 fg=Accent(38;5;117) "Kirsch"
+row 01 cols 1-17 fg=Accent(38;5;117) "my-project ─ main"
+row 01 cols 19-19 fg=Warning(38;5;215) "●"
+row 02 cols 9-70 fg=Accent(38;5;117) "┌─ notes.go ────────────────────────────────────────── +3 −0 ┐"
+row 03 cols 9-9 fg=Accent(38;5;117) "│"
+row 03 cols 11-25 fg=Hunk(38;5;123) "@@ -0,0 +1,3 @@"
+row 03 cols 70-70 fg=Accent(38;5;117) "│"
+row 04 cols 9-9 fg=Accent(38;5;117) "│"
+row 04 cols 11-11 fg=Success(38;5;120) "+"
+row 04 cols 12-18 fg=SynKeyword(38;5;141) "package"
+row 04 cols 70-70 fg=Accent(38;5;117) "│"
+row 05 cols 9-9 fg=Accent(38;5;117) "│"
+row 05 cols 11-11 fg=Success(38;5;120) "+"
+row 05 cols 70-70 fg=Accent(38;5;117) "│"
+row 06 cols 9-9 fg=Accent(38;5;117) "│"
+row 06 cols 11-11 fg=Success(38;5;120) "+"
+row 06 cols 12-15 fg=SynKeyword(38;5;141) "func"
+row 06 cols 17-21 fg=Accent(38;5;117) "Hello"
+row 06 cols 25-30 fg=SynType(38;5;152) "string"
+row 06 cols 34-39 fg=SynKeyword(38;5;141) "return"
+row 06 cols 41-44 fg=SynString(38;5;180) "\"hi\""
+row 06 cols 70-70 fg=Accent(38;5;117) "│"
+row 07 cols 9-70 fg=Accent(38;5;117) "├────────────────────────────────────────────────────────────┤"
+row 08 cols 9-9 fg=Accent(38;5;117) "│"
+row 08 cols 70-70 fg=Accent(38;5;117) "│"
+row 09 cols 9-70 fg=Accent(38;5;117) "└────────────────────────────────────────────────────────────┘"
+row 28 cols 21-21 fg=Accent(38;5;117) "⠋"

@@ -314,13 +314,20 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case ToolStartedMsg:
+		// The name is the one the model's stream gave, before any tool checked it,
+		// and the target comes from the model's input: each is sanitised as it is
+		// stored, the store-time rule Sanitize's comment sets out.
+		name := SanitizeSingleLine(msg.Name)
 		id := m.appendBlock(Item{Kind: KindTool, Tool: &ToolCard{
-			Name: msg.Name, Target: msg.Target, State: StateRunning,
+			Name: name, Target: SanitizeSingleLine(msg.Target), State: StateRunning,
 		}})
 		m.toolCards[msg.ID] = id
-		m.busy = Busy{Active: true, Verb: msg.Name}
+		m.busy = Busy{Active: true, Verb: name}
 		m.relayout(m.layout())
 		return m, m.tickSpinnerOnce()
+
+	case ToolTargetMsg:
+		return m.applyToolTarget(msg)
 
 	case ToolCompletedMsg:
 		return m.applyToolResult(msg)
@@ -412,7 +419,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TranscriptLoadedMsg:
 		for i := range msg.Items {
-			m.appendBlock(msg.Items[i])
+			m.appendBlock(sanitiseToolHead(msg.Items[i]))
 		}
 		if msg.Recovered {
 			m.status.Warnings = append(m.status.Warnings, "recovered session")
@@ -623,6 +630,43 @@ func (m Model) dispatchKey(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	return nm, cmd
 }
 
+// sanitiseToolHead returns it with a tool card's Name, Target and Summary sanitised
+// as single lines, as the cards a live call makes are sanitised when they are stored.
+// A resumed session's cards arrive built by internal/app's transcriptToItems, which
+// fills Name and Target from the tool calls the model sent in an earlier session;
+// Summary is sanitised too, though that builder leaves it empty, so whatever builds a
+// card later gets the same treatment. The head also draws Note, and draws the
+// truncation glyph when Trunc is non-empty, but Trunc's own text is never drawn.
+// Neither is sanitised here: no writer outside tests sets Note, and every writer of
+// Trunc, applyToolResult among them, sets it to fixed text. A writer that fills Note
+// from model text must sanitise it there. The card is copied, so the message's own
+// item is left as it came. An item that is not a tool card is returned unchanged.
+func sanitiseToolHead(it Item) Item {
+	if it.Kind != KindTool || it.Tool == nil {
+		return it
+	}
+	c := *it.Tool
+	c.Name, c.Target, c.Summary = SanitizeSingleLine(c.Name), SanitizeSingleLine(c.Target), SanitizeSingleLine(c.Summary)
+	it.Tool = &c
+	return it
+}
+
+// applyToolTarget gives a running card the target of its complete call, sanitised
+// as it is stored. The card is found through toolCards; an unknown ID, a target
+// that is empty once sanitised, or a card that has left the running state changes
+// nothing. The head's width follows the target, so the layout is worked out again.
+func (m Model) applyToolTarget(msg ToolTargetMsg) (tea.Model, tea.Cmd) {
+	cardID, known := m.toolCards[msg.ID]
+	target := SanitizeSingleLine(msg.Target)
+	if !known || target == "" {
+		return m, nil
+	}
+	if m.tr.MutateTool(cardID, func(c *ToolCard) { c.Target = target }) {
+		m.relayout(m.layout())
+	}
+	return m, nil
+}
+
 // applyToolResult folds a finished tool into its running card.
 //
 // The card is mutated in place through the transcript's terminal-state guard
@@ -630,16 +674,25 @@ func (m Model) dispatchKey(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 // at becomes the completed one — ui-spec §3.8's rule that a card is never
 // rewritten once *terminal* is about final states, not about this transition.
 func (m Model) applyToolResult(msg ToolCompletedMsg) (tea.Model, tea.Cmd) {
+	// The name, the target and the summary are drawn on the card's one-row head
+	// and can carry model-supplied text (a failed read_file's message names the
+	// path it was given), so they are sanitised as they are stored.
+	target := SanitizeSingleLine(msg.Target)
 	cardID, known := m.toolCards[msg.ID]
 	if !known {
 		cardID = m.appendBlock(Item{Kind: KindTool, Tool: &ToolCard{
-			Name: msg.Name, Target: msg.Target, State: StateRunning,
+			Name: SanitizeSingleLine(msg.Name), Target: target, State: StateRunning,
 		}})
 	}
 	delete(m.toolCards, msg.ID)
 
 	m.tr.MutateTool(cardID, func(c *ToolCard) {
 		c.Elapsed = msg.Elapsed
+		// The result carries the target too, so a card is right when no
+		// ToolTargetMsg arrived before it.
+		if target != "" {
+			c.Target = target
+		}
 		out := trimTrailingEmpty(SanitizeLines(msg.Content), msg.Content)
 		// If the trimmed result is a single empty string, store nil so the box doesn't render
 		if len(out) == 1 && out[0] == "" {
@@ -650,13 +703,13 @@ func (m Model) applyToolResult(msg ToolCompletedMsg) (tea.Model, tea.Cmd) {
 		switch {
 		case msg.OK:
 			c.State = StateOK
-			c.Summary = msg.Summary
+			c.Summary = SanitizeSingleLine(msg.Summary)
 		case msg.ErrorKind == "cancelled":
 			c.State = StateCancelled
-			c.Summary = msg.ErrorMsg
+			c.Summary = SanitizeSingleLine(msg.ErrorMsg)
 		default:
 			c.State = StateError
-			c.Summary = msg.ErrorMsg
+			c.Summary = SanitizeSingleLine(msg.ErrorMsg)
 		}
 		if msg.Truncated {
 			c.Trunc = "truncated"
