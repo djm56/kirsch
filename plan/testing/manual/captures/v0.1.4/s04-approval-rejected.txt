@@ -15,7 +15,7 @@
  Add a new file notes.go with package main and a function func Hello() string
  that returns "hi". Propose it with apply_patch and wait for my approval.
  
- ┃ ▾ apply_patch · ✗ patch rejected
+ ┃ ▾ apply_patch · 12ms · ✗ patch rejected
  
  ▸ apply_patch 1 file changed · 0ms · ✗ rejected
  

@@ -185,9 +185,12 @@ func (c *chainRun) text(s string) {
 }
 
 // deliver sends canned messages, as the app would, under one described step.
+// The Elapsed stamp has no observable effect here, because no chain-replay check
+// reads a tool card head's duration. It is there so the replay delivers the
+// messages the state builder delivers, and nothing pins it.
 func (c *chainRun) deliver(what string, msgs ...tea.Msg) {
 	c.step("%s", what)
-	c.m = drive(c.m, msgs...)
+	c.m = drive(c.m, capStampElapsed(c.t, msgs)...)
 }
 
 // expectMode fails the replay when the model is not in want. The walkthrough's
@@ -782,8 +785,7 @@ func gutterRowsInFrame(frame string, gutter string) []int {
 // false. With the diff modal open over the card in view: the frame still shows the
 // gutter and also a modal box, so the record's "covers part of the window" holds. The
 // control is that the in-view frame and the frame after g differ in the count of
-// gutter rows, so the check
-// can see presence and absence.
+// gutter rows, so the check can see presence and absence.
 func TestSelectedInViewAgreesWithTheRenderedGutter(t *testing.T) {
 	gutter := NewGlyphs(true).Gutter
 	newModel := func() Model {

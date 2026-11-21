@@ -45,6 +45,35 @@ type ModalState struct {
 	hl         *modalHL
 	hlComputes int
 	hlLexes    int
+
+	// rc is the display rows each line takes, kept so a scroll key or a frame at
+	// an unchanged width does not wrap every line again. See rowCounts.
+	rc rowCache
+}
+
+// modalNumCols is the width of a content modal's line-number column: the number
+// right-aligned in modalNumCols-1 cells and one space after it. Every display row
+// of a content line spends it, the number on the first row and blanks on the rest.
+const modalNumCols = 5
+
+// rowCache is the per-line display-row counts for one text width. It belongs to
+// the line slice it was built from, which it recognises by length and by the
+// address of the first line, so it is stale when either the width or the slice
+// differs. Lines edited in place, without a new slice or a new length, are not
+// seen; nothing does that to an open modal.
+//
+// The other inputs to a count are not in the key, because they are fixed for the
+// modal's life: the modal's Kind and WorkTree, set in the ModalState literal each
+// openModal call is given and written by nothing after; trunc, which is
+// m.gly.Trunc, and m.gly is set once, in New; and, for a /diff modal, which lines
+// are headers, read from md.hl, which highlight works out once and keeps.
+type rowCache struct {
+	ok     bool
+	inner  int
+	n      int
+	first  *string
+	counts []int
+	total  int
 }
 
 // ConfirmAction is what a confirm prompt will do on `y`.
@@ -216,7 +245,9 @@ func modalFrameFor(lay Layout) modalFrame {
 // modalSizing is the one place the modal's extent is worked out: its frame, the
 // display rows each source line takes at the frame's text width, their total, and
 // the body height the box draws. A help line is always one row; a content or diff
-// line takes as many rows as modalRowCount says.
+// line takes as many rows as modalRowCount says. The counts come from rowCounts,
+// so wrapping every line is paid for again only when the text width or the lines
+// change; counts is the cache's slice and is not to be written to.
 //
 // bodyH is 0 where the ladder draws no body and where it draws only a notice. At
 // the rungs with a body, the box is as tall as the rows need, which is total
@@ -224,12 +255,7 @@ func modalFrameFor(lay Layout) modalFrame {
 // an empty modal still shows one.
 func (m Model) modalSizing(lay Layout) (fr modalFrame, counts []int, total, bodyH int) {
 	fr = modalFrameFor(lay)
-	md := m.modal
-	counts = make([]int, len(md.Lines))
-	for i, raw := range md.Lines {
-		counts[i] = md.modalRowCount(m.gly.Trunc, raw, i, fr.inner)
-		total += counts[i]
-	}
+	counts, total = m.modal.rowCounts(m.gly.Trunc, fr.inner)
 	if fr.notice || !fr.showBody {
 		return fr, counts, total, 0
 	}
@@ -522,16 +548,17 @@ func runsSlice(runs []mdRun, from, to int) mdRow {
 // each later row takes, at text width inner.
 //
 // A content line has its number column ahead of the text, and every row spends
-// those five columns, so the text takes inner-5 on all of them. A diff code line
-// spends its marker column on the first row, where the marker is part of the line's
-// first cell, and on a later row as a blank, so the line's cells take inner on the
-// first row and inner-1 on the others. Every other diff line is flush on every row.
+// those modalNumCols columns, so the text takes inner-modalNumCols on all of them.
+// A diff code line spends its marker column on the first row, where the marker is
+// part of the line's first cell, and on a later row as a blank, so the line's cells
+// take inner on the first row and inner-1 on the others. Every other diff line is
+// flush on every row.
 // A help line never reaches this function: modalRowCount and modalRows return it
 // as one row first (see the guard in the switch below).
 func (md *ModalState) wrapWidths(trunc, raw string, idx, inner int) (first, rest int) {
 	switch md.Kind {
 	case ModalContent:
-		return inner - 5, inner - 5
+		return inner - modalNumCols, inner - modalNumCols
 	case ModalDiff:
 		if md.diffIsCode(trunc, raw, idx) {
 			return inner, inner - 1
@@ -554,11 +581,33 @@ func (md *ModalState) modalRowCount(trunc, raw string, idx, inner int) int {
 	return len(wrapBounds(raw, first, rest))
 }
 
+// rowCounts is modalRowCount for every line of md at text width inner, and their
+// sum. It is kept in md.rc and worked out again only when inner or md.Lines
+// differs from what the kept counts were built for (see rowCache). The slice it
+// returns is the cache's own: a caller reads it and never writes it.
+func (md *ModalState) rowCounts(trunc string, inner int) (counts []int, total int) {
+	var first *string
+	if len(md.Lines) > 0 {
+		first = &md.Lines[0]
+	}
+	c := &md.rc
+	if c.ok && c.inner == inner && c.n == len(md.Lines) && c.first == first {
+		return c.counts, c.total
+	}
+	counts = make([]int, len(md.Lines))
+	for i, raw := range md.Lines {
+		counts[i] = md.modalRowCount(trunc, raw, i, inner)
+		total += counts[i]
+	}
+	*c = rowCache{ok: true, inner: inner, n: len(md.Lines), first: first, counts: counts, total: total}
+	return counts, total
+}
+
 // modalRows styles one body line into its display rows, each as wide as the box's
 // text area or narrower: content with line numbers, diffs from parsed structure.
 //
-// A content line shows its number on its first row; later rows hold five blank
-// columns in its place. A diff code line shows its marker on its first row, and
+// A content line shows its number on its first row; later rows hold modalNumCols
+// blank columns in its place. A diff code line shows its marker on its first row, and
 // later rows begin with one blank column; every other diff line wraps flush.
 //
 // A diff line's colour is Kirsch's own, never from escapes in the content.
@@ -582,9 +631,10 @@ func (m Model) modalRows(md *ModalState, raw string, idx, inner int) []string {
 	if md.Kind == ModalContent {
 		runs, hl := md.contentRuns(trunc, raw, idx)
 		for i, end := range ends {
-			num := strings.Repeat(" ", 5)
+			num := strings.Repeat(" ", modalNumCols)
 			if i == 0 {
-				num = m.sty.Dim(fmt.Sprintf("%4d ", idx+1))
+				// The number takes the columns before the one trailing space.
+				num = m.sty.Dim(fmt.Sprintf("%*d ", modalNumCols-1, idx+1))
 			}
 			if hl {
 				out[i] = num + drawMarkdown([]mdRow{runsSlice(runs, start, end)}, m.sty)[0]

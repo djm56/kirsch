@@ -10,8 +10,12 @@ import (
 // The tests in this file read what View draws. The copy-notice tests in
 // copy_test.go and reply_select_test.go check m.comp.Hint, the model's state,
 // which does not show whether the notice reaches the screen. Every case here
-// drives the Model through Update with real key messages and then reads
-// m.View() with the styling stripped.
+// reads m.View() with the styling stripped. The transcript is built with
+// appendBlock, and a test that needs a card or a reply selected sets m.sel
+// directly after Shift+Up, not with the arrow keys. From there the cases send
+// real key messages through Update: Shift+Up, ?, Esc, c, and the typed text and
+// Enter of a slash command. The reply-copy case also runs the Cmd that c returned
+// and delivers its CopyResultMsg through Update.
 
 const (
 	cvWidth  = 80
@@ -148,7 +152,8 @@ func composingKeyHint(caps Caps) string {
 }
 
 // TestCopyViewCardNoticeIsDrawn: Shift+Up into Browsing, select the card, press
-// c. Entry point: Update with real key messages. The notice must be drawn in the
+// c. Entry point: Update with the Shift+Up and c key messages; the card is
+// selected by setting m.sel, not by keys. The notice must be drawn in the
 // composer region and the key-hint row must be the browsing one for a card. The
 // control is the frame before c, which has no notice anywhere.
 func TestCopyViewCardNoticeIsDrawn(t *testing.T) {
@@ -175,11 +180,12 @@ func TestCopyViewCardNoticeIsDrawn(t *testing.T) {
 	}
 }
 
-// TestCopyViewReplyResultIsDrawn: Browsing, c on a selected reply. The Cmd Update
-// returns is run and its CopyResultMsg is delivered through Update, as the
-// runtime would. "copied N characters" must then be drawn in the composer
-// region. The control is the frame before the result arrives, which has no copy
-// notice.
+// TestCopyViewReplyResultIsDrawn: Browsing, c on a selected reply. Entry point:
+// Update with the Shift+Up and c key messages; the reply is selected by setting
+// m.sel, not by keys. The Cmd Update returns is run and its CopyResultMsg is
+// delivered through Update, as the runtime would. "copied N characters" must
+// then be drawn in the composer region. The control is the frame before the
+// result arrives, which has no copy notice.
 func TestCopyViewReplyResultIsDrawn(t *testing.T) {
 	for _, c := range cvCaps {
 		t.Run(c.name, func(t *testing.T) {
@@ -210,9 +216,10 @@ func TestCopyViewReplyResultIsDrawn(t *testing.T) {
 
 // TestCopyViewNoticeAfterHelpCloses: Shift+Up into Browsing on a card, ? opens
 // help, a close key closes it, then c. The notice must be drawn. Entry point:
-// Update with real key messages; the close keys are ? and Esc. Two controls: the
-// same sequence without c draws no notice, and the help overlay is confirmed
-// open and then closed by checking the mode between keys.
+// Update with the Shift+Up, ?, close-key and c key messages, the close keys being
+// ? and Esc; the card is selected by setting m.sel. Controls: the same sequence
+// without c draws no notice, and the help overlay is confirmed open and then
+// closed by checking the mode between keys.
 func TestCopyViewNoticeAfterHelpCloses(t *testing.T) {
 	const notice = "c copies replies only"
 	closers := []struct {
@@ -261,8 +268,9 @@ func TestCopyViewNoticeAfterHelpCloses(t *testing.T) {
 }
 
 // TestCopyViewUsageIsDrawn: Composing, "/copy foo" typed and submitted with
-// Enter. The usage hint must be drawn in the composer region, and the key-hint
-// row is the Composing one.
+// Enter. Entry point: submitSlash, which sends each typed character and Enter
+// through Update as key messages. The usage hint must be drawn in the composer
+// region, and the key-hint row is the Composing one.
 func TestCopyViewUsageIsDrawn(t *testing.T) {
 	const notice = "usage: /copy [code [N]]"
 	for _, c := range cvCaps {
@@ -283,9 +291,11 @@ func TestCopyViewUsageIsDrawn(t *testing.T) {
 
 // TestCopyViewUnknownCommandHintIsDrawn is the positive control for the drawing
 // path: a hint that has nothing to do with copy, set by submitting /nosuch with
-// Enter, is drawn the same way. Its negative control is a fresh model with no
-// hint: the composer region is the input row alone, and every row below it is
-// empty.
+// Enter (through submitSlash and Update), is drawn the same way. Its negative
+// control is a fresh model with no hint: its composer region is exactly the
+// input row, and no row anywhere in its frame holds the hint's text. The frame
+// of the model that submitted /nosuch draws the hint in its composer region, which
+// is one row longer than the fresh model's.
 func TestCopyViewUnknownCommandHintIsDrawn(t *testing.T) {
 	const notice = "unknown command /nosuch"
 	for _, c := range cvCaps {
@@ -296,13 +306,15 @@ func TestCopyViewUnknownCommandHintIsDrawn(t *testing.T) {
 			if x.m.comp.Hint != "" {
 				t.Fatalf("setup: a fresh model has hint %q", x.m.comp.Hint)
 			}
-			if len(fresh.composer) < 1 {
-				t.Fatal("composer region is empty")
-			}
-			for i, r := range fresh.composer[1:] {
-				if strings.TrimSpace(r) != "" {
-					t.Errorf("fresh model: composer row %d below the input row is %q, want empty", i+1, r)
+			// Every row of the frame, not the rows below the input row: a fresh
+			// composer has none, so a loop over those could not fail.
+			for i, r := range fresh.all {
+				if strings.Contains(r, notice) {
+					t.Errorf("fresh model: frame row %d draws the hint %q: %q", i, notice, r)
 				}
+			}
+			if len(fresh.composer) != 1 {
+				t.Fatalf("fresh model: composer region is %d rows, want the input row alone", len(fresh.composer))
 			}
 
 			m, _ := submitSlash(t, x.m, "/nosuch")

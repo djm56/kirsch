@@ -118,8 +118,9 @@ func formatPatchDisplay(changes []patch.FileChange) (subject string, detail []st
 	}
 
 	// Format as "files: N changed (file1,\n       file2, ...)". Every name but the
-	// last ends in a comma and the last ends in the closing parenthesis; for one
-	// file the first line is the last.
+	// last ends in a comma and the last ends in the closing parenthesis; a single
+	// file is both the first name and the last, so its one line ends in the
+	// parenthesis.
 	if len(files) > 0 {
 		first := fmt.Sprintf("files: %d changed (%s", len(files), files[0])
 		if len(files) == 1 {
@@ -320,7 +321,15 @@ func (te *toolExecutor) Invoke(ctx context.Context, c agent.ToolCall) agent.Tool
 	// the tool asks for carries it and the tui links the approval to the card
 	// (ui-spec §3.4 and §3.8: an approved approval folds into its tool card).
 	ctx = tool.WithToolID(ctx, id)
+	// Wire a progress sink as RunTool does, so a streaming tool (run_command)
+	// sends its output chunks to this card through the same turn-generation
+	// path as the other messages here. A tool that streams nothing never calls it.
+	ctx = tool.WithProgressSink(ctx, func(chunk string) {
+		te.app.send(te.app.turnGen(ctx), tui.CommandOutputChunkMsg{ID: id, Chunk: chunk})
+	})
+	start := time.Now()
 	res := te.app.reg.Invoke(ctx, c.Name, c.Input)
+	elapsed := time.Since(start)
 
 	// Track touched files when apply_patch succeeds.
 	if res.OK && c.Name == "apply_patch" {
@@ -333,6 +342,7 @@ func (te *toolExecutor) Invoke(ctx context.Context, c agent.ToolCall) agent.Tool
 		Summary:   res.DisplaySummary,
 		Content:   res.Content,
 		Truncated: res.Truncated,
+		Elapsed:   elapsed,
 	}
 	if res.Error != nil {
 		msg.ErrorKind = string(res.Error.Kind)

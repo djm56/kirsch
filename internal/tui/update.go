@@ -637,8 +637,8 @@ func (m Model) dispatchKey(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 // Summary is sanitised too, though that builder leaves it empty, so whatever builds a
 // card later gets the same treatment. The head also draws Note, and draws the
 // truncation glyph when Trunc is non-empty, but Trunc's own text is never drawn.
-// Neither is sanitised here: no writer outside tests sets Note, and every writer of
-// Trunc, applyToolResult among them, sets it to fixed text. A writer that fills Note
+// Neither is sanitised here: no code outside tests sets Note, and Trunc is set to
+// fixed text by applyToolResult and by loadFixture (fake.go). A writer that fills Note
 // from model text must sanitise it there. The card is copied, so the message's own
 // item is left as it came. An item that is not a tool card is returned unchanged.
 func sanitiseToolHead(it Item) Item {

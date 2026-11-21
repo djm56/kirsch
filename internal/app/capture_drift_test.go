@@ -20,11 +20,11 @@ import (
 
 // The screen captures under plan/testing/manual/captures are drawn from canned
 // inputs in internal/tui/capture_test.go. internal/tui must not import
-// internal/tool (internal/arch), so these tests, in a package that imports each,
-// hold the real producers and the committed capture files to the literals and
-// patterns in internal/tui/testdata/capture-inputs.json. The tui tests read the same
-// file, so there is one copy of each literal: change the file and the tests in each
-// package move with it.
+// internal/tool (internal/arch), so these tests, in internal/app, which imports both
+// internal/tui and internal/tool, hold the real producers and the committed capture
+// files to the literals and patterns in internal/tui/testdata/capture-inputs.json.
+// The tui tests read the same file, so there is one copy of each literal: change the
+// file and the tests in each package move with it.
 
 // captureInputsFile is the part of capture-inputs.json these tests read. Field names
 // match the file's keys, case-insensitively.
@@ -235,8 +235,10 @@ func readFileMessages(t *testing.T, path, text string) []tea.Msg {
 }
 
 // readFileProblems names each field of the messages a model-driven read_file call sent
-// that differs from the pin. got must be these messages in order: ToolStartedMsg,
-// ToolTargetMsg, ToolCompletedMsg.
+// that differs from the pin, and a completion whose Elapsed is not above zero. The
+// pin holds no Elapsed value: the live path times the call, so only that it is set
+// is checked. got must be these messages in order: ToolStartedMsg, ToolTargetMsg,
+// ToolCompletedMsg.
 func readFileProblems(p liveReadFilePin, got []tea.Msg) []string {
 	var out []string
 	if len(got) != 3 {
@@ -271,6 +273,9 @@ func readFileProblems(p liveReadFilePin, got []tea.Msg) []string {
 	eq("completed OK", done.OK, c.OK)
 	eq("completed summary", done.Summary, c.Summary)
 	eq("completed content", done.Content, c.Content)
+	if done.Elapsed <= 0 {
+		out = append(out, fmt.Sprintf("completed Elapsed is %v, want above zero: the live path times every tool call", done.Elapsed))
+	}
 	return out
 }
 
@@ -279,9 +284,11 @@ func readFileProblems(p liveReadFilePin, got []tea.Msg) []string {
 // read_file call on modalReadFile.path. The tool messages must match
 // liveReadFile field by field: ToolStartedMsg with no target, because the Anthropic
 // start event carries no input; ToolTargetMsg with the path; ToolCompletedMsg with the
-// path, the summary and the numbered content. Controls: a copy of the pin with another
-// target in the targeted message, one with a target in the started message, and one with
-// another completed summary each report a problem, beside the real pin, which reports none.
+// path, the summary and the numbered content, and a completion with Elapsed above zero.
+// Controls: a copy of the pin with another target in the targeted message, one with a
+// target in the started message, and one with another completed summary each report a
+// problem, as does a copy of the messages whose completion has Elapsed zero, beside the
+// real pin and messages, which report none.
 func TestCaptureLiveReadFileMatchesProducers(t *testing.T) {
 	in := loadCaptureInputs(t)
 	msgs := readFileMessages(t, in.ModalReadFile.Path, in.ModalReadFile.Text)
@@ -303,6 +310,16 @@ func TestCaptureLiveReadFileMatchesProducers(t *testing.T) {
 	wrongSummary.Completed.Summary = "lines 1-9"
 	if len(readFileProblems(wrongSummary, msgs)) == 0 {
 		t.Error("control: a pin with another completed summary reported no problem")
+	}
+	zeroed := append([]tea.Msg(nil), msgs...)
+	if done, ok := zeroed[2].(tui.ToolCompletedMsg); ok {
+		done.Elapsed = 0
+		zeroed[2] = done
+	} else {
+		t.Fatalf("setup: message at index 2 is a %T, want ToolCompletedMsg", zeroed[2])
+	}
+	if len(readFileProblems(pin, zeroed)) == 0 {
+		t.Error("control: a completion with Elapsed zero reported no problem")
 	}
 }
 
@@ -558,8 +575,10 @@ func twoFileRepo(t *testing.T, in captureInputsFile) string {
 }
 
 // TestCaptureTwoFileDiffMatchesGit: entry points are tool.RunGit with tool.DiffArgs and
-// GetDiff on a temporary repo that holds the pinned files, one modified and one new file
-// registered with git add -N. The raw output must equal diffTwoFiles.lines row for row,
+// GetDiff on a temporary repo that twoFileRepo builds from the pinned files: each
+// pinned file with an old text is committed and then changed to its new text, a file
+// with no old text is written after the commit, and a file whose pin sets IntentToAdd
+// is registered with git add -N. The raw output must equal diffTwoFiles.lines row for row,
 // and GetDiff's rows and counts must equal them after SanitizeLines. Git runs with the
 // user's git configuration isolated. Control: the same comparison on a copy of the
 // pinned rows with one cell of the new file's index row changed reports a difference,
@@ -632,8 +651,10 @@ func TestCaptureGitIsolationIgnoresUserConfig(t *testing.T) {
 }
 
 // approvalProblems names each field of the messages a model-driven apply_patch call sent
-// that differs from the pin. got must be these messages in order: ToolStartedMsg,
-// ApprovalRequestedMsg, ToolCompletedMsg.
+// that differs from the pin, and a completion whose Elapsed is not above zero. The pin
+// holds no Elapsed value: the live path times the call, so only that it is set is
+// checked. got must be these messages in order: ToolStartedMsg, ApprovalRequestedMsg,
+// ToolCompletedMsg.
 func approvalProblems(p patchApprovalPin, got []any) []string {
 	var out []string
 	if len(got) != 3 {
@@ -676,6 +697,9 @@ func approvalProblems(p patchApprovalPin, got []any) []string {
 	eq("completed summary", done.Summary, p.Completed.Summary)
 	eq("completed error kind", done.ErrorKind, p.Completed.ErrorKind)
 	eq("completed error message", done.ErrorMsg, p.Completed.ErrorMsg)
+	if done.Elapsed <= 0 {
+		out = append(out, fmt.Sprintf("completed Elapsed is %v, want above zero: the live path times every tool call", done.Elapsed))
+	}
 	return out
 }
 
@@ -686,10 +710,11 @@ func approvalProblems(p patchApprovalPin, got []any) []string {
 // hook, which is the user pressing n. The tool messages must match patchApprovalPin
 // field by field: the ToolStartedMsg with no target, the ApprovalRequestedMsg whose
 // ToolID is the card's, and the ToolCompletedMsg; no ToolTargetMsg is sent, because the
-// call's input names no target. Controls: a copy of the pin with the subject changed,
-// one with the diff rows changed, one with another ToolID and one with the detail's
-// closing parenthesis dropped each report a problem, beside the real pin, which
-// reports none.
+// call's input names no target; the ToolCompletedMsg has Elapsed above zero. Controls:
+// a copy of the pin with the subject changed, one with the diff rows changed, one with
+// another ToolID and one with the detail's closing parenthesis dropped each report a
+// problem, as does a copy of the messages whose completion has Elapsed zero, beside the
+// real pin and messages, which report none.
 func TestCapturePatchApprovalMatchesProducers(t *testing.T) {
 	in := loadCaptureInputs(t)
 	pin := in.PatchApproval
@@ -731,6 +756,16 @@ func TestCapturePatchApprovalMatchesProducers(t *testing.T) {
 	openParen.Requested.Detail = []string{strings.TrimSuffix(pin.Requested.Detail[0], ")")}
 	if len(approvalProblems(openParen, msgs)) == 0 {
 		t.Error("control: a pin whose detail has no closing parenthesis reported no problem")
+	}
+	zeroed := append([]any(nil), msgs...)
+	if done, ok := zeroed[2].(tui.ToolCompletedMsg); ok {
+		done.Elapsed = 0
+		zeroed[2] = done
+	} else {
+		t.Fatalf("setup: message at index 2 is a %T, want ToolCompletedMsg", zeroed[2])
+	}
+	if len(approvalProblems(pin, zeroed)) == 0 {
+		t.Error("control: a completion with Elapsed zero reported no problem")
 	}
 }
 

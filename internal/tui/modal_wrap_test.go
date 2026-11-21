@@ -645,3 +645,220 @@ func TestModalExtentAgreesWithModalBox(t *testing.T) {
 		}
 	}
 }
+
+// pagedModals are the two modals TestModalPageKeysMoveByBodyHeight pages through:
+// a content modal with wrapped lines, and a diff modal of code lines with a few
+// that wrap. Both are open on a plain Model at 100x20, and both hold far more rows
+// than one body.
+func pagedModals(t *testing.T) map[string]Model {
+	t.Helper()
+	content, _ := scrollModal(t, 100, 20, 60)
+
+	diff := wrapModel(t, 100, 20)
+	inner := modalFrameFor(diff.layout()).inner
+	var lines []string
+	for i := 0; i < 60; i++ {
+		switch {
+		case i%20 == 0:
+			lines = append(lines, "@@ -1,3 +1,3 @@")
+		case i%7 == 0:
+			lines = append(lines, "+"+strings.Repeat("d", 2*inner))
+		case i%2 == 0:
+			lines = append(lines, "-removed "+fmt.Sprint(i))
+		default:
+			lines = append(lines, "+added "+fmt.Sprint(i))
+		}
+	}
+	diff.openModal(ModalState{Kind: ModalDiff, Title: "diff", Lines: lines})
+	return map[string]Model{"content": content, "diff": diff}
+}
+
+// TestModalPageKeysMoveByBodyHeight: entry point Update with tea.KeyPgDown and
+// tea.KeyPgUp, which dispatch to keyModal, on an open content modal and an open
+// diff modal. Each press moves the offset by the body height modalExtent reports
+// for the layout, and the offset is clamped to [0, total-bodyH]. The body height
+// comes from modalExtent, not from the layout, so the expected step does not
+// restate the page-size formula.
+//
+// The walk goes down in whole pages while a whole page still fits below the last
+// offset; each press must land exactly bodyH further on. Then the clamps: a PgDn
+// from one row short of last lands on last and not past it, and a PgDn at last
+// holds. Going back up, a PgUp from last moves bodyH, and a PgUp from one row down
+// lands on 0. A page of the wrong size fails the first press of the walk.
+func TestModalPageKeysMoveByBodyHeight(t *testing.T) {
+	for name, m := range pagedModals(t) {
+		t.Run(name, func(t *testing.T) {
+			total, bodyH := m.modalExtent(m.layout())
+			last := total - bodyH
+			if bodyH < 3 || last < 3*bodyH {
+				t.Fatalf("total %d, bodyH %d: too little to page through", total, bodyH)
+			}
+			pgDn, pgUp := keyType(tea.KeyPgDown), keyType(tea.KeyPgUp)
+
+			off := 0
+			for off+bodyH <= last {
+				m = drive(m, pgDn)
+				if m.modal.Off != off+bodyH {
+					t.Fatalf("PgDn from %d: Off = %d, want %d (bodyH %d, last %d)", off, m.modal.Off, off+bodyH, bodyH, last)
+				}
+				off += bodyH
+			}
+
+			// One row short of the last offset, a whole page would pass it: the press
+			// lands on last. At last a further press holds.
+			m = drive(m, key('G'), key('k'), pgDn)
+			if m.modal.Off != last {
+				t.Errorf("PgDn from %d: Off = %d, want it clamped to %d", last-1, m.modal.Off, last)
+			}
+			if m = drive(m, pgDn); m.modal.Off != last {
+				t.Errorf("PgDn at the end: Off = %d, want it held at %d", m.modal.Off, last)
+			}
+
+			m = drive(m, pgUp)
+			if m.modal.Off != last-bodyH {
+				t.Errorf("PgUp from the end: Off = %d, want %d", m.modal.Off, last-bodyH)
+			}
+			m = drive(m, keyType(tea.KeyHome), key('j'), pgUp)
+			if m.modal.Off != 0 {
+				t.Errorf("PgUp from one row down: Off = %d, want it clamped to 0 (bodyH %d)", m.modal.Off, bodyH)
+			}
+		})
+	}
+}
+
+// uncachedRowCounts is the display rows each line of m's modal takes at lay's text
+// width, worked out line by line from modalRowCount with no cache in the way.
+func uncachedRowCounts(m Model, lay Layout) (counts []int, total int) {
+	inner := modalFrameFor(lay).inner
+	for i, raw := range m.modal.Lines {
+		n := m.modal.modalRowCount(m.gly.Trunc, raw, i, inner)
+		counts = append(counts, n)
+		total += n
+	}
+	return counts, total
+}
+
+// TestModalRowCountCacheAgreesWithUncachedAcrossResize: entry point Update with
+// tea.WindowSizeMsg, then modalSizing, which keyModal and modalBox both read. At
+// each size the counts modalSizing returns equal those uncachedRowCounts works out
+// line by line, for a content modal and a diff modal. The sizes go narrower, wider
+// and back, and between two of them the line slice is replaced by another. The
+// totals at the three widths differ from each other (checked), so a count kept
+// from an earlier width cannot agree by accident; the replaced slice has a different
+// length for the same reason.
+func TestModalRowCountCacheAgreesWithUncachedAcrossResize(t *testing.T) {
+	for name, m := range pagedModals(t) {
+		t.Run(name, func(t *testing.T) {
+			check := func(label string, m Model) int {
+				t.Helper()
+				lay := m.layout()
+				_, got, gotTotal, _ := m.modalSizing(lay)
+				want, wantTotal := uncachedRowCounts(m, lay)
+				if gotTotal != wantTotal || fmt.Sprint(got) != fmt.Sprint(want) {
+					t.Errorf("%s: modalSizing gives %d rows %v, uncached gives %d rows %v", label, gotTotal, got, wantTotal, want)
+				}
+				return wantTotal
+			}
+			wide := check("opening width", m)
+			m = drive(m, tea.WindowSizeMsg{Width: 60, Height: 20})
+			narrow := check("after narrowing", m)
+			m = drive(m, tea.WindowSizeMsg{Width: 160, Height: 20})
+			wider := check("after widening", m)
+			if wide == narrow || wide == wider || narrow == wider {
+				t.Fatalf("totals %d, %d, %d: they must differ so a stale count shows", wide, narrow, wider)
+			}
+
+			m.modal.Lines = append([]string{strings.Repeat("z", 400)}, m.modal.Lines[:20]...)
+			if got := check("after replacing the lines", m); got == wider {
+				t.Fatalf("replacing the lines left the total at %d; the replacement must differ", got)
+			}
+		})
+	}
+}
+
+// TestModalRowCountCacheRebuildsOnEachKey: entry point modalSizing, called
+// directly; keyModal reaches it through modalExtent and modalBox calls it. The
+// cache recognises md.Lines by its length and by the address of its first line,
+// and each of those keys is changed here with the width and the other held, for a
+// content modal and a diff modal. After each change the counts modalSizing returns
+// must equal those uncachedRowCounts works out line by line.
+//
+// Length: md.Lines is re-sliced to a shorter prefix of itself, which keeps the
+// address of its first line. Address: md.Lines is replaced by a new slice of the
+// same length whose lines differ. Before each check the test confirms that the key
+// it means to change did change, that the other did not, and that the uncached
+// total differs from the one the cache holds, so a kept count cannot agree by
+// accident.
+func TestModalRowCountCacheRebuildsOnEachKey(t *testing.T) {
+	for name, m := range pagedModals(t) {
+		t.Run(name, func(t *testing.T) {
+			lay := m.layout()
+			inner := modalFrameFor(lay).inner
+			check := func(label string, kept int) {
+				t.Helper()
+				if _, wantTotal := uncachedRowCounts(m, lay); wantTotal == kept {
+					t.Fatalf("%s: the uncached total is the kept %d; the change must alter it", label, kept)
+				}
+				_, got, gotTotal, _ := m.modalSizing(lay)
+				want, wantTotal := uncachedRowCounts(m, lay)
+				if gotTotal != wantTotal || fmt.Sprint(got) != fmt.Sprint(want) {
+					t.Errorf("%s: modalSizing gives %d rows %v, uncached gives %d rows %v", label, gotTotal, got, wantTotal, want)
+				}
+			}
+
+			_, _, kept, _ := m.modalSizing(lay)
+			whole := m.modal.Lines
+			short := whole[:len(whole)/2]
+			if len(short) == len(whole) || &short[0] != &whole[0] {
+				t.Fatalf("length: the prefix has length %d of %d and must keep the first line's address", len(short), len(whole))
+			}
+			m.modal.Lines = short
+			check("length (a shorter prefix at the same address)", kept)
+
+			_, _, kept, _ = m.modalSizing(lay)
+			repl := make([]string, len(m.modal.Lines))
+			for i := range repl {
+				repl[i] = strings.Repeat("w", 3*inner)
+			}
+			if len(repl) != len(m.modal.Lines) || &repl[0] == &m.modal.Lines[0] {
+				t.Fatalf("address: the replacement must have length %d and a new address", len(m.modal.Lines))
+			}
+			m.modal.Lines = repl
+			check("address (a same-length slice with other lines)", kept)
+		})
+	}
+}
+
+// TestModalRowCountCacheHit: entry points modalSizing, called directly, and
+// Update with a 'j' key, which dispatches to keyModal and reaches modalSizing
+// through modalExtent. With the width and the lines unchanged, a later modalSizing
+// returns the same counts slice as the first, by the address of its first element.
+// rowCounts makes a new slice each time it works the counts out, so the same slice
+// means they were not worked out again. Control: after a tea.WindowSizeMsg to
+// another width the slice is a new one, so the comparison can tell a rebuild from a
+// hit.
+//
+// The test compares slice addresses rather than counting allocations: an address
+// does not depend on the allocator, the garbage collector or the race detector,
+// so the result is the same under -race and on any machine.
+func TestModalRowCountCacheHit(t *testing.T) {
+	for name, m := range pagedModals(t) {
+		t.Run(name, func(t *testing.T) {
+			_, first, _, _ := m.modalSizing(m.layout())
+			_, again, _, _ := m.modalSizing(m.layout())
+			if &again[0] != &first[0] {
+				t.Errorf("a second modalSizing at the same width returned a new counts slice: the counts were worked out again")
+			}
+			m = drive(m, key('j'))
+			_, afterKey, _, _ := m.modalSizing(m.layout())
+			if &afterKey[0] != &first[0] {
+				t.Errorf("after a 'j' key, modalSizing at the same width returned a new counts slice: the counts were worked out again")
+			}
+
+			m = drive(m, tea.WindowSizeMsg{Width: 60, Height: 20})
+			if _, resized, _, _ := m.modalSizing(m.layout()); &resized[0] == &first[0] {
+				t.Fatalf("control: after a resize modalSizing returned the counts slice kept for the old width")
+			}
+		})
+	}
+}

@@ -833,3 +833,181 @@ func TestResumedToolCardHeadReachesTheScreenClean(t *testing.T) {
 		}
 	}
 }
+
+// TestLiveRunCommandStreamsAndTimesItsCard: entry point App.Submit, through the agent
+// loop and the real anthropic.Decode, so the call reaches toolExecutor.Invoke (not
+// RunTool, which TestRunCommandStreamsOutputToCard drives). The model's run_command
+// prints a line; the approval is answered through App.Resolve. Invoke must send at
+// least one CommandOutputChunkMsg for the card's ID before the card's
+// ToolCompletedMsg, that completion must carry Elapsed > 0, and the rendered card's
+// head must draw a duration. Elapsed is measured around the whole registry call,
+// the wait for the approval included, so it is positive without the command taking
+// any particular time.
+//
+// Control (DIR-026): the same messages with only the completion's Elapsed set to
+// zero, fed to a model through the same render path, draw no duration on the
+// run_command head. Only the Elapsed field differs from the real run, so a
+// duration in the real frame comes from Elapsed and not from some other text on
+// the line.
+func TestLiveRunCommandStreamsAndTimesItsCard(t *testing.T) {
+	repo := newGitRepo(t, map[string]string{"hello.go": "package main\n"})
+	input, err := json.Marshal(map[string]any{"argv": []string{"sh", "-c", "echo hello-live"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := newLiveEnv(t, repo, func(a *App, msg any) {
+		if ask, ok := msg.(tui.ApprovalRequestedMsg); ok {
+			go a.Resolve(ask.ID, ApprovalOutcomeOnce)
+		}
+	}, sseToolUse(liveCallID, "run_command", string(input)), sseReply("done"))
+	msgs := e.turn("run it")
+
+	start := findMsg[tui.ToolStartedMsg](msgs)
+	done := findMsg[tui.ToolCompletedMsg](msgs)
+	if start == nil || done == nil {
+		t.Fatalf("want a ToolStartedMsg and a ToolCompletedMsg, got %v", msgTypeNames(msgs))
+	}
+	if !done.OK {
+		t.Fatalf("the run_command call failed: %q %q", done.ErrorKind, done.ErrorMsg)
+	}
+	firstChunk, completed := -1, -1
+	for i, m := range msgs {
+		switch v := m.(type) {
+		case tui.CommandOutputChunkMsg:
+			if v.ID == start.ID && firstChunk < 0 && strings.Contains(v.Chunk, "hello-live") {
+				firstChunk = i
+			}
+		case tui.ToolCompletedMsg:
+			if v.ID == start.ID {
+				completed = i
+			}
+		}
+	}
+	if firstChunk < 0 {
+		t.Errorf("no CommandOutputChunkMsg for card %d carried the output; got %v", start.ID, msgTypeNames(msgs))
+	} else if firstChunk > completed {
+		t.Errorf("the first chunk (message %d) came after the completion (message %d)", firstChunk, completed)
+	}
+	if done.Elapsed <= 0 {
+		t.Errorf("the completion has Elapsed %v, want > 0", done.Elapsed)
+	}
+
+	// headOf is the frame line holding the run_command card's head.
+	headOf := func(msgs []any) string {
+		frame := feed(liveModel(false), toMsgs(msgs)...).View()
+		for _, line := range strings.Split(frame, "\n") {
+			if strings.Contains(line, "run_command") {
+				return line
+			}
+		}
+		t.Fatalf("no run_command card head in the frame:\n%s", frame)
+		return ""
+	}
+	dur := regexp.MustCompile(`· \d+(ms|\.\ds)`)
+	if head := headOf(msgs); !dur.MatchString(head) {
+		t.Errorf("the card head draws no duration: %q", head)
+	}
+
+	var bare []any
+	for _, m := range msgs {
+		if v, ok := m.(tui.ToolCompletedMsg); ok {
+			v.Elapsed = 0
+			m = v
+		}
+		bare = append(bare, m)
+	}
+	if head := headOf(bare); dur.MatchString(head) {
+		t.Errorf("control: with Elapsed zero the card head still draws a duration: %q", head)
+	}
+}
+
+// liveStaleCommand is the command the stale-generation test scripts: it prints a
+// line, then writes a marker file in the working directory, so that a test can
+// tell that the command ran to the end whatever reached the tui.
+const liveStaleCommand = "echo stale-line; touch ran-marker"
+
+// liveRunCommandTurn runs a model-driven run_command of liveStaleCommand through
+// Submit, the agent loop and the real anthropic.Decode, over a fresh repo, and
+// returns the messages the app delivered and the repo's path. The approval is
+// answered through App.Resolve from a goroutine started by the delivery of its
+// request. When bump is true that goroutine first calls App.bumpGeneration, which
+// is what /new does to the session the turn belongs to, so the command runs after
+// the turn's generation is stale. The turn's own messages after that are dropped
+// by the fence, so no TurnCompleteMsg arrives; the turn is waited for through
+// inFlight, with a bound.
+func liveRunCommandTurn(t *testing.T, bump bool) (msgs []any, repo string) {
+	t.Helper()
+	repo = newGitRepo(t, map[string]string{"hello.go": "package main\n"})
+	input, err := json.Marshal(map[string]any{"argv": []string{"sh", "-c", liveStaleCommand}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := newLiveEnv(t, repo, func(a *App, msg any) {
+		if ask, ok := msg.(tui.ApprovalRequestedMsg); ok {
+			go func() {
+				if bump {
+					a.bumpGeneration()
+				}
+				a.Resolve(ask.ID, ApprovalOutcomeOnce)
+			}()
+		}
+	}, sseToolUse(liveCallID, "run_command", string(input)), sseReply("done"))
+	e.a.Submit("run it", getenvKey)
+	finished := make(chan struct{})
+	go func() {
+		e.a.inFlight.Wait()
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(10 * time.Second):
+		t.Fatalf("the turn had not ended after 10s; got %v", msgTypeNames(e.c.snapshot()))
+	}
+	return e.c.snapshot(), repo
+}
+
+// TestLiveRunCommandChunksOfAStaleTurnAreNotDelivered: entry point App.Submit, through
+// the agent loop and the real anthropic.Decode, so the call reaches
+// toolExecutor.Invoke, whose progress sink sends the command's output. The session
+// generation is bumped (App.bumpGeneration) after the approval request
+// has been delivered and before the approval is answered, so the command prints its
+// line for a turn that is no longer current. This exercises the generation fence
+// alone: /new's NewSession cancels the turn and waits for it before it calls
+// installSession, which is where the generation is bumped (internal/app/app.go),
+// so a real /new never reaches this state. The sink sends with the generation its
+// context carries, so no CommandOutputChunkMsg may be delivered.
+//
+// Positive controls (DIR-026), through the same calls: the same turn without the bump
+// delivers a CommandOutputChunkMsg carrying the line, so the absence is the fence and
+// not a command that prints nothing; and in the bumped turn the approval request was
+// delivered before the bump and the marker file the command writes after its line
+// exists, so the command ran to the end.
+func TestLiveRunCommandChunksOfAStaleTurnAreNotDelivered(t *testing.T) {
+	chunkWith := func(msgs []any, text string) bool {
+		for _, m := range msgs {
+			if v, ok := m.(tui.CommandOutputChunkMsg); ok && strings.Contains(v.Chunk, text) {
+				return true
+			}
+		}
+		return false
+	}
+
+	current, _ := liveRunCommandTurn(t, false)
+	if !chunkWith(current, "stale-line") {
+		t.Fatalf("control: the turn without a bump delivered no chunk carrying the line; got %v", msgTypeNames(current))
+	}
+
+	stale, repo := liveRunCommandTurn(t, true)
+	if findMsg[tui.ApprovalRequestedMsg](stale) == nil {
+		t.Fatalf("control: the approval request was not delivered before the bump; got %v", msgTypeNames(stale))
+	}
+	if _, err := os.Stat(filepath.Join(repo, "ran-marker")); err != nil {
+		t.Fatalf("control: the command did not run to the end after the bump: %v", err)
+	}
+	if chunkWith(stale, "stale-line") {
+		t.Errorf("a chunk of the stale turn was delivered; got %v", msgTypeNames(stale))
+	}
+	if findMsg[tui.CommandOutputChunkMsg](stale) != nil {
+		t.Errorf("a CommandOutputChunkMsg of the stale turn was delivered; got %v", msgTypeNames(stale))
+	}
+}

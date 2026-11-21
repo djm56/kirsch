@@ -2768,7 +2768,9 @@ func TestRunCommandApprovalIDsAreDistinct(t *testing.T) {
 
 // TestRunCommandStreamsOutputToCard verifies that RunCommand output is forwarded
 // to the TUI as CommandOutputChunkMsg with the correct tool card ID. This is the
-// app-level regression for box :320 / amendment 73.
+// app-level regression for box :320 / amendment 73. Entry point: App.RunTool,
+// which has no caller outside tests; the production path is toolExecutor.Invoke,
+// which TestLiveRunCommandStreamsAndTimesItsCard in live_tool_test.go drives.
 func TestRunCommandStreamsOutputToCard(t *testing.T) {
 	c := newCollector(0)
 	a := testApp(t, "repo-small", c)

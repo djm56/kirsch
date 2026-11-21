@@ -74,6 +74,10 @@ take for Kirsch's own. It is not a complete list, and no test checks it against 
   a user message, and the reply of every walkthrough section marked *(model)*.
 - The footer of a tool card, for example `‹10 of 11 lines — d full output · Enter collapse›`:
   Kirsch draws its shape, and its numbers come from the canned file.
+- The duration on a tool card's head, `· <n>ms ·`, drawn where the layout sets
+  `ShowDuration`: every tool completion the captures send carries the one canned
+  value `toolElapsedMs` from `internal/tui/testdata/capture-inputs.json`. A live card shows the time that call took,
+  and that time includes any wait for an approval.
 - Notices: `one`, `two` and `three` in the `scrollbar-mid-new` state, and the `↓ 3 new`
   count they cause.
 - The `/diff` text. It is git's own output for a canned file pair, with a canned

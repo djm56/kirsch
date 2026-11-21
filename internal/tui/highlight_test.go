@@ -3,9 +3,12 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1346,20 +1349,29 @@ func hlResetBreaker() {
 // hlGateLexer is a chroma.Lexer that counts its Tokenise calls and, when gate is
 // not nil, blocks in Tokenise until gate is closed. Once through, it returns the
 // whole text as one keyword token, so a lexed line has the keyword role and a
-// plain one does not. Its name is the key the breaker records.
+// plain one does not. Its name is the key the breaker records. When entered is
+// not nil, Tokenise sends on it, without blocking, before it waits for the gate,
+// so a test can wait until a call is inside Tokenise; give it a buffer of one.
 type hlGateLexer struct {
-	name  string
-	gate  chan struct{}
-	calls atomic.Int32
+	name    string
+	gate    chan struct{}
+	entered chan struct{}
+	calls   atomic.Int32
 }
 
 // Config names the lexer; hlLexLine reads the name for the breaker.
 func (g *hlGateLexer) Config() *chroma.Config { return &chroma.Config{Name: g.name} }
 
-// Tokenise counts the call, waits for the gate if there is one, then returns the
-// text as one keyword token.
+// Tokenise counts the call, signals entered if there is one, waits for the gate
+// if there is one, then returns the text as one keyword token.
 func (g *hlGateLexer) Tokenise(_ *chroma.TokeniseOptions, text string) (chroma.Iterator, error) {
 	g.calls.Add(1)
+	if g.entered != nil {
+		select {
+		case g.entered <- struct{}{}:
+		default:
+		}
+	}
 	if g.gate != nil {
 		<-g.gate
 	}
@@ -1716,29 +1728,37 @@ func TestHighlightNilConfigIsNoLexer(t *testing.T) {
 	}
 }
 
-// TestHighlightUnsafeLexersMapToNoLexer: every lexer in hlUnsafeLexers maps to
-// no lexer. Entry point: hlLexer, from a path and from an info string. Each
-// path and word below is one that chroma itself maps to an excluded lexer (the
-// test checks that through lexers.Match and lexers.Get first, so a chroma
-// change that moves the name fails the test rather than passing it), and
-// hlLexer must return nil for each. Every hlUnsafeLexers entry must be reached
-// by at least one case, so a new entry needs a case. Controls through the same
-// calls: an ordinary lexer, Go, maps from a path and from an info string, and
-// Perl, which shares file extensions with Raku, still maps from its path.
-func TestHighlightUnsafeLexersMapToNoLexer(t *testing.T) {
+// TestHighlightLexerNeverReturnsAnExcludedLexer: hlLexer never returns a lexer
+// that is in hlUnsafeLexers. Entry point: hlLexer, from a path and from an info
+// string; the PostgreSQL dialect is also checked through hlUsable directly,
+// because no hlLexer input reaches it now (see below). Each path and word below
+// is one that chroma itself maps to an excluded lexer (the test checks that
+// through lexers.Match and lexers.Get first, so a chroma change that moves the
+// name fails the test rather than passing it). hlLexer must return nil for each,
+// except the words in hlInfoAlias, which it sends to the SQL lexer: for those it
+// must return SQL, and never the excluded dialect lexer. hlUsable must refuse
+// the dialect lexer that chroma returns for "postgresql", which keeps that
+// exclusion exercised although hlInfoAlias keeps the word from reaching it
+// through hlLexer. Every hlUnsafeLexers entry must be reached by at least one
+// case, so a new entry needs a case. Controls through the same calls: an
+// ordinary lexer, Go, maps from a path and from an info string, and Perl, which
+// shares file extensions with Raku, still maps from its path; hlUsable returns
+// the generic SQL lexer.
+func TestHighlightLexerNeverReturnsAnExcludedLexer(t *testing.T) {
 	cases := []struct {
 		src  hlSource
 		key  string
-		name string
+		name string // the excluded lexer chroma maps key to
+		want string // the lexer hlLexer returns for key; "" is none
 	}{
-		{hlPath, "x.raku", "Raku"},
-		{hlInfo, "raku", "Raku"},
-		{hlInfo, "perl6", "Raku"},
-		{hlInfo, "postgresql", "PostgreSQL SQL dialect"},
-		{hlInfo, "postgres", "PostgreSQL SQL dialect"},
-		{hlInfo, "materialize", "Materialize SQL dialect"},
-		{hlPath, "x.svelte", "Svelte"},
-		{hlInfo, "svelte", "Svelte"},
+		{hlPath, "x.raku", "Raku", ""},
+		{hlInfo, "raku", "Raku", ""},
+		{hlInfo, "perl6", "Raku", ""},
+		{hlInfo, "postgresql", "PostgreSQL SQL dialect", "SQL"},
+		{hlInfo, "postgres", "PostgreSQL SQL dialect", "SQL"},
+		{hlInfo, "materialize", "Materialize SQL dialect", ""},
+		{hlPath, "x.svelte", "Svelte", ""},
+		{hlInfo, "svelte", "Svelte", ""},
 	}
 	covered := map[string]bool{}
 	for _, c := range cases {
@@ -1753,9 +1773,20 @@ func TestHighlightUnsafeLexersMapToNoLexer(t *testing.T) {
 			continue
 		}
 		covered[c.name] = true
-		if got := hlLexer(c.src, c.key); got != nil {
-			t.Errorf("hlLexer(%q) = %s, want no lexer", c.key, got.Config().Name)
+		got := hlLexer(c.src, c.key)
+		if lexerName(got) != c.want {
+			t.Errorf("hlLexer(%q) = %q, want %q", c.key, lexerName(got), c.want)
 		}
+		if got != nil && hlUnsafeLexers[got.Config().Name] {
+			t.Errorf("hlLexer(%q) returned the excluded lexer %s", c.key, got.Config().Name)
+		}
+	}
+	// No hlLexer input reaches the dialect lexer now, so ask hlUsable about it.
+	if dialect := lexers.Get("postgresql"); dialect == nil || hlUsable(dialect) != nil {
+		t.Errorf("hlUsable(lexers.Get(%q)) = %q (chroma lexer found: %v), want no lexer", "postgresql", lexerName(hlUsable(dialect)), dialect != nil)
+	}
+	if sql := lexers.Get("sql"); sql == nil || hlUsable(sql) == nil {
+		t.Error("control: hlUsable refused chroma's generic SQL lexer")
 	}
 	for name := range hlUnsafeLexers {
 		if !covered[name] {
@@ -1809,17 +1840,20 @@ func hlHasGoroutine(id string) bool {
 // the deadline ends once the lexer returns, rather than blocking on its send.
 // Entry point: hlRuns with a fake lexer that blocks in Tokenise until its gate
 // is closed, which reaches hlLexLine. After hlRuns has given the line up, the
-// gate is closed and the stacks of every goroutine are polled until the
-// abandoned one is gone, or the test fails after a few seconds. The goroutine
-// is picked out by ID, as the one new goroutine with hlLexLine's goroutine and
-// the fake's Tokenise on its stack, because other tests leave goroutines in
-// hlLexLine that are still inside chroma's own lexers. Control, through the
-// same poll: while the gate is still closed, that goroutine is found.
+// test waits, for up to 5 seconds, for the fake to report that its Tokenise has
+// been entered, so that the abandoned goroutine is known to be on the fake's
+// stack before the stacks are read. Then the gate is closed and the stacks of
+// every goroutine are polled until the abandoned one is gone, or the test fails
+// after 5 seconds. The goroutine is picked out by ID, as the one new goroutine
+// with hlLexLine's goroutine and the fake's Tokenise on its stack, because other
+// tests leave goroutines in hlLexLine that are still inside chroma's own
+// lexers. Control, through the same poll: while the gate is still closed, that
+// goroutine is found.
 func TestHighlightAbandonedLexGoroutineEnds(t *testing.T) {
 	t.Cleanup(hlResetBreaker)
 	const line = "if x"
 	before := hlLexGoroutines(t)
-	g := &hlGateLexer{name: "test-exit", gate: make(chan struct{})}
+	g := &hlGateLexer{name: "test-exit", gate: make(chan struct{}), entered: make(chan struct{}, 1)}
 	closed := false
 	t.Cleanup(func() {
 		if !closed {
@@ -1828,6 +1862,11 @@ func TestHighlightAbandonedLexGoroutineEnds(t *testing.T) {
 	})
 	if got := hlRuns(g, line); !hlOnePlainRun(got, line) {
 		t.Fatalf("setup: got %v, want the line given up as one text run", got)
+	}
+	select {
+	case <-g.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("setup: the fake lexer's Tokenise was not entered within 5s")
 	}
 	var id string
 	for gid := range hlLexGoroutines(t) {
@@ -1850,5 +1889,498 @@ func TestHighlightAbandonedLexGoroutineEnds(t *testing.T) {
 			t.Fatalf("goroutine %s is still running 5s after the lexer returned", id)
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// hlSQLLine is a SQL line with a keyword and a number.
+const hlSQLLine = "SELECT 1;"
+
+// TestHighlightPostgresInfoStringsMapToSQL: the fence words postgresql and
+// postgres are drawn with chroma's generic SQL lexer, while the PostgreSQL
+// dialect lexer stays excluded. Entry point: hlLexer with an info string, then
+// mdLayout on a fence carrying that info string. Each word is first checked to
+// be one that chroma maps to the excluded dialect lexer, so the mapping under
+// test is the one that moves it. Each fence must then be the keyword and number
+// roles that a sql fence of the same line has, which is the positive control for
+// the absence checks below: with the colours present for postgres, a plain row
+// for another excluded name is the exclusion and not a fence that cannot be
+// coloured. Controls for the exclusion: a fence tagged with each other excluded
+// info word (raku, perl6, materialize, svelte) is plain, every run in the text
+// role.
+func TestHighlightPostgresInfoStringsMapToSQL(t *testing.T) {
+	g := NewGlyphs(true)
+	toksOf := func(info string) []hlTok {
+		t.Helper()
+		rows, ok := mdLayout(fence(info, hlSQLLine), 80, g)
+		if !ok || len(rows) != 1 {
+			t.Fatalf("fence %q: ok=%v rows=%d, want 1 row", info, ok, len(rows))
+		}
+		return hlToks(rows[0])
+	}
+	want := []hlTok{
+		{"  ", roleText},
+		{"SELECT", roleSynKeyword},
+		{" ", roleText},
+		{"1", roleSynNumber},
+		{";", roleText},
+	}
+	if got := toksOf("sql"); !toksEqual(got, want) {
+		t.Fatalf("control: sql fence roles:\n got  %v\n want %v", got, want)
+	}
+	for _, info := range []string{"postgresql", "postgres", "PostgreSQL", `postgres title="x"`} {
+		word := strings.ToLower(strings.Fields(info)[0])
+		if raw := lexers.Get(word); raw == nil || raw.Config().Name != "PostgreSQL SQL dialect" {
+			t.Errorf("setup: chroma does not map %q to the PostgreSQL dialect lexer", word)
+		}
+		if got := lexerName(hlLexer(hlInfo, info)); got != "SQL" {
+			t.Errorf("hlLexer(%q) = %q, want SQL", info, got)
+		}
+		if got := toksOf(info); !toksEqual(got, want) {
+			t.Errorf("fence %q roles:\n got  %v\n want %v", info, got, want)
+		}
+	}
+	for _, info := range []string{"raku", "perl6", "materialize", "svelte"} {
+		if raw := lexers.Get(info); raw == nil || !hlUnsafeLexers[raw.Config().Name] {
+			t.Errorf("setup: %q is not an info word of an excluded lexer", info)
+		}
+		for _, tok := range toksOf(info) {
+			if tok.role != roleText {
+				t.Errorf("fence %q: %q has role %d, want text", info, tok.text, tok.role)
+			}
+		}
+	}
+}
+
+// hlRoleOf returns the role of the first run in runs whose text is text, or
+// false when no run has it.
+func hlRoleOf(runs []mdRun, text string) (mdRole, bool) {
+	for _, r := range runs {
+		if r.Text == text {
+			return r.Role, true
+		}
+	}
+	return 0, false
+}
+
+// TestHighlightScriptLangRakuNeverReachesRaku: a line that embeds
+// <script lang="raku"> is never lexed with Raku, in an html fence or in a svelte
+// fence. Entry points: hlLexer with an info string, then hlRuns on the line, and
+// mdLayout (one call each, with the same width and glyphs) for an html fence and
+// for a svelte fence of the line. The line's content is "my $x = 1;", which Raku
+// lexes with a keyword for "my" and chroma's JavaScript, the lexer the HTML lexer
+// gives a script, does not.
+//
+// HTML is allowed. Through hlRuns the line's runs rejoin to the line, "my" is in
+// the text role, and the HTML lexer's own colours are present: the string
+// "raku" in the string role and the number 1 inside the script in the number
+// role. Through mdLayout the html fence has the number 1 in the number role and
+// no run in the keyword role. Svelte is excluded: hlLexer returns no lexer for
+// the info word and for a path, and the svelte fence is drawn with the line
+// unchanged and every run in the text role.
+//
+// Controls. The unwrapped Svelte lexer, called through hlLexNow so that hlLexer
+// cannot refuse it, does reach Raku on this line and gives "my" the keyword
+// role, so the role asserted absent for HTML is one the line can produce. The
+// number and string roles asserted present through hlRuns are the positive
+// control for the text role of "my": a run the deadline, the breaker or an error
+// gave up on would be one plain run and fail them. The html fence through
+// mdLayout is the positive control for the svelte fence's plain rows: the same
+// call draws colour for html, so plain rows for svelte are the exclusion and not
+// a fence that cannot be coloured.
+func TestHighlightScriptLangRakuNeverReachesRaku(t *testing.T) {
+	t.Cleanup(hlResetBreaker)
+	const line = `<script lang="raku">my $x = 1;</script>`
+
+	raw := lexers.Get("svelte")
+	if raw == nil {
+		t.Fatal("setup: chroma has no svelte lexer")
+	}
+	role, ok := hlRoleOf(hlLexNow(raw, line), "my")
+	if !ok || role != roleSynKeyword {
+		t.Fatalf("control: the unwrapped Svelte lexer gives my role %d (found %v), want the keyword role: Raku was not reached", role, ok)
+	}
+
+	html := hlLexer(hlInfo, "html")
+	if lexerName(html) != "HTML" {
+		t.Fatalf("setup: hlLexer(html) = %q, want HTML", lexerName(html))
+	}
+	runs := hlRuns(html, line)
+	if got, ok := hlRoleOf(runs, "my"); !ok || got != roleText {
+		t.Errorf("html fence: my has role %d (found %v), want the text role", got, ok)
+	}
+	if got, ok := hlRoleOf(runs, "1"); !ok || got != roleSynNumber {
+		t.Errorf("control: the number 1 in the script has role %d (found %v), want the number role: hlRuns coloured nothing for html", got, ok)
+	}
+	if got, ok := hlRoleOf(runs, `"raku"`); !ok || got != roleSynString {
+		t.Errorf("control: the attribute value \"raku\" has role %d (found %v), want the string role: hlRuns coloured nothing for html", got, ok)
+	}
+	var joined strings.Builder
+	for _, r := range runs {
+		joined.WriteString(r.Text)
+	}
+	if joined.String() != line {
+		t.Errorf("html fence: runs read %q, want the line %q", joined.String(), line)
+	}
+
+	if got := hlLexer(hlInfo, "svelte"); got != nil {
+		t.Errorf("hlLexer(svelte) = %s, want no lexer", got.Config().Name)
+	}
+	if got := hlLexer(hlPath, "x.svelte"); got != nil {
+		t.Errorf("hlLexer(x.svelte) = %s, want no lexer", got.Config().Name)
+	}
+
+	g := NewGlyphs(true)
+	layout := func(info string) mdRow {
+		t.Helper()
+		rows, ok := mdLayout(fence(info, line), 80, g)
+		if !ok || len(rows) != 1 {
+			t.Fatalf("%s fence: ok=%v rows=%d, want a single row", info, ok, len(rows))
+		}
+		return rows[0]
+	}
+	htmlRow := layout("html")
+	if got, ok := hlRoleOf(htmlRow, "1"); !ok || got != roleSynNumber {
+		t.Errorf("control: the html fence has the number 1 in role %d (found %v), want the number role: mdLayout drew the html fence plain", got, ok)
+	}
+	for _, run := range htmlRow {
+		if run.Role == roleSynKeyword {
+			t.Errorf("html fence: run %q has the keyword role, which only Raku gives this line", run.Text)
+		}
+	}
+	svelteRow := layout("svelte")
+	if got, want := drawMarkdown([]mdRow{svelteRow}, mdIdentity), []string{"  " + line}; !equalRows(got, want) {
+		t.Errorf("svelte fence rows:\n got  %q\n want %q", got, want)
+	}
+	for _, run := range svelteRow {
+		if run.Role != roleText {
+			t.Errorf("svelte fence: run %q has role %d, want text", run.Text, run.Role)
+		}
+	}
+}
+
+// hlReviewedChroma is the chroma module version hlUnsafeLexers was last
+// reviewed against. Whoever re-reviews the list for a new chroma version edits
+// this constant and the places that restate the version. The failure message
+// that hlChromaVersionProblem builds names those places, through
+// hlVersionRestatements.
+const hlReviewedChroma = "v2.27.0"
+
+// hlVersionFiles are the files, relative to the repository root, that restate
+// the chroma version hlUnsafeLexers was reviewed against. The list is not claimed
+// to be complete. TestHighlightVersionRestatementsNameTheVersion fails when a
+// file named here cannot be read, has no match for hlChromaVersionPattern, or
+// has a match whose version is not hlReviewedChroma. So a restatement left at an
+// old version fails even when another restatement in the same file was updated,
+// and a file whose restatements were all dropped fails. A restatement reworded
+// so that it no longer matches the pattern is not seen: it fails only when it
+// was the file's last match. TestHighlightBreakerOnTheRealGoLexer's docblock also
+// writes v2.27.0, but for a different pin (the version where chroma's Go string
+// rule was seen to backtrack), and that test fails by itself when an upgrade
+// fixes the rule, so it is not listed here.
+var hlVersionFiles = []string{"internal/tui/highlight.go", "plan/spec/kirsch-plan.md"}
+
+// hlChromaVersionPattern matches a written chroma version: the word "chroma" in
+// any case, then whitespace, then a version of the form vX.Y.Z with an optional
+// "-" pre-release suffix. The whitespace may hold "//", so a version a Go
+// comment wraps onto its next line still matches. Submatch 1 is the version,
+// with its "v". A version written without the word "chroma" before it, or with
+// other text between, does not match.
+var hlChromaVersionPattern = regexp.MustCompile(`(?i)\bchroma(?:\s|//)+(v\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?)`)
+
+// hlVersionRestatements describes where, in hlVersionFiles, the version is
+// written. The failure message of a version mismatch includes it, so a re-review
+// updates those places.
+const hlVersionRestatements = "in internal/tui/highlight.go, the hlUnsafeLexers docblock's paragraph that begins " +
+	"\"Raku is the writer\" (\"in chroma v2.27.0\") and the one that begins \"The set is tied to\"; " +
+	"in plan/spec/kirsch-plan.md, the Highlighting item's sentence that ends \"in chroma v2.27.0\""
+
+// hlChromaVersionProblem returns the failure message for a go.mod whose text
+// is goMod, or "" when it requires the chroma module at reviewed and does not
+// replace it.
+func hlChromaVersionProblem(goMod, reviewed string) string {
+	const path = "github.com/alecthomas/chroma/v2"
+	if regexp.MustCompile(`(?m)^\s*(replace\s+)?` + regexp.QuoteMeta(path) + `\s+(v\S+\s+)?=>`).MatchString(goMod) {
+		return "go.mod replaces " + path + ": re-review hlUnsafeLexers against the replacement"
+	}
+	m := regexp.MustCompile(`(?m)^\s*(?:require\s+)?` + regexp.QuoteMeta(path) + `\s+(v\S+)`).FindStringSubmatch(goMod)
+	if m == nil {
+		return "go.mod has no requirement on " + path
+	}
+	if m[1] == reviewed {
+		return ""
+	}
+	return fmt.Sprintf("go.mod requires chroma %s but hlUnsafeLexers was last reviewed against %s: re-review the list "+
+		"(every lexer that runs another lexer named by the text it lexes, and every lexer that writes state "+
+		"shared between lexings), then update hlReviewedChroma and the places that restate the version: %s",
+		m[1], reviewed, hlVersionRestatements)
+}
+
+// TestHighlightUnsafeLexersReviewedChromaVersion: the chroma version go.mod
+// requires is the version hlUnsafeLexers was reviewed against. Entry point:
+// hlChromaVersionProblem on the text of ../../go.mod, read from disk. go.mod is
+// read rather than runtime/debug.ReadBuildInfo because ReadBuildInfo reported an
+// empty Deps for this package's test binary under go1.26.11 when this was
+// written (observed there, not guaranteed for another toolchain), so it did not
+// show the version. go.mod's text does not show a go.work or vendor override; a
+// replace directive on chroma is caught as a problem of its own. Controls, on
+// made-up go.mod text: the reviewed version in a require block and in a one-line
+// require pass, a different version gives the re-review message, which names the
+// restatements of the version (hlVersionRestatements), a replace gives its own
+// message, and a go.mod without chroma fails rather than passing.
+func TestHighlightUnsafeLexersReviewedChromaVersion(t *testing.T) {
+	const path = "github.com/alecthomas/chroma/v2"
+	if got := hlChromaVersionProblem("require (\n\t"+path+" v2.27.0\n)\n", "v2.27.0"); got != "" {
+		t.Errorf("control: the reviewed version in a require block failed: %s", got)
+	}
+	if got := hlChromaVersionProblem("require "+path+" v2.27.0\n", "v2.27.0"); got != "" {
+		t.Errorf("control: the reviewed version in a one-line require failed: %s", got)
+	}
+	if got := hlChromaVersionProblem("require (\n\t"+path+" v2.28.0\n)\n", "v2.27.0"); !strings.Contains(got, "re-review the list") {
+		t.Errorf("control: a newer version gave %q, want the re-review message", got)
+	} else if !strings.Contains(got, hlVersionRestatements) {
+		t.Errorf("control: the re-review message %q does not name the restatements of the version", got)
+	}
+	if got := hlChromaVersionProblem("require "+path+" v2.27.0\nreplace "+path+" => ../chroma\n", "v2.27.0"); !strings.Contains(got, "replaces") {
+		t.Errorf("control: a replace gave %q, want the replace message", got)
+	}
+	if got := hlChromaVersionProblem("require example.com/other v1.0.0\n", "v2.27.0"); got == "" {
+		t.Error("control: a go.mod without chroma passed")
+	}
+
+	raw, err := os.ReadFile("../../go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hlChromaVersionProblem(string(raw), hlReviewedChroma); got != "" {
+		t.Error(got)
+	}
+}
+
+// hlFileVersions is what hlCheckVersionFiles found in a file: the version
+// submatch of each hlChromaVersionPattern match, in file order, and the problem,
+// or "" when the file has a match and every match is the wanted version.
+type hlFileVersions struct {
+	file    string
+	found   []string
+	problem string
+}
+
+// hlCheckVersionFiles reads each of files, relative to root, and returns an
+// hlFileVersions for each, in the order of files. A file has a problem when it
+// cannot be read, when hlChromaVersionPattern has no match in it, or when any
+// match's version differs from version; the problem names the first differing
+// match.
+func hlCheckVersionFiles(root string, files []string, version string) []hlFileVersions {
+	out := make([]hlFileVersions, 0, len(files))
+	for _, f := range files {
+		r := hlFileVersions{file: f}
+		raw, err := os.ReadFile(filepath.Join(root, f))
+		if err != nil {
+			r.problem = "cannot be read: " + err.Error()
+			out = append(out, r)
+			continue
+		}
+		for _, m := range hlChromaVersionPattern.FindAllStringSubmatch(string(raw), -1) {
+			r.found = append(r.found, m[1])
+		}
+		if len(r.found) == 0 {
+			r.problem = "states no chroma version"
+		}
+		for _, v := range r.found {
+			if v != version {
+				r.problem = fmt.Sprintf("states chroma %s, want %s", v, version)
+				break
+			}
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// hlVersionProblemFiles returns the files in results that have a problem, in order.
+func hlVersionProblemFiles(results []hlFileVersions) []string {
+	var files []string
+	for _, r := range results {
+		if r.problem != "" {
+			files = append(files, r.file)
+		}
+	}
+	return files
+}
+
+// TestHighlightVersionRestatementsNameTheVersion: in each file in hlVersionFiles,
+// hlChromaVersionPattern has a match and every match is hlReviewedChroma. Entry
+// point: hlCheckVersionFiles on the repository root (../..), read from disk;
+// each file's matches are logged, so -v shows what was read. Controls, on
+// made-up files in a temporary directory through the same function: a file
+// whose only version is the reviewed one passes; a file with the reviewed
+// version first and an old one after it is reported (the half-updated file); a
+// file whose old version is wrapped onto the next line of a Go comment is
+// reported; a file with no version is reported; and a file that does not exist
+// is reported. The passing control has a match, so an empty result is the check
+// passing and not nothing being read.
+func TestHighlightVersionRestatementsNameTheVersion(t *testing.T) {
+	for _, r := range hlCheckVersionFiles("../..", hlVersionFiles, hlReviewedChroma) {
+		t.Logf("%s: chroma versions found %v", r.file, r.found)
+		if r.problem != "" {
+			t.Errorf("%s %s: restate the version there as chroma %s or take the file off hlVersionFiles", r.file, r.problem, hlReviewedChroma)
+		}
+	}
+
+	dir := t.TempDir()
+	controls := map[string]string{
+		"only.txt":    "tied to chroma " + hlReviewedChroma + ".",
+		"half.txt":    "in chroma " + hlReviewedChroma + ", it writes.\nThe set is tied to chroma v2.26.0: re-check it.",
+		"wrapped.txt": "// The set is tied to\n// chroma\n// v2.26.0: re-check it.",
+		"none.txt":    "tied to the chroma module",
+	}
+	for name, text := range controls {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	results := hlCheckVersionFiles(dir, []string{"only.txt", "half.txt", "wrapped.txt", "none.txt", "absent.txt"}, hlReviewedChroma)
+	if got := results[0].found; !reflect.DeepEqual(got, []string{hlReviewedChroma}) {
+		t.Errorf("control: only.txt matched %v, want [%s]", got, hlReviewedChroma)
+	}
+	if got, want := hlVersionProblemFiles(results), []string{"half.txt", "wrapped.txt", "none.txt", "absent.txt"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("control: files with a version problem = %v, want %v (only.txt passes; the half-updated, wrapped, versionless and absent files are reported)", got, want)
+	}
+}
+
+// hlProseNames returns the lexer names that the prose in the file at path lists
+// between the anchors, as the names hlUnsafeLexers keys are written without
+// their " SQL dialect" suffix, sorted. The file's whitespace is collapsed first,
+// so a line break inside the prose does not matter. The anchors are the text
+// that opens and closes the list; if either is gone the prose was reworded, and
+// the test fails so that the anchors are rewritten with it.
+func hlProseNames(t *testing.T, path, start, end string) []string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	text := strings.Join(strings.Fields(string(raw)), " ")
+	i := strings.Index(text, start)
+	if i < 0 {
+		t.Fatalf("%s: the opening anchor %q is gone; the prose was reworded, so update this test's anchors", path, start)
+	}
+	rest := text[i+len(start):]
+	j := strings.Index(rest, end)
+	if j < 0 {
+		t.Fatalf("%s: the closing anchor %q is gone; the prose was reworded, so update this test's anchors", path, end)
+	}
+	return hlSplitNames(rest[:j])
+}
+
+// hlSplitNames splits a prose list such as "Raku, the PostgreSQL and
+// Materialize SQL dialects, and Svelte", or one that names each dialect with
+// its own " SQL dialect", into its names, sorted.
+func hlSplitNames(list string) []string {
+	list = strings.ReplaceAll(list, " SQL dialects", "")
+	list = strings.ReplaceAll(list, " SQL dialect", "")
+	list = strings.ReplaceAll(list, "the ", "")
+	names := regexp.MustCompile(`,? and |, `).Split(list, -1)
+	sort.Strings(names)
+	return names
+}
+
+// hlKeyNames returns the names in hlUnsafeLexers the way the prose writes them,
+// sorted.
+func hlKeyNames() []string {
+	var names []string
+	for k := range hlUnsafeLexers {
+		names = append(names, strings.TrimSuffix(k, " SQL dialect"))
+	}
+	sort.Strings(names)
+	return names
+}
+
+// hlAndList joins items as prose: "a", "a and b", "a, b and c".
+func hlAndList(items []string) string {
+	switch n := len(items); n {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	default:
+		return strings.Join(items[:n-1], ", ") + " and " + items[n-1]
+	}
+}
+
+// hlProseShapes writes the keys of hlUnsafeLexers in the shapes the prose uses,
+// built from the keys so that a change to the map changes the text: the dialect
+// names merged under one " SQL dialects" ("the A and B SQL dialects"), and each
+// dialect with its own " SQL dialect" ("the A SQL dialect, the B SQL dialect").
+// Keys without the suffix are listed as they are.
+func hlProseShapes() (merged, separate string) {
+	var dialects, others, each []string
+	for k := range hlUnsafeLexers {
+		if base, ok := strings.CutSuffix(k, " SQL dialect"); ok {
+			dialects = append(dialects, base)
+		} else {
+			others = append(others, k)
+		}
+	}
+	sort.Strings(dialects)
+	sort.Strings(others)
+	for _, d := range dialects {
+		each = append(each, "the "+d+" SQL dialect")
+	}
+	merged = hlAndList(append(append([]string(nil), others...), "the "+hlAndList(dialects)+" SQL dialects"))
+	separate = hlAndList(append(append([]string(nil), others...), each...))
+	return merged, separate
+}
+
+// TestHighlightExcludedLexerProseMatchesTheMap ties the prose that lists the
+// excluded lexers to hlUnsafeLexers. Entry point: the files that restate the
+// list, read from disk, each between the text that opens and closes it.
+//
+// Read here: plan/spec/kirsch-plan.md in the Highlighting item (ux-d6) and in
+// the "Excluded lexers" bullet, plan/spec/ui-spec-v0.1.md in the highlighting
+// bullet that holds "Modal highlighting depends only on colour", and
+// doc/usage.md. The names each lists must be exactly the keys of
+// hlUnsafeLexers, so adding a lexer to the map or removing one fails this test
+// until the prose changes with it.
+//
+// Restated but not read: plan/testing/manual/ux-round-v0.1.md carries the list
+// in its "Known gaps after v0.1.4" section. It is the manual walkthrough, whose text
+// the next mission rewrites, and this test fails when an anchor is reworded, so
+// reading it would make a rewrite of that section fail the build until the
+// anchors were changed with it.
+//
+// Controls. The splitter is run on the keys written as prose in each shape the
+// files use (hlProseShapes): the keys come back, an extra name is read as a name
+// of its own, and a list with one key left out is not equal to the keys, so a
+// mismatch is something the comparison can see.
+func TestHighlightExcludedLexerProseMatchesTheMap(t *testing.T) {
+	keys := hlKeyNames()
+	if len(keys) == 0 {
+		t.Fatal("hlUnsafeLexers is empty")
+	}
+	merged, separate := hlProseShapes()
+	for shape, prose := range map[string]string{"merged": merged, "separate": separate} {
+		if got := hlSplitNames(prose); !reflect.DeepEqual(got, keys) {
+			t.Errorf("control: the splitter read the %s list %q as %v, want the keys %v", shape, prose, got, keys)
+		}
+		want := append(append([]string(nil), keys...), "Foo")
+		sort.Strings(want)
+		if got := hlSplitNames(prose + ", and Foo"); !reflect.DeepEqual(got, want) {
+			t.Errorf("control: the splitter read the %s list with an extra name as %v, want %v", shape, got, want)
+		}
+	}
+	if got := hlSplitNames(hlAndList(keys[1:])); reflect.DeepEqual(got, keys) {
+		t.Errorf("control: a list missing a name equals the keys %v", keys)
+	}
+
+	for _, site := range []struct{ path, start, end string }{
+		{"../../plan/spec/kirsch-plan.md", "never lexed: ", ". Lexing them can race"},
+		{"../../plan/spec/kirsch-plan.md", "Excluded lexers: ", ", the keys of"},
+		{"../../plan/spec/ui-spec-v0.1.md", "known to chroma but always drawn without syntax colours: ", ". Every name, alias"},
+		{"../../doc/usage.md", "`internal/tui/highlight.go`: ", ". Raku's lexer"},
+	} {
+		if got := hlProseNames(t, site.path, site.start, site.end); !reflect.DeepEqual(got, keys) {
+			t.Errorf("%s names the excluded lexers %v, but the keys of hlUnsafeLexers are %v: change the prose or the map so they agree", site.path, got, keys)
+		}
 	}
 }

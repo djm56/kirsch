@@ -337,6 +337,49 @@ func TestMarkdownElementRows(t *testing.T) {
 	}
 }
 
+// TestMarkdownOrderedItemNumbers: the number an ordered item shows when its
+// source line is not the plain "N. text" form. Entry point: mdPlainRows, which is
+// mdLayout then drawMarkdown with identity styles; each case pins the rows the
+// layout gives.
+//
+// Nested list as the first child, a known limitation. An item whose first child
+// is a nested list has no readable number (itemNumber returns false), so it
+// draws the previous item's number plus one, not the number written on it. The
+// case "3. a" then "7. 1. b" tells the rules apart: the previous number plus one
+// draws 4, the list's start would draw 3 and the written number would draw 7. The
+// rows pin the 4, and the next item reads its own written number again (8). The
+// "numbers: a nested list as the first child" case in TestMarkdownElementRows
+// cannot tell these rules apart, because on its first item they all give 1. When
+// the limitation is lifted this case changes with it.
+//
+// A tab after the marker. itemNumber's pattern allows spaces or tabs after the
+// marker, so "1.<TAB>a" shows the number written on it, as "1. a" does. Each tab
+// case writes a number that differs from the previous number plus one ("5.<TAB>b"
+// after "1.<TAB>a" would show 2 if the tab hid the number), so a tab that hides
+// its number fails the case. The case with a tab followed by spaces is the same
+// path with a longer gap. The case with a space after the marker is the control
+// for the same rows without a tab.
+func TestMarkdownOrderedItemNumbers(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{"known limitation: a nested list first child takes previous plus one", "3. a\n7. 1. b\n8. c", []string{"3. a", "4. 1. b", "8. c"}},
+		{"control: a space after the marker keeps the written number", "1. a\n5. b", []string{"1. a", "5. b"}},
+		{"a tab after the marker keeps the written number", "1.\ta\n5.\tb", []string{"1. a", "5. b"}},
+		{"a tab then spaces after the marker keeps the written number", "1.\t a\n5.\t  b", []string{"1. a", "5. b"}},
+		{"one tab among spaces keeps every written number", "1. a\n5.\tb\n9. c", []string{"1. a", "5. b", "9. c"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := mdPlainRows(t, c.src, 40, true); !equalRows(got, c.want) {
+				t.Errorf("rows for %q:\n got  %q\n want %q", c.src, got, c.want)
+			}
+		})
+	}
+}
+
 // mdTestNode is a block kind the layout has no case for. It stands in for "any
 // other element" in the §3.2 catch-all, which no goldmark node reachable with
 // the two enabled extensions produces.

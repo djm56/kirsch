@@ -30,14 +30,15 @@ const (
 //
 // A path goes through lexers.Match, chroma's filename match, which covers
 // extensions and names such as Makefile and Dockerfile. An info string goes
-// through lexers.Get with its first word, case-insensitive. Get falls back to a
+// through lexers.Get with its first word, case-insensitive, after a word in
+// hlInfoAlias has been replaced by the word it stands for. Get falls back to a
 // filename match when the word is no name or alias, which would map "main.go"
-// written as an info string to Go, so a result counts only when the word really
-// is one of the lexer's names or aliases. "Makefile" as an info string is the
-// Makefile lexer's own name, so it maps. Chroma's content analysis and its
-// fallback lexer are never used: unmapped input stays plain. Whatever either
-// lookup finds goes through hlUsable, so a lexer in hlUnsafeLexers, or one with
-// no config, maps to nil too.
+// written as an info string to Go, so a result counts only when the word, as
+// replaced, really is one of the lexer's names or aliases. "Makefile" as an info
+// string is the Makefile lexer's own name, so it maps. Chroma's content analysis
+// and its fallback lexer are never used: unmapped input stays plain. Whatever
+// either lookup finds goes through hlUsable, so a lexer in hlUnsafeLexers, or one
+// with no config, maps to nil too.
 func hlLexer(src hlSource, key string) chroma.Lexer {
 	switch src {
 	case hlPath:
@@ -51,6 +52,9 @@ func hlLexer(src hlSource, key string) chroma.Lexer {
 			return nil
 		}
 		word := strings.ToLower(f[0])
+		if to, ok := hlInfoAlias[word]; ok {
+			word = to
+		}
 		lx := hlUsable(lexers.Get(word))
 		if lx == nil {
 			return nil
@@ -66,6 +70,17 @@ func hlLexer(src hlSource, key string) chroma.Lexer {
 		}
 	}
 	return nil
+}
+
+// hlInfoAlias maps a fence info word to the word hlLexer looks up in its place.
+// Chroma maps "postgresql" and "postgres" to its PostgreSQL SQL dialect lexer,
+// which is in hlUnsafeLexers, so hlLexer looks them up as "sql", chroma's generic
+// SQL lexer, which is not. It applies to info strings only: a path is matched by
+// lexers.Match, and the dialect lexer has no file pattern. The other names of an
+// excluded lexer are not listed, so they stay plain.
+var hlInfoAlias = map[string]string{
+	"postgresql": "sql",
+	"postgres":   "sql",
 }
 
 // hlUnsafeLexers names, by Config().Name, the chroma lexers that hlLexer never
@@ -89,6 +104,8 @@ func hlLexer(src hlSource, key string) chroma.Lexer {
 // re-check covers every emitter that looks up a lexer by a name taken from the
 // text, not only UsingByGroup. rstCodeBlock in chroma's lexers/rst.go is one: it
 // calls Get on the language word in a code-block directive.
+// TestHighlightUnsafeLexersReviewedChromaVersion fails when the chroma module
+// version differs from the one this list was last reviewed against.
 var hlUnsafeLexers = map[string]bool{
 	"Raku":                    true,
 	"PostgreSQL SQL dialect":  true,

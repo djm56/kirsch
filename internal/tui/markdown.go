@@ -330,8 +330,10 @@ func (l *mdLayouter) code(n ast.Node, w int) []mdRow {
 // list lays out a list: a bullet (or the item's own number) in front of each
 // item, items one under another, and a blank row between items only when the
 // list is loose. A numbered item shows the number written in its own source
-// line, so "1." three times stays 1, 1, 1; an item whose line cannot be found
-// (see itemNumber) takes the number after the item before it.
+// line, so a list that writes "1." on every item stays 1, 1, 1. An item whose
+// line cannot be found (see itemNumber) takes the number after the item before
+// it. For an item whose first child is a nested list that is a known limitation:
+// the number written on such an item is not shown.
 func (l *mdLayouter) list(n *ast.List, w int) []mdRow {
 	var rows []mdRow
 	next := strconv.Itoa(n.Start)
@@ -354,14 +356,16 @@ func (l *mdLayouter) list(n *ast.List, w int) []mdRow {
 
 // mdOrderedMarker matches the end of the text before an item's first content on
 // its source line: the digits of an ordered marker, the "." or ")", and the
-// spaces after it.
-var mdOrderedMarker = regexp.MustCompile(`(\d{1,9})[.)] *$`)
+// spaces or tabs after it.
+var mdOrderedMarker = regexp.MustCompile(`(\d{1,9})[.)][ \t]*$`)
 
 // itemNumber returns the digits written for an ordered item, read from the
 // source line its first content starts on. ok is false when that line cannot be
 // read: an item with no content, one whose first child is a list or whose first
 // line is not directly after the marker (a heading, a quote, a fence), where
-// the text before the content does not end in an ordered marker.
+// the text before the content does not end in an ordered marker. The caller
+// then gives the item the previous number plus one; for a nested list as the
+// first child that is a known limitation of this reading.
 func (l *mdLayouter) itemNumber(item ast.Node) (string, bool) {
 	c := item.FirstChild()
 	for c != nil && c.Lines().Len() == 0 {

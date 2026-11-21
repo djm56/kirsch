@@ -10,7 +10,7 @@
  my-project - main *
  Step 14: the zero check in Divide runs after the division.                    |
                                                                                |
- | v read_file calc/divide.go . lines 1-11 . [ok]                              |
+ | v read_file calc/divide.go . lines 1-11 . 12ms . [ok]                       |
  |   +------------------------------------------------------------------------+|
  |   | 1   package calc                                                       ||
  |   | 2                                                                      ||

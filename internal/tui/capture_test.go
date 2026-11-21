@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -102,7 +103,10 @@ type capInputsFile struct {
 		Dirty                                   bool
 	}
 	FrameSep string
-	ReadFile struct {
+	// ToolElapsedMs is the Elapsed, in milliseconds, of every tool completion the
+	// captures send (capStampElapsed).
+	ToolElapsedMs int64
+	ReadFile      struct {
 		Text, Summary, Content, OneLineText, OneLineSummary string
 	}
 	ModalReadFile struct{ Path, Text string }
@@ -329,6 +333,27 @@ func capKeysCopying(names ...string) captureStep {
 	}}
 }
 
+// capStampElapsed returns msgs with the Elapsed of every ToolCompletedMsg set to
+// the one canned duration in the inputs file (toolElapsedMs); every other message
+// is returned as it is. The live path sets Elapsed on every model-driven tool
+// completion, so a card head draws a duration wherever the layout sets
+// ShowDuration, and the captures draw that canned one, not a measured one. The
+// state builder and the chain replay stamp every message they deliver through
+// this function.
+func capStampElapsed(t testing.TB, msgs []tea.Msg) []tea.Msg {
+	t.Helper()
+	d := time.Duration(capIn(t).ToolElapsedMs) * time.Millisecond
+	out := make([]tea.Msg, len(msgs))
+	for i, m := range msgs {
+		if done, ok := m.(ToolCompletedMsg); ok {
+			done.Elapsed = d
+			m = done
+		}
+		out[i] = m
+	}
+	return out
+}
+
 // capMsgs builds a step that delivers canned messages, as the app would.
 func capMsgs(name string, msgs ...tea.Msg) captureStep {
 	return captureStep{Name: name, Msgs: func(testing.TB, Model) []tea.Msg { return msgs }}
@@ -445,7 +470,7 @@ func appendSteps(base []captureStep, more ...captureStep) []captureStep {
 
 // capDiff is the canned /diff result: the lines in the shared file's diff.lines, which
 // are git's own output for diff.old to diff.new (a hunk header that wraps, a long
-// removed line and a long added line, with git's three context lines either side). The
+// removed line and a long added line, with git's default context either side). The
 // result passes through SanitizeLines as GetDiff's does in internal/app.
 // TestCaptureInputFormats and the tests in internal/app hold the lines to git.
 func capDiff(t testing.TB) DiffResult {
@@ -589,7 +614,7 @@ var captureTable = []captureState{
 	{
 		Release: "v0.1.5", Name: "scrollbar-mid-new", W: 80, H: 24, Unicode: true, Annotate: "bar",
 		Steps: appendSteps(capOverflow(), capKeys("Shift+↑"), capKeys("g"), capKeys("PgDn"),
-			capMsgs("(three notices arrive)", NoticeMsg{Text: "one"}, NoticeMsg{Text: "two"}, NoticeMsg{Text: "three"})),
+			capMsgs("(notices arrive)", NoticeMsg{Text: "one"}, NoticeMsg{Text: "two"}, NoticeMsg{Text: "three"})),
 	},
 	{
 		Release: "v0.1.5", Name: "scrollbar-hidden-short", W: 80, H: 24, Unicode: true,
@@ -694,7 +719,8 @@ var captureTable = []captureState{
 	withCanned(capCannedDiff, markdownRow("s06-no-color-diff", 80, 32, "on", noColourEnv, capDiffSteps(capDiffTwoFiles)...)),
 	withCanned(capCannedResumed, markdownRow("s06-no-color-reply", 80, 24, "on", noColourEnv,
 		capResumeTurn(capMarkdownPrompt, capMarkdownReply), capKeys("Shift+↑"))),
-	// Section 7: a postgresql fence and a sql fence.
+	// Section 7: a postgresql fence and a sql fence, each highlighted: the
+	// postgresql info string is drawn with the SQL lexer (hlInfoAlias).
 	withCanned(capCannedReply, markdownRow("s07-fence-languages", 80, 24, "on", nil, capChat(1, capFencePrompt, capFenceReply)...)),
 }
 
@@ -832,7 +858,7 @@ func captureModel(t *testing.T, cs captureState, colour bool) Model {
 	}
 	m = drive(m, tea.WindowSizeMsg{Width: cs.W, Height: cs.H})
 	for _, st := range cs.Steps {
-		m = drive(m, st.Msgs(t, m)...)
+		m = drive(m, capStampElapsed(t, st.Msgs(t, m))...)
 	}
 	return m
 }
@@ -1466,6 +1492,54 @@ func funcContextErr(lines []string, max int) error {
 	return nil
 }
 
+// TestCaptureStampsToolCompletionsWithTheCannedElapsed: entry point capStampElapsed,
+// called directly on the messages capReadFile builds, and then the same messages
+// drawn by a model at 80 columns, where a card head shows its duration. The
+// completion must come back with Elapsed equal to toolElapsedMs of the inputs
+// file, which must be above zero because a zero Elapsed draws no duration; the
+// start and target messages must come back unchanged; and the messages passed in
+// must keep their own Elapsed of zero, so the function stamps a copy. The frame
+// of the stamped messages must draw the duration on the read_file head. Control,
+// through the same render: the frame of the unstamped messages draws no duration
+// on that head.
+func TestCaptureStampsToolCompletionsWithTheCannedElapsed(t *testing.T) {
+	want := time.Duration(capIn(t).ToolElapsedMs) * time.Millisecond
+	if want <= 0 {
+		t.Fatalf("toolElapsedMs is %d: a zero Elapsed draws no duration on a card head", capIn(t).ToolElapsedMs)
+	}
+	in := capReadFile("calc/divide.go", capDivideFile)
+	out := capStampElapsed(t, in)
+	if len(out) != len(in) {
+		t.Fatalf("capStampElapsed returned %d messages for %d", len(out), len(in))
+	}
+	if done, ok := out[2].(ToolCompletedMsg); !ok || done.Elapsed != want {
+		t.Errorf("stamped completion is %#v, want a ToolCompletedMsg with Elapsed %v", out[2], want)
+	}
+	if !reflect.DeepEqual(out[:2], in[:2]) {
+		t.Errorf("capStampElapsed changed a message that is not a completion: %#v, was %#v", out[:2], in[:2])
+	}
+	if done := in[2].(ToolCompletedMsg); done.Elapsed != 0 {
+		t.Errorf("the messages passed in were changed: Elapsed is %v, want 0", done.Elapsed)
+	}
+
+	head := func(msgs []tea.Msg) string {
+		m := drive(New(capOptions(t, false, true)), tea.WindowSizeMsg{Width: 80, Height: 24})
+		for _, line := range strings.Split(drive(m, msgs...).View(), "\n") {
+			if strings.Contains(line, "read_file calc/divide.go") {
+				return line
+			}
+		}
+		t.Fatalf("no read_file head in the frame of %#v", msgs)
+		return ""
+	}
+	if h := head(out); !strings.Contains(h, " · "+formatDuration(want)+" · ") {
+		t.Errorf("the stamped card head %q does not draw the canned duration %s", h, formatDuration(want))
+	}
+	if h := head(in); strings.Contains(h, formatDuration(want)) {
+		t.Errorf("control: the unstamped card head %q draws the canned duration", h)
+	}
+}
+
 // TestCaptureInputFormats pins the canned inputs to the producers' formats, read
 // from the shared inputs file: the read_file summary and numbered content, the
 // messages of a live read_file call, and the /diff text.
@@ -1822,8 +1896,9 @@ func cueProblems(frame, annot string, cue capCue) []string {
 // capCues is the cue each v0.1.3 and v0.1.4 capture is there to show, written from
 // the walkthrough's "You should see" text and not from the frames. A walkthrough cue
 // that is a hint, a marker or a colour role is a pattern here. Rows 07 and 09 of
-// s07-fence-languages are the code lines: the first block is tagged postgresql and
-// the second sql.
+// s07-fence-languages are the code lines: the postgresql block and the sql block,
+// each highlighted, the postgresql one with the SQL lexer that hlInfoAlias gives
+// its info string.
 var capCues = []capCue{
 	{state: "s01-arrows-last-reply", frame: []string{`(?m)^ ┃ ` + capGoodbyeReply + `\s*$`}, notFrame: []string{`┃ Hello`, `┃ say`}},
 	{state: "s01-arrows-first-reply", frame: []string{`(?m)^ ┃ ` + capHelloReply}, notFrame: []string{`┃ Goodbye`, `┃ say goodbye`}},
@@ -1892,9 +1967,11 @@ var capCues = []capCue{
 		notFrame: []string{`A paragraph with \*\*`},
 	},
 	{
-		state:    "s07-fence-languages",
-		annot:    []string{`row 09 cols 3-8 fg=SynKeyword\(38;5;141\) "SELECT"`},
-		notAnnot: []string{`row 07 [^\n]*SELECT`},
+		state: "s07-fence-languages",
+		annot: []string{
+			`row 07 cols 3-8 fg=SynKeyword\(38;5;141\) "SELECT"`, `row 07 cols 10-10 fg=SynNumber\(38;5;216\) "1"`,
+			`row 09 cols 3-8 fg=SynKeyword\(38;5;141\) "SELECT"`, `row 09 cols 10-10 fg=SynNumber\(38;5;216\) "1"`,
+		},
 	},
 }
 
