@@ -94,8 +94,10 @@ right. Some keys still act during a turn, for example `Esc`, `Ctrl+J`, `Alt+Ente
 bottom. A terminal's rows are scarcer than its columns: the layout already
 spends every row it has, so a blank row would come out of the transcript, which
 at the smallest supported terminal is four rows tall. The right-hand column is
-reserved rather than painted, so no row ever ends in trailing whitespace, and
-both edges show your own terminal background rather than Kirsch's.
+reserved rather than painted, so no row ever ends in trailing whitespace. The
+exception is the scrollbar, which is drawn in that column when a transcript runs past
+its height and nothing is open over the transcript. Apart from it, both edges show
+your own terminal background rather than Kirsch's.
 
 **Sizes.** Kirsch runs from 40×10 upwards. As the window narrows it drops the
 status bar's token figures (below 80 columns), then the branch (below 60), and
@@ -198,7 +200,7 @@ the transcript.
 
 | Key | Action |
 |---|---|
-| `j` / `k` / `↑` / `↓` | Scroll a line |
+| `j` / `k` / `↑` / `↓` | Scroll one screen row |
 | `PgUp` / `PgDn` | Scroll a page |
 | `g` / `G` / `Home` / `End` | Top / bottom |
 | `Esc` | Close, returning to whatever mode you were in |
@@ -206,6 +208,13 @@ the transcript.
 
 Closing returns you to the *previous* mode, so `Esc` from a modal opened over a
 pending approval puts you back at the approval, not at the composer.
+
+Long lines wrap in a modal, and the modal scrolls by screen row, so a wrapped line
+takes as many rows as it needs. In a `read_file` view the line number shows on the
+first row only, and the rows below it leave the number columns blank. In a diff, the
+marker (`+`, `-` or a space) shows on the first row of a code line, and the rows below
+it start with a blank column. A `@@` line wraps flush to the left edge of the text.
+The help overlay does not wrap: its lines are cut at the edge, as before.
 
 ### A confirm prompt is up
 
@@ -262,6 +271,15 @@ A slash command re-pins because it is a request and its answer belongs on
 screen. The exception is an unknown command. It answers in the dim hint under
 the composer and puts nothing in the transcript, so re-pinning would cost you
 your place to report a typo.
+
+**The scrollbar.** When the transcript is taller than its rows, a one-column bar sits
+in the right-hand margin, beside the transcript. Its track is `│` and its thumb is `┃`.
+The thumb shows where the view sits: at the top when you are at the start of the
+transcript, and at the bottom when it is pinned. Where Unicode is not available (see
+below), the track is `|` and the thumb is `#`. The bar is drawn only while the transcript
+shows its own lines, and only while nothing is open over the transcript. It is not drawn
+while the onboarding or empty-state screen shows, because that screen is not the
+transcript's own lines. Kirsch takes no mouse input, so the bar cannot be clicked or dragged.
 
 ---
 

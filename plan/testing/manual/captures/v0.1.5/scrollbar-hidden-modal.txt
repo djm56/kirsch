@@ -1,0 +1,32 @@
+# state: scrollbar-hidden-modal
+# release: v0.1.5
+# size: 80x24
+# glyphs: unicode
+# steps: (canned transcript loads) | (canned second turn loads) | (a read_file card finishes) | Shift+↑ | d
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+ Step 14:┌─ read_file calc/divide.go ─────────────────────────────────┐
+         │    1 1   package calc                                      │
+ ┃ ▾ read│    2 2                                                     │
+ ┃   ┌───│    3 3   import "errors"                                   │───────┐
+ ┃   │ 1 │    4 4                                                     │       │
+ ┃   │ 2 │    5 5   // Divide returns a/b, or an error when b is zero │       │
+ ┃   │ 3 │      .                                                     │       │
+ ┃   │ 4 │    6 6   func Divide(a, b float64) (float64, error) {      │       │
+ ┃   │ 5 │    7 7       if b == 0 {                                   │       │
+ ┃   │ 6 │    8 8           return 0, errors.New("division by zero")  │       │
+ ┃   │ 7 │    9 9       }                                             │       │
+ ┃   │ 8 │   10 10      return a / b, nil                             │       │
+ ┃   │ 9 │   11 11  }                                                 │       │
+ ┃   │ 10├────────────────────────────────────────────────────────────┤       │
+ ┃   └───│ j/k scroll · g/G top/bottom · Esc close                    │───────┘
+ ┃   ‹10 └────────────────────────────────────────────────────────────┘
+ 
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle · 0 tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > 
+                                                                               

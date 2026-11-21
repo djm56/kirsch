@@ -243,6 +243,8 @@ type Glyphs struct {
 	Bullet    string // · / .
 	MdBullet  string // • / -  (list bullet in a rendered reply)
 	Sep       string // ─ / -  (header fill and separator rules)
+	BarTrack  string // │ / |  (scrollbar track, ui-spec §2.4)
+	BarThumb  string // ┃ / #  (scrollbar thumb, ui-spec §2.4)
 
 	BoxTL, BoxTR, BoxBL, BoxBR string
 	BoxH, BoxV, BoxLT, BoxRT   string
@@ -272,6 +274,7 @@ func NewGlyphs(unicode bool) Glyphs {
 			Dirty: "*", Warn: "!", New: "v", Caret: "_", CaretAlt: "#",
 			Gutter: "|",
 			Bullet: ".", MdBullet: "-", Sep: "-",
+			BarTrack: "|", BarThumb: "#",
 			BoxTL: "+", BoxTR: "+", BoxBL: "+", BoxBR: "+",
 			BoxH: "-", BoxV: "|", BoxLT: "+", BoxRT: "+",
 			UpArrow: "^", DownArrow: "v",
@@ -285,6 +288,7 @@ func NewGlyphs(unicode bool) Glyphs {
 		Dirty: "●", Warn: "⚠", New: "↓", Caret: "▌", CaretAlt: "▐",
 		Gutter: "┃",
 		Bullet: "·", MdBullet: "•", Sep: "─",
+		BarTrack: "│", BarThumb: "┃",
 		BoxTL: "┌", BoxTR: "┐", BoxBL: "└", BoxBR: "┘",
 		BoxH: "─", BoxV: "│", BoxLT: "├", BoxRT: "┤",
 		UpArrow: "↑", DownArrow: "↓",

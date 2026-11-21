@@ -1,0 +1,26 @@
+# state: scrollbar-bottom
+# release: v0.1.5
+# size: 80x24
+# glyphs: unicode
+# steps: (canned transcript loads) | (canned second turn loads) | (a read_file card finishes)
+# annotations: colour roles of the colour-on frame (bar)
+# no model, no network, no key: canned messages through the real Model
+=== annotations ===
+legend: row/cols count from 0 at the top-left of the frame; fg/bg=<role>(<SGR>)
+row 02 col 79 fg=Dim(38;5;245) "│"
+row 03 col 79 fg=Dim(38;5;245) "│"
+row 04 col 79 fg=Dim(38;5;245) "│"
+row 05 col 79 fg=Dim(38;5;245) "│"
+row 06 col 79 fg=Dim(38;5;245) "│"
+row 07 col 79 fg=Dim(38;5;245) "│"
+row 08 col 79 fg=Dim(38;5;245) "│"
+row 09 col 79 fg=Dim(38;5;245) "│"
+row 10 col 79 fg=Dim(38;5;245) "│"
+row 11 col 79 fg=Dim(38;5;245) "│"
+row 12 col 79 fg=Dim(38;5;245) "│"
+row 13 col 79 fg=Dim(38;5;245) "│"
+row 14 col 79 fg=Muted(38;5;248) "┃"
+row 15 col 79 fg=Muted(38;5;248) "┃"
+row 16 col 79 fg=Muted(38;5;248) "┃"
+row 17 col 79 fg=Muted(38;5;248) "┃"
+row 18 col 79 fg=Muted(38;5;248) "┃"

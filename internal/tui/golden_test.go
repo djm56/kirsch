@@ -273,6 +273,111 @@ func scenarios() []scenario {
 			m.status.Tokens = 15200
 		}},
 
+		// The transcript scrollbar (ui-spec §2.4, amendment 103): 24 lines in an
+		// 8-row region, unpinned at offset 8 of a maximum of 16, so the thumb is two
+		// rows long and starts on row 3. The `↓ 4 new` row meets the bar. The items
+		// are chosen to give the lines the grid shows at transcript rows 0 to 7
+		// (lines 8 to 15); the lines above and below only have to make the count 24.
+		{Screen: "14", Unicode: true, Build: func(m *Model) {
+			oneLine := func(name, target string) {
+				m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
+					Name: name, Target: target, State: StateOK,
+				}})
+			}
+			m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{
+				Lines: []string{"Check the second-instance path"},
+			}})
+			oneLine("read_file", "internal/session/lock.go")
+			oneLine("read_file", "internal/session/store.go")
+			oneLine("search_code", `"Open("`)
+			oneLine("read_file", "internal/session/index.go")
+			m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{Lines: []string{
+				"The lock is taken in Open, before auto-resume reads index.json, so a " +
+					"second instance starts a fresh session instead of adopting the first.",
+			}}})
+			m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
+				Name: "git_diff", Summary: "2 files changed",
+				State: StateOK, Elapsed: 8 * time.Millisecond,
+			}})
+			m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{Lines: []string{
+				"Checked the second-instance path. The tests pass on main.",
+			}}})
+			m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{
+				Lines: []string{"Run them again"},
+			}})
+			oneLine("run_command", "go test ./...")
+			oneLine("run_command", "go vet ./...")
+			oneLine("run_command", "go build ./...")
+			oneLine("run_command", "git status")
+			m.scroll = Scroll{Offset: 8, Pinned: false, NewSince: 4}
+			m.busy = Busy{Active: true, Verb: "thinking"}
+			m.status.Tokens = 28000
+			m.frame = 4 // ⠼
+		}},
+
+		// Long lines wrap in the modal (ui-spec §4.1, amendment 103), screen 15: a
+		// read_file content modal. Its fourth line, "43" and its text, is wider than
+		// the text width and wraps inside the word "strings". The box's contents are
+		// the ones the grid draws; the cells beside it are whatever the dimmed
+		// transcript behind it renders.
+		{Screen: "15", Unicode: true, Build: func(m *Model) {
+			m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{
+				Lines: []string{"Fix the Divide validation"},
+			}})
+			m.tr.Append(Item{Kind: KindTool, Tool: &ToolCard{
+				Name: "read_file", Target: "calc/divide.go",
+				State: StateOK, Elapsed: 4 * time.Millisecond,
+			}})
+			m.openModal(ModalState{
+				Kind: ModalContent, Title: "calc/divide.go",
+				Lines: []string{
+					"40      if b == 0 {",
+					"41          return 0, ErrDivideByZero",
+					"42      }",
+					"43      if err := validateDivisor(b); err != nil && strings.Contains(message, " +
+						`"divide by zero") { return 0, wrapError(err) }`,
+				},
+				Path: "calc/divide.go", ReadFile: true,
+			})
+			m.busy = Busy{Active: true, Verb: "thinking"}
+			m.status.Tokens = 14100
+			m.frame = 3 // ⠸
+		}},
+
+		// Screen 15b: a patch approval diff, opened over its approval card. The @@
+		// line and the added line are wider than the text width and wrap; the hunk
+		// header wraps flush and the added line's second row starts with a blank
+		// column where its marker is. The approval card carries the same four lines
+		// and counts as the modal, so the two agree about what is being approved.
+		{Screen: "15b", Unicode: true, Build: func(m *Model) {
+			diff := []string{
+				"@@ -12,7 +12,15 @@ func Divide(a, b float64) (float64, error) {",
+				"     func Divide(a, b float64) (float64, error) {",
+				"-    return a / b, nil",
+				"+    if err := validateDivisor(b); err != nil && strings.Contains(message, " +
+					`"divide by zero") {`,
+			}
+			m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{
+				Lines: []string{"Fix the Divide validation"},
+			}})
+			id := m.appendBlock(Item{Kind: KindApproval, Approval: &ApprovalCard{
+				Kind:         ApprovalPatch,
+				Title:        "apply_patch — add input validation",
+				Subject:      "1 file changed",
+				Detail:       []string{"files: 1 changed (calc/divide.go)"},
+				DiffFilename: "calc/divide.go",
+				Diff:         diff, Added: 1, Removed: 1,
+			}})
+			m.pendingApproval = id
+			m.sel = id
+			m.openModal(ModalState{
+				Kind: ModalDiff, Title: "calc/divide.go",
+				Lines: diff, Added: 1, Removed: 1,
+			})
+			m.status.Tokens = 14100
+			m.frame = 3 // ⠸
+		}},
+
 		{Screen: "12", Unicode: true, Build: func(m *Model) {
 			m.status = Status{Model: "unknown-model", Family: "unknown"}
 			m.onboarding = &OnboardingState{

@@ -10,13 +10,16 @@
 Every screen below is a literal character grid at **80 columns** (narrow variants noted
 per screen). These are not illustrations: `TestMatchesScreenReference` parses every grid
 out of this file and compares it against `View()`, so each one is verified byte-for-byte
-on every test run. The structure is the contract; colour is applied on top per the tables
-at the end.
+on every test run. That includes the screens marked amendment 103, which have golden
+scenarios (ui-spec §13). The structure is the contract; colour is applied on top per the
+tables at the end.
 
 When that test fails, exactly one of two things is true — the renderer is wrong, or this
 document is. Fix whichever it is, and if it is this document, in the same commit.
 
 Every §13 golden state has a screen here — the §13 table maps each state to its screen.
+The states added by amendment 103 are the §13 rows marked amendment 103. This document has
+no index table of its own; the §13 table is the index.
 
 Reading notes:
 
@@ -26,13 +29,16 @@ Reading notes:
   component, not a full-screen render.
 - **The first column of every grid row is the frame's left margin, and the last is its
   right margin.** That is why every row below starts with one space: the frame keeps one
-  blank column at each edge and none top or bottom (ui-spec §2.1, layout invariant 6
-  below). So a `text 80×18` grid has 80 terminal columns but **78 content columns**, and
+  blank column at each edge, the right one taken by the scrollbar where it is drawn,
+  and none top or bottom (ui-spec §2.1, layout invariant 6 below). So a `text 80×18`
+  grid has 80 terminal columns but **78 content columns**, and
   the full-width `─` rules run to column 79, not 80. Measure any row against the content
   width, never the fence's width, or every rule in this document will look one cell short.
-- **The right margin is reserved, not written.** Nothing draws into it and no space is
-  emitted there, so it never shows up as trailing whitespace — which is also why the
-  right-trimming below costs nothing.
+- **The right margin is reserved, not written, except for the scrollbar.** Nothing else
+  draws into it and no space is emitted there, so rows without the bar never show
+  trailing whitespace. A transcript row on a frame that draws the bar is padded to the
+  content width before its glyph (ui-spec §2.1), so the glyph is the row's last
+  character, and the right-trimming below leaves it in place.
 - Trailing whitespace cannot survive in a markdown source file, so every grid is stored
   right-trimmed and the golden comparison right-trims both sides before diffing.
 - Blank first/last transcript lines are padding inside the transcript viewport, not
@@ -76,6 +82,9 @@ Three rules hold on every screen:
 The hex column is the standard xterm-256 value for that index. Emit the 256 index (SGR
 38;5;N) as the primary path; the hex is there for truecolor terminals and for anyone
 porting the palette.
+
+A scrollbar column in any grid takes the roles in screen 14's `scrollbar.track` and
+`scrollbar.thumb` entries.
 
 ---
 
@@ -180,15 +189,15 @@ separators          both full-width "─" rules                    border    244
 ```text 80×15
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
- ── you ───────────────────────────────────────────────────────────────────────
- Fix the Divide validation
-
- ▾ read_file calc/divide.go · 4ms · ✓ ok
- ◐ run_command go test ./... · running
-
- I found it in calc/divide.go — the zero check runs after the division, so the
- panic fires before validation can return an error. ▌
-
+ ── you ───────────────────────────────────────────────────────────────────────│
+ Fix the Divide validation                                                     ┃
+                                                                               ┃
+ ▾ read_file calc/divide.go · 4ms · ✓ ok                                       ┃
+ ◐ run_command go test ./... · running                                         ┃
+                                                                               ┃
+ I found it in calc/divide.go — the zero check runs after the division, so the ┃
+ panic fires before validation can return an error. ▌                          ┃
+                                                                               ┃
  ──────────────────────────────────────────────────────────────────────────────
  claude-sonnet-5-5 · ⠋ running go test · 12.4k tok
  ──────────────────────────────────────────────────────────────────────────────
@@ -230,17 +239,17 @@ composer.prompt     ">" (disabled state)                     dim       245  #8a8
 ```text 80×17
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
- ▾ search_code "Divide(" · 3 matches · ✓ ok
-
- ┃ ┌─ approval required ──────────────────────────────────────────────────────┐
- ┃ │ apply_patch — add input validation                                       │
- ┃ │                                                                          │
- ┃ │ files: 2 changed (calc/divide.go,                                        │
- ┃ │        calc/divide_test.go)                                              │
- ┃ │                                                                          │
- ┃ │ [y] approve   [n] reject   [d] view diff                                 │
- ┃ └──────────────────────────────────────────────────────────────────────────┘
-
+ ▾ search_code "Divide(" · 3 matches · ✓ ok                                    │
+                                                                               ┃
+ ┃ ┌─ approval required ──────────────────────────────────────────────────────┐┃
+ ┃ │ apply_patch — add input validation                                       │┃
+ ┃ │                                                                          │┃
+ ┃ │ files: 2 changed (calc/divide.go,                                        │┃
+ ┃ │        calc/divide_test.go)                                              │┃
+ ┃ │                                                                          │┃
+ ┃ │ [y] approve   [n] reject   [d] view diff                                 │┃
+ ┃ └──────────────────────────────────────────────────────────────────────────┘┃
+                                                                               ┃
  ──────────────────────────────────────────────────────────────────────────────
  claude-sonnet-5-5 · ⠙ awaiting approval · 14.1k tok
  ──────────────────────────────────────────────────────────────────────────────
@@ -281,17 +290,17 @@ status.rest        "claude-sonnet-5-5 · awaiting approval · …" muted     248
 ```text 80×17
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
- ▸ apply_patch 2 files changed · ✓ approved
-
- ┃ ┌─ approval required ──────────────────────────────────────────────────────┐
- ┃ │ run_command — go test ./...                                              │
- ┃ │                                                                          │
- ┃ │ cwd: .        timeout: 60s                                               │
- ┃ │ reason: not on allowlist                                                 │
- ┃ │                                                                          │
- ┃ │ [y] approve   [a] approve for session   [n] reject   [d] detail          │
- ┃ └──────────────────────────────────────────────────────────────────────────┘
-
+ ▸ apply_patch 2 files changed · ✓ approved                                    │
+                                                                               ┃
+ ┃ ┌─ approval required ──────────────────────────────────────────────────────┐┃
+ ┃ │ run_command — go test ./...                                              │┃
+ ┃ │                                                                          │┃
+ ┃ │ cwd: .        timeout: 60s                                               │┃
+ ┃ │ reason: not on allowlist                                                 │┃
+ ┃ │                                                                          │┃
+ ┃ │ [y] approve   [a] approve for session   [n] reject   [d] detail          │┃
+ ┃ └──────────────────────────────────────────────────────────────────────────┘┃
+                                                                               ┃
  ──────────────────────────────────────────────────────────────────────────────
  claude-sonnet-5-5 · ⠹ awaiting approval · 16.8k tok · 1 grant
  ──────────────────────────────────────────────────────────────────────────────
@@ -325,18 +334,18 @@ status.grants       "1 grant"                                muted     248  #a8a
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ●
  ── you ─┌─ calc/divide.go ─────────────────────────────────── +12 −4 ┐────────
- Fix the │ @@ -12,7 +12,15 @@ func Divide(a, b float64) (float64, er⋯ │
-         │  func Divide(a, b float64) (float64, error) {              │
- ▾ search│ -    return a / b, nil                                     │
-         │ +    if b == 0 {                                           │
- ┃ ┌─ app│ +        return 0, ErrDivideByZero                         │───────┐
- ┃ │ appl│ +    }                                                     │       │
- ┃ │     │ +    return a / b, nil                                     │       │
- ┃ │ file│  }                                                         │       │
+ Fix the │ @@ -12,7 +12,15 @@ func Divide(a, b float64) (float64, err │
+         │ or) {                                                      │
+ ▾ search│  func Divide(a, b float64) (float64, error) {              │
+         │ -    return a / b, nil                                     │
+ ┃ ┌─ app│ +    if b == 0 {                                           │───────┐
+ ┃ │ appl│ +        return 0, ErrDivideByZero                         │       │
+ ┃ │     │ +    }                                                     │       │
+ ┃ │ file│ +    return a / b, nil                                     │       │
+ ┃ │     │  }                                                         │       │
  ┃ │     ├────────────────────────────────────────────────────────────┤       │
- ┃ │     │ j/k scroll · g/G top/bottom · Esc back to approval         │       │
- ┃ │ [y] └────────────────────────────────────────────────────────────┘       │
- ┃ └──────────────────────────────────────────────────────────────────────────┘
+ ┃ │ [y] │ j/k scroll · g/G top/bottom · Esc back to approval         │       │
+ ┃ └─────└────────────────────────────────────────────────────────────┘───────┘
 
  ──────────────────────────────────────────────────────────────────────────────
  claude-sonnet-5-5 · ⠸ awaiting approval · 14.1k tok
@@ -348,9 +357,9 @@ status.grants       "1 grant"                                muted     248  #a8a
 
 ```text
 modal.border        "┌ ─ ┐ │ ├ ┤ └ ┘" of the modal      borderFocus 117  #87d7ff
-modal.filename      "calc/divide.go"                         accent    117  #87d7ff
-modal.added.count   "+12"                                    success   120  #87ff87
-modal.removed.count "−4"                                     error     203  #ff5f5f
+modal.filename      "calc/divide.go"                         borderFocus 117  #87d7ff
+modal.added.count   "+12"                                    borderFocus 117  #87d7ff
+modal.removed.count "−4"                                     borderFocus 117  #87d7ff
 diff.hunk           lines starting "@@"                      hunk      123  #87ffff
 diff.context        lines starting " " (space)               muted     248  #a8a8a8
 diff.removed        the "-" of a line starting "-"           error     203  #ff5f5f
@@ -359,6 +368,8 @@ diff.code           the rest of a "+" or "-" line            by token, as screen
                     ("return", "if", "nil"                   synKeyword 141  #af87ff
                      "0"                                     synNumber  216  #ffaf87
                      the rest)                               text       253  #dadada
+continuation rows   "@@" rows: flush, with no blank column (hunk, as its first row)
+                    code lines: one blank column, then the code (no code line wraps here)
 modal.footer        "j/k scroll · g/G … · Esc …"             muted     248  #a8a8a8
 BACKGROUND CELLS    every cell not owned by the modal        dim       245  #8a8a8a
                     (approval card + transcript behind it lose their own colours
@@ -381,7 +392,12 @@ status+composer     unchanged, still live                    muted     248  #a8a
 - (v0.1.4, amendment 102) The `+` and `-` lines are highlighted by language, taken from the
   modal's title (`calc/divide.go`, so Go), one line at a time. The marker character keeps its
   `success` or `error` colour. `@@` lines stay `hunk` and context lines stay `muted` and are
-  not highlighted. The grid above is the text of the screen and does not change.
+  not highlighted. The highlighting does not change the grid. (v0.1.5, amendment 103)
+  Wrapping does: the `@@` line in this grid is wider than the diff line's text width
+  (`modalFrameFor` sets that width, and `fakeDiff` in `internal/tui/fake.go` draws the
+  hunk), so only the hunk header wraps. The box grows by the wrapped row, and the
+  transcript region still fits it, so no clipping marker appears. The colour block has a
+  continuation-row entry like grid 15b's.
 
 ---
 
@@ -422,7 +438,7 @@ status+composer     unchanged, still live                    muted     248  #a8a
 
 ```text
 modal.border        box borders + "├ ┤" divider         borderFocus 117  #87d7ff
-modal.title         "help"                                   accent    117  #87d7ff
+modal.title         "help"                                  borderFocus 117  #87d7ff
 section.headings    "composing" "browsing" "approval"        warning   215  #ffaf5f
                     "modal" "commands"
 bindings            key + description columns                muted     248  #a8a8a8
@@ -434,6 +450,8 @@ BACKGROUND CELLS    header row behind the overlay            dim       245  #8a8
 - One screen, no scrolling: bindings by mode, then slash commands, then the version footer.
 - The footer's docs link, `docs: github.com/djm56/kirsch`, is one rung of the footer ladder, and the box width decides which rung is drawn. Fence 06 (80×28) shows the footer without the link. That follows from the current footer ladder; it is not a decided reference behaviour. Wider terminals can show the link: `TestHelpFooterNamesScrollKeysWhenClipped` asserts it at 120×27 and at 120×30.
 - Mode headings are `warning` (215); bindings are `muted` (248).
+- The title `help` takes the modal head's `BorderFocus` style, as every modal title does
+  (`modalBox` passes the head to `BorderFocus` whole).
 - Two columns. Their binding rows are rendered from the `bindingGroups` table in
   `update.go`, which is help text only: the key handlers dispatch on their own and never
   read it, so a binding whose behaviour changes needs its row here changed by hand. The
@@ -505,14 +523,14 @@ NOTE                captured output is NOT syntax-coloured; ANSI is stripped (§
 ```text 80×14
  Kirsch ───────────────────────────────────────────────────────────────────────
  my-project ─ main ● (compacted)
- · session recovered — 3 events after a torn line were discarded
- · compacted 94 events into a summary · 12 files touched this session
-
- ┌─ provider_error ───────────────────────────────────────────────────────────┐
- │ anthropic: 503 after 3 retries — request not sent                          │
- │ Enter to expand · the turn is still cancellable                            │
- └────────────────────────────────────────────────────────────────────────────┘
-
+ · session recovered — 3 events after a torn line were discarded               │
+ · compacted 94 events into a summary · 12 files touched this session          ┃
+                                                                               ┃
+ ┌─ provider_error ───────────────────────────────────────────────────────────┐┃
+ │ anthropic: 503 after 3 retries — request not sent                          │┃
+ │ Enter to expand · the turn is still cancellable                            │┃
+ └────────────────────────────────────────────────────────────────────────────┘┃
+                                                                               ┃
  ──────────────────────────────────────────────────────────────────────────────
  claude-sonnet-5-5 · idle · 31.2k tok                       ⚠ recovered session
  ──────────────────────────────────────────────────────────────────────────────
@@ -589,11 +607,11 @@ cursor              "▌"                                      dim       245  #8
 ```text 40×11
  Kirsch ───────────────────────────────
  my-project
- ▾ read_file calc/divide.go · ✓ ok
-
- Soft wrap only. No horizontal
- scrolling in v0.1. ▌
-
+ ▾ read_file calc/divide.go · ✓ ok     │
+                                       ┃
+ Soft wrap only. No horizontal         ┃
+ scrolling in v0.1. ▌                  ┃
+                                       ┃
  ──────────────────────────────────────
  claude-sonnet-5-5 · ⠋ thinking
  ──────────────────────────────────────
@@ -650,17 +668,17 @@ NOTE                no token changes at any width — only which SPANS are emitt
 ```text 80×17
  Kirsch -----------------------------------------------------------------------
  my-project - main *
- v search_code "Divide(" . 3 matches . [ok]
-
- | +- approval required ------------------------------------------------------+
- | | apply_patch - add input validation                                       |
- | |                                                                          |
- | | files: 2 changed (calc/divide.go,                                        |
- | |        calc/divide_test.go)                                              |
- | |                                                                          |
- | | [y] approve   [n] reject   [d] view diff                                 |
- | +--------------------------------------------------------------------------+
-
+ v search_code "Divide(" . 3 matches . [ok]                                    |
+                                                                               #
+ | +- approval required ------------------------------------------------------+#
+ | | apply_patch - add input validation                                       |#
+ | |                                                                          |#
+ | | files: 2 changed (calc/divide.go,                                        |#
+ | |        calc/divide_test.go)                                              |#
+ | |                                                                          |#
+ | | [y] approve   [n] reject   [d] view diff                                 |#
+ | +--------------------------------------------------------------------------+#
+                                                                               #
  ------------------------------------------------------------------------------
  claude-sonnet-5-5 . \ awaiting approval . 14.1k tok
  ------------------------------------------------------------------------------
@@ -837,6 +855,149 @@ separators          the full-width "─" rules                 border    244  #8
 
 ---
 
+## 14 · Scrollbar (transcript overflowing, unpinned)
+
+```text 80×14
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+                                                                               │
+ The lock is taken in Open, before auto-resume reads index.json, so a second   │
+ instance starts a fresh session instead of adopting the first.                │
+                                                                               ┃
+ ▾ git_diff · 2 files changed · 8ms · ✓ ok                                     ┃
+                                                                               │
+ Checked the second-instance path. The tests pass on main.                     │
+                                                                        ↓ 4 new│
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · ⠼ thinking · 28.0k tok
+ ──────────────────────────────────────────────────────────────────────────────
+ >                                                (input disabled, Esc cancels)
+```
+
+**Colours**
+
+```text
+scrollbar.track     "│" (right margin, track rows)        dim       245  #8a8a8a
+scrollbar.thumb     "┃" (right margin, transcript rows 3 and 4, from 0)   muted 248  #a8a8a8
+transcript.text     the assistant lines                  text      253  #dadada
+new.counter         "↓ 4 new"                            accent    117  #87d7ff
+status+composer     unchanged                            muted 248 / text 253
+```
+
+- The scrollbar sits in the right margin, the column after the content. The grid shows it in the grid's last column, which is outside the content. Row numbers in this note, in the colour block above and in the scrollbar text of ui-spec §2.4 are 0-based. The scrollbar rules are the ones marked amendment 103 in ui-spec §2.
+- For example, 24 lines in an 8-row transcript, unpinned at offset 8 of a maximum of 16: the thumb is `thumbH` = 2 rows, and `thumbTop` = `(8·6 + 8)/16` = 3, so the thumb is on transcript rows 3 and 4, counted from 0 at the top of the transcript (§2.4).
+- `↓ 4 new` keeps its place on the last transcript row and ends at the last content column, so it meets the bar. That is intended (ui-spec §2, amendment 103).
+- Existing screens whose transcript overflows carry the same column in their last column.
+  This grid passes `scripts/lint-screens.py`. The lint sets a bar glyph aside before it
+  measures a row (`split_bar`) and requires the bar to be one run of rows with one thumb
+  run inside it. The widest-row, per-row and box-border checks run on the rows without
+  the glyph, so a track `│` is not read as a border edge. The lint reports rows counting
+  from 1, while this document counts from 0.
+
+---
+
+## 15 · Long lines wrap in the modal
+
+A `read_file` content modal, with a numbered line too wide for the modal (grid 15). Grid 15b
+is a patch-approval diff, opened from an approval card, with a wrapped hunk header and a
+wrapped added line. It is not a `/diff` modal. A continuation row of a code line starts
+with blank columns in the number or marker place (§4.1, amendment 103). No scrollbar is
+drawn, because a modal is open (`overlayOpen`, `internal/tui/model.go:372`), and the bar
+is left out under an overlay (ui-spec §2.4, "No overlay"). The right margin therefore
+stays blank.
+
+```text 80×16
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+         ┌─ calc/divide.go ───────────────────────────────────────────┐
+ ── you ─│    1 40      if b == 0 {                                   │────────
+ Fix the │    2 41          return 0, ErrDivideByZero                 │
+         │    3 42      }                                             │
+ ▾ read_f│    4 43      if err := validateDivisor(b); err != nil && s │
+         │      trings.Contains(message, "divide by zero") { return 0 │
+         │      , wrapError(err) }                                    │
+         ├────────────────────────────────────────────────────────────┤
+         │ j/k scroll · g/G top/bottom · Esc close                    │
+         └────────────────────────────────────────────────────────────┘
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · ⠸ thinking · 14.1k tok
+ ──────────────────────────────────────────────────────────────────────────────
+ >                                                (input disabled, Esc cancels)
+```
+
+**Colours (read_file content modal)**
+
+```text
+modal.border        "┌ ─ ┐ │ ├ ┤ └ ┘" of the modal      borderFocus 117  #87d7ff
+modal.filename      "calc/divide.go"                      borderFocus 117  #87d7ff
+modal.number        "   1 " to "   4 " (first row only)  dim         245  #8a8a8a
+read_file.number    "40  " to "43  " (first row only)    muted       248  #a8a8a8
+read_file.code      the text after the prefix             by token, as screen 13's code.block
+                    "if", "return", "nil"                 synKeyword  141  #af87ff
+                    "0"                                   synNumber   216  #ffaf87
+                    the rest                              text        253  #dadada
+                    "divide by zero"                      synString   180  #d7af87
+continuation rows   blank number columns                  (no glyph; text keeps its token colour)
+modal.footer        "j/k scroll · g/G top/bottom · Esc close"   muted   248  #a8a8a8
+```
+
+```text 80×16
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+ Fix the ┌─ calc/divide.go ──────────────────────────────────── +1 −1 ┐
+         │ @@ -12,7 +12,15 @@ func Divide(a, b float64) (float64, err │
+ ┃ ┌─ app│ or) {                                                      │───────┐
+ ┃ │ appl│      func Divide(a, b float64) (float64, error) {          │       │
+ ┃ │     │ -    return a / b, nil                                     │       │
+ ┃ │ file│ +    if err := validateDivisor(b); err != nil && strings.C │       │
+ ┃ │     │  ontains(message, "divide by zero") {                      │       │
+ ┃ │ [y] ├────────────────────────────────────────────────────────────┤       │
+ ┃ └─────│ j/k scroll · g/G top/bottom · Esc back to approval         │───────┘
+         └────────────────────────────────────────────────────────────┘
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · ⠸ awaiting approval · 14.1k tok
+ ──────────────────────────────────────────────────────────────────────────────
+ >
+```
+
+**Colours (patch-approval diff, grid 15b)**
+
+```text
+modal.border        "┌ ─ ┐ │ ├ ┤ └ ┘" of the modal      borderFocus 117  #87d7ff
+modal.filename      "calc/divide.go"                      borderFocus 117  #87d7ff
+modal.added.count   "+1"                                  borderFocus 117  #87d7ff
+modal.removed.count "−1"                                  borderFocus 117  #87d7ff
+diff.hunk           "@@" line, all its rows               hunk        123  #87ffff
+diff.context        the line starting " " (space)         muted       248  #a8a8a8
+diff.removed        the "-" of the removed line           error       203  #ff5f5f
+diff.added          the "+" of the added line             success     120  #87ff87
+diff.code           the rest of the "-" and "+" lines     by token, as screen 13's code.block
+                    "return", "if", "nil"                synKeyword  141  #af87ff
+                    "divide by zero"                      synString   180  #d7af87
+                    the rest                              text        253  #dadada
+continuation rows   code lines: one blank column, then the code (no marker; colour continues)
+                    "@@" rows: flush, with no blank column
+modal.footer        "j/k scroll · g/G top/bottom · Esc back to approval" muted  248  #a8a8a8
+```
+
+- The number column of the content modal (`%4d `) is `dim` and shows on the first row of a
+  source line only. The `read_file` prefix `40  ` is part of the line's text and is drawn once.
+  §4.1 (amendment 102 and 103).
+- The diff marker `+` or `-` is on the first row only. The wrapped row of the `+` line starts
+  with one blank column, so its code stays in its column. The wrapped `@@` row starts flush,
+  because a hunk header has no marker. §4.1 (amendment 103).
+- The text is cut hard at the modal's text width. In the content modal the cut on the fourth
+  source line falls inside `strings`, after `&& s`, with no word break, because the body is
+  code. §4.1 (amendment 103).
+- No line is hidden in these modals, so the rule row carries no clipping marker. §4.1.
+- The whole modal head is one `BorderFocus` style, the title and the `+N −M` stat included.
+  The stat is built plain in `modalBox`, and the head is styled as one piece there, so the
+  file name and the `+1 −1` carry `borderFocus`.
+- The cells beside each box are the transcript behind the open modal, dimmed, as screen 05
+  shows. The box's contents are normative.
+
+---
+
 ## Palette (§10.1)
 
 | Token | 256 | Hex | Used for |
@@ -883,6 +1044,8 @@ Nothing sets a default background. `codeBg` and `selectionBg` apply only inside 
 | Markdown table column separator (v0.1.4, amendment 102) | `│` | `\|` |
 | Markdown table header rule (v0.1.4, amendment 102) | `─` | `-` |
 | Markdown horizontal rule (v0.1.4, amendment 102) | `─` | `-` |
+| Scrollbar track (v0.1.5, amendment 103) | `│` | `\|` |
+| Scrollbar thumb (v0.1.5, amendment 103) | `┃` | `#` |
 
 ## Layout invariants
 
@@ -943,7 +1106,8 @@ Nothing sets a default background. `codeBg` and `selectionBg` apply only inside 
    a one-row form stands in for the box and owns exactly the cells the box would have owned —
    and a whole frame row on the floor, where it is replacing one outright rather than sitting
    inside a region. A frame row is the content span, not the terminal's width: the frame keeps
-   one blank column at each edge, applied after the last overlay is composited, so the margin
+   one blank column at each edge (the scrollbar may take the right one, invariant 6),
+   applied after the last overlay is composited, so the margin
    is outside every span a renderer or an overlay can reach. Invariant 6 states the margin
    in full.
 
@@ -973,19 +1137,24 @@ Nothing sets a default background. `codeBg` and `selectionBg` apply only inside 
 4. Line counts are identical with and without colour. Only styling degrades. (v0.1.4, amendment 102) This includes rendered replies, whose unstyled form is the same rendering code run with identity styles.
 5. Selection and scroll position are user-owned: streaming content never moves either.
 6. **The frame keeps one blank column at each side, and none top or bottom.** ui-spec §2.1.
-   Numbered last only because invariants 3 and 4 are cited by number from the code; read it
-   alongside invariant 1, because it applies to every row of every grid in this document.
+   On a frame that draws the scrollbar, the right-hand column of its transcript rows holds the
+   bar (ui-spec §2.1, amendment 103). Numbered last only because invariants 3 and 4 are
+   cited by number from the code; read it alongside invariant 1, because it applies to
+   every row of every grid in this document.
 
    **What it is.** A terminal `w` columns wide gives `w - 2` columns of content, and every
    renderer in the package measures against that content width. The left column is written
-   as a space; the **right one is reserved, not written** — content is bounded at the content
+   as a space; the **right one is reserved, not written**, except for the scrollbar — content
+   is bounded at the content
    width and shifted right by one, so nothing can reach the last column, and emitting a space
    there would put trailing whitespace on every row of every frame without changing a single
    rendered cell. Both edges therefore show the terminal's own background, which is what the
-   third reading note above requires of the whole frame.
+   third reading note above requires of the whole frame, except where the scrollbar is drawn
+   in the right-hand column.
 
    **Where it is applied.** Once, at the very end, after the last overlay is composited. It
-   is the single place in the package that knows the margin exists; every layer beneath it
+   is the single place in the package that knows the margin exists, and the scrollbar is drawn
+   there as well, after the left margin; every layer beneath it
    renders at the content width and is unaware it is being inset. A renderer that padded
    itself would have to be right about the margin, and there are a dozen of them. It also
    has to run after the overlays rather than before: an overlay's span is the content span

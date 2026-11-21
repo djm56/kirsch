@@ -1,0 +1,32 @@
+# state: scrollbar-mid-new
+# release: v0.1.5
+# size: 80x24
+# glyphs: unicode
+# steps: (canned transcript loads) | (canned second turn loads) | (a read_file card finishes) | Shift+↑ | g | PgDn | (three notices arrive)
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+ Step 13: the zero check in Divide runs after the division.                    │
+ Step 14: the zero check in Divide runs after the division.                    │
+                                                                               │
+ ── you ───────────────────────────────────────────────────────────────────────│
+ And where is it called from?                                                  │
+                                                                               ┃
+ Step 1: the zero check in Divide runs after the division.                     ┃
+ Step 2: the zero check in Divide runs after the division.                     ┃
+ Step 3: the zero check in Divide runs after the division.                     ┃
+ Step 4: the zero check in Divide runs after the division.                     ┃
+ Step 5: the zero check in Divide runs after the division.                     │
+ Step 6: the zero check in Divide runs after the division.                     │
+ Step 7: the zero check in Divide runs after the division.                     │
+ Step 8: the zero check in Divide runs after the division.                     │
+ Step 9: the zero check in Divide runs after the division.                     │
+ Step 10: the zero check in Divide runs after the division.                    │
+ Step 11: the zero check in Divide runs after the division.             ↓ 3 new│
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle · 0 tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > 
+ ↑↓ select · Enter preview · d detail · Tab/Esc prompt                         

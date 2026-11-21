@@ -107,8 +107,9 @@ func assertHintBlankOnlyUnderOverlay(t *testing.T, m Model, open func(*Model), i
 	if len(rows) != h {
 		t.Errorf("with %s open, view has %d rows, want %d", label, len(rows), h)
 	}
-	// The frame is the left margin plus the content width; the last terminal
-	// column is deliberately unused, so "full frame width" is lay.Pad+lay.ContentW.
+	// Under an overlay the frame is the left margin plus the content width. The
+	// last terminal column is deliberately unused, so "full frame width" is
+	// lay.Pad+lay.ContentW.
 	lay := m.layout()
 	frameW := lay.Pad + lay.ContentW
 	if got, want := stripSGR(rows[len(rows)-1]), strings.Repeat(" ", frameW); got != want {

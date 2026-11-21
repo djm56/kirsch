@@ -295,24 +295,6 @@ func hlLexNow(lx chroma.Lexer, line string) (runs []mdRun) {
 	return runs
 }
 
-// hlFit cuts runs to w cells. A line that fits is returned as it is; a longer
-// one is cut so that the marker ends it within w, as truncEnd cuts a string, and
-// the marker is drawn in markerRole. Runs are lexed whole before the cut, so
-// the colours up to the cut are the ones the whole line has.
-func hlFit(runs []mdRun, w int, marker string, markerRole mdRole) mdRow {
-	if mdRunsWidth(runs) <= w {
-		return mdRow(runs)
-	}
-	limit := maxInt(w-cellWidth(marker), 0)
-	cells := mdCells(runs)
-	width, n := 0, 0
-	for n < len(cells) && width+cells[n].w <= limit {
-		width += cells[n].w
-		n++
-	}
-	return append(mdRowOf(cells[:n]), mdRun{Text: marker, mdStyle: mdStyle{Role: markerRole}})
-}
-
 // hlSplitNumbered splits a read_file line into its number prefix and its text.
 // A line is numbered when it begins with one or more ASCII digits followed by
 // at least N spaces, where N is 4 minus the digit count mod 4. The prefix is
@@ -353,7 +335,7 @@ type modalHL struct {
 
 	// runs holds, by index in the modal's Lines, the lexed runs of each line
 	// lexed so far: the line's text without its number prefix or diff marker,
-	// before any cut to width. A nil entry is a line wider than hlMaxLineCols,
+	// before the line is cut into display rows. A nil entry is a line wider than hlMaxLineCols,
 	// which is drawn plain. Redraws and scrolling read it rather than lex again.
 	runs map[int][]mdRun
 }
@@ -458,12 +440,14 @@ func (md *ModalState) lineRuns(h *modalHL, idx int, lx chroma.Lexer, text string
 	return runs, runs != nil
 }
 
-// contentRow is the highlighted form of one body line of a read_file content
-// modal, cut to w cells. idx is the line's index in md.Lines. ok is false when
-// the line is drawn the plain way: the modal is not a read_file view, its
-// language is unmapped, the line is not a numbered one, or its text is wider
-// than hlMaxLineCols.
-func (md *ModalState) contentRow(trunc, raw string, idx, w int) (row mdRow, ok bool) {
+// contentRuns is the highlighted form of one body line of a read_file content
+// modal, uncut: the number prefix muted, then the lexed runs of the text after it.
+// idx is the line's index in md.Lines. The runs laid end to end are raw, so the
+// caller cuts them to rows by byte offset into raw (see runsSlice). ok is false
+// when the line is drawn the plain way: the modal is not a read_file view, its
+// language is unmapped, the line is not a numbered one, or its text is wider than
+// hlMaxLineCols.
+func (md *ModalState) contentRuns(trunc, raw string, idx int) (runs []mdRun, ok bool) {
 	h := md.highlight(trunc)
 	if h.lex == nil {
 		return nil, false
@@ -476,15 +460,31 @@ func (md *ModalState) contentRow(trunc, raw string, idx, w int) (row mdRow, ok b
 	if !ok {
 		return nil, false
 	}
-	runs := append([]mdRun{{Text: prefix, mdStyle: mdStyle{Role: roleMuted}}}, code...)
-	return hlFit(runs, w, trunc, roleText), true
+	return append([]mdRun{{Text: prefix, mdStyle: mdStyle{Role: roleMuted}}}, code...), true
 }
 
-// diffRow is the highlighted form of one line of a diff modal, cut to w cells.
-// idx is the line's index in md.Lines. ok is false when the line is drawn the
-// plain way: a header, @@ or context line, a line with no lexer, or a line whose
-// text after the marker is wider than hlMaxLineCols.
-func (md *ModalState) diffRow(trunc, raw string, idx, w int) (row mdRow, ok bool) {
+// diffIsCode reports whether line idx of a diff modal is a code line: not a header
+// line, and beginning with "+", "-" or a space. Header status decides before the
+// first character does, so in /diff a "---" or "+++" line between a "diff --git"
+// line and the first "@@" is not a code line. A patch approval diff has no header
+// lines, so there the first character alone decides. A line after a truncation
+// marker is not a header line either (hlSections), so it is a code line by its
+// first character.
+func (md *ModalState) diffIsCode(trunc, raw string, idx int) bool {
+	if md.WorkTree {
+		if h := md.highlight(trunc); idx < len(h.lines) && h.lines[idx].header {
+			return false
+		}
+	}
+	return raw != "" && (raw[0] == '+' || raw[0] == '-' || raw[0] == ' ')
+}
+
+// diffRuns is the highlighted form of one line of a diff modal, uncut: the marker
+// in its colour, then the lexed runs of the text after it. idx is the line's index
+// in md.Lines. The runs laid end to end are raw. ok is false when the line is
+// drawn the plain way: a header, @@ or context line, a line with no lexer, or a
+// line whose text after the marker is wider than hlMaxLineCols.
+func (md *ModalState) diffRuns(trunc, raw string, idx int) (runs []mdRun, ok bool) {
 	h := md.highlight(trunc)
 	lx := h.lex
 	if md.WorkTree {
@@ -509,6 +509,5 @@ func (md *ModalState) diffRow(trunc, raw string, idx, w int) (row mdRow, ok bool
 	if !ok {
 		return nil, false
 	}
-	runs := append([]mdRun{{Text: raw[:1], mdStyle: mdStyle{Role: marker}}}, code...)
-	return hlFit(runs, w, trunc, marker), true
+	return append([]mdRun{{Text: raw[:1], mdStyle: mdStyle{Role: marker}}}, code...), true
 }

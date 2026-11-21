@@ -747,6 +747,12 @@ func TestClosingAConfirmRepaintsInTheSameFrame(t *testing.T) {
 		{"accept", key('y')},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// 80×24, where the transcript with the /approvals notice added
+			// overflows its region: the closed frame draws the scrollbar into the
+			// right margin and the open one does not (no bar under an overlay,
+			// ui-spec §2.1). The bar must therefore come back on the closing
+			// frame, which is asserted below, and the dimming comparison reads
+			// the content columns only, so the margin cell is not what it sees.
 			m := newDrivenColour(t, 80, 24)
 			// Wire GetGrants to return a grant, so /approvals shows a notice and raises a confirm
 			grantsList := []string{"go test"}
@@ -790,6 +796,18 @@ func TestClosingAConfirmRepaintsInTheSameFrame(t *testing.T) {
 			if closed.mode() != ModeComposing {
 				t.Fatalf("closing the confirm prompt went to %v, want Composing", closed.mode())
 			}
+			// The bar is absent while the prompt is open and present on the frame
+			// that closes it. The open side is the control for the closed side.
+			if len(open.lines) <= open.layout().TranscriptH {
+				t.Fatalf("control: the transcript has %d lines in a %d-row region, so it does not overflow",
+					len(open.lines), open.layout().TranscriptH)
+			}
+			if barDrawnIn(t, open) {
+				t.Error("the bar is drawn while the confirm prompt is open")
+			}
+			if !barDrawnIn(t, closed) {
+				t.Error("the bar is not drawn on the frame that closed the confirm prompt")
+			}
 
 			// Positive control for the rebuild comparison below: the open-confirm
 			// band must be dimmed relative to the closed band. Comparing whole
@@ -801,13 +819,55 @@ func TestClosingAConfirmRepaintsInTheSameFrame(t *testing.T) {
 			// this one.
 			fresh := closed
 			fresh.relayout(fresh.layout())
-			assertRowsDimmedByOverlay(t, openBand, transcriptBand(t, fresh))
+			assertRowsDimmedByOverlay(t, fresh.layout().TermW, openBand, transcriptBand(t, fresh))
 
 			// The closed frame must equal a forced rebuild: dimming was cleared on
 			// the frame that closed the confirm, not on the next one.
 			assertBandMatchesRebuild(t, "the transcript is rendered correctly after closing the confirm prompt", closed)
 		})
 	}
+}
+
+// contentColumns returns row without the frame's right margin column and without
+// whatever trails the content: the scrollbar glyph in that column when the row
+// has one (a row exactly TermW cells wide, since the others stop at the content
+// edge), then trailing spaces and trailing SGR sequences, which the bar's padding
+// and styling leave behind. What remains is the row's content as drawn, so a bar
+// on one side of a comparison and none on the other cannot make two otherwise
+// identical rows differ. The SGR sequences before the last visible content are
+// kept, which is where a dimmed row differs from a live one.
+func contentColumns(row string, termW int) string {
+	type tok struct {
+		s   string
+		sgr bool
+	}
+	var toks []tok
+	for i := 0; i < len(row); {
+		if n := sgrPrefixLen(row[i:]); n > 0 {
+			toks = append(toks, tok{row[i : i+n], true})
+			i += n
+			continue
+		}
+		_, size := decodeRune(row[i:])
+		toks = append(toks, tok{row[i : i+size], false})
+		i += size
+	}
+	if cellWidth(row) == termW {
+		for j := len(toks) - 1; j >= 0; j-- {
+			if !toks[j].sgr {
+				toks = append(toks[:j], toks[j+1:]...)
+				break
+			}
+		}
+	}
+	for len(toks) > 0 && (toks[len(toks)-1].sgr || toks[len(toks)-1].s == " ") {
+		toks = toks[:len(toks)-1]
+	}
+	var b strings.Builder
+	for _, tk := range toks {
+		b.WriteString(tk.s)
+	}
+	return b.String()
 }
 
 // assertRowsDimmedByOverlay fails unless some transcript row the overlay left
@@ -818,11 +878,16 @@ func TestClosingAConfirmRepaintsInTheSameFrame(t *testing.T) {
 // box covers differ in text and are skipped. The matching-text count is its own
 // failure, so an overlay that covered every row cannot make the check pass or
 // fail by accident.
-func assertRowsDimmedByOverlay(t *testing.T, openBand, closedBand string) {
+//
+// Rows are compared by contentColumns, at termW columns, so the margin column
+// and the scrollbar's padding are outside the comparison: the closed frame may
+// draw the bar and the open one never does.
+func assertRowsDimmedByOverlay(t *testing.T, termW int, openBand, closedBand string) {
 	t.Helper()
 	ol, cl := strings.Split(openBand, "\n"), strings.Split(closedBand, "\n")
 	same, dimmed := 0, 0
 	for i := 0; i < len(ol) && i < len(cl); i++ {
+		ol[i], cl[i] = contentColumns(ol[i], termW), contentColumns(cl[i], termW)
 		po, pc := stripSGR(ol[i]), stripSGR(cl[i])
 		if po != pc || strings.TrimSpace(po) == "" {
 			continue

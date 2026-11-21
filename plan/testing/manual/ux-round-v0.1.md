@@ -754,6 +754,299 @@ the composer empty.
 
 ---
 
+## v0.1.5 · Scrollbar and long lines in the modal
+
+**What the cues rest on.** Each *You should see* cue is backed by a screen capture in
+`plan/testing/manual/captures/v0.1.5/`. The captures come from Kirsch's own render, with
+canned inputs and no model. The file names, the hunk text, the version, the notices and
+the footer in the captures are canned, so your screen will show different words. The cues
+therefore describe structure only: where the bar and the thumb are, which column they are
+in, which rows are blank, and where a marker or a number sits. They never describe text.
+The index of the captures is `plan/testing/manual/captures/README.md`.
+
+`modal-diff-wrapped` is cited for wrap structure only. Its hunk header is canned: it is not
+the header git prints for the change in section 8, and its counts do not match the lines under it.
+
+**Context:** This section is run as part of the combined end-of-round test. Use the build
+and the test folder from the v0.1.2 section, `~/kirsch-ux-test`, and run `npm run build`
+first. These commands set up the folder once, before section 1:
+
+```bash
+cd ~/kirsch-ux-test
+{ printf 'x%.0s' $(seq 1 150); echo; seq 1 80; printf 'y%.0s' $(seq 1 150); echo; } > long.txt
+git add long.txt && git commit -m "Test long.txt"
+```
+
+`long.txt` is one line 150 characters wide, then the lines that `seq 1 80` prints, then one
+more line 150 characters wide. Skip the `git add` and `git commit` lines if `long.txt` is
+already committed. If `git commit` asks for an identity, set one for this folder.
+
+Sections use Unicode, which needs a UTF-8 locale, unless they say otherwise. Each section's
+Context names the state it starts from, which is the state the section before it ends in.
+Section 1 starts a new session.
+
+The hint texts quoted in these sections are the Unicode forms. Section 10 of this group quotes the ASCII form.
+
+**Reproduction.** The sections that need an overflowing transcript use the setup prompt
+from the v0.1.2 section, `count from 1 to 300, one number per line`, which needs a model
+key. The sections marked *(no model)* need that transcript on screen. They also run in any
+later session that has it: start Kirsch without `--new` to resume the session. If no session
+has one yet, run section 2 first.
+
+### 1. A short transcript has no bar (model)
+
+**Context:** Before you start Kirsch, set the window to 80 columns by 24 rows, by dragging a corner of the
+window or using your terminal's window-size setting. Run `tput cols` and `tput lines` in that
+window, and check that they print `80` and `24`. Then start Kirsch with
+`~/path/to/kirsch/bin/kirsch --new` in `~/kirsch-ux-test`. Kirsch is idle in Composing, with
+the composer empty.
+This section ends in Composing, with the composer empty and a transcript that fits the
+screen.
+
+1. Type `read README.md and reply in one short sentence`, press `Enter`, and wait until
+   Kirsch is idle.
+   You should see a transcript shorter than the screen. The right-hand column is blank on
+   every row, beside the header, the transcript, the status line and the composer.
+   Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-hidden-short.txt`, lines 9 to 27
+   (`# steps:`, line 5, reads `(canned short transcript loads) | (a read_file card finishes)`).
+   Lines 11 to 20 are the short transcript and no line has a glyph in its last column.
+   - [ ] No bar is drawn beside the transcript.
+
+### 2. The bar at the bottom of an overflowing transcript (model)
+
+**Context:** Section 1 ends in Composing with the composer empty. The window is 80 by 24.
+Unicode. This section ends in Composing, pinned to the bottom, with the composer empty.
+
+1. Type this prompt, press `Enter`, and wait until Kirsch is idle:
+
+   > count from 1 to 300, one number per line
+
+   You should see a bar in the right-hand column, running from the first transcript row
+   down to the last one, above the rule that separates the transcript from the status line.
+   A thumb, drawn `┃`, sits at the bottom of the bar, on the last transcript row. The track
+   above it is drawn `│`. The length of the thumb depends on how long the transcript is,
+   so match where it sits, not how long it is.
+   Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-bottom.txt`, lines 11 to 27
+   (`# steps:`, line 5, reads `(canned transcript loads) | (canned second turn loads) | (a read_file card finishes)`).
+   Lines 23 to 27 hold the thumb, at the bottom of the bar, and line 28 is the rule, with no bar.
+   - [ ] The bar runs from the first transcript row to the last one.
+   - [ ] The thumb sits at the bottom of the bar.
+
+### 3. The bar at the top (no model)
+
+**Context:** Section 2 ends in Composing, pinned to the bottom, with the composer empty.
+The window is 80 by 24. Unicode. This section ends in Browsing, with the view at the top of
+the transcript and no modal open.
+
+1. Press `Shift+↑` to enter Browsing. Then press `g`, which moves the view to the top
+   whichever item is selected.
+   You should see the thumb at the top of the bar, starting on the first transcript row,
+   with the track below it down to the last transcript row.
+   Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-top.txt`: the thumb is on
+   lines 11 to 15 and the track on lines 16 to 27. `# steps:`, line 5, reads
+   `(canned transcript loads) | (canned second turn loads) | (a read_file card finishes) | Shift+↑ | g`.
+   The capture's steps match the key presses here, so this section checks the screen only.
+   - [ ] The thumb is at the top of the bar.
+   - [ ] The track runs below the thumb to the last transcript row.
+
+### 4. The bar in the middle, with `↓ N new` (model)
+
+**Context:** Section 3 ends in Browsing at the top of the transcript, with no modal open.
+The window is 80 by 24. Unicode. The transcript still
+overflows. This section ends in Browsing, scrolled up and not pinned, with a `↓ N new`
+indicator on the last transcript row.
+
+1. Press `Tab` to return to the composer. Type `read README.md, then count from 1 to 300, one number per line`
+   and press `Enter`. As soon as the first tool card shows, press `Shift+↑`, then `g`, then
+   `PgDn`. Wait until the reply has finished.
+   `Shift+↑` returns to Browsing. `g` moves the view to the top, and `PgDn` moves it down
+   one page. The view is then not pinned, so the blocks that arrive below it are counted in
+   `↓ N new`. `N` counts those blocks, not lines.
+   You should see the thumb on a row above the bottom of the bar, with track below it. On the
+   last transcript row, the `↓ N new` indicator ends flush against the bar's column.
+   If no tool card appears, write `no tool call` beside this step and send the prompt again.
+   If no indicator appears, write `reply finished first` beside this step and try again with
+   a longer prompt.
+   The capture's own steps are `Shift+↑`, `g`, `PgDn`, the same as here. Its thumb sits where
+   its canned transcript length puts it, so this section checks the thumb as a rule, not
+   against the capture's rows.
+   Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-mid-new.txt` for the indicator's
+   place: line 27 holds `↓ 3 new` on the last transcript row, with the bar at its right.
+   `# steps:`, line 5, reads
+   `(canned transcript loads) | (canned second turn loads) | (a read_file card finishes) | Shift+↑ | g | PgDn | (three notices arrive)`.
+   The capture's number and its notices are canned.
+   - [ ] The thumb is not on the bottom row of the bar, and track shows below it.
+   - [ ] The `↓ N new` indicator ends on the last transcript row, flush against the bar.
+
+### 5. No bar under an open modal (model)
+
+**Context:** Section 4 ends in Browsing, scrolled up and not pinned. The window is 80 by 24.
+Unicode. This section ends in Browsing, with no modal open.
+
+1. Press `↑` or `↓` until a `read_file` card for `README.md` shows the `┃` gutter and the
+   hint row begins `↑↓ select`. For example, the card from section 1 or the card from section 4
+   will do. The cues below hold whichever `README.md` card is opened, so do not try to tell
+   them apart. If the gutter goes off screen, press the other arrow. If the hint row changes
+   to `↑↓ history · ⇧↑/Tab cards · /help`, which is the composer's hint and not the Browsing
+   one, you have stepped past the last item: press `Shift+↑` to return to the cards and carry
+   on. Then press `d`.
+   If a `d` reaches the composer by mistake, press `Esc` to clear it (no turn is running here,
+   and `Esc` clears the composer in Composing when none is). You are still in the composer:
+   press `Shift+↑`, bring the gutter back to the card with the arrows, and press `d` again.
+   You should see a box over the transcript, with a title in the form `read_file <file>`. No
+   bar is drawn in the right-hand column on any row. Fragments of the transcript behind the
+   box show at the box's right edge.
+   Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-hidden-modal.txt`, lines 11 to 26.
+   `scrollbar-hidden-modal.annot.txt`, line 10, states that no row of the frame has a cell in
+   column 79. `# steps:`, line 5, reads `(canned transcript loads) | (canned second turn loads) | (a read_file card finishes) | Shift+↑ | d`. The capture's steps do not include the arrow presses.
+   - [ ] No bar is drawn while the modal is open.
+2. Press `Esc`.
+   You should see the screen return to Browsing, with the bar back in the right-hand column.
+   Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-mid-new.txt`, lines 16 to 20, for
+   the bar's structure only.
+   - [ ] The bar comes back when the modal closes.
+
+### 6. A wrapped line in a `read_file` modal (model)
+
+**Context:** Section 5 ends in Browsing, with no modal open. The window is 80 by 24. Unicode.
+This section ends with the `read_file` modal for `long.txt` open at its top.
+
+1. Press `Tab`. Type `read long.txt and reply with one word`, press `Enter`, and wait until
+   Kirsch is idle. Press `Shift+↑`, which enters Browsing from the composer. Then press `↑` or
+   `↓` until the `read_file` card for `long.txt` shows the `┃` gutter and the hint row begins
+   `↑↓ select`. If the gutter goes off screen, press the other arrow. If the hint row changes
+   to `↑↓ history · ⇧↑/Tab cards · /help`, which is the composer's hint and not the Browsing
+   one, you have stepped past the last item: press `Shift+↑` to return to the cards and carry
+   on. Then press `d`.
+   If a `d` reaches the composer by mistake, press `Esc` to clear it (no turn is running here,
+   and `Esc` clears the composer in Composing when none is). You are still in the composer:
+   press `Shift+↑`, bring the gutter back to the `long.txt` card with the arrows, and press
+   `d` again.
+   You should see a box whose title is `read_file long.txt`. Its first line is 150 characters wide, so it
+   runs over several rows inside the box. The line number shows on the first row only. The
+   rows below it leave the number columns blank, and their text starts in the column where
+   the tool's own number sits on the first row. The modal's own number and the tool's number
+   both show on that first row. That is how the capture draws it, and it is described here
+   as seen, not as designed.
+   The rule and the footer are drawn inside the box, as before: the footer sits on the row
+   above the box's bottom edge.
+   Backed by `plan/testing/manual/captures/v0.1.5/modal-readfile-wrapped.txt`. The box is lines 11
+   to 21, and the wrapped line is lines 14 to 16. `modal-readfile-wrapped.annot.txt`, rows 05
+   to 07, shows the first row's text at column 20 and the continuation at column 16. Lines 13
+   to 19 show fragments of the card behind the box at the right edge, and lines 12 to 19 show
+   fragments at the left edge. `# steps:`, line 5, reads `(a read_file card finishes) | Shift+↑ | d`. The capture's steps
+   are a subset of the key presses here, so this section checks the screen only.
+   - [ ] The wrapped line runs over several rows, and the line number shows on the first row only.
+   - [ ] The modal's number and the tool's number both show on the first row.
+   - [ ] The footer `j/k scroll · g/G top/bottom · Esc close` is drawn inside the box, above its bottom edge.
+
+   Pieces of the transcript behind the box show at its left and right edges, as the capture shows.
+
+### 7. `G` lands on the last full page (model)
+
+**Context:** Section 6 ends with the `read_file` modal for `long.txt` open at its top. The
+window is 80 by 24. Unicode. This section ends in Browsing, with the modal closed.
+
+1. Press `G`.
+   You should see the body filled down to the last line of `long.txt`, with no blank row under
+   it. The rule above the footer shows `↑ N above`, where `N` counts the display rows above the
+   top of the body. It is a count of rows, not a line number.
+   Backed by `plan/testing/manual/captures/v0.1.5/modal-after-G.txt`: the body is lines 12 to 24,
+   and its last row, line 24, is the last row of the file's last line. Line 25 is the rule with `↑ 47 above`.
+   `# steps:`, line 5, reads `(a read_file card finishes) | Shift+↑ | d | G`.
+   - [ ] The last body row is the last row of the file's last line, which may be a wrapped row. No blank row sits under it.
+   - [ ] The rule shows `↑` with a count of rows above.
+2. Press `Esc` to close the modal.
+   You should see Browsing again. The hint line reads
+   `↑↓ select · Enter preview · d detail · Tab/Esc prompt` while the `┃` gutter is on a card,
+   and `↑↓ select · c copy · Tab/Esc prompt` while it is on a reply.
+   The hint is drawn by `hintRow` in `internal/tui/view.go`, which names `c copy` in place of
+   `Enter preview` and `d detail` only on a reply.
+   Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-mid-new.txt`, line 32, which shows
+   the card hint text.
+
+### 8. A wrapped `+` line and a wrapped `@@` line in `/diff` (no model)
+
+**Context:** Section 7 ends in Browsing with no modal open. Before this section, make the
+window 80 columns by 32 rows, the size of the diff capture. Check it with `tput cols` and
+`tput lines`. Then make the unstaged change this section diffs, in the test folder:
+
+```bash
+cd ~/kirsch-ux-test
+{ printf 'x%.0s' $(seq 1 150); echo; seq 1 80; printf 'z%.0s' $(seq 1 150); echo; } > long.txt
+```
+
+The last line of `long.txt` is now 150 `z` characters, where the setup made it 150 `y`
+characters. `/diff` lists every unstaged change in the folder, not only `long.txt`. For example,
+the `hello.go` change and the `tool.py` file that section 5 of v0.1.4 leaves in this folder
+may appear as well. This section checks only the `long.txt` hunk. Git puts the
+start of `long.txt`'s first line in that hunk's header as its function context, 80 characters
+of it, so the header is wider than the text. This section ends in Composing, with the composer
+empty and no modal open.
+
+1. Press `Tab` to return to the composer. Type `/diff` and press `Enter`.
+   You should see a box titled `working tree`, with a stat on its top rule.
+2. Press `j` or `PgDn` until the `long.txt` hunk is in view. The diff for `hello.go` can sit
+   above it, so scroll past that part first.
+   You should see a code line wider than the text wrap. Its `+` or `-` marker shows on the
+   first row only. The row below it starts with a blank column where the marker is, and the
+   code continues from there. A `@@` line wraps flush, with no blank column. A short `@@` line
+   does not wrap, and that is not a failure: it wraps only when it is wider than the text.
+   Backed by `plan/testing/manual/captures/v0.1.5/modal-diff-wrapped.txt` for wrap structure only.
+   The `+` line is lines 21 to 24, the `-` line lines 25 to 28, and the wrapped `@@` line lines 16 to
+   19. `modal-diff-wrapped.annot.txt` shows the marker at column 11 on the first row, and the
+   continuation rows starting at column 12 with column 11 blank. `# steps:`, line 5, reads
+   `/diff | Enter | (the git diff result arrives)`. The capture is 80 columns by 32 rows. The
+   capture's diff holds `calc/divide.go` and nothing else, so it has no `hello.go` part to scroll past.
+   - [ ] A code line wider than the text shows its `+` or `-` on the first row only.
+   - [ ] The row below a wrapped code line starts with a blank column where the marker is.
+   - [ ] A wrapped `@@` line starts flush with the left edge of the text.
+3. Press `Esc`.
+   You should see the modal close, and Kirsch return to the composer, because `/diff` was
+   typed there. The hint line under the composer shows the composer keys.
+   Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-bottom.txt`, lines 31 and 32 (the
+   composer and its hint).
+
+### 9. Help lines are cut, not wrapped, at 60×24 (no model)
+
+**Context:** Section 8 ends in Composing, with the composer empty, at 80 by 32. Before this
+section, make the window 60 columns by 24 rows, and check it with `tput cols` and `tput lines`.
+This section ends in Browsing, with the help overlay closed, at 60 by 24.
+
+1. Press `Shift+↑`, then `?`.
+   You should see a box titled `help`, with two columns. Each binding is one row of the screen.
+   A row longer than the box's text width ends in `⋯` at the right edge. It does not wrap onto
+   the next row. The footer rule shows a `↓ N more` marker, where `N` counts the help rows below
+   the ones showing.
+   Backed by `plan/testing/manual/captures/v0.1.5/help-cut.txt`, lines 11 to 27 (the box), line 24
+   (a cut row, `PgUp/PgDn j/k scroll` with `/help  /st⋯`), and line 25 (the footer rule with
+   `↓ 4 more`). `# steps:`, line 5, reads `Shift+↑ | ?`. The file's header, line 3, gives
+   the size as `60x24`.
+   - [ ] Each help row is one row of the screen, and a long one ends in `⋯`.
+   - [ ] The footer rule shows a `↓ N more` marker.
+2. Press `Esc` to close the help box. It is not checked by a capture; section 10 starts from
+   Browsing, with the help box closed.
+
+### 10. The bar with ASCII glyphs (no model)
+
+**Context:** Section 9 ends in Browsing, with the help box closed, at 60 by 24. Set the window
+to 80 columns by 24 rows. Press `Tab`, type `/quit` and press `Enter`. Then start Kirsch from
+`~/kirsch-ux-test` with the locale set to C: `LC_ALL=C ~/path/to/kirsch/bin/kirsch`. Leave out
+`--new`, so the session resumes with its long transcript. This section ends in Composing,
+pinned to the bottom, with the composer empty and the glyph set ASCII.
+
+1. Wait until the transcript shows.
+   You should see a bar in the right-hand column, its track drawn `|` and its thumb `#`, with
+   the thumb at the bottom of the bar. The status line and the hint use `.` in place of the
+   Unicode separators, and the composer caret is `_`. The frame is not pure ASCII. The footer that
+   `renderTool` draws for a tool card keeps its own Unicode glyphs, for example `‹` and `›`.
+   Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-ascii.txt`. The bar is lines 11 to 27,
+   with `|` on lines 11 to 22 and `#` on lines 23 to 27. The composer caret is on line 31, and the
+   hint, `Up/Down history . Shift+Up/Tab cards . /help`, is on line 32. `# glyphs:`, line 4, reads
+   `ascii`, and `# steps:`, line 5, reads `(canned transcript loads) | (canned second turn loads) | (a read_file card finishes)`.
+   - [ ] The track is `|` and the thumb is `#`, in the right-hand column.
+   - [ ] The status and hint lines use `.` for the separators, and the composer caret is `_`.
+
 ## Known gaps after v0.1.2
 
 These are not checked by the steps above. They are listed here so the operator
@@ -829,3 +1122,8 @@ amendment 102.
   `.claude/memory/missions/mission-20261120-03/DEBRIEF.md`. The times are `time`
   readings on the build machine, with the first (cold) run of each set dropped. The
   warm runs span 0.004–0.010 s before the change and 0.009–0.014 s after it.
+
+## Known gaps after v0.1.5
+
+This block lists no gaps. The known gaps of v0.1.5 are in `plan/spec/kirsch-plan.md`,
+amendment 103, under *Known gaps (v0.1.5)*. The sections above do not check them.

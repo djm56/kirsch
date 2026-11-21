@@ -1,0 +1,32 @@
+# state: scrollbar-hidden-short
+# release: v0.1.5
+# size: 80x24
+# glyphs: unicode
+# steps: (canned short transcript loads) | (a read_file card finishes)
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+ 
+ ── you ───────────────────────────────────────────────────────────────────────
+ Hello
+ 
+ Hi there.
+ 
+ ┃ ▾ read_file calc/divide.go · lines 1-1 · ✓ ok
+ ┃   ┌────────────────────────────────────────────────────────────────────────┐
+ ┃   │ 1   package calc                                                       │
+ ┃   └────────────────────────────────────────────────────────────────────────┘
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle · 0 tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > ▌
+ ↑↓ history · ⇧↑/Tab cards · /help                                             

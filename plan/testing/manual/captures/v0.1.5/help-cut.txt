@@ -1,0 +1,32 @@
+# state: help-cut
+# release: v0.1.5
+# size: 60x24
+# glyphs: unicode
+# steps: Shift+↑ | ?
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch ───────────────────────────────────────────────────
+ my-project ─ main ●
+    ┌─ help ───────────────────────────────────────────┐
+ █▄▀│ composing                            approval    │
+ █▀▄│ Enter         send                   y         ⋯ │
+    │ Shift+Enter   newline (or Ctrl+J)    a         ⋯ │
+ v0.│ ↑/↓           history                n         ⋯ │
+    │ Shift+↑       cards                  d         ⋯ │
+    │ Tab           complete /cmd · cards              │
+ Ask│ Esc           cancel turn            modal       │
+    │ Ctrl+G        bottom, re-pin         j/k ↑/↓   ⋯ │
+ · W│ PgUp/PgDn     scroll                 g/G       ⋯ │?
+ · A│                                      Esc       ⋯ │st
+ · W│ browsing                                         │
+    │ ↑/↓           select card/reply      commands    │
+    │ PgUp/PgDn j/k scroll                 /help  /st⋯ │
+    ├──────────────────── ↓ 4 more ────────────────────┤
+    │ j/k scroll · g/G top/bottom · Esc or ? closes    │
+    └──────────────────────────────────────────────────┘
+ ──────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle
+ ──────────────────────────────────────────────────────────
+ > Ask anything (Enter to send, /help for help)
+                                                           

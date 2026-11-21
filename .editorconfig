@@ -11,3 +11,8 @@ trim_trailing_whitespace = true
 [*.go]
 indent_style = tab
 indent_size = 4
+
+# Screen captures: frames of the program's own render, trailing spaces included.
+# Reformatting a file makes TestCaptureFiles fail.
+[plan/testing/manual/captures/**]
+trim_trailing_whitespace = false

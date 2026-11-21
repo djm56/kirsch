@@ -87,7 +87,7 @@ cmd/kirsch/main.go
  > composer (multiline input)
 ```
 
-The header is two rows — wordmark and rule, then the session line — and the frame keeps one blank column at each edge. There is no box around it.
+The header is two rows — wordmark and rule, then the session line — and the frame keeps one blank column at each edge (the scrollbar may take the right one from v0.1.5, ui-spec §2.1). There is no box around it.
 
 Key bindings: `Enter` send · newline `Ctrl+J`, or `Alt+Enter` where the terminal sends it · `Ctrl+G` re-pin the transcript to the bottom · `Esc`/`Ctrl+C` cancel turn · `y`/`n` approve/reject pending action · `a` approve for this session (commands only, §4) · `d` view diff · `?` help · `Ctrl+C` twice fast = force quit. There is no bare-key quit — `q` is an ordinary character in the composer.
 
@@ -1377,6 +1377,21 @@ Every row fits the left column: the key is padded to the key column, then one sp
 - Fence lines are not drawn, so a reader counting blocks for `/copy code N` counts the indented code regions. §6 counts fences at any indent, while the renderer's parser may treat a fence indented four or more spaces as indented code, so the two counts can differ. `/copy code N` follows §6 on the cleaned payload text (amendment 102).
 - With colour off, bold and italic text shows as plain text. Their `**` and `*` markers are dropped, so no mark of the emphasis remains (amendment 102).
 
+103. **UX round, v0.1.5 scrollbar and long lines in the modal** (2026-11-21, mission-20261121-01). Answers UX-D7 in `plan/milestones/ux-round-v0.1.md`, and carries ux-d8 (wrapping in the modal). The answer is Bishop's recommendation, taken under the operator's standing go-ahead on judgement calls; the operator may overturn it. The changes are these. Each UI spec section and screen grid that cites amendment 103 carries its part.
+  1. **Long lines wrap, with no sideways scroll (UX-D7).** A body line wider than the modal's text width continues on the rows below it, cut hard at a cell boundary. Wide runes are not split, and there is no word wrapping. The `⋯` cut of modal body lines is replaced by wrapping. The content modal's number shows on the first row only. On a code line, the diff marker shows on the first row only, and a continuation row starts with a blank column in its place. A `@@` line, a header line and a descriptive line wrap flush. Help-overlay lines are not wrapped; they keep their current cut (ui-spec §4.1).
+  2. **Scroll by display row.** `j`/`k`, the arrows, `PgUp`/`PgDn` and `g`/`G` move the modal by display row. A resize leaves the offset alone; the render draws it clamped to the last full page, and the next key press re-clamps the stored offset. The top source line is not kept (a known gap below). The clipping marker counts display rows.
+  3. **Scrollbar in the right margin (ux-d7).** A one-column indicator on the transcript's rows, in the right margin. It is drawn only under the conditions in ui-spec §2.1, which include a transcript with more lines than rows. The thumb is sized and placed by the integer formula in ui-spec §2.4. The glyphs are added to §10.2: `│` and `┃` for Unicode, `|` and `#` for ASCII.
+  4. **Screens and the lint.** The new screens are the ones whose notes cite amendment 103. Existing screens whose transcript overflows gained the scrollbar column, and their grids were updated when the scrollbar code landed. The screens lint (`scripts/lint-screens.py`) reads the widest row as the terminal less its right margin, and rejects any row wider than that (its widest-row and per-row checks in `main`). The scrollbar code changes those rules and the box-border rule (screen 14's note names the sites), so that a row whose last cell is a scrollbar glyph (`│` and `┃`, or `|` and `#` in ASCII) is admitted when the row is exactly the grid's width (`split_bar`), and any other character in that column still counts as a row written into the margin. Screen 14 failed the lint on its margin glyph until the scrollbar code landed, and any existing screen would fail once its grid carried the bar. Wrapping also changes screen 05, whose diff hunk header is wider than the modal's text width (`fakeDiff` in `internal/tui/fake.go`, and `modalFrameFor`), so the modal-wrap code redraws its grid too. The modal-wrap code also replaced every shade-block placeholder cell (U+2591) in `plan/spec/kirsch-ui-screens.md` with the golden scenario's real output, and removed the prose that described those placeholders, which had become false once the cells were filled. A search for U+2591 in that file finds no line, and `npm run check` exits 0 with the scrollbar and wrap code in place.
+
+**Deliverables.** ux-d7: the scrollbar and its margin exception. ux-d8: wrapping and display-row scrolling in the modal. Each is in the UI spec text marked amendment 103.
+
+**Known gaps (v0.1.5).**
+- No mouse. Milestone items 3 and 7 stay deferred, and UI spec §12 rule 4 is unchanged.
+- A resize does not keep the top source line of a modal. The render draws the offset clamped to the last full page of display rows, and the next key press re-clamps the stored offset (ui-spec §4.1).
+- Continuation rows are not marked. A wrapped line has no glyph of its own. The blank number column or the blank marker column is the only sign that a code line continues. A wrapped `@@` or header row has no sign at all.
+- The thumb `┃` is also the selection gutter's glyph (ui-spec §10.2). The thumb's column is not the gutter's, but a selected card and the thumb can share a row.
+- `plan/testing/manual/milestone-0.md:59-61` is kept as history. Its blank-margin check no longer holds once a transcript overflows, because the bar draws into the right margin (ui-spec §2.1). The bar is built, in `scrollbarDrawn` and `padFrame` (`internal/tui/view.go`).
+
 **Still open**
 
 - ~~Exact figures for the §5 model table~~ — Anthropic rows filled by amendment 79. The `opencode` default row is `minimax-m3` since amendment 90 (`minimax-m2.7` under amendment 83, `minimax-m3` under amendment 80); its size figures stay `—` until OpenCode publishes them.
@@ -1385,8 +1400,8 @@ Every row fits the left column: the key is padded to the key column, then one sp
   cards show a 10-line preview. Key detection and spinner rendering were settled
   by amendments 40 and 42.
 - Session file rotation for very long sessions (ADR 0002 flagged this; still deferred).
-- Screen 14 (onboarding) in `plan/spec/kirsch-ui-screens.md` — drawn at M3 with the
-  provider onboarding path, per amendment 24.
+- ~~Screen 14 (onboarding) in `plan/spec/kirsch-ui-screens.md` — drawn at M3 with the
+  provider onboarding path, per amendment 24.~~ — settled: onboarding is drawn as screen 12.
 - ~~A `Ctrl+G` row in the help overlay's `composing` block (amendment 60).~~ — settled by amendment 100. ~~The
   binding ships; the overlay does not name it.~~ Amendment 60's reasoning, kept as history: *(Superseded by amendment 100: the composing block now names `Ctrl+G`, and the left column is 17 rows, not the 15 given below.)* Screen 06 is a byte-for-byte test
   oracle, so this is a redraw plus a `bindingGroups` entry — but it costs no

@@ -761,11 +761,12 @@ func (m Model) layout() Layout {
 
 // handleKey dispatches to exactly one mode handler.
 //
-// There is no fallback arm and no shared pre-pass beyond the force-quit check,
-// so a key cannot be handled twice. In particular a tea.KeyMsg reaches the
-// textarea through exactly one call — ta.Update at the foot of keyComposing,
-// the only ta.Update in the package — which is what stops every other mode
-// from leaking keystrokes into the composer. ui-spec §5.2.
+// There is no fallback arm. Pre-passes run first, and a pre-pass that handles a
+// key returns before the mode switch; a key that gets past them reaches exactly
+// one mode handler, so a key cannot be handled twice. In particular a
+// tea.KeyMsg reaches the textarea through exactly one call — ta.Update at the
+// foot of keyComposing, the only ta.Update in the package — which is what stops
+// every other mode from leaking keystrokes into the composer. ui-spec §5.2.
 //
 // That is narrower than "the textarea is only written from keyComposing", and
 // deliberately so: handlePaste and applyConfirm's ConfirmLargePaste arm both
@@ -1165,14 +1166,35 @@ func (m Model) keyConfirm(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 // g/G exist at all — and NormalizeInput now delivers them as tea.KeyHome and
 // tea.KeyEnd everywhere. A key that works in the transcript and does nothing in
 // a modal reads as a broken modal, not as a deliberate omission.
+//
+// The offset counts display rows, and its range comes from modalExtent, which
+// reads the same modalSizing the render draws from. Every scrolling key clamps the
+// stored offset to [0, max(0, totalRows-bodyH)], takes its step, and clamps again.
+// The first clamp matters after a resize, which leaves the stored offset alone and
+// so can leave it past a range that has shrunk: a step taken from there would move
+// nothing on screen and the press would be lost. The help overlay shares this
+// handler, so it gets the same clamps; its lines never wrap, so its rows are its
+// lines.
 func (m Model) keyModal(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	page := maxInt(1, lay.TranscriptH-4)
+	// scroll moves the offset: clamp, step, clamp. to receives the clamped offset
+	// and the last offset of the range, which is the top of the last page.
+	scroll := func(to func(off, last int) int) {
+		total, bodyH := m.modalExtent(lay)
+		last := maxInt(0, total-bodyH)
+		m.modal.Off = clamp(to(clamp(m.modal.Off, 0, last), last), 0, last)
+	}
+	up := func(n int) func(off, last int) int { return func(off, _ int) int { return off - n } }
+	down := func(n int) func(off, last int) int { return func(off, _ int) int { return off + n } }
+	top := func(_, _ int) int { return 0 }
+	bottom := func(_, last int) int { return last }
+
 	switch k.Type {
 	case tea.KeyHome:
-		m.modal.Off = 0
+		scroll(top)
 		return m, nil
 	case tea.KeyEnd:
-		m.modal.Off = maxInt(0, len(m.modal.Lines)-1)
+		scroll(bottom)
 		return m, nil
 	case tea.KeyEsc, tea.KeyCtrlC:
 		// Returns to the *previous* mode, which the derivation supplies for
@@ -1181,27 +1203,27 @@ func (m Model) keyModal(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 		m.closeModal()
 		return m, nil
 	case tea.KeyUp:
-		m.modal.Off = maxInt(0, m.modal.Off-1)
+		scroll(up(1))
 		return m, nil
 	case tea.KeyDown:
-		m.modal.Off++
+		scroll(down(1))
 		return m, nil
 	case tea.KeyPgUp:
-		m.modal.Off = maxInt(0, m.modal.Off-page)
+		scroll(up(page))
 		return m, nil
 	case tea.KeyPgDown:
-		m.modal.Off += page
+		scroll(down(page))
 		return m, nil
 	}
 	switch string(k.Runes) {
 	case "k":
-		m.modal.Off = maxInt(0, m.modal.Off-1)
+		scroll(up(1))
 	case "j":
-		m.modal.Off++
+		scroll(down(1))
 	case "g":
-		m.modal.Off = 0
+		scroll(top)
 	case "G":
-		m.modal.Off = maxInt(0, len(m.modal.Lines)-1)
+		scroll(bottom)
 	case "?":
 		if m.modal.Kind == ModalHelp {
 			m.closeModal() // ? also closes help, §4.2

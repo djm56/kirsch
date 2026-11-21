@@ -393,7 +393,10 @@ func decodeRune(s string) (rune, int) {
 // degradation ladder below both assume.
 const headerHeight = 2
 
-// framePad is the blank columns the frame keeps at its left and right edges.
+// framePad is the columns the frame keeps at its left and right edges. The left
+// one is always blank. The right one is blank too, except that the scrollbar
+// (scrollbarCells) is drawn into it on the transcript's rows when the transcript
+// overflows.
 //
 // Horizontal only. There is no vertical equivalent and there is not meant to be
 // one: the chrome budget in computeLayout spends every row the terminal has, so
@@ -432,10 +435,14 @@ func framePadding(w int) (pad, content int) {
 // Two widths, and which one a caller wants is never ambiguous:
 //
 //   - TermW is the terminal. It is what the §2.2 breakpoint bands are read
-//     from, and nothing draws into it.
+//     from. No renderer draws into the margin it adds. padFrame alone writes into
+//     the right margin, and on a frame that draws the bar the only non-blank cell
+//     it writes there is the scrollbar glyph.
 //   - ContentW is what every renderer in the package measures against, and the
-//     only width any of them sees. Padding is applied once, in View, after the
-//     last overlay has been composited — so no component knows a margin exists.
+//     only width any of them sees. The margin is added once, in View, by
+//     padFrame after the last overlay has been composited — so no component
+//     knows a margin exists. padFrame is also what writes the scrollbar glyph
+//     into the right margin column.
 //
 // TermW == ContentW + 2*Pad holds at every size.
 type Layout struct {
@@ -667,7 +674,70 @@ func (m Model) View() string {
 		rows = m.overlayConfirm(rows, lay)
 	}
 
-	return strings.Join(padFrame(exactly(rows, h, lay.ContentW), lay), "\n")
+	return strings.Join(padFrame(exactly(rows, h, lay.ContentW), lay, m.scrollbarCells(lay)), "\n")
+}
+
+// scrollbarDrawn reports whether this frame draws the transcript scrollbar. It
+// is the one rule for whether the bar is drawn, and all must hold:
+//
+//   - lay.ShowTranscript, so the transcript is drawn and not the narrow notice;
+//   - lay.TranscriptH is at least 3, the minimum height this function draws a
+//     bar at;
+//   - the transcript has more lines than rows, len(m.lines) > lay.TranscriptH.
+//     At equal counts there is nothing to scroll and maxOff is 0;
+//   - no overlay open (overlayOpen): under an overlay the transcript is drawn
+//     with Flat() styles, which give the track and the thumb one style, so the
+//     bar is left out rather than told apart by its glyph alone;
+//   - no onboarding or empty-state rows (showIntro, which is introRows' ok).
+//
+// The conditions are tested in the order listed, cheapest first, and showIntro
+// last because it builds the intro rows to answer.
+func (m Model) scrollbarDrawn(lay Layout) bool {
+	return lay.ShowTranscript &&
+		lay.TranscriptH >= 3 &&
+		len(m.lines) > lay.TranscriptH &&
+		!m.overlayOpen() &&
+		!m.showIntro(lay)
+}
+
+// scrollbarThumb places the thumb on a track of h rows over a transcript of n
+// lines, with offset the first visible line. ui-spec §2.4. Rows count from 0.
+//
+// off is clamped to [0, n-h] here, because the stored offset can sit above it
+// (an unpinned resize only relayouts, and expanding a non-tool item does not
+// clamp). Integer division throughout. thumbTop adds maxOff/2 before dividing,
+// which rounds to the nearest row. It returns size 0 when there is nothing to
+// scroll (n <= h), a case scrollbarDrawn has already excluded.
+func scrollbarThumb(h, n, offset int) (top, size int) {
+	maxOff := n - h
+	if h <= 0 || maxOff <= 0 {
+		return 0, 0
+	}
+	size = maxInt(1, h*h/n)
+	off := clamp(offset, 0, maxOff)
+	top = (off*(h-size) + maxOff/2) / maxOff
+	return top, size
+}
+
+// scrollbarCells returns the styled glyph for each transcript row, top to
+// bottom, or nil when this frame draws no bar (scrollbarDrawn). The track is
+// Dim and the thumb is Muted, the higher-contrast of the two; with colour off
+// both styles are the identity, so the glyphs are drawn and no SGR is emitted.
+func (m Model) scrollbarCells(lay Layout) []string {
+	if !m.scrollbarDrawn(lay) {
+		return nil
+	}
+	h := lay.TranscriptH
+	top, size := scrollbarThumb(h, len(m.lines), m.scroll.Offset)
+	cells := make([]string, h)
+	for r := range cells {
+		if r >= top && r < top+size {
+			cells[r] = m.sty.Muted(m.gly.BarThumb)
+		} else {
+			cells[r] = m.sty.Dim(m.gly.BarTrack)
+		}
+	}
+	return cells
 }
 
 // exactly forces the frame to h rows of at most contentW cells. Any drift here
@@ -699,20 +769,41 @@ func exactly(rows []string, h, contentW int) []string {
 // replaces, and that span is the content span — the margin is not the overlay's
 // to fill. Padding before compositing would make it exactly that.
 //
-// Only the left column is written. The right one is RESERVED rather than
-// emitted: content is bounded at lay.ContentW and shifted right by the pad, so
-// nothing can reach the last column, and writing a space into it would put
-// trailing whitespace on every row of every frame without changing a single
-// rendered cell. Backgrounds do not change that — CodeBg and SelectionBg are
-// applied inside a card, well within the content span, so the margin columns
-// carry the terminal's own background at both edges either way.
-func padFrame(rows []string, lay Layout) []string {
+// The left column is always written. The right one is written only for the bar
+// (below). Otherwise it is left unemitted: content is bounded at lay.ContentW
+// and shifted right by the pad, so nothing else can reach the last column, and
+// writing a space into it would put trailing whitespace on every row of every
+// frame without changing a single rendered cell. Backgrounds do not change
+// that: CodeBg and SelectionBg are applied inside a card, well within the
+// content span, so on a frame without the bar the margin columns carry the
+// terminal's own background at both edges.
+//
+// The one exception is bar, the scrollbar's glyph for each transcript row (nil
+// when the frame draws none). Where it is given, each transcript row is first
+// padded to lay.Pad+lay.ContentW with the ANSI-aware pad, and the glyph is
+// appended in the right margin column. The glyph then lands in the same column
+// on every row, and the row ends in it instead of in trailing whitespace.
+// Transcript rows start after the header, at lay.HeaderH(), and run for len(bar)
+// rows. The step is here, and not in transcriptRows, because the margin is this
+// function's and no layer beneath it knows it exists. The padding and the glyph
+// are added the same way whether colour is on or off, so the styled frame with
+// its escapes stripped is still the plain frame.
+func padFrame(rows []string, lay Layout, bar []string) []string {
 	if lay.Pad <= 0 {
 		return rows
 	}
 	left := strings.Repeat(" ", lay.Pad)
 	for i := range rows {
 		rows[i] = left + rows[i]
+	}
+	for r, glyph := range bar {
+		i := lay.HeaderH() + r
+		if i >= len(rows) {
+			break
+		}
+		// The row already carries the left margin, so it is padded to the
+		// margin plus the content.
+		rows[i] = pad(rows[i], lay.Pad+lay.ContentW) + glyph
 	}
 	return rows
 }

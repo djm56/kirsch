@@ -26,7 +26,7 @@ Fix the daily usability problems found after v0.1.1, before Milestone 6 starts. 
 | v0.1.4 | ux-d5 | Markdown rendering | 1 | Assistant replies render bold, headings, lists and code fences; no background is painted; `NO_COLOR` and `TERM=dumb` fall back to unstyled text with the structure kept (Bishop's reading, made under the operator's standing go-ahead and open to being overturned; plan amendment 102); a config key turns it off. |
 | v0.1.4 | ux-d6 | Code highlighting | 4 | Code in the content view (read_file cards), in diff lines and in reply code fences is coloured by language; `+`/`-` stay the line markers. |
 | v0.1.5 | ux-d7 | Scrollbar | 2 | A one-column position indicator on the transcript's right edge, with a non-Unicode fallback; no mouse. |
-| v0.1.5 | ux-d8 | Long lines in the modal | 11 | Long lines in the content and diff modal can be read in full (wrap or sideways scroll, per UX-D7). |
+| v0.1.5 | ux-d8 | Long lines in the modal | 11 | Long lines in the content and diff modal can be read in full (wrapped, per UX-D7 as answered in plan amendment 103). |
 
 ## Manual tests
 
@@ -47,7 +47,7 @@ The operator's hands-on checks for each release are in [`plan/testing/manual/ux-
 | UX-D4 | How many missions per release | Answered 2026-11-19: one mission per release. | — (answered) |
 | UX-D5 | Copy keys, and how a code block is picked | Answered 2026-11-20 by Bishop's recommendation (operator's standing go-ahead; the operator may overturn it): `↑`/`↓` stop on assistant replies as well as cards, `c` in Browsing copies the selected reply's source text, and `/copy`, `/copy code` and `/copy code N` copy the last reply, its last fenced code block, or block N. Details in plan amendment 101. | v0.1.3 (answered) |
 | UX-D6 | Markdown while a reply streams | Answered 2026-11-20 by Bishop's recommendation (operator's standing go-ahead; the operator may overturn it): plain while streaming, rendered once the reply completes. Details in plan amendment 102. | v0.1.4 (answered) |
-| UX-D7 | Long lines in the modal | Open: wrap them, or add sideways scroll with `h`/`l`. | v0.1.5 |
+| UX-D7 | Long lines in the modal | Answered 2026-11-21 by Bishop's recommendation (operator's standing go-ahead; the operator may overturn it): wrap long lines; no sideways scroll. Details in plan amendment 103. | v0.1.5 (answered) |
 | UX-D8 | Config key name and default for markdown rendering | Answered 2026-11-20 by Bishop's recommendation (operator's standing go-ahead; the operator may overturn it): `ui.render_markdown`, boolean, default `true`, global only. Details in plan amendment 102. | v0.1.4 (answered) |
 
 ## Spec amendments
@@ -57,7 +57,7 @@ Each release amends the UI spec before its code step.
 - **v0.1.2** by plan amendment 100: the keys, the help overlay, the cut-off notice, and the §7 stop-reason fields on `assistant.message`.
 - **v0.1.3** by plan amendment 101: selecting replies (ui-spec §3.9), copy keys (§5.2), `/copy` (§6), and a second help-overlay redraw within the same height rule as v0.1.2.
 - **v0.1.4** by plan amendment 102: the UI spec sections marked "amendment 102".
-- **v0.1.5** adds the scrollbar glyphs to §10.2, and amends §4.1 (modal) for UX-D7.
+- **v0.1.5** by plan amendment 103: the UI spec sections marked "amendment 103".
 
 ## Relation to Milestone 6
 

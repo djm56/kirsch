@@ -352,7 +352,7 @@ func TestSessionLineOmitsAbsentFields(t *testing.T) {
 
 // modalBodies are the three body sizes the geometry has to hold for: the real
 // help overlay, a single line, and none at all. The empty case is what the
-// body-row floor in modalBox exists for.
+// body-row floor in modalSizing exists for.
 func modalBodies() map[string][]string {
 	return map[string][]string{
 		"help":  helpLines(),
@@ -1610,18 +1610,24 @@ func TestOneRowOverlayFormsCoverTheirWholeSpan(t *testing.T) {
 }
 
 // TestFrameKeepsAMarginAtBothEdges is the acceptance sweep for the frame's
-// horizontal padding: one blank column at the left edge, one at the right, at
-// every width and in every state that draws.
+// horizontal padding: one blank column at the left edge, and one at the right
+// that is blank too, except for the scrollbar glyph on a transcript row when the
+// bar is drawn, at every width and in every state that draws.
 //
 // Four claims, because a frame can hold any three of them and still be wrong:
 //
 //   - Every row opens with the margin. Not "the rows with content on them" —
 //     padFrame insets the frame, and a frame whose blank rows are a column
 //     narrower than its full ones is a frame that pads its content instead.
-//   - No row reaches the right margin. This is the half a left-edge check
-//     cannot state, and the half that separates a frame that was inset from a
-//     renderer that indented itself: the two are identical on the left and
-//     differ by a column on the right.
+//   - No row reaches the right margin, except the scrollbar glyph on a
+//     transcript row when the bar is drawn (ui-spec §2.1, amendment 103). This
+//     is the half a left-edge check cannot state, and the half that separates a
+//     frame that was inset from a renderer that indented itself: the two are
+//     identical on the left and differ by a column on the right. The exception
+//     is narrow: the state that overflows the transcript must have a bar glyph
+//     (`│` or `┃`) in the margin on every transcript row where the layout can
+//     draw one, and any other cell in the margin, on any row of any state, still
+//     fails.
 //   - TermW == ContentW + 2*Pad. The margin is bought once. A layout that took
 //     its padding out of the content AND inset the result would satisfy both
 //     edge checks while giving the content two columns less than it says.
@@ -1639,12 +1645,20 @@ func TestFrameKeepsAMarginAtBothEdges(t *testing.T) {
 		"turn": func(m *Model) {
 			m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{Lines: []string{"Fix the Divide validation"}}})
 		},
+		// "overflow" is the one state that draws the scrollbar into the right
+		// margin: more transcript lines than any height swept here has rows.
+		"overflow": func(m *Model) {
+			for i := 0; i < 40; i++ {
+				m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{Lines: []string{"Fix the Divide validation"}}})
+			}
+			m.relayout(m.layout())
+		},
 		"modal": func(m *Model) { m.openModal(ModalState{Kind: ModalHelp, Title: "help", Lines: helpLines()}) },
 		"confirm": func(m *Model) {
 			m.askConfirm(ConfirmState{Prompt: "Discard the running turn?", Action: ConfirmNewSession})
 		},
 	}
-	var ruledSeen, unpaddedSeen int
+	var ruledSeen, unpaddedSeen, barRowsSeen int
 	for name, build := range states {
 		for w := 1; w <= 120; w++ {
 			for _, h := range []int{1, 2, 5, 6, 10, 11, 24} {
@@ -1664,12 +1678,36 @@ func TestFrameKeepsAMarginAtBothEdges(t *testing.T) {
 				rows := strings.Split(m.View(), "\n")
 				margin := strings.Repeat(" ", lay.Pad)
 				widest := 0
+				// Whether the frame must carry the bar, worked out from the layout
+				// and the state's name and not from the renderer's own rule, so a
+				// renderer that stopped drawing the bar fails the check below.
+				barExpected := name == "overflow" && lay.ShowTranscript && lay.TranscriptH >= 3
 				for i, row := range rows {
 					if !strings.HasPrefix(row, margin) {
 						t.Errorf("%s %dx%d row %d: %q does not open with the %d-column margin",
 							name, w, h, i+1, row, lay.Pad)
 					}
-					if cw := cellWidth(row); cw > lay.TermW-lay.Pad {
+					cw := cellWidth(row)
+					transcriptRow := i >= lay.HeaderH() && i < lay.HeaderH()+lay.TranscriptH
+					if barExpected && transcriptRow {
+						// The exception: the last cell of this row is the bar glyph, and
+						// the cells before it are the margin plus the content span.
+						plain := []rune(stripSGR(row))
+						if len(plain) == 0 {
+							t.Errorf("%s %dx%d row %d: a transcript row of a frame with the bar is empty",
+								name, w, h, i+1)
+							continue
+						}
+						last := string(plain[len(plain)-1])
+						if cw != lay.TermW || (last != "│" && last != "┃") {
+							t.Errorf("%s %dx%d row %d: a transcript row of a frame with the bar "+
+								"must be %d cells and end in `│` or `┃`, got %d cells: %q",
+								name, w, h, i+1, lay.TermW, cw, row)
+						}
+						barRowsSeen++
+						cw-- // measure the row without its glyph
+					}
+					if cw > lay.TermW-lay.Pad {
 						t.Errorf("%s %dx%d row %d: %d cells of a %d-column terminal, so it has "+
 							"written into the right margin: %q",
 							name, w, h, i+1, cw, lay.TermW, row)
@@ -1692,11 +1730,12 @@ func TestFrameKeepsAMarginAtBothEdges(t *testing.T) {
 	}
 	// Both bands are walked, and a band this sweep never entered is a band it
 	// does not cover.
-	if ruledSeen == 0 || unpaddedSeen == 0 {
-		t.Fatalf("the sweep saw %d ruled frame(s) and %d unpadded frame(s); "+
-			"a band it never reaches is a band it does not cover", ruledSeen, unpaddedSeen)
+	if ruledSeen == 0 || unpaddedSeen == 0 || barRowsSeen == 0 {
+		t.Fatalf("the sweep saw %d ruled frame(s), %d unpadded frame(s) and %d bar row(s); "+
+			"a band it never reaches is a band it does not cover", ruledSeen, unpaddedSeen, barRowsSeen)
 	}
-	t.Logf("covered %d ruled frames and %d frames too narrow for a margin", ruledSeen, unpaddedSeen)
+	t.Logf("covered %d ruled frames, %d frames too narrow for a margin and %d bar rows",
+		ruledSeen, unpaddedSeen, barRowsSeen)
 }
 
 // TestHelpFooterNamesScrollKeysWhenClipped verifies that the help footer
@@ -2084,8 +2123,18 @@ func TestModalClippingMarkerStyling(t *testing.T) {
 // narrower it is omitted, and the rule row still spans the whole box.
 // The box width is set through the layout (ContentW = w+2, 100%) so the boundary
 // is hit exactly rather than via the terminal's width bands.
+//
+// The body is as many short lines as the help overlay has, each far inside the
+// narrowest text width the test reaches. A content line wider than the text width
+// wraps onto more rows (ui-spec §4.1, amendment 103), and then the number of
+// display rows would change with the box width and no longer be the line count
+// the oracle is given; help lines themselves are cut, not wrapped, but here they
+// stand in a content modal.
 func TestModalClippingMarkerNarrowWidth(t *testing.T) {
-	lines := helpLines()
+	lines := make([]string, len(helpLines()))
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %d", i+1)
+	}
 	off := len(lines) / 3
 	m := clippedModal(t, true, false, ModalState{Kind: ModalContent, Title: "test", Lines: lines}, off)
 

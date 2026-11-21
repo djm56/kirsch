@@ -21,7 +21,7 @@ import (
 // The mapping tests call hlLexer, hlRole and hlRuns directly. The fence tests
 // call mdLayout and drawMarkdown, and mdCache.rows for the cache. The modal
 // tests go through a Model: a card is appended, the Model's own openDetail (or
-// applyDiffResult for /diff) opens the modal, and modalLine draws each line
+// applyDiffResult for /diff) opens the modal, and modalRows draws each line
 // with the Model's own Styles, so the colours asserted are the ones drawn.
 
 // The §10.1 foreground codes the tests name. They are written out here, apart
@@ -491,13 +491,14 @@ func openCard(t *testing.T, m Model, name, target string, out []string) Model {
 	return m
 }
 
-// drawLine draws line idx of the open modal at inner cells.
+// drawLine draws the first display row of line idx of the open modal at inner
+// cells. A line that fits is one row, so for it this is the whole line.
 func drawLine(m Model, idx, inner int) string {
-	return m.modalLine(m.modal, m.modal.Lines[idx], idx, inner)
+	return m.modalRows(m.modal, m.modal.Lines[idx], idx, inner)[0]
 }
 
 // TestContentModalHighlightsReadFile is the read_file rule of §4.1. Entry point:
-// openDetail on a read_file card, then modalLine for each line. Numbered lines
+// openDetail on a read_file card, then modalRows for each line. Numbered lines
 // draw the modal's own number dim, the tool's number prefix muted, and the rest
 // lexed. The prefix is the digits plus exactly N spaces, so "5" and seven spaces
 // gives "5" and three. The marker line and a line with too few spaces are text.
@@ -565,42 +566,56 @@ func TestContentModalOnlyHighlightsReadFileCards(t *testing.T) {
 	}
 }
 
-// TestContentModalCutsAfterStyling: a long line is lexed whole and then cut.
-// Entry point: modalLine on a read_file line whose string literal runs past the
-// width. The visible width must be exactly the inner width, the cut text must end
-// in the truncation marker drawn as text, and the string colour must reach the
-// cut: lexing the cut fragment instead would see an unterminated string and
-// would not colour it. Positive control: the same line uncut carries the string
-// colour, and the cut line is shorter than the uncut one.
-func TestContentModalCutsAfterStyling(t *testing.T) {
+// TestContentModalWrapsAfterStyling: a long line is lexed whole and then wrapped.
+// Entry point: modalRows on a read_file line whose string literal runs past the
+// width, through openCard (openDetail). The line takes several rows, each a full
+// inner wide but the last; no row carries the truncation marker; the text of the
+// rows laid end to end is the line; and the string colour reaches the first cut
+// (rows[0]) and holds on rows[1], the row below it: lexing the fragments instead
+// would see an unterminated string and would not colour them. Positive control:
+// the same line at a width it fits is one row and carries the string colour.
+func TestContentModalWrapsAfterStyling(t *testing.T) {
 	long := `1   s := "` + strings.Repeat("a", 300) + `"`
 	m := openCard(t, hlColourModel(t), "read_file", "a.go", []string{long})
-	uncut := drawLine(m, 0, 400)
-	if !strings.Contains(uncut, "\x1b[38;5;"+cStr+"m") {
-		t.Fatal("positive control: the uncut line has no string colour")
+	fits := drawRows(m, 0, 400)
+	if len(fits) != 1 || !strings.Contains(fits[0], "\x1b[38;5;"+cStr+"m") {
+		t.Fatalf("positive control: the line at 400 cells is %d rows and has no string colour: %q", len(fits), fits)
 	}
 	for _, uni := range []bool{true, false} {
 		mm := newMDModel(t, true, uni, true, 100, 30)
 		mm = openCard(t, mm, "read_file", "a.go", []string{long})
-		marker := mm.gly.Trunc
 		const inner = 40
-		got := drawLine(mm, 0, inner)
-		if w := cellWidth(got); w != inner {
-			t.Errorf("unicode=%v: visible width %d, want %d: %q", uni, w, inner, stripSGR(got))
+		rows := drawRows(mm, 0, inner)
+		const textW = inner - 5
+		if want := (cellWidth(long) + textW - 1) / textW; len(rows) != want {
+			t.Fatalf("unicode=%v: %d rows, want %d", uni, len(rows), want)
 		}
-		segs := hlSegs(t, got)
-		last := segs[len(segs)-1]
-		if last.fg != cText || last.text != marker {
-			t.Errorf("unicode=%v: last stretch %v, want the marker %q in text", uni, last, marker)
+		var text strings.Builder
+		for i, row := range rows {
+			if strings.Contains(stripSGR(row), mm.gly.Trunc) {
+				t.Errorf("unicode=%v row %d: carries the truncation marker: %q", uni, i, stripSGR(row))
+			}
+			if w := cellWidth(row); i < len(rows)-1 && w != inner {
+				t.Errorf("unicode=%v row %d: visible width %d, want %d", uni, i, w, inner)
+			}
+			text.WriteString(stripSGR(row)[5:])
 		}
-		if len(segs) < 4 || segs[len(segs)-2].fg != cStr {
-			t.Errorf("unicode=%v: the colour before the cut is not the string's: %v", uni, segs)
+		if text.String() != long {
+			t.Errorf("unicode=%v: rows laid end to end are %q, want the line %q", uni, text.String(), long)
+		}
+		first := hlSegs(t, rows[0])
+		if last := first[len(first)-1]; last.fg != cStr {
+			t.Errorf("unicode=%v: the first row ends in %v, want the string colour", uni, last)
+		}
+		mid := hlSegs(t, strings.TrimPrefix(rows[1], "     "))
+		if len(mid) != 1 || mid[0].fg != cStr || mid[0].text != strings.Repeat("a", textW) {
+			t.Errorf("unicode=%v: a continuation row is %v, want %d a's in the string colour", uni, mid, textW)
 		}
 	}
 }
 
 // TestApprovalDiffHighlights is the patch approval diff rule. Entry point:
-// openDetail on a patch approval card, then modalLine. The +/- marker keeps its
+// openDetail on a patch approval card, then modalRows. The +/- marker keeps its
 // success or error colour and the rest of the line is lexed; @@ is hunk; context
 // is muted whole and not lexed; a "+++" code line is a code line. Controls: each
 // code line has syntax colour, so "plain" cannot pass.
@@ -642,7 +657,7 @@ func TestApprovalDiffHighlights(t *testing.T) {
 }
 
 // TestApprovalDiffLanguageComesFromTheTitle: the language is the title's path,
-// and for a rename the new path after " → ". Entry point: modalLine on a diff
+// and for a rename the new path after " → ". Entry point: modalRows on a diff
 // modal opened with each title. The same line "+func f() {}" is a Go keyword
 // under a Go path and plain under a Python path, so the rename cases decide which
 // path was used in both directions.
@@ -713,7 +728,7 @@ func workTreeModal(t *testing.T, lines []string) Model {
 }
 
 // TestWorkTreeDiffHighlightsPerFile is the /diff rule. Entry point:
-// applyDiffResult, then modalLine on every line. Each file section takes its
+// applyDiffResult, then modalRows on every line. Each file section takes its
 // language from its own diff --git line, so "+func f() {}" is a keyword in the Go
 // section and plain in the Python one, and "+def f(): pass" the other way round.
 // Header lines keep the red and green their leading character gives and are not
@@ -779,7 +794,7 @@ func TestWorkTreeDiffBPathParsing(t *testing.T) {
 }
 
 // TestWorkTreeDiffTruncationMarkerEndsHighlighting: a marker line ends
-// highlighting until the next diff --git. Entry point: modalLine on a /diff with
+// highlighting until the next diff --git. Entry point: modalRows on a /diff with
 // each marker form, the tools' own and the trailing one in both glyph sets. The
 // code line after the marker is drawn whole in green; the code line before it and
 // the one after the next diff --git are lexed. The marker line itself is muted.
@@ -855,11 +870,11 @@ func TestWorkTreeDiffTrailingMarkerFromApplyDiffResult(t *testing.T) {
 }
 
 // TestModalSectionStateIsComputedOncePerOpen: the highlighting state is worked out
-// on first draw and not again. Entry point: modalBox, which draws the body lines,
-// called repeatedly with the modal scrolled by Update's own scroll keys. The count
-// is read from the ModalState's own hook field. Positive controls: nothing is
-// computed before the first draw, and a second open of the modal computes again,
-// so the counter does count.
+// the first time something needs it, and not again. Entry point: modalBox, which
+// draws the body lines, called repeatedly with the modal scrolled by Update's own
+// scroll keys. The count is read from the ModalState's own hook field. Positive
+// controls: nothing is computed before the first draw, and a second open of the
+// modal computes again, so the counter does count.
 func TestModalSectionStateIsComputedOncePerOpen(t *testing.T) {
 	var lines []string
 	for i := 0; i < 40; i++ {
@@ -1119,7 +1134,7 @@ func hlHasKeyword(runs []mdRun) bool {
 
 // TestHighlightLineLengthCutoff: a line wider than hlMaxLineCols is not lexed
 // and is drawn plain, in a reply fence and in the modals that highlight. Entry
-// points: hlRuns; mdLayout for a Go fence; modalLine on a read_file content modal and on a
+// points: hlRuns; mdLayout for a Go fence; modalRows on a read_file content modal and on a
 // patch approval diff modal. Each over-the-cutoff line is one column wider than
 // its control, which is exactly hlMaxLineCols wide and is lexed (the positive
 // control: it has the keyword role, or the keyword colour); hlRuns also lexes a
@@ -1268,36 +1283,50 @@ func TestModalLexesEachVisibleLineOnce(t *testing.T) {
 	}
 }
 
-// TestDiffModalCutsLongMarkedLines: a long "+" or "-" line in the diff modal is
-// lexed whole and cut to the width, and the colours of its marker stay. Entry
-// point: modalLine on a patch approval diff, in both glyph sets. The visible
-// width is exactly the inner width; the line ends in the truncation glyph, drawn
-// in the line's marker colour; and the "+" or "-" that starts the line keeps
-// success or error. Positive control: the stretch before the cut is the string
-// colour, so the line went through the highlighted path and not the plain one.
-func TestDiffModalCutsLongMarkedLines(t *testing.T) {
+// TestDiffModalWrapsLongMarkedLines: a long "+" or "-" line in the diff modal is
+// lexed whole and wrapped, and the colours of its marker stay. Entry point:
+// modalRows on a patch approval diff, in both glyph sets. The marker is the first
+// cell of the first row, in success or error; each continuation row starts with one
+// blank column and no marker; the string colour holds on every row after the first
+// cut; and no row carries the truncation glyph. Positive control: the stretch
+// before the first cut is the string colour, so the line went through the
+// highlighted path and not the plain one.
+func TestDiffModalWrapsLongMarkedLines(t *testing.T) {
 	body := `s := "` + strings.Repeat("a", 300) + `"`
 	for _, uni := range []bool{true, false} {
 		for _, c := range []struct{ marker, fg string }{{"+", cOK}, {"-", cErr}} {
 			m := newMDModel(t, true, uni, true, 100, 30)
 			m.openModal(ModalState{Kind: ModalDiff, Title: "a.go", Lines: []string{c.marker + body}})
 			const inner = 40
-			got := drawLine(m, 0, inner)
-			if w := cellWidth(got); w != inner {
-				t.Errorf("%s unicode=%v: visible width %d, want %d: %q", c.marker, uni, w, inner, stripSGR(got))
+			rows := drawRows(m, 0, inner)
+			// The first row holds inner cells, each later one inner-1 and a blank.
+			line := c.marker + body
+			if want := 1 + (cellWidth(line)-inner+inner-2)/(inner-1); len(rows) != want {
+				t.Fatalf("%s unicode=%v: %d rows, want %d", c.marker, uni, len(rows), want)
 			}
-			segs := hlSegs(t, got)
-			if len(segs) < 3 {
-				t.Fatalf("%s unicode=%v: %v", c.marker, uni, segs)
+			first := hlSegs(t, rows[0])
+			if len(first) < 3 {
+				t.Fatalf("%s unicode=%v: %v", c.marker, uni, first)
 			}
-			if first := segs[0]; first.fg != c.fg || first.text != c.marker {
-				t.Errorf("%s unicode=%v: first stretch %v, want %q in %s", c.marker, uni, first, c.marker, c.fg)
+			if f := first[0]; f.fg != c.fg || f.text != c.marker {
+				t.Errorf("%s unicode=%v: first stretch %v, want %q in %s", c.marker, uni, f, c.marker, c.fg)
 			}
-			if last := segs[len(segs)-1]; last.fg != c.fg || last.text != m.gly.Trunc {
-				t.Errorf("%s unicode=%v: last stretch %v, want the cut marker %q in %s", c.marker, uni, last, m.gly.Trunc, c.fg)
+			if first[len(first)-1].fg != cStr {
+				t.Errorf("%s unicode=%v: the stretch before the cut is not the string colour: %v", c.marker, uni, first)
 			}
-			if segs[len(segs)-2].fg != cStr {
-				t.Errorf("%s unicode=%v: the stretch before the cut is not the string colour: %v", c.marker, uni, segs)
+			var text strings.Builder
+			text.WriteString(stripSGR(rows[0]))
+			for i, row := range rows[1:] {
+				if !strings.HasPrefix(row, " \x1b[38;5;"+cStr+"m") {
+					t.Errorf("%s unicode=%v row %d: want one blank column then the string colour: %q", c.marker, uni, i+1, row)
+				}
+				text.WriteString(stripSGR(row)[1:])
+			}
+			if text.String() != c.marker+body {
+				t.Errorf("%s unicode=%v: rows laid end to end are %q", c.marker, uni, text.String())
+			}
+			if strings.Contains(text.String(), m.gly.Trunc) {
+				t.Errorf("%s unicode=%v: a row carries the truncation glyph", c.marker, uni)
 			}
 		}
 	}

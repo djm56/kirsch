@@ -8,28 +8,43 @@ reproduce, which would have meant capturing goldens from an unreviewed render.
 This keeps that from recurring.
 
 The declared size is the TERMINAL size, not the content's. The frame keeps a
-blank margin at its left and right edges — framePad columns of it, read out of
+margin at its left and right edges — framePad columns of it, read out of
 internal/tui/view.go rather than repeated here — so a grid of a W-column
 terminal carries at most W - 2*framePad columns of content, offset framePad
 columns from the left. Markdown cannot hold trailing whitespace and the
-generator trims it, so the right margin is never present in the file and every
-row measures at most W - framePad.
+generator trims it, so the right margin is absent from the file and every row
+measures at most W - framePad — with one exception. The transcript scrollbar
+(plan amendment 103) is drawn into the right margin, so a row may end in a
+scrollbar glyph in the grid's last column, column W. Only the scrollbar glyphs
+are admitted there: `│` and `┃` in a Unicode grid, `|` and `#` in a grid that is
+all ASCII, where "all ASCII" is judged on the grid with each last-column glyph
+set aside, so a `│` in the last column of an otherwise ASCII grid is not
+admitted. Any other character in that column is still a row that has written
+into the margin.
+
+The lint cannot tell a transcript row from another, but it checks the shape the
+bar has. The rows that end in a glyph form one contiguous run, and within that
+run the thumb glyph (`┃` or `#`) forms one contiguous run. A glyph on a lone row
+away from the run, a gap in the run, or two thumbs fails.
 
 What the checks guarantee, taken together:
 
   * the grid is a render of the terminal it declares — the fence states a size,
     the row count is that terminal's height, and no row is wider than that
-    terminal less its right margin;
+    terminal less its right margin, once a scrollbar glyph in the last column
+    is set aside;
   * the frame's left margin is on every row that has content, so a grid cannot
     be committed from a renderer that has stopped insetting the frame;
   * the frame's content reaches the last column available to it on at least one
-    row — the widest row is exactly W - framePad and never less — so a grid
+    row — the widest row, scrollbar glyph and the padding before it set aside,
+    is exactly W - framePad and never less — so a grid
     cannot be committed from a renderer that has quietly lost columns, which is
     the check the original "widest row equals the declared width" was making
     before the margin existed;
   * no row carries trailing whitespace, which markdown cannot hold;
   * box borders are square: every row's right-most border character sits in one
-    of at most two columns (two, because a modal may overlap a card behind it);
+    of at most two columns (two, because a modal may overlap a card behind it).
+    A scrollbar glyph in the last column is not a border and is set aside first;
   * non-grid content that a raw-grid regeneration would silently discard is still
     present: the colour-map format header, screen 00's wordmark and ASCII
     fallback, every screen's colour map, screen 05's collapsed grant list, and
@@ -47,6 +62,11 @@ ROOT = Path(__file__).resolve().parent.parent
 DOC = ROOT / "plan" / "spec" / "kirsch-ui-screens.md"
 VIEW = ROOT / "internal" / "tui" / "view.go"
 BOX = "┌┐└┘│├┤"
+# The scrollbar glyphs (ui-spec §10.2): track then thumb, in the Unicode form and
+# in the ASCII fallback. They are the only characters admitted in a grid's last
+# column, the right margin.
+BAR_UNICODE = "│┃"
+BAR_ASCII = "|#"
 
 
 def frame_pad() -> int:
@@ -71,6 +91,35 @@ def cell_width(s: str) -> int:
             continue
         w += 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
     return w
+
+
+def bar_glyphs(rows: list[str], want_w: int) -> str:
+    """The scrollbar glyphs a grid may carry: ASCII ones if it is all ASCII.
+
+    A row exactly want_w cells wide has its last character set aside before the
+    test, since that is where a glyph would sit. Otherwise a `│` there would make
+    an ASCII grid look Unicode and admit itself.
+    """
+    bodies = [r[:-1] if cell_width(r) == want_w else r for r in rows]
+    return BAR_ASCII if all(b.isascii() for b in bodies) else BAR_UNICODE
+
+
+def runs(flags: list[bool]) -> int:
+    """The number of maximal runs of True in flags."""
+    return sum(1 for i, f in enumerate(flags) if f and (i == 0 or not flags[i - 1]))
+
+
+def split_bar(row: str, want_w: int, glyphs: str) -> tuple[str, str]:
+    """Split a scrollbar glyph off the end of a row.
+
+    Returns (body, glyph). The glyph is taken only when the row is exactly want_w
+    cells wide, so it sits in the grid's last column, and it is one of glyphs.
+    Anything else comes back whole with an empty glyph, so the margin rules see
+    it as they did before the scrollbar existed.
+    """
+    if row and row[-1] in glyphs and cell_width(row) == want_w:
+        return row[:-1], row[-1]
+    return row, ""
 
 
 def grids(text: str):
@@ -202,14 +251,33 @@ def main() -> int:
             print(f"{where}: {len(rows)} rows, declared {want_h}")
             failures += 1
 
-        widest = max((cell_width(r) for r in rows), default=0)
+        glyphs = bar_glyphs(rows, want_w)
+        # Each row with its scrollbar glyph split off. A row that has one is
+        # padded out to the glyph, so the padding is trimmed too: the widest-row
+        # rule is about where content ends, not where the bar sits.
+        split = [split_bar(r, want_w, glyphs) for r in rows]
+        bodies = [body for body, _ in split]
+        has_bar = [glyph != "" for _, glyph in split]
+        # The bar is one vertical run, and its thumb is one run inside it.
+        if runs(has_bar) > 1:
+            print(f"{where}: scrollbar glyphs are not one contiguous run of rows")
+            failures += 1
+        thumb = glyphs[1]
+        in_run = [g for g in (gl for _, gl in split) if g]
+        if runs([g == thumb for g in in_run]) > 1:
+            print(f"{where}: the scrollbar thumb is not one contiguous run")
+            failures += 1
+        widest = max(
+            (cell_width(b.rstrip() if bar else b) for b, bar in zip(bodies, has_bar)),
+            default=0,
+        )
         if widest != want_widest:
             print(f"{where}: widest row is {widest} cols, want {want_widest} — "
                   f"{want_w} columns less the {pad}-column right margin")
             failures += 1
 
-        for i, row in enumerate(rows, 1):
-            w = cell_width(row)
+        for i, (row, body) in enumerate(zip(rows, bodies), 1):
+            w = cell_width(body)
             if w > want_widest:
                 print(f"{where}: row {i} is {w} cols, over by {w - want_widest} — "
                       f"it has written into the right margin")
@@ -223,7 +291,7 @@ def main() -> int:
                 failures += 1
 
         right_edges = set()
-        for row in rows:
+        for row in bodies:
             cols = [cell_width(row[:i]) for i, ch in enumerate(row) if ch in BOX]
             if cols:
                 right_edges.add(cols[-1])

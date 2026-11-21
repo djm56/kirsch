@@ -1,0 +1,32 @@
+# state: modal-readfile-wrapped
+# release: v0.1.5
+# size: 80x24
+# glyphs: unicode
+# steps: (a read_file card finishes) | Shift+↑ | d
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+         ┌─ read_file calc/usage.go ──────────────────────────────────┐
+ ┃ ▾ read│    1 1   package calc                                      │
+ ┃   ┌───│    2 2                                                     │───────┐
+ ┃   │ 1 │    3 3   var usage = "alpha-0123456789 bravo-0123456789 ch │       │
+ ┃   │ 2 │      arlie-0123456789 delta-0123456789 echo-0123456789 fox │       │
+ ┃   │ 3 │      trot-0123456789 golf-0123456789 hotel-0123456789"     │56789 ⋯│
+ ┃   │ 4 │    4 4                                                     │       │
+ ┃   │ 5 │    5 5   func Usage() string { return usage }              │       │
+ ┃   └───├────────────────────────────────────────────────────────────┤───────┘
+         │ j/k scroll · g/G top/bottom · Esc close                    │
+         └────────────────────────────────────────────────────────────┘
+ 
+ 
+ 
+ 
+ 
+ 
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle · 0 tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > 
+                                                                               

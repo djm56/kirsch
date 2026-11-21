@@ -1,0 +1,32 @@
+# state: scrollbar-ascii
+# release: v0.1.5
+# size: 80x24
+# glyphs: ascii
+# steps: (canned transcript loads) | (canned second turn loads) | (a read_file card finishes)
+# frame text: View() with colour off
+# no model, no network, no key: canned messages through the real Model
+=== frame ===
+ Kirsch -----------------------------------------------------------------------
+ my-project - main *
+ Step 14: the zero check in Divide runs after the division.                    |
+                                                                               |
+ | v read_file calc/divide.go . lines 1-11 . [ok]                              |
+ |   +------------------------------------------------------------------------+|
+ |   | 1   package calc                                                       ||
+ |   | 2                                                                      ||
+ |   | 3   import "errors"                                                    ||
+ |   | 4                                                                      ||
+ |   | 5   // Divide returns a/b, or an error when b is zero.                 ||
+ |   | 6   func Divide(a, b float64) (float64, error) {                       ||
+ |   | 7       if b == 0 {                                                    ||
+ |   | 8           return 0, errors.New("division by zero")                   ||
+ |   | 9       }                                                              |#
+ |   | 10      return a / b, nil                                              |#
+ |   +------------------------------------------------------------------------+#
+ |   ‹10 of 11 lines — d full output · Enter collapse›                         #
+                                                                               #
+ ------------------------------------------------------------------------------
+ claude-sonnet-5-5 . idle . 0 tok
+ ------------------------------------------------------------------------------
+ > _
+ Up/Down history . Shift+Up/Tab cards . /help                                  

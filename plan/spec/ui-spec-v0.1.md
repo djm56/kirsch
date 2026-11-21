@@ -51,12 +51,12 @@
  ──────────────────────────────────────────────   separator rule
  > _                                              ④ composer (1–5 lines)
 ^                                              ^
-one blank column here, and one here — the frame margin, §2.1
+one blank column here, and one here — the frame margin, §2.1 (the scrollbar may take the right one)
 ```
 
 There is no box around the frame. Every row begins one column in from the left
-edge and stops one column short of the right — the frame margin of §2.1 — and
-nothing else paints an outer border.
+edge and stops one column short of the right — the frame margin of §2.1, which the
+scrollbar may take on transcript rows — and nothing else paints an outer border.
 
 - **① Header — two rows.** Row 1 is the wordmark `Kirsch` alone, followed by a
   rule running to the last content column. Row 2 is the session line:
@@ -83,7 +83,8 @@ nothing else paints an outer border.
   fixed at 1. Composer is its content height clamped to 1–5. A key-hint row appears
   at terminal height ≥ 24, fixed at 1. Transcript takes everything left over.
 - **Frame margin.** The frame keeps **one blank column at its left edge and one
-  at its right**, and none at the top or bottom. Horizontal only, and
+  at its right**, and none at the top or bottom. The right one carries the scrollbar on
+  transcript rows when the bar is drawn (below). Horizontal only, and
   deliberately so: the chrome budget in §2.2 spends every row the terminal has,
   so a blank row would come straight out of the transcript, which at the
   advertised 40×10 minimum is already down to four rows. A column is cheap at
@@ -91,22 +92,51 @@ nothing else paints an outer border.
   - **The minimum terminal is unchanged at 40×10** (§1). The margin does not
     raise it.
   - **Two widths, and they are not interchangeable.** The *terminal* width is
-    what the §2.2 bands are read from, and nothing draws into it. The *content*
+    what the §2.2 bands are read from. Every renderer draws into the content width
+    alone; the margin columns on either side belong to the frame. The *content*
     width — terminal width less both margin columns — is what every renderer
     measures against, and the only width any of them sees. A 40-column terminal
     has 38 content columns. Banding on content width would make a 40-column
     terminal render the `terminal too narrow` notice and retire the advertised
     minimum as a side effect of adding a margin; the same reasoning holds at 60
     and 80, because a band is a statement about the terminal the user has.
-  - **The right column is reserved, not written.** Content is bounded at the
-    content width and shifted right by one, so nothing can reach the last
-    column. No space is emitted into it — writing one would put trailing
-    whitespace on every row of every frame without changing a single rendered
-    cell. Both margin columns therefore carry the terminal's own background,
-    which is what §1's "the terminal's own background shows through" requires.
-  - **Applied once, last**, after the final overlay is composited. No component
-    knows the margin exists; an overlay's span is the content span, never the
-    terminal's width (screens, layout invariant 3).
+  - **The right column is reserved, not written, except for the scrollbar.**
+    Content is bounded at the content width and shifted right by one, so nothing
+    can reach the last column. No space is emitted into it on a frame without the
+    bar — writing one would put trailing whitespace on every row of every frame
+    without changing a single rendered cell. On a frame without the bar the right
+    column carries the terminal's own background, which is what §1's "the
+    terminal's own background shows through" requires.
+  - **The scrollbar is an exception to the blank margin (v0.1.5, amendment 103).**
+    Its column is the right margin column, and the frame draws the bar into it. The
+    bar is drawn after the left margin is inserted, on the transcript's rows only. The
+    bar is drawn exactly when `scrollbarDrawn` returns true,
+    and otherwise the column stays blank. The conditions live in `scrollbarDrawn` alone,
+    and this spec does not restate them.
+    The content width does not change, and every renderer still
+    measures against the same content width. The left margin is not a condition of
+    its own: `framePadding` gives no margin only below a 3-column terminal, and
+    `ShowTranscript` is never set that low, so the margin is present whenever the bar
+    can be drawn.
+    - **Padding.** On a frame that draws the bar, each transcript row is padded to
+      the content width with the ANSI-aware `pad`
+      before the glyph is placed in the last column. The padding writes spaces into
+      content cells that the row would otherwise leave empty. This is the deliberate
+      trade against the trailing-whitespace rationale above: the row still ends in its
+      glyph, so it has no trailing whitespace, but its empty cells are written rather
+      than left. Frames without the bar are not padded.
+    - **Flush against the bar.** The `↓ N new` row (§2.4) and full-width rows, such
+      as a card border that runs to the last content column, end at the last content
+      column, so they sit flush against the bar. That is intended. Nothing separates
+      the bar from the content.
+    - **Where it is drawn.** `View()` composites the overlays (the modal is
+      composited by `overlayModal`) and then makes the frame call, which runs
+      `padFrame` to insert the left margin. The bar is drawn on that same pass,
+      after the insert.
+  - **Applied once, last**, after the final overlay is composited. No renderer
+    below the frame step knows the margin exists; an overlay's span is the content
+    span, never the terminal's width (screens, layout invariant 3). The scrollbar is
+    drawn into the margin by the frame step (above).
   - The margin is not gated on a §2.2 band: the 38-column `terminal too narrow`
     notice sits inside the same margin as an 80-column session, so the app does
     not change shape at the moment it is most degraded. It is dropped only at
@@ -232,6 +262,52 @@ dropped**; at narrow widths they are the entire reason the bar exists.
   clears the `↓ N new` indicator. `↑`/`↓` move the selection and scroll only
   as far as needed to keep it visible. Scrolling and selection are separate
   concerns and must not be collapsed into one.
+- **The scrollbar (v0.1.5, amendment 103).** A one-column position indicator in
+  the right margin (§2.1). It shows where the viewport sits in the transcript.
+  - Inputs. `h` is the transcript height (`lay.TranscriptH`). `n` is the
+    transcript's line count, `len(m.lines)`. `maxOff`
+    is `n − h`, and `off` is `clamp(m.scroll.Offset, 0, maxOff)`. `setOffset` keeps
+    the offset between `0` and `maxOff` when it is called, but not every path calls
+    it. An unpinned resize only relayouts (the `tea.WindowSizeMsg` case of `update`),
+    and expanding a non-tool item in `keyBrowsing` does not clamp, so the stored offset
+    can sit above `maxOff`. The clamp keeps the thumb inside the track in that case.
+    The pinned offset is `n − h`, re-derived only while pinned (in `relayout`).
+  - Drawn exactly when `scrollbarDrawn` returns true. Otherwise the column is blank.
+  - Thumb size, integer division: `thumbH = max(1, h*h / n)`.
+  - Thumb top, integer division: `thumbTop = (off*(h − thumbH) + maxOff/2) / maxOff`.
+    Transcript row `r` shows the thumb when `thumbTop ≤ r < thumbTop + thumbH`, and
+    the track otherwise. Row numbers in this section, and in screen 14, count from
+    0 at the top of the transcript.
+  - Both ends. Offset `0` puts the thumb at the top. The pinned offset puts it flush
+    at the bottom, because `maxOff/2` is below `maxOff` and adds nothing to the last
+    step. Rounding can also put the thumb at either end for offsets near them, so the
+    thumb at the bottom does not by itself mean pinned. For example, with `h` 10 and
+    `n` 40 (`maxOff` 30, `thumbH` 2): offsets 0 and 1 both give `thumbTop` 0, and
+    offsets 29 and 30 both give `thumbTop` 8, the bottom two rows. Offset 29 is not
+    pinned.
+  - Worked example, `h` 10 and `n` 40: `maxOff` is 30 and `thumbH` is 2. Offset 0
+    gives `thumbTop` 0. Offset 15 gives `(15·8 + 15)/30` = 4. The pinned offset 30
+    gives `(30·8 + 15)/30` = 8, so the thumb takes the last two rows, 8 and 9.
+  - Worked example, `h` 12 and `n` 100: `maxOff` is 88 and `thumbH` is
+    `max(1, 144/100)` = 1. Offset 44 gives `(44·11 + 44)/88` = 6. The pinned offset
+    88 gives `(88·11 + 44)/88` = 11, row 11, the last row.
+  - Colour roles. The track is `dim`, the decoration role (§10.1). The thumb is
+    `muted`, which has the higher contrast of the two (§10.1 gives each role's
+    contrast), so the position stays readable. No palette entry is added. The thumb is identified by
+    its glyph, not only its colour (§12). With colour off the glyphs are drawn and
+    no SGR is emitted (§13).
+  - No overlay. While an overlay is open the transcript is drawn with the flattened
+    styles (`m.sty.Flat()`, called in `relayout`), and the bar is not drawn
+    at all. `Flat()` gives `muted` and `dim` the same style, so a thumb under an
+    overlay could be told apart from the track by its glyph alone. The bar is left out
+    instead. The margin is outside every overlay's span, because the frame step runs
+    after the overlays in `View`.
+  - The "↓ N new" indicator (in `transcriptRows`) sits on the last
+    transcript row and ends at the last content column.
+    The bar sits in the margin beside it, so they meet, flush, and do not overlap.
+    That is intended (§2.1).
+  - No mouse, no click and no drag. Those are milestone items 3 and 7, deferred in
+    `plan/milestones/ux-round-v0.1.md`.
 
 ## 3. Transcript Elements
 
@@ -451,13 +527,90 @@ card.
 - **Plain content** renders with line numbers.
 - (v0.1.4, amendment 102) **Diff content** is highlighted by language, with the scheme in §3.2. The diff modal's feeders are below; each sets the language from its own lines.
   - **Patch approval diff**, opened from a patch approval card or from a folded approval's tool card. Its lines are hunks only, starting at the first `@@`, with no `diff --git`, `---` or `+++` lines. It may also hold single descriptive lines for a file with no hunks (renamed, empty file created or deleted, binary, mode change) and `\ No newline at end of file` lines; none begins with `+` or `-`, so none is highlighted. The language comes from the file path in the modal's title. For a rename the title is `old → new`, and the new path, after ` → `, is used.
-  - **`/diff`**, titled "working tree". Its lines are full `git diff` output, which may cover several files. The language is set per file section, from the `b/` path of that section's `diff --git a/… b/…` line. The `b/` path is present for deleted files too. When a section's `diff --git` line does not parse as `a/<path> b/<path>` with one unambiguous ` b/` split, as with git's mnemonic or no-prefix settings or with quoted paths, that section is not highlighted. A truncation marker, such as `‹… output truncated …›` or the trailing `⋯ truncated` marker, ends the current section's highlighting. Lines after it are not highlighted until the next `diff --git`.
+  - **`/diff`**, titled "working tree". Its lines are full `git diff` output, which may cover several files. The language is set per file section, from the `b/` path of that section's `diff --git a/… b/…` line. The `b/` path is present for deleted files too. When a section's `diff --git` line does not parse as `a/<path> b/<path>` with one unambiguous ` b/` split, as with git's mnemonic or no-prefix settings or with quoted paths, that section is not highlighted. A truncation marker, such as `‹… output truncated …›` or the trailing `⋯ truncated` marker, ends the current section's highlighting, and a file header run ends there too (`internal/tui/highlight.go:412-413`). Lines after it are not highlighted until the next `diff --git` (`internal/tui/highlight.go:408-410`), and a line after it is a code line by its first character, not a header line.
   - **The `git_diff` card** opens the plain content modal, not the diff modal. Its content is not highlighted (see the `read_file` rule below).
-- (v0.1.4, amendment 102) **Header rule, `/diff` only.** A file's header runs from its `diff --git` line to its first `@@` line. Header lines are never highlighted and keep their current colours (today `---` lines draw in `error` and `+++` lines in `success`, by their leading character). This is the same rule the per-file stats (`+12 −4`) count by. After the first `@@`, a line beginning `+` or `-` is a code line, even if it begins `+++` or `---`. Approval diffs have no header lines. `@@` headers keep `hunk`. On `+` and `-` code lines the marker keeps its `success` or `error` colour, and the rest of the line is highlighted. Each line is lexed on its own. Context lines keep `muted` and are not highlighted, as before. The `+` and `-` characters stay the line markers, so colour is never the only signal.
+- (v0.1.4, amendment 102) **Header rule, `/diff` only.** A file's header runs from its `diff --git` line to its first `@@` line, or to a truncation marker if that comes first (`internal/tui/highlight.go:412-413`). Header lines are never highlighted and keep their current colours (today `---` lines draw in `error` and `+++` lines in `success`, by their leading character). This is the same rule the per-file stats (`+12 −4`) count by. After the first `@@`, a line beginning `+` or `-` is a code line, even if it begins `+++` or `---`. Approval diffs have no header lines. `@@` headers keep `hunk`. On `+` and `-` code lines the marker keeps its `success` or `error` colour, and the rest of the line is highlighted. Each line is lexed on its own. Context lines keep `muted` and are not highlighted, as before. The `+` and `-` characters stay the line markers, so colour is never the only signal.
 - (v0.1.4, amendment 102) **Plain content** on a `read_file` card is highlighted by language, from the extension of the card's target path. Highlighting applies to no other card's content. An inline `<script>` on one line is highlighted as JavaScript, as the case pinned in `internal/tui/highlight_test.go` does. A script that spans lines is not, because each of its lines is lexed as HTML. A `read_file` line counts as numbered when it begins with one or more ASCII digits followed by at least N spaces, where N = 4 − (number of digits mod 4), that is 1 to 4. The prefix is the digits and exactly the first N spaces after them. Everything after the prefix is the line's text, whatever it starts with, including its own indentation. For example, `5` followed by seven spaces and `foo` has the prefix `5` plus three spaces, and the text is four spaces and `foo`. The tool writes `N<TAB>text`, and the sanitiser (§7.1) expands the tab to the next four-column stop, so the number and its spaces end on a stop. On a numbered line the prefix is shown `muted` and unhighlighted, and only the text after it is lexed. Any other line is shown in `text` and not lexed. That covers a truncation marker, a line cut mid-way by truncation, and the text of a failed `read_file` card. An unknown extension is plain, and so is an extension that chroma knows but Kirsch excludes, for example `.raku` or `.svelte` (see the excluded lexers below). The modal's own line numbers stay `dim`, as today.
 - (v0.1.4, amendment 102) Modal highlighting depends only on colour being available. `ui.render_markdown` does not turn it off. With colour off, everything is plain, as in v0.1.3. (v0.1.4, amendment 102) The content view, the diff view and reply fences use one language mapping: a file's name or extension (including names such as `Makefile` and `Dockerfile`), or a fence's info string, maps to a lexer; anything unmapped is plain. The excluded lexers, which are the keys of `hlUnsafeLexers` in `internal/tui/highlight.go`, are known to chroma but always drawn without syntax colours: Raku, the PostgreSQL SQL dialect, the Materialize SQL dialect and Svelte. Every name, alias and file pattern that chroma maps to them is excluded. For example, a fence named `postgresql` or `raku` is plain, a `.svelte` or `.raku` file is plain, and a `sql` fence is highlighted.
 - (v0.1.4, amendment 102) **Limits.** Wherever highlighting applies, a line wider than 512 columns is drawn without syntax colours. Each line has 50 ms to be lexed; a line that runs over is drawn the same way. Each lexer that runs over is plain from then on, for the rest of the session, and nothing resets that. On a diff line drawn without syntax colours, the `+` or `-` marker keeps its colour. Over the width cutoff, and on a line with no lexer, that colour covers the whole line, which is drawn the plain way. A diff line has no lexer, and so draws whole in its colour, in cases such as an unmapped language, an excluded lexer, an unparsed `diff --git` section, lines before the first `diff --git`, or lines after a truncation marker in `/diff` before the next `diff --git`. Whenever lexing gives the line back as one text run, for example after a deadline miss or once a language has missed one, only the marker keeps its colour and the rest of the line is text. Known gaps: a slow moment, such as a GC pause or heavy load, during one line can turn highlighting off for that language for the rest of the session; and a line abandoned at the deadline keeps one background goroutine busy until chroma's own per-rule timeouts end it, at most once per language.
-- `j`/`k`/arrows scroll, `PgUp`/`PgDn` page, `g`/`G` top/bottom, `Esc` closes.
+- (v0.1.5, amendment 103, UX-D7 and ux-d8) **Long lines wrap.** There is no sideways
+  scroll. A body line wider than the modal's text width continues on the rows below
+  it. The cut is hard, at a cell boundary: a wide rune is never split, and there is
+  no word wrapping, because the body is code. The `⋯` cut that a modal body line had
+  before is replaced by wrapping. The text width comes from `wrapWidths`: `inner-5` for a
+  content line, after its number column, and `inner` for a diff line, with `inner-1` on a
+  diff code line's later rows for the marker column. `inner` is the box width less 4
+  (`modalFrameFor`), and a diff line's `inner` includes its marker. `wrapBounds` gives the
+  point where each row breaks, and `modalRows` draws the rows. The sanitiser's 2000-column
+  cap and its `⋯` (§7.1) run first, as before.
+  - **Content modal.** The modal's number column (drawn in `modalRows`) shows the number on
+    the first row of a source line only. A highlighted line takes its runs from `contentRuns`. A continuation row leaves those columns
+    blank, so the text stays in its column. On a `read_file` line the number prefix
+    is part of the line's text (the rule above), so it is drawn once, on the first
+    row.
+  - **Diff modal.** The `+`, `-` or space marker is on the first row only. A line is a
+    code line when it is not a header line and begins with `+`, `-` or a space. Header
+    status decides that, not the first character. In `/diff`, `hlSections`
+    marks as header every line from `diff --git` up to the first `@@` or a truncation
+    marker, and `diffIsCode` reads that flag as `h.lines[idx].header`, checked only when
+    `md.WorkTree` is set. So a
+    `---` or `+++` header line wraps flush though it begins `-` or `+`. A continuation
+    row of a code line starts with one blank column in the marker's place, then the rest
+    of the line, so the code stays aligned. A `@@` line, a header line and a descriptive
+    line wrap flush, with no blank column. Approval diffs have no header lines, so there
+    a line is a code line by its first character alone. Colour continues on
+    continuation rows: a highlighted line keeps its syntax runs, and a line drawn the
+    plain way keeps its whole-line colour (Limits, below). Colour is by prefix, as
+    `modalRows` gives it: `@@` is `hunk`, a
+    `+` line is `success`, a `-` line is `error`, and anything else is `muted`. Header
+    lines follow the same rule by their leading character, as the header rule above
+    says. On a highlighted `+` or `-` line the marker takes `success` or `error`
+    (`diffRuns`).
+  - **Scroll position.** `md.Off` counts display rows. `j`/`k`, the arrows, `PgUp`/`PgDn`
+    and `g`/`G` move it by display row, through `keyModal`.
+    - **One helper gives the range.** `modalExtent` returns the modal's total display rows
+      and its body height for a layout. Both come from `modalSizing`, which runs the box's
+      own height ladder (`modalFrameFor`). `modalSizing` is the single source of the extent.
+      `modalBox` calls it directly, and `keyModal` reads it through `modalExtent`, so the keys
+      and the render take their numbers from the same function.
+    - **Keys clamp at both ends.** Each scrolling key first clamps `md.Off` to
+      `[0, max(0, totalRows − bodyH)]`, then applies its step, then clamps again (the
+      `scroll` closure in `keyModal`). The first clamp is needed because a resize leaves
+      the stored offset alone (the `tea.WindowSizeMsg` case of `update`), so it can sit past
+      the range; a step taken from there would move nothing on screen and the press would
+      be lost. Where the height ladder draws no body, `bodyH` is 0, and the same formulas
+      apply, giving `[0, totalRows]`. `modalBox` draws no body in that case, so the offset
+      has no visible effect. At the rungs that show a notice instead of a box (`modalFrameFor`,
+      `notice`), `modalExtent` returns the display-row count as `totalRows` and 0 as `bodyH`,
+      and the same formulas apply. The same clamps apply to the help overlay, which shares
+      `keyModal`. In `ModeModal`, a key reaches `keyModal` unless `handleKey` consumed it
+      before the mode switch. `handleKey` is the reference for which input that is.
+    - `g`/`Home` set it to 0. `G`/`End` set it to `max(0, totalRows − bodyH)`, the top of
+      the last page.
+    - Rendering clamps it to `[0, max(0, totalRows − bodyH)]`, so the last page is full.
+      `modalBox` clamps a local copy, not the stored offset, and the rule is measured in
+      display rows.
+    - The box height is `totalRows` plus the chrome, in display rows (`modalSizing`).
+      The clipping checks in `modalBox` and the marker (`buildClippingMarker`) count
+      display rows too.
+    - The page is `max(1, TranscriptH-4)` display rows (`keyModal`). It is not the body
+      height.
+    - A resize does not touch the modal (the `tea.WindowSizeMsg` case of `update`). The render
+      draws a clamped copy of the offset, and the next key press re-clamps the stored
+      offset. The top source line is not kept. That is a known
+      gap, listed in `plan/spec/kirsch-plan.md` amendment 103.
+    - A modal whose lines all fit the text width has one display row per source line,
+      so it behaves as it did before.
+  - **Help overlay.** Its lines are not wrapped. They keep the cut that `styleHelpLine`
+    makes with `truncEnd`. No
+    help line wraps, so for help a display row is a source line and `Off` means what it
+    did before.
+- **Unchanged.** The header, the per-file stats and the title. The highlighting
+  cutoff (`hlMaxLineCols`, 512 columns) and the
+  50 ms deadline still decide colour. A line over the cutoff now wraps instead of
+  being cut, and it keeps its plain colouring.
+- `j`/`k`/arrows scroll, `PgUp`/`PgDn` page, `g`/`G` top/bottom, `Esc` closes. The
+  movement is by display row from v0.1.5 (amendment 103).
 
 ### 4.2 Help overlay (`?`)
 
@@ -983,6 +1136,8 @@ licence for it to be unreadable.
 | Markdown table column separator (v0.1.4, amendment 102) | `│` | `\|` |
 | Markdown table header rule (v0.1.4, amendment 102) | `─` | `-` |
 | Markdown horizontal rule (v0.1.4, amendment 102) | `─` | `-` |
+| Scrollbar track (v0.1.5, amendment 103) | `│` | `\|` |
+| Scrollbar thumb (v0.1.5, amendment 103) | `┃` | `#` |
 
 Fallback triggers when the locale is not UTF-8. **Every state is identified by
 its glyph, not only by its colour** (§12).
@@ -1061,10 +1216,17 @@ implementation renders:
 | 13 | Scrolled up with `↓ n new` indicator | [09](kirsch-ui-screens.md#09--scrolled-up-unpinned) |
 | 14 | Onboarding: no API key; not a Git repo | [12](kirsch-ui-screens.md#12--onboarding-no-api-key-not-a-git-repo) |
 | 15 | (v0.1.4, amendment 102) A finished reply rendered as markdown | [13](kirsch-ui-screens.md#13--rendered-reply) |
+| 16 | (v0.1.5, amendment 103) Scrollbar drawn, transcript overflowing and unpinned | [14](kirsch-ui-screens.md#14--scrollbar-transcript-overflowing-unpinned) |
+| 17 | (v0.1.5, amendment 103) Content modal with a wrapped `read_file` line | [15](kirsch-ui-screens.md#15--long-lines-wrap-in-the-modal) |
+| 18 | (v0.1.5, amendment 103) Approval-diff modal with a wrapped hunk header and a wrapped code line | [15](kirsch-ui-screens.md#15--long-lines-wrap-in-the-modal), grid 15b |
 
 Every state in the table has a grid; screen 12 was drawn in Milestone 3 before its
 golden file was captured (plan §11, amendment 24). Screen 13 is generated from
-the render, not drawn first (plan §11, amendment 102).
+the render, not drawn first (plan §11, amendment 102). The rows marked amendment 103
+have grids and golden scenarios, and follow the properties below like every other state.
+Wrapping also changes screen 05, not only the rows above: its diff hunk header is wider
+than the modal's text width (`modalFrameFor`, and the `fakeDiff` hunk line in
+`internal/tui/fake.go`), so the modal-wrap code redraws that grid as well.
 
 Structure is the contract and colour is applied on top: line counts and box
 positions are identical with and without colour. Screen 11 is a

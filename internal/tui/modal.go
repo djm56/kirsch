@@ -3,6 +3,9 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mattn/go-runewidth"
+	"github.com/rivo/uniseg"
 )
 
 // ModalKind selects how a modal's body is rendered.
@@ -23,7 +26,7 @@ type ModalState struct {
 	Lines   []string
 	Added   int
 	Removed int
-	Off     int // the modal's own scroll offset, never the transcript's
+	Off     int // the modal's own scroll offset in display rows, never the transcript's
 
 	// Highlighting source. ui-spec §4.1. Path is the target path of the
 	// read_file card the modal was opened from, and ReadFile says it was. WorkTree
@@ -34,9 +37,11 @@ type ModalState struct {
 	ReadFile bool
 	WorkTree bool
 
-	// hl is the highlighting state, worked out on the first draw and kept.
-	// hlComputes counts how often that was done, and hlLexes how many lines
-	// were lexed; tests read both.
+	// hl is the highlighting state, worked out the first time something needs it
+	// and kept. For a content or approval diff that is the first draw. For /diff
+	// it is diffIsCode, reached from the first modalSizing, which a scroll key can
+	// call before any draw. hlComputes counts how often that was done, and hlLexes
+	// how many lines were lexed; tests read both.
 	hl         *modalHL
 	hlComputes int
 	hlLexes    int
@@ -133,9 +138,45 @@ func overlayFloorTop(lay Layout) int {
 // span be a box on one call and the whole frame on the next.
 func overlayRow(s string, w int) []string { return []string{pad(s, w)} }
 
-// modalBox builds the modal's lines and its placement within the transcript
-// region. Modals clamp to the §2.2 breakpoint sizes and trap all input.
-func (m Model) modalBox(lay Layout) (box []string, top, left int) {
+// modalFrame is the geometry modalBox and modalSizing share: where the box
+// sits, how wide it and its text are, and what the height ladder left it.
+type modalFrame struct {
+	w, inner  int  // box width, and w-4: the text width before a number column or marker
+	left, top int  // placement within the transcript region
+	chrome    int  // rows the box spends on itself, with the body excluded
+	showRule  bool // the footer rule is drawn
+	showBody  bool // the body is drawn
+	notice    bool // the height ladder fell through to the one-row notice
+}
+
+// modalFrameFor works out the width and the height ladder for lay. Modals clamp to
+// the §2.2 breakpoint sizes and trap all input.
+//
+// The rung is chosen so the box fits lay.TranscriptH. Layout invariant 3 is
+// what stops a modal painting over the status bar and the composer, and
+// overlayFloorTop is the one exception to it.
+//
+// What the box spends on itself, in the order it gives it up: the footer
+// rule first, then the body. The two borders and the footer are never
+// dropped. That ordering is the whole of the ladder's reasoning — a modal
+// traps every key, so the row naming the way out outranks the rows showing
+// the content, exactly as it outranks the rule that separates them. A box
+// holding one line of a help overlay and no exit key is worth less than one
+// holding no content and an exit key, because only the second can be left.
+//
+// The ladder exists because the smallest supported terminal (40×10, ui-spec
+// §1) leaves a four-row region once the two-row header is paid for, one row
+// short of the full box.
+//
+// Below three rows no bordered box holds a footer, so the modal degrades
+// further — out of the box form entirely, into the single notice row
+// modalNotice draws (notice is true there). It is never absent: a modal that
+// overruns the region corrupts the rows underneath it, but a modal drawing
+// nothing at all leaves a frame that reads as an ordinary idle session with
+// every key silently trapped, and that is the worse of the two. A region of no
+// rows is not the exception it used to be — the notice leaves the region for
+// the frame's last row rather than going out, and overlayFloorTop says why.
+func modalFrameFor(lay Layout) modalFrame {
 	w := lay.ContentW * lay.ModalPct / 100
 	if w > lay.ContentW-2 {
 		w = lay.ContentW - 2
@@ -143,79 +184,105 @@ func (m Model) modalBox(lay Layout) (box []string, top, left int) {
 	if w < 20 {
 		w = 20
 	}
-	md := m.modal
-	left = (lay.ContentW - w) / 2
-	top = lay.HeaderH()
-	inner := w - 4
-
-	// Height fits the content, capped by the region, and the box never leaves
-	// the region — Layout invariant 3 is what stops a modal painting over the
-	// status bar and the composer.
-	//
-	// What the box spends on itself, in the order it gives it up: the footer
-	// rule first, then the body. The two borders and the footer are never
-	// dropped. That ordering is the whole of the ladder's reasoning — a modal
-	// traps every key, so the row naming the way out outranks the rows showing
-	// the content, exactly as it outranks the rule that separates them. A box
-	// holding one line of a help overlay and no exit key is worth less than one
-	// holding no content and an exit key, because only the second can be left.
-	//
-	// The ladder exists because the smallest supported terminal (40×10, ui-spec
-	// §1) leaves a four-row region once the two-row header is paid for, one row
-	// short of the full box.
-	//
-	// Below three rows no bordered box holds a footer, so the modal degrades
-	// further — out of the box form entirely, into the single notice row
-	// modalNotice draws. It is never absent: a modal that overruns the region
-	// corrupts the rows underneath it, but a modal drawing nothing at all leaves
-	// a frame that reads as an ordinary idle session with every key silently
-	// trapped, and that is the worse of the two. A region of no rows is not the
-	// exception it used to be — the notice leaves the region for the frame's
-	// last row rather than going out, and overlayFloorTop says why.
-	showRule, showBody := true, true
-	var chrome int
+	fr := modalFrame{
+		w: w, inner: w - 4,
+		left: (lay.ContentW - w) / 2, top: lay.HeaderH(),
+		showRule: true, showBody: true,
+	}
 	for {
-		chrome = 3 // the two borders and the footer
-		if showRule {
-			chrome++
+		fr.chrome = 3 // the two borders and the footer
+		if fr.showRule {
+			fr.chrome++
 		}
-		need := chrome
-		if showBody {
+		need := fr.chrome
+		if fr.showBody {
 			need++
 		}
 		if lay.TranscriptH >= need {
-			break
+			return fr
 		}
 		switch {
-		case showRule:
-			showRule = false
-		case showBody:
-			showBody = false
+		case fr.showRule:
+			fr.showRule = false
+		case fr.showBody:
+			fr.showBody = false
 		default:
-			if lay.TranscriptH < 1 {
-				// The floor row replaces a frame row outright instead of sitting
-				// inside a region, so it spans the frame and starts at column
-				// zero: a notice centred in a twenty-cell box over the status bar
-				// would leave the bar's own text showing on both sides of it,
-				// reading as one row that says two things.
-				//
-				// Column zero is half of that claim and overlayRow is the other
-				// half. Starting at zero only settles the left side; the notice is
-				// as wide as its text and the bar finishes the row to the right
-				// unless the row is padded to the span it is replacing. Both
-				// halves are stated because for one review round only the first
-				// was true.
-				return overlayRow(m.modalNotice(lay.ContentW), lay.ContentW), overlayFloorTop(lay), 0
-			}
-			// In-region, the notice takes exactly the cells a bordered box would
-			// have owned — hence the box width and not the notice's own.
-			return overlayRow(m.modalNotice(w), w), top, left
+			fr.notice = true
+			return fr
 		}
 	}
-	h := len(md.Lines) + chrome
+}
+
+// modalSizing is the one place the modal's extent is worked out: its frame, the
+// display rows each source line takes at the frame's text width, their total, and
+// the body height the box draws. A help line is always one row; a content or diff
+// line takes as many rows as modalRowCount says.
+//
+// bodyH is 0 where the ladder draws no body and where it draws only a notice. At
+// the rungs with a body, the box is as tall as the rows need, which is total
+// plus fr.chrome, capped at lay.TranscriptH, and the body is at least one row so
+// an empty modal still shows one.
+func (m Model) modalSizing(lay Layout) (fr modalFrame, counts []int, total, bodyH int) {
+	fr = modalFrameFor(lay)
+	md := m.modal
+	counts = make([]int, len(md.Lines))
+	for i, raw := range md.Lines {
+		counts[i] = md.modalRowCount(m.gly.Trunc, raw, i, fr.inner)
+		total += counts[i]
+	}
+	if fr.notice || !fr.showBody {
+		return fr, counts, total, 0
+	}
+	h := total + fr.chrome
 	if h > lay.TranscriptH {
 		h = lay.TranscriptH
 	}
+	if bodyH = h - fr.chrome; bodyH < 1 {
+		bodyH = 1
+	}
+	return fr, counts, total, bodyH
+}
+
+// modalExtent returns the open modal's total display rows and the height of the
+// body it draws in lay. Both come from modalSizing, which is the single source
+// of the extent. keyModal is the only production caller, for the scroll range;
+// modalBox calls modalSizing directly. At the rungs where the ladder draws no
+// body or only a notice, bodyH is 0 and totalRows is still the display-row
+// count.
+func (m Model) modalExtent(lay Layout) (totalRows, bodyH int) {
+	_, _, totalRows, bodyH = m.modalSizing(lay)
+	return totalRows, bodyH
+}
+
+// modalBox builds the modal's lines and its placement within the transcript
+// region. The frame and the height ladder come from modalFrameFor; the extent
+// comes from modalSizing.
+func (m Model) modalBox(lay Layout) (box []string, top, left int) {
+	fr, counts, total, bodyH := m.modalSizing(lay)
+	w, inner := fr.w, fr.inner
+	md := m.modal
+	left, top = fr.left, fr.top
+	if fr.notice {
+		if lay.TranscriptH < 1 {
+			// The floor row replaces a frame row outright instead of sitting
+			// inside a region, so it spans the frame and starts at column
+			// zero: a notice centred in a twenty-cell box over the status bar
+			// would leave the bar's own text showing on both sides of it,
+			// reading as one row that says two things.
+			//
+			// Column zero is half of that claim and overlayRow is the other
+			// half. Starting at zero only settles the left side; the notice is
+			// as wide as its text and the bar finishes the row to the right
+			// unless the row is padded to the span it is replacing. Both
+			// halves are stated because for one review round only the first
+			// was true.
+			return overlayRow(m.modalNotice(lay.ContentW), lay.ContentW), overlayFloorTop(lay), 0
+		}
+		// In-region, the notice takes exactly the cells a bordered box would
+		// have owned — hence the box width and not the notice's own.
+		return overlayRow(m.modalNotice(w), w), top, left
+	}
+	showRule, showBody := fr.showRule, fr.showBody
 
 	title := " " + truncEnd(md.Title, inner-10, m.gly.Trunc) + " "
 	head := m.gly.BoxTL + m.gly.BoxH + title
@@ -235,45 +302,52 @@ func (m Model) modalBox(lay Layout) (box []string, top, left int) {
 	}
 	box = append(box, m.sty.BorderFocus(head))
 
-	// Body: whatever the chrome leaves. The floor covers a modal opened with no
-	// lines at all — an empty box still shows one row rather than folding its
-	// borders together — and the loop above has already reserved the row it
-	// needs, so the floor cannot push the box past the region. At the bottom
-	// rung the loop has withdrawn the body altogether and the floor does not
-	// apply: that box is borders and a footer.
-	bodyH := 0
-	if showBody {
-		if bodyH = h - chrome; bodyH < 1 {
-			bodyH = 1
+	// Body: whatever the chrome leaves, measured in display rows. At the bottom
+	// rung the ladder has withdrawn the body altogether and bodyH is 0: that box
+	// is borders and a footer. The offset is clamped as a local copy, so the last
+	// page is full and the stored offset is left for the next key to re-clamp.
+	off := clamp(md.Off, 0, maxInt(0, total-bodyH))
+	var rows []string
+	if bodyH > 0 {
+		// Find the source line holding display row off, then draw lines from
+		// there until the body is full; the first line may start part-way down.
+		src, skip := 0, off
+		for src < len(counts) && skip >= counts[src] {
+			skip -= counts[src]
+			src++
+		}
+		for ; src < len(md.Lines) && len(rows) < bodyH; src++ {
+			lineRows := m.modalRows(md, md.Lines[src], src, inner)
+			rows = append(rows, lineRows[skip:]...)
+			skip = 0
 		}
 	}
-	off := clamp(md.Off, 0, maxInt(0, len(md.Lines)-bodyH))
 	for i := 0; i < bodyH; i++ {
 		var content string
-		if idx := off + i; idx < len(md.Lines) {
-			content = m.modalLine(md, md.Lines[idx], idx, inner)
+		if i < len(rows) {
+			content = rows[i]
 		}
 		box = append(box, m.sty.BorderFocus(m.gly.BoxV)+" "+pad(content, inner+1)+
 			m.sty.BorderFocus(m.gly.BoxV))
 	}
 
 	if showRule {
-		// Embed clipping marker when lines are hidden.
+		// Embed clipping marker when display rows are hidden.
 		// No marker is drawn when the rule row is not drawn: the rule row holds the
-		// only representation of which lines are hidden and how many, so the marker
+		// only representation of which rows are hidden and how many, so the marker
 		// is only meaningful when that row appears. When the marker is omitted
 		// (nothing hidden, or too narrow to fit) the plain rule is drawn whole in
 		// BorderFocus.
 		ruleRow := m.sty.BorderFocus(m.gly.BoxLT + fill(m.gly.BoxH, w-2) + m.gly.BoxRT)
-		if off > 0 || off+bodyH < len(md.Lines) {
-			if marker := m.buildClippingMarker(off, bodyH, len(md.Lines), w); marker != "" {
+		if off > 0 || off+bodyH < total {
+			if marker := m.buildClippingMarker(off, bodyH, total, w); marker != "" {
 				ruleRow = m.embedMarkerInRule(marker, w)
 			}
 		}
 		box = append(box, ruleRow)
 	}
 
-	clipped := showBody && len(md.Lines) > bodyH
+	clipped := showBody && total > bodyH
 	footer := fitWidest(m.modalFooters(md, showBody, clipped), inner+1, m.gly.Trunc)
 	box = append(box, m.sty.BorderFocus(m.gly.BoxV)+" "+
 		pad(m.sty.Muted(footer), inner+1)+
@@ -391,43 +465,162 @@ func (m Model) modalNotice(w int) string {
 	}, w, m.gly.Trunc))
 }
 
-// modalLine styles one body line: diffs from parsed structure, plain content
-// with line numbers.
+// wrapBounds cuts s into display rows and returns the byte offset at which each
+// row ends, so the rows are s[0:ends[0]], s[ends[0]:ends[1]] and so on, and the
+// last offset is len(s). The first row takes first cells and every later row takes
+// rest.
+//
+// The cut is hard, at a grapheme boundary: a wide rune is never split, and there is
+// no word wrapping because the body is code. A cluster that does not fit what is
+// left of a row starts the next one, so a row can end a cell short of its width. A
+// cluster wider than a whole row stands alone on one rather than looping. The empty
+// string is one empty row. Both widths are floored at 1.
+//
+// It is the single definition of where a modal line breaks: the row count the
+// scroll range uses and the rows the box draws both come from it, so the two cannot
+// disagree about a line that cuts at a wide rune.
+func wrapBounds(s string, first, rest int) []int {
+	first, rest = maxInt(first, 1), maxInt(rest, 1)
+	if len(s) <= first {
+		return []int{len(s)} // a cell takes at least a byte, so s fits
+	}
+	var ends []int
+	limit, col, pos := first, 0, 0
+	g := uniseg.NewGraphemes(s)
+	for g.Next() {
+		cl := g.Str()
+		cw := runewidth.StringWidth(cl)
+		if col > 0 && col+cw > limit {
+			ends = append(ends, pos)
+			limit, col = rest, 0
+		}
+		col += cw
+		pos += len(cl)
+	}
+	return append(ends, len(s))
+}
+
+// runsSlice returns the part of runs, laid end to end, between byte offsets from
+// and to. A run wholly inside the range is kept as it is, so a line that fits one
+// row is drawn exactly as its runs came; a run the range cuts keeps its style on
+// the part it keeps, which is how a token cut across two rows keeps its colour on
+// both. Neighbouring runs of one style are not merged.
+func runsSlice(runs []mdRun, from, to int) mdRow {
+	var row mdRow
+	pos := 0
+	for _, r := range runs {
+		lo, hi := maxInt(from-pos, 0), minInt(to-pos, len(r.Text))
+		if lo < hi {
+			row = append(row, mdRun{Text: r.Text[lo:hi], mdStyle: r.mdStyle})
+		}
+		pos += len(r.Text)
+	}
+	return row
+}
+
+// wrapWidths gives the cells a source line's first display row takes and the cells
+// each later row takes, at text width inner.
+//
+// A content line has its number column ahead of the text, and every row spends
+// those five columns, so the text takes inner-5 on all of them. A diff code line
+// spends its marker column on the first row, where the marker is part of the line's
+// first cell, and on a later row as a blank, so the line's cells take inner on the
+// first row and inner-1 on the others. Every other diff line is flush on every row.
+// A help line never reaches this function: modalRowCount and modalRows return it
+// as one row first (see the guard in the switch below).
+func (md *ModalState) wrapWidths(trunc, raw string, idx, inner int) (first, rest int) {
+	switch md.Kind {
+	case ModalContent:
+		return inner - 5, inner - 5
+	case ModalDiff:
+		if md.diffIsCode(trunc, raw, idx) {
+			return inner, inner - 1
+		}
+	case ModalHelp:
+		// Guard only. modalRowCount and modalRows both return for a help line before
+		// they reach here, so this case is never taken. A help line is one row at any
+		// width because styleHelpLine cuts it.
+	}
+	return inner, inner
+}
+
+// modalRowCount is how many display rows source line idx takes at text width
+// inner. A help line is always one.
+func (md *ModalState) modalRowCount(trunc, raw string, idx, inner int) int {
+	if md.Kind == ModalHelp {
+		return 1
+	}
+	first, rest := md.wrapWidths(trunc, raw, idx, inner)
+	return len(wrapBounds(raw, first, rest))
+}
+
+// modalRows styles one body line into its display rows, each as wide as the box's
+// text area or narrower: content with line numbers, diffs from parsed structure.
+//
+// A content line shows its number on its first row; later rows hold five blank
+// columns in its place. A diff code line shows its marker on its first row, and
+// later rows begin with one blank column; every other diff line wraps flush.
 //
 // A diff line's colour is Kirsch's own, never from escapes in the content.
-// ui-spec §4.1, §7.1. On a highlighted "+" or "-" line (see diffRow) the marker
-// character takes its colour from the leading character, and the rest of the
-// line is coloured by token. If that line is cut to width, the truncation glyph
-// takes the marker's colour too. Every other diff line, and a "+" or "-" line
-// drawn the plain way, is coloured whole by how it starts: "@@" hunk, "+"
-// success, "-" error, anything else muted.
-func (m Model) modalLine(md *ModalState, raw string, idx, inner int) string {
-	switch md.Kind {
-	case ModalHelp:
-		return m.styleHelpLine(raw, inner)
-	case ModalContent:
-		num := m.sty.Dim(fmt.Sprintf("%4d ", idx+1))
-		if row, ok := md.contentRow(m.gly.Trunc, raw, idx, inner-5); ok {
-			return num + drawMarkdown([]mdRow{row}, m.sty)[0]
+// ui-spec §4.1, §7.1. On a highlighted "+" or "-" line (see diffRuns) the marker
+// character takes its colour from the leading character, and the rest of the line
+// is coloured by token; a token cut across rows keeps its colour on both. Every
+// other diff line, and a "+" or "-" line drawn the plain way, is coloured whole by
+// how it starts: "@@" hunk, "+" success, "-" error, anything else muted, and that
+// colour covers each of its rows. The help overlay is not wrapped: its line is one
+// row, cut by styleHelpLine.
+func (m Model) modalRows(md *ModalState, raw string, idx, inner int) []string {
+	if md.Kind == ModalHelp {
+		return []string{m.styleHelpLine(raw, inner)}
+	}
+	trunc := m.gly.Trunc
+	first, rest := md.wrapWidths(trunc, raw, idx, inner)
+	ends := wrapBounds(raw, first, rest)
+	out := make([]string, len(ends))
+	start := 0
+
+	if md.Kind == ModalContent {
+		runs, hl := md.contentRuns(trunc, raw, idx)
+		for i, end := range ends {
+			num := strings.Repeat(" ", 5)
+			if i == 0 {
+				num = m.sty.Dim(fmt.Sprintf("%4d ", idx+1))
+			}
+			if hl {
+				out[i] = num + drawMarkdown([]mdRow{runsSlice(runs, start, end)}, m.sty)[0]
+			} else {
+				out[i] = num + m.sty.Text(raw[start:end])
+			}
+			start = end
 		}
-		return num + m.sty.Text(truncEnd(raw, inner-5, m.gly.Trunc))
-	case ModalDiff:
-		// Handled below, where the leading character selects the colour.
+		return out
 	}
-	if row, ok := md.diffRow(m.gly.Trunc, raw, idx, inner); ok {
-		return drawMarkdown([]mdRow{row}, m.sty)[0]
-	}
-	body := truncEnd(raw, inner, m.gly.Trunc)
+
+	code := md.diffIsCode(trunc, raw, idx)
+	runs, hl := md.diffRuns(trunc, raw, idx)
+	style := m.sty.Muted
 	switch {
 	case strings.HasPrefix(raw, "@@"):
-		return m.sty.Hunk(body)
+		style = m.sty.Hunk
 	case strings.HasPrefix(raw, "+"):
-		return m.sty.Success(body)
+		style = m.sty.Success
 	case strings.HasPrefix(raw, "-"):
-		return m.sty.Error(body)
-	default:
-		return m.sty.Muted(body)
+		style = m.sty.Error
 	}
+	for i, end := range ends {
+		var row string
+		if hl {
+			row = drawMarkdown([]mdRow{runsSlice(runs, start, end)}, m.sty)[0]
+		} else {
+			row = style(raw[start:end])
+		}
+		if i > 0 && code {
+			row = " " + row // the marker's column, blank
+		}
+		out[i] = row
+		start = end
+	}
+	return out
 }
 
 // overlayModal composites the modal over the transcript region, dimming what is
@@ -676,12 +869,13 @@ func (m Model) styleHelpLine(raw string, inner int) string {
 	return m.sty.Muted(body)
 }
 
-// buildClippingMarker constructs a clipping marker string when lines are hidden
-// above or below the visible region. Returns an empty string if no clipping.
+// buildClippingMarker constructs a clipping marker string when display rows are
+// hidden above or below the visible region. off, bodyH and totalRows are all in
+// display rows, as modalSizing counts them. Returns an empty string if no clipping.
 // Format: "↑ N above" or "↓ N more" or "↑ N above · ↓ M more".
-func (m Model) buildClippingMarker(off, bodyH, totalLines int, ruleWidth int) string {
+func (m Model) buildClippingMarker(off, bodyH, totalRows int, ruleWidth int) string {
 	hiddenAbove := off
-	hiddenBelow := totalLines - (off + bodyH)
+	hiddenBelow := totalRows - (off + bodyH)
 
 	var parts []string
 	if hiddenAbove > 0 {
