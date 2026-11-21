@@ -102,6 +102,10 @@ type Options struct {
 	Status     Status
 	Now        func() time.Time
 	Onboarding *OnboardingState
+
+	// RenderMarkdown draws a finished assistant reply as markdown (config key
+	// ui.render_markdown, ui-spec §3.2). The zero value draws every reply plain.
+	RenderMarkdown bool
 }
 
 // Model is the root Bubble Tea model.
@@ -116,6 +120,11 @@ type Model struct {
 	sty  *Styles
 	gly  Glyphs
 	rend *lipgloss.Renderer
+
+	// renderMD is Options.RenderMarkdown. md holds the laid-out rows of rendered
+	// replies; see mdCache for why it is a pointer.
+	renderMD bool
+	md       *mdCache
 
 	tr         Transcript
 	sel        ItemID
@@ -248,6 +257,8 @@ func New(o Options) Model {
 	m := Model{
 		caps:           o.Caps,
 		rend:           rend,
+		renderMD:       o.RenderMarkdown,
+		md:             newMdCache(),
 		sty:            NewStyles(rend, o.Caps.Colour),
 		gly:            NewGlyphs(o.Caps.Unicode),
 		expanded:       map[ItemID]bool{},
@@ -456,10 +467,11 @@ func (m *Model) relayout(lay Layout) {
 		sty = m.sty.Flat() // the transcript recedes behind an overlay
 	}
 
-	// Rendered twice: once with the live palette, once with identity styles.
-	// The plain pass is what the "↓ n new" overlay measures against and what
-	// the golden .txt files record — and because both passes run the same code
-	// with only the Styles swapped, strip(styled) == plain holds by
+	// Rendered twice: once with the live (or, under an overlay, flattened)
+	// palette, once with identity styles. The plain pass is what the "↓ n new"
+	// overlay measures against and what the golden .txt files record. Both passes
+	// run renderItem with only the Styles swapped, and a rendered reply draws
+	// both from the same cached rows (m.md), so strip(styled) == plain holds by
 	// construction rather than by inspection. ui-spec §13.
 	plainSty := NewStyles(nil, false)
 
@@ -485,6 +497,9 @@ func (m *Model) relayout(lay Layout) {
 			w = fullW - gutterWidth(m.gly)
 		}
 		ctx := renderCtx{
+			ID:       it.ID,
+			RenderMD: m.renderMD,
+			MD:       m.md,
 			W:        w,
 			Gutter:   gutter,
 			Expanded: m.computeExpanded(it),

@@ -24,6 +24,22 @@ type ModalState struct {
 	Added   int
 	Removed int
 	Off     int // the modal's own scroll offset, never the transcript's
+
+	// Highlighting source. ui-spec §4.1. Path is the target path of the
+	// read_file card the modal was opened from, and ReadFile says it was. WorkTree
+	// marks the /diff modal, whose lines are full git diff output in file
+	// sections; a patch approval diff sets neither and takes its language from
+	// Title.
+	Path     string
+	ReadFile bool
+	WorkTree bool
+
+	// hl is the highlighting state, worked out on the first draw and kept.
+	// hlComputes counts how often that was done, and hlLexes how many lines
+	// were lexed; tests read both.
+	hl         *modalHL
+	hlComputes int
+	hlLexes    int
 }
 
 // ConfirmAction is what a confirm prompt will do on `y`.
@@ -378,17 +394,28 @@ func (m Model) modalNotice(w int) string {
 // modalLine styles one body line: diffs from parsed structure, plain content
 // with line numbers.
 //
-// Diff colour comes from the leading character, never from escapes in the
-// content — Kirsch colours diffs itself. ui-spec §4.1, §7.1.
+// A diff line's colour is Kirsch's own, never from escapes in the content.
+// ui-spec §4.1, §7.1. On a highlighted "+" or "-" line (see diffRow) the marker
+// character takes its colour from the leading character, and the rest of the
+// line is coloured by token. If that line is cut to width, the truncation glyph
+// takes the marker's colour too. Every other diff line, and a "+" or "-" line
+// drawn the plain way, is coloured whole by how it starts: "@@" hunk, "+"
+// success, "-" error, anything else muted.
 func (m Model) modalLine(md *ModalState, raw string, idx, inner int) string {
 	switch md.Kind {
 	case ModalHelp:
 		return m.styleHelpLine(raw, inner)
 	case ModalContent:
 		num := m.sty.Dim(fmt.Sprintf("%4d ", idx+1))
+		if row, ok := md.contentRow(m.gly.Trunc, raw, idx, inner-5); ok {
+			return num + drawMarkdown([]mdRow{row}, m.sty)[0]
+		}
 		return num + m.sty.Text(truncEnd(raw, inner-5, m.gly.Trunc))
 	case ModalDiff:
 		// Handled below, where the leading character selects the colour.
+	}
+	if row, ok := md.diffRow(m.gly.Trunc, raw, idx, inner); ok {
+		return drawMarkdown([]mdRow{row}, m.sty)[0]
 	}
 	body := truncEnd(raw, inner, m.gly.Trunc)
 	switch {

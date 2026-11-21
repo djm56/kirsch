@@ -71,10 +71,12 @@ func unicodeLocale() bool {
 	return false
 }
 
-// Style paints one fragment. A Style is only ever applied to text containing no
-// newline, so it cannot change the line count — which is what makes "layout is
-// identical with and without colour" (§12) a structural property rather than a
-// convention.
+// Style paints one fragment. Every caller passes it text containing no newline,
+// and a Style adds only escape sequences, so it cannot change the line count or
+// the cell width of what it paints — which is what makes "layout is identical
+// with and without colour" (§12) a structural property rather than a
+// convention. The markdown renderer (markdown.go) relies on the same split: it
+// lays rows out on unstyled runs and calls Styles only when it draws them.
 type Style func(string) string
 
 func identity(s string) string { return s }
@@ -91,19 +93,38 @@ type Styles struct {
 	Hunk        Style // 123 — diff @@ headers
 	Border      Style // 244 — separators and unfocused borders
 	BorderFocus Style // 117 — focused modal border
-	Bold        Style // tool names, and nothing else
+	Bold        Style // tool names; headings and bold text in a rendered reply
+	Italic      Style // italic text in a rendered reply
+	Strike      Style // struck-through text in a rendered reply
 	CodeBg      Style // 235 — fenced tool-output panels
 	SelectionBg Style // 236 — selected card interior
+
+	// Syntax roles. §10.1.
+	SynKeyword Style // 141 — keywords
+	SynString  Style // 180 — strings; inline code in a rendered reply
+	SynNumber  Style // 216 — numbers and other literals
+	SynType    Style // 152 — type, class and keyword-type names
 }
 
 // PaletteSGR lists every SGR parameter string the package is allowed to emit.
 // The golden tests assert that nothing outside this set reaches View(), which
 // is the automated form of "no raw colour numbers outside styles.go".
+//
+// The check is per parameter group: the text between "\x1b[" and "m". lipgloss
+// writes one attribute or one colour per group, and Kirsch nests styles rather
+// than combining them in one lipgloss style, so a group such as "1;38;5;117"
+// is not emitted and is not listed. The attribute codes are 1 (bold), 3
+// (italic) and 9 (strikethrough). Entries 22, 23, 29 and 39 are the codes that
+// close bold, italic, strikethrough and the foreground; lipgloss closes with
+// "0" and does not emit them, and they are listed because ui-spec §13
+// property 3 allows them. Of these only 29 is emitted: Strike closes with it.
 var PaletteSGR = map[string]bool{
-	"0": true, "": true, "1": true,
+	"0": true, "": true, "1": true, "3": true, "9": true,
+	"22": true, "23": true, "29": true, "39": true,
 	"38;5;253": true, "38;5;248": true, "38;5;245": true, "38;5;117": true,
 	"38;5;120": true, "38;5;203": true, "38;5;215": true, "38;5;123": true,
 	"38;5;244": true, "48;5;235": true, "48;5;236": true,
+	"38;5;141": true, "38;5;180": true, "38;5;216": true, "38;5;152": true,
 }
 
 // NewRenderer builds a renderer with an explicit colour profile.
@@ -136,7 +157,10 @@ func NewStyles(r *lipgloss.Renderer, colour bool) *Styles {
 			Text: identity, Muted: identity, Dim: identity, Accent: identity,
 			Success: identity, Error: identity, Warning: identity, Hunk: identity,
 			Border: identity, BorderFocus: identity, Bold: identity,
+			Italic: identity, Strike: identity,
 			CodeBg: identity, SelectionBg: identity,
+			SynKeyword: identity, SynString: identity,
+			SynNumber: identity, SynType: identity,
 		}
 	}
 	fg := func(n string) Style {
@@ -148,6 +172,13 @@ func NewStyles(r *lipgloss.Renderer, colour bool) *Styles {
 		return func(x string) string { return st.Render(x) }
 	}
 	bold := r.NewStyle().Bold(true)
+	italic := r.NewStyle().Italic(true)
+	// lipgloss draws strikethrough one rune at a time, closing each rune with a
+	// full reset, which would end the colour, bold and italic around the run
+	// after its first rune. Strike is therefore Kirsch's own pair of codes: set
+	// strikethrough (9) and clear it (29), both in PaletteSGR, with nothing else
+	// reset in between.
+	strike := func(x string) string { return "\x1b[9m" + x + "\x1b[29m" }
 	// Every foreground token clears 3:1 against a dark ground, and every token
 	// carrying words clears 4.5:1. The first palette did not: dim at 240 was
 	// 2.3:1 and border at 238 was 1.7:1, which made placeholders, the
@@ -165,8 +196,14 @@ func NewStyles(r *lipgloss.Renderer, colour bool) *Styles {
 		Border:      fg("244"),
 		BorderFocus: fg("117"),
 		Bold:        func(x string) string { return bold.Render(x) },
+		Italic:      func(x string) string { return italic.Render(x) },
+		Strike:      strike,
 		CodeBg:      bg("235"),
 		SelectionBg: bg("236"),
+		SynKeyword:  fg("141"),
+		SynString:   fg("180"),
+		SynNumber:   fg("216"),
+		SynType:     fg("152"),
 	}
 }
 
@@ -178,7 +215,9 @@ func (s *Styles) Flat() *Styles {
 	return &Styles{
 		Text: d, Muted: d, Dim: d, Accent: d, Success: d, Error: d,
 		Warning: d, Hunk: d, Border: d, BorderFocus: d, Bold: d,
+		Italic: d, Strike: d,
 		CodeBg: identity, SelectionBg: identity,
+		SynKeyword: d, SynString: d, SynNumber: d, SynType: d,
 	}
 }
 
@@ -202,6 +241,7 @@ type Glyphs struct {
 	CaretAlt  string // ▐ / #  — the caret's stand-in, see caretFor in composer.go
 	Gutter    string // ┃ / |
 	Bullet    string // · / .
+	MdBullet  string // • / -  (list bullet in a rendered reply)
 	Sep       string // ─ / -  (header fill and separator rules)
 
 	BoxTL, BoxTR, BoxBL, BoxBR string
@@ -231,7 +271,7 @@ func NewGlyphs(unicode bool) Glyphs {
 			OK: "[ok]", Err: "[err]", Cancelled: "[canc]", Trunc: "...",
 			Dirty: "*", Warn: "!", New: "v", Caret: "_", CaretAlt: "#",
 			Gutter: "|",
-			Bullet: ".", Sep: "-",
+			Bullet: ".", MdBullet: "-", Sep: "-",
 			BoxTL: "+", BoxTR: "+", BoxBL: "+", BoxBR: "+",
 			BoxH: "-", BoxV: "|", BoxLT: "+", BoxRT: "+",
 			UpArrow: "^", DownArrow: "v",
@@ -244,7 +284,7 @@ func NewGlyphs(unicode bool) Glyphs {
 		OK: "✓", Err: "✗", Cancelled: "⊘", Trunc: "⋯",
 		Dirty: "●", Warn: "⚠", New: "↓", Caret: "▌", CaretAlt: "▐",
 		Gutter: "┃",
-		Bullet: "·", Sep: "─",
+		Bullet: "·", MdBullet: "•", Sep: "─",
 		BoxTL: "┌", BoxTR: "┐", BoxBL: "└", BoxBR: "┘",
 		BoxH: "─", BoxV: "│", BoxLT: "├", BoxRT: "┤",
 		UpArrow: "↑", DownArrow: "↓",

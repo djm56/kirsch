@@ -247,10 +247,51 @@ result appears as a system notice or a card.
 
 ### 3.2 Assistant message
 
-Streams with a `▌` caret; caret removed on completion. Soft-wrapped. Triple-
-backtick regions render with the code background (§10) and preserve indentation
-exactly. **No syntax highlighting in v0.1** — it is a large dependency and an
-open-ended rabbit hole; explicitly out of scope.
+Streams with a `▌` caret; caret removed on completion. Soft-wrapped. (v0.1.4, amendment 102) While a reply streams it is shown plain and soft-wrapped, with the caret, as before. A finished reply is rendered as markdown when `ui.render_markdown` is true (the default; plan §5) and the reply is not streaming. Colour does not gate rendering. Whether colour is on is decided per `DetectCaps` (§7.3), and it affects styling only. A reply cancelled mid-turn, or one whose turn ended in an error, is rendered as it stands. Replies loaded on resume are rendered. When `ui.render_markdown` is false, the reply shows exactly as in v0.1.3: raw markdown text with no structural changes. When colour is unavailable, a rendered reply keeps its structure, wrapping and line count, with no styling. That is the unstyled form that `NO_COLOR` and `TERM=dumb` produce. Reading "fall back to plain text" as "unstyled text" is Bishop's reading, made under the operator's standing go-ahead and open to being overturned. The unstyled form is the same rendering code run with identity styles, as for every other item (the double pass in `relayout`), so `strip(styled) == plain` holds by construction (§13). User messages, cards, notices and the status bar are never rendered. (v0.1.4, amendment 102) A reply that finishes streaming re-flows once, from plain to rendered.
+
+(v0.1.4, amendment 102) Each element renders as the table below. The ASCII fallback applies when the locale is not UTF-8 (§10.2).
+
+| Element | Rendered form | ASCII fallback |
+|---|---|---|
+| Heading | Text in bold `accent`, with its `#` markers kept | As rendered |
+| Bold | Bold, with its `**` markers dropped | As rendered |
+| Italic | Italic, with its `*` markers dropped | As rendered |
+| Strikethrough | Text between its `~~` markers, struck through | As rendered |
+| Inline code | Text in `synString`, with its backticks kept; no background | As rendered |
+| List item | Bullet `•`; numbered items keep their numbers; nested lists indent by two columns | Bullet `-` |
+| Block quote | Prefix `│ ` in `muted` | Prefix `\| ` (a pipe and a space) |
+| Link | The link text, then the URL in `muted` in parentheses; a bare URL is shown as written | As rendered |
+| Horizontal rule | A rule of `─` in `border` across the item width | `-` across the item width |
+| Fenced code block | Content indented two columns, its indentation kept exactly relative to the block; fence lines and the info string not shown; highlighted (below); no background; lines wrap at the item width, and a wrapped row keeps the block's indent | As rendered |
+| Table | Columns aligned; `border` separators: `│` between columns, `─` under the header row | `\|` between columns, `-` under the header row |
+| Raw HTML | Shown as literal text | As rendered |
+| Image | The alt text | As rendered |
+
+(v0.1.4, amendment 102) The item's width is the content width (§2.1), less two columns when the reply is selected (§3.9). Rendered output wraps to that width. Post-condition: no rendered row exceeds the item's width. Wide tables, long words and long URLs are hard-wrapped at the width. A wrapped continuation row keeps its block's indent.
+
+(v0.1.4, amendment 102) Any other element is drawn as its text content in `text`, with any markdown markers it has kept, within the width, background and SGR rules in this section and §13.
+
+(v0.1.4, amendment 102) Known gap, list numbering: a numbered item takes the number after the item before it, not the number written in its own source line, when the text before its first content does not end in digits, then `.` or `)`, then spaces. That text is read from the source line on which the first content starts. The first item takes the list's start number. For example, the first content is a heading, a block quote, a fenced code block, a nested list, or nothing at all, or the content starts on the line after an empty marker. A thematic break as the first content falls under the same rule. For example, `1. # h` followed by `5. # i` draws as `1. # h` and then `2. # i`.
+
+(v0.1.4, amendment 102) In a rendered reply, headings keep their `#` markers, inline code keeps its backticks, and strikethrough keeps its `~~` markers, in every mode. The styling is applied on top when colour is available. So with colour off, no meaning is lost to a missing marker, and the identical-layout invariant still holds (§13). Bold and italic drop their `**` and `*` markers. With colour off, bold and italic text shows as plain text; that is a known gap (plan amendment 102).
+
+(v0.1.4, amendment 102) No background is painted anywhere in a rendered reply, and no margins are added. Blocks are separated by one blank row, and runs of blank lines in the source collapse to one. That separator is not a margin. A block's indent, the two-column fence indent or list nesting, is not a margin either.
+
+(v0.1.4, amendment 102) Rendering works from the reply's sanitised lines (§7.1), never from the unsanitised source, so model text cannot inject escape sequences. Only Kirsch's own styling sequences reach the screen.
+
+(v0.1.4, amendment 102) The parse and the layout run at most once per consecutive run at the same width and glyph set (Unicode or ASCII): the cache holds the laid-out runs, each tagged with its §10.1 role and attributes, with no styling applied. Every drawing pass, whether live, flattened under an overlay, or identity for the plain form, draws from the same cached runs through its own `Styles`. Relayout runs on every update, so the cache is what keeps a long reply cheap. The cache key includes the width the reply renders at, which is the selected width (two columns narrower, above) when the reply is selected. The cache key also includes the reply's text, so a changed reply is laid out again. Only the latest width is kept for each reply, so a width that comes back after another is laid out again.
+
+(v0.1.4, amendment 102) `c` and `/copy` still copy the source text (§6), not the rendered text. Code-block numbering for `/copy code N` follows the §6 grammar on the cleaned payload text (§6), whatever the rendering shows.
+
+(v0.1.4, amendment 102) Highlighting is by language, foreground only, with one colour scheme for reply fences and the modals (§4.1). Token mapping: keywords, including keyword constants such as `true`, `nil` and `null`, → `synKeyword`; strings → `synString`; numbers and other literals → `synNumber`; type names, class names and keyword types → `synType`; function names and builtins → `accent`; comments → `muted`; everything else, operators and punctuation included, → `text`. `success` and `error` are never used for tokens, so a token cannot be mistaken for a diff marker. The `synKeyword`, `synString`, `synNumber` and `synType` roles are in §10.1. No background is painted. In a reply fence the language comes from the info string; an unknown or missing language is shown in `text`. With colour off, code is plain.
+
+(v0.1.4, amendment 102) Preprocessor directives (chroma's `CommentPreproc` and `CommentPreprocFile` token types) draw in `text`, not `muted`, so a directive is not read as commented out.
+
+(v0.1.4, amendment 102) `NameConstant` draws as `synKeyword`. That covers `true`, `nil` and `NULL` in the lexers that tag them as names. It also covers some names that are not keyword constants: in some lexers, for example Ruby's capitalised names and all-caps names in Rust, Perl and Crystal. Those draw as keywords too. This is a known gap: a name that is not a constant can read as a keyword.
+
+(v0.1.4, amendment 102) Headings stay bold `accent`. A link's URL is `muted`, not `dim`, because a URL is unique information (§12 rule 5).
+
+(v0.1.3 and earlier showed the reply as raw text: markdown markers appeared as typed.)
 
 ### 3.3 Tool card
 
@@ -404,9 +445,18 @@ card.
 
 - Centered, scrollable, header names the source.
 - **Diff content** is colour-coded: `+` green, `-` red, `@@` cyan, context
-  dimmed; header shows per-file stats (`+12 −4`). No-color fallback uses the
-  prefix characters alone.
+  muted (corrected, amendment 102: the code has always drawn context lines
+  muted, and this text said dimmed); header shows per-file stats (`+12 −4`).
+  No-color fallback uses the prefix characters alone.
 - **Plain content** renders with line numbers.
+- (v0.1.4, amendment 102) **Diff content** is highlighted by language, with the scheme in §3.2. The diff modal's feeders are below; each sets the language from its own lines.
+  - **Patch approval diff**, opened from a patch approval card or from a folded approval's tool card. Its lines are hunks only, starting at the first `@@`, with no `diff --git`, `---` or `+++` lines. It may also hold single descriptive lines for a file with no hunks (renamed, empty file created or deleted, binary, mode change) and `\ No newline at end of file` lines; none begins with `+` or `-`, so none is highlighted. The language comes from the file path in the modal's title. For a rename the title is `old → new`, and the new path, after ` → `, is used.
+  - **`/diff`**, titled "working tree". Its lines are full `git diff` output, which may cover several files. The language is set per file section, from the `b/` path of that section's `diff --git a/… b/…` line. The `b/` path is present for deleted files too. When a section's `diff --git` line does not parse as `a/<path> b/<path>` with one unambiguous ` b/` split, as with git's mnemonic or no-prefix settings or with quoted paths, that section is not highlighted. A truncation marker, such as `‹… output truncated …›` or the trailing `⋯ truncated` marker, ends the current section's highlighting. Lines after it are not highlighted until the next `diff --git`.
+  - **The `git_diff` card** opens the plain content modal, not the diff modal. Its content is not highlighted (see the `read_file` rule below).
+- (v0.1.4, amendment 102) **Header rule, `/diff` only.** A file's header runs from its `diff --git` line to its first `@@` line. Header lines are never highlighted and keep their current colours (today `---` lines draw in `error` and `+++` lines in `success`, by their leading character). This is the same rule the per-file stats (`+12 −4`) count by. After the first `@@`, a line beginning `+` or `-` is a code line, even if it begins `+++` or `---`. Approval diffs have no header lines. `@@` headers keep `hunk`. On `+` and `-` code lines the marker keeps its `success` or `error` colour, and the rest of the line is highlighted. Each line is lexed on its own. Context lines keep `muted` and are not highlighted, as before. The `+` and `-` characters stay the line markers, so colour is never the only signal.
+- (v0.1.4, amendment 102) **Plain content** on a `read_file` card is highlighted by language, from the extension of the card's target path. Highlighting applies to no other card's content. An inline `<script>` on one line is highlighted as JavaScript, as the case pinned in `internal/tui/highlight_test.go` does. A script that spans lines is not, because each of its lines is lexed as HTML. A `read_file` line counts as numbered when it begins with one or more ASCII digits followed by at least N spaces, where N = 4 − (number of digits mod 4), that is 1 to 4. The prefix is the digits and exactly the first N spaces after them. Everything after the prefix is the line's text, whatever it starts with, including its own indentation. For example, `5` followed by seven spaces and `foo` has the prefix `5` plus three spaces, and the text is four spaces and `foo`. The tool writes `N<TAB>text`, and the sanitiser (§7.1) expands the tab to the next four-column stop, so the number and its spaces end on a stop. On a numbered line the prefix is shown `muted` and unhighlighted, and only the text after it is lexed. Any other line is shown in `text` and not lexed. That covers a truncation marker, a line cut mid-way by truncation, and the text of a failed `read_file` card. An unknown extension is plain, and so is an extension that chroma knows but Kirsch excludes, for example `.raku` or `.svelte` (see the excluded lexers below). The modal's own line numbers stay `dim`, as today.
+- (v0.1.4, amendment 102) Modal highlighting depends only on colour being available. `ui.render_markdown` does not turn it off. With colour off, everything is plain, as in v0.1.3. (v0.1.4, amendment 102) The content view, the diff view and reply fences use one language mapping: a file's name or extension (including names such as `Makefile` and `Dockerfile`), or a fence's info string, maps to a lexer; anything unmapped is plain. The excluded lexers, which are the keys of `hlUnsafeLexers` in `internal/tui/highlight.go`, are known to chroma but always drawn without syntax colours: Raku, the PostgreSQL SQL dialect, the Materialize SQL dialect and Svelte. Every name, alias and file pattern that chroma maps to them is excluded. For example, a fence named `postgresql` or `raku` is plain, a `.svelte` or `.raku` file is plain, and a `sql` fence is highlighted.
+- (v0.1.4, amendment 102) **Limits.** Wherever highlighting applies, a line wider than 512 columns is drawn without syntax colours. Each line has 50 ms to be lexed; a line that runs over is drawn the same way. Each lexer that runs over is plain from then on, for the rest of the session, and nothing resets that. On a diff line drawn without syntax colours, the `+` or `-` marker keeps its colour. Over the width cutoff, and on a line with no lexer, that colour covers the whole line, which is drawn the plain way. A diff line has no lexer, and so draws whole in its colour, in cases such as an unmapped language, an excluded lexer, an unparsed `diff --git` section, lines before the first `diff --git`, or lines after a truncation marker in `/diff` before the next `diff --git`. Whenever lexing gives the line back as one text run, for example after a deadline miss or once a language has missed one, only the marker keeps its colour and the rest of the line is text. Known gaps: a slow moment, such as a GC pause or heavy load, during one line can turn highlighting off for that language for the rest of the session; and a line abandoned at the deadline keeps one background goroutine busy until chroma's own per-rule timeouts end it, at most once per language.
 - `j`/`k`/arrows scroll, `PgUp`/`PgDn` page, `g`/`G` top/bottom, `Esc` closes.
 
 ### 4.2 Help overlay (`?`)
@@ -579,7 +629,7 @@ trimmed, unparsed, except for `/copy` (below).
 |---|---|
 | `/help` | Help overlay |
 | `/status` | Notice: model, branch, dirty file count, session id, tokens (in/out/cache), compaction %, project-context file loaded, active grants |
-| `/diff` | Content modal on the working tree (`git diff`) |
+| `/diff` | Diff modal on the working tree (`git diff`) (corrected, amendment 102) |
 | `/files` | Notice listing files touched this session |
 | `/approvals` | Notice listing active session grants; offers to clear (confirm prompt) |
 | `/new` | New session; confirm if a turn is in flight |
@@ -709,8 +759,8 @@ nothing.
 - **Carriage returns**: a `\r`-separated run (progress bars from `npm`, `go
   test`, `curl`) renders as its final segment only — that is what the writer
   intended the user to see.
-- **Tabs** expand to 4 spaces, consistently everywhere, so code indentation
-  lines up.
+- **Tabs** expand to the next multiple of 4 columns, consistently everywhere, so code
+  indentation lines up (corrected, amendment 102: the code has always expanded to the next 4-column stop).
 - **Other C0 control characters** are replaced with a dim `·`.
 - **Very long lines**: any single rendered line is capped at 2,000 columns with
   a `⋯` marker. A minified bundle on one line must not be able to hang the
@@ -743,8 +793,13 @@ nothing.
   modes. *Pending the operator's ratification
   (m5-d7b; `plan/PROGRESS.md`, Open from m5-d7b).*
 - **No-color fallback**: `NO_COLOR` set to a non-empty value (an empty value is
-  treated as unset), `TERM=dumb`, or not a TTY → styling degrades to plain
-  prefixes (`+`/`-`, `[ok]`, `[err]`); layout identical.
+  treated as unset), `TERM=dumb`, `TERM` empty, or not a TTY → styling degrades
+  to plain prefixes (`+`/`-`, `[ok]`, `[err]`); layout identical. (corrected,
+  amendment 102: an empty `TERM` was missing from this list, though
+  `DetectCaps` has always treated it as no colour.) (v0.1.4, amendment 102)
+  Colour does not gate Markdown rendering. A rendered reply keeps its structure
+  with no styling, and its unstyled form is the same rendering code run with
+  identity styles (§3.2, §13).
 - **No-Unicode fallback**: when the locale is not UTF-8, every glyph falls back
   per the §10.2 table.
 - **Resize**: reflow at any size; modals re-clamp; selection and scroll position
@@ -829,7 +884,7 @@ modals, resize, and quit all work with no panic or visual corruption.
 - **Palette:** dark only for v0.1. No light theme. See §10.
 - **Background:** never painted; the terminal's own background shows through.
 - **Token display:** 1 decimal, k/M units (`12.4k tok`).
-- **Syntax highlighting:** out of scope for v0.1.
+- **Syntax highlighting:** out of scope for v0.1. (v0.1.4, amendment 102) From v0.1.4 it is in scope, for reply fences and the content and diff modals (§3.2, §4.1).
 - **Mouse support:** out of scope for v0.1.
 - **Transcript search:** deferred to v0.2.
 - **Inline preview:** 10 lines by default, full content via the modal (`d`).
@@ -881,8 +936,14 @@ together or they drift.
 | `hunk` | 123 | `#87ffff` | 14.1:1 | Diff `@@` headers |
 | `border` | 244 | `#808080` | 4.2:1 | Card and modal borders, separators |
 | `borderFocus` | 117 | `#87d7ff` | 10.5:1 | Focused modal border |
-| `codeBg` | 235 | `#262626` | — | Fenced code block background |
+| `codeBg` | 235 | `#262626` | — | Tool-card output panels. (v0.1.4, amendment 102) Rendered replies paint no background (§3.2). |
 | `selectionBg` | 236 | `#303030` | — | Selected card background |
+| `synKeyword` (v0.1.4, amendment 102) | 141 | `#af87ff` | 6.1:1 | Syntax highlighting: keywords and keyword constants (§3.2, §4.1) |
+| `synString` (v0.1.4, amendment 102) | 180 | `#d7af87` | 8.2:1 | Syntax highlighting: strings; inline code in replies (§3.2, §4.1) |
+| `synNumber` (v0.1.4, amendment 102) | 216 | `#ffaf87` | 9.3:1 | Syntax highlighting: numbers and other literals (§3.2, §4.1) |
+| `synType` (v0.1.4, amendment 102) | 152 | `#afd7d7` | 10.7:1 | Syntax highlighting: type, class and keyword-type names (§3.2, §4.1) |
+
+(v0.1.4, amendment 102) Markdown rendering and syntax highlighting use these roles as set out in §3.2 and §4.1.
 
 Background is never set on `body`.
 
@@ -917,6 +978,11 @@ licence for it to be unreadable.
 | Box drawing | `┌─┐│└┘` | `+-+\|+ +` |
 | Bullet (notices) | `·` | `.` |
 | Dash in notice text | `—` | `-` |
+| Markdown bullet (v0.1.4, amendment 102) | `•` | `-` |
+| Markdown quote prefix (v0.1.4, amendment 102) | `│` | `\|` |
+| Markdown table column separator (v0.1.4, amendment 102) | `│` | `\|` |
+| Markdown table header rule (v0.1.4, amendment 102) | `─` | `-` |
+| Markdown horizontal rule (v0.1.4, amendment 102) | `─` | `-` |
 
 Fallback triggers when the locale is not UTF-8. **Every state is identified by
 its glyph, not only by its colour** (§12).
@@ -959,13 +1025,16 @@ Collected here so they are not scattered magic numbers.
 1. **Never signal state by colour alone.** Every state carries a glyph; colour
    reinforces. This is what makes the no-color fallback a downgrade rather than
    a loss of information.
-2. A non-empty `NO_COLOR`, `TERM=dumb`, and non-TTY output are all honoured. An
-   empty `NO_COLOR` is treated as unset.
+2. A non-empty `NO_COLOR`, `TERM=dumb`, an empty `TERM`, and non-TTY output are
+   all honoured. An empty `NO_COLOR` is treated as unset. (corrected, amendment
+   102: an empty `TERM` was missing here, though `DetectCaps` has always treated
+   it as no colour.)
 3. No blinking, no flashing, no animation other than the spinner.
 4. No binding requires more than two keys; no mouse, ever.
 5. Dim and faint text never carry unique information.
 6. Layout is identical with and without colour — only styling degrades, so a
-   screen reader or a piped capture sees the same structure.
+   screen reader or a piped capture sees the same structure. (v0.1.4, amendment
+   102) This holds for rendered replies too, because their unstyled form is the same rendering code run with identity styles (§13).
 
 ## 13. Appendix — Golden Test Surface
 
@@ -991,9 +1060,11 @@ implementation renders:
 | 12 | ASCII-fallback mode | [11](kirsch-ui-screens.md#11--no_color--ascii-fallback) |
 | 13 | Scrolled up with `↓ n new` indicator | [09](kirsch-ui-screens.md#09--scrolled-up-unpinned) |
 | 14 | Onboarding: no API key; not a Git repo | [12](kirsch-ui-screens.md#12--onboarding-no-api-key-not-a-git-repo) |
+| 15 | (v0.1.4, amendment 102) A finished reply rendered as markdown | [13](kirsch-ui-screens.md#13--rendered-reply) |
 
-All fourteen states have grids; screen 12 was drawn in Milestone 3 before its
-golden file was captured (plan §11, amendment 24).
+Every state in the table has a grid; screen 12 was drawn in Milestone 3 before its
+golden file was captured (plan §11, amendment 24). Screen 13 is generated from
+the render, not drawn first (plan §11, amendment 102).
 
 Structure is the contract and colour is applied on top: line counts and box
 positions are identical with and without colour. Screen 11 is a
@@ -1005,14 +1076,22 @@ property testable rather than merely asserted.
 They are what the snapshots exist to protect:
 
 1. `strip(styled) == plain`, byte for byte. This is the real form of "identical
-   with and without colour", and it holds for all fourteen states, not only the
-   two drawn as a pair.
+   with and without colour", and it holds for every state in the table, not only the
+   two drawn as a pair. (v0.1.4, amendment 102) For a rendered reply it holds by
+   construction: the plain form is the same rendering code run with identity styles (the double pass in `relayout`). The checks that can fail for a rendered reply include: property 2 (no `0x1b` bytes
+   in the plain path); property 3 (the SGR allow-list, below); the width post-condition
+   (§3.2: no rendered row exceeds the item's width); and a test that renders the same reply with the live palette and with identity styles and compares them after stripping; it fails if rendering branches on the styles.
 2. Zero `0x1b` bytes are emitted under `NO_COLOR`. Not "no visible colour" —
    *no escape bytes at all*.
 3. Every escape in styled output is an SGR sequence drawn from the §10.1
    palette. Anything else — cursor movement, an OSC sequence, a colour index
    that is not in the table — means either tool output reached the terminal
-   unfiltered (§7.1) or a raw colour number escaped `styles.go`.
+   unfiltered (§7.1) or a raw colour number escaped `styles.go`. (v0.1.4,
+   amendment 102) In a rendered reply the permitted SGRs are bold, italic,
+   strikethrough, and foreground colours from §10.1 (`38;5;N`, with N in that table). The allow-list also holds the reset (`0`) and the codes that close those attributes: `22` (bold off), `23` (italic off), `29` (strikethrough off) and `39` (foreground default). No other sequence is emitted:
+   Kirsch draws every rendered row through `Styles`, and a property-3 test
+   asserts the allow-list, including that no OSC 8 hyperlink and no colour
+   outside the palette appears. In a rendered reply, no background SGR is emitted.
 4. Row count equals the terminal height and no row exceeds the terminal width,
    at every size in §2.2.
 

@@ -511,6 +511,249 @@ step 2. Do not tick it.
 
 ---
 
+## v0.1.4 · Markdown replies and code highlighting
+
+**Draft, not ready to run.** On 2026-11-21 the operator waived DIR-021 for this
+section until the end-of-round capture mission attaches a screen capture from
+Kirsch for each section. The steps were written from the code and the unit tests.
+No screen has been captured yet, so the capture comes first.
+
+**Removal condition:** remove this notice when that capture is attached for every
+section.
+
+The unit tests in `internal/tui` cover the logic behind the cues. No test starts
+the interface in a terminal or reads a terminal's screen, so none captures the
+running program. Elsewhere, `cmd/kirsch/main_test.go` builds the binary and runs
+`--version` without a terminal. `TestMatchesScreenReference` in
+`internal/tui/golden_test.go` renders screen 13, a markdown reply, from the Model's
+`View()` in-process with colour off, and compares the text with the screen
+reference. Other tests check the escape codes in rendered rows and in the `View()`
+output, for example a keyword colour in a highlighted frame. None of them checks
+how a terminal draws those colours.
+
+**Context:** This section is run as part of the combined end-of-round test
+(operator direction, 2026-11-20). It is not run on its own before the v0.1.4 tag.
+Use the build and the test folder from the v0.1.2 section. `~/kirsch-ux-test`
+must be a Git repository. Run `npm run build`. If Kirsch from section 11 of v0.1.3
+is still running, press `Tab` to return to the composer, type `/quit` and press
+`Enter`. Then start Kirsch in `~/kirsch-ux-test` with
+`~/path/to/kirsch/bin/kirsch --new`. A section tagged *(model)* needs the model key
+set up in the v0.1.2 section. The reply from section 1 stays in the transcript, and
+later sections add replies below it. The *(model)* and *(no model)* tags on each
+heading say whether a section sends a prompt. They do not say whether it uses an
+earlier reply. `c` copies the selected reply, and `/copy` copies the last reply, so
+`/copy` picks up a later reply, not the reply from section 1.
+
+Use the markdown in the screen as the test. If a model's wording differs from the
+prompt, judge the markdown features, not the words.
+
+### 1. A markdown reply renders (model)
+
+**Context:** A fresh session, with the composer empty and Kirsch idle. This section
+ends in Composing, with the composer empty and the reply on screen.
+
+1. Type this prompt, press `Enter`, and wait until Kirsch is idle:
+
+   > Reply with only this markdown: a heading `# Heading check`; a blank line; a
+   > paragraph with **bold words**, `inline code` and ~~struck words~~; a blank
+   > line; two bullets, `- first item` and `- second item`; a blank line; a go
+   > code fence containing `func f() int { return 1 }`. Do not wrap the whole
+   > reply in a code fence.
+
+   You should see the reply drawn as markdown. The heading keeps its `#`. `bold
+   words` is bold, with no `**`. `inline code` keeps its backticks. `struck words`
+   is struck through, and its `~~` stays. The two items show `•` in place of `-`.
+   The bullets assume a UTF-8 terminal; in an ASCII locale they show `-`.
+   The code is indented two columns, its fence lines are not shown, and `func` and
+   `return` are in the keyword colour.
+   - [ ] The heading reads `# Heading check`.
+   - [ ] `bold words` is bold, and no `**` shows.
+   - [ ] `inline code` keeps its backticks.
+   - [ ] `struck words` is struck through, and its `~~` shows.
+   - [ ] The two items show `•` (or `-` in an ASCII locale).
+   - [ ] The code has no fence lines, and `func` and `return` are in the keyword colour.
+
+### 2. `render_markdown = false` shows the reply as plain text (no model)
+
+**Context:** Section 1 is done and its reply is on screen, with Kirsch in Composing.
+Type `/quit` and press `Enter` to quit Kirsch. Open the global config file,
+`~/.config/kirsch/config.toml`, or `$XDG_CONFIG_HOME/kirsch/config.toml` when
+`XDG_CONFIG_HOME` is set. Add these two lines, and save:
+
+    [ui]
+    render_markdown = false
+
+Start Kirsch again from `~/kirsch-ux-test` with
+`~/path/to/kirsch/bin/kirsch`, without `--new`. It resumes the session from
+section 1.
+
+1. Look at the reply from section 1.
+   You should see the reply as plain text, as the model wrote it. `# Heading
+   check` keeps its `#`, `**bold words**` keeps its asterisks, and `~~struck
+   words~~` keeps its tildes. The two fence lines of the code block show. No
+   keyword or heading colour shows, and no text is struck through or bold.
+   - [ ] The `#` and the `**` markers show.
+   - [ ] The `~~` markers show, and no text is struck through.
+   - [ ] The two fence lines of the code block show.
+   - [ ] No keyword or heading colour shows, and no text is bold.
+
+This section ends with Kirsch in Composing. Type `/quit` and press `Enter`. Then
+remove the two lines from the config file, so that later sections run with the
+default. Section 3 starts Kirsch again.
+
+### 3. The `read_file` modal highlights a Go file (model)
+
+**Context:** Section 2 is done, and its config lines are removed. Restart Kirsch
+with `~/path/to/kirsch/bin/kirsch` from `~/kirsch-ux-test`. Do not use `--new`, so
+the section 1 reply stays in the transcript for later sections. The folder must
+hold `hello.go`. If it does not, create it by hand with these lines:
+
+    package main
+
+    func main() {
+    	println("hi")
+    }
+
+Then check that Git tracks `hello.go`: run `git ls-files hello.go` in
+`~/kirsch-ux-test`. If it prints nothing, run `git add hello.go`, then
+`git -c user.name=test -c user.email=test@example.com commit -m "add hello.go"`.
+The commit needs a git identity, and the `-c` settings above supply one for that
+commit only. A commit made with your own identity works too. Section 5 changes
+`hello.go`, and `/diff` shows only what changed after this commit.
+
+1. Type this prompt, press `Enter`, and wait until Kirsch is idle:
+
+   > Use read_file on hello.go, then say done.
+
+2. Press `Shift+↑` to enter Browsing. Press `↑` until the `read_file` card is
+   selected, then press `d`.
+   You should see the content modal, with the file's lines numbered. The modal's
+   own line numbers are at the left, and they stay dim. The tool's number for each
+   line follows them. `package` and `func` are in the keyword colour, and `"hi"`
+   is in the string colour.
+   - [ ] `package` and `func` are in the keyword colour.
+   - [ ] `"hi"` is in the string colour.
+   - [ ] The modal's own line numbers are dim.
+3. Press `Esc`.
+   You should see the modal close and Browsing stay on.
+   - [ ] `Esc` closes the modal.
+
+This section ends in Browsing, with the `read_file` card selected and no modal open.
+
+### 4. A patch approval diff is highlighted, and the markers keep their colour (model)
+
+**Context:** Section 3 is done, and it ends in Browsing. Press `Tab` to return to
+the composer, because step 1 types a prompt. Approvals are on, as the default is.
+The session is still the one from section 3. This section ends in Composing, with
+the turn ended and no approval card showing.
+
+1. Type this prompt, press `Enter`, and wait:
+
+   > Add a new file notes.go with package main and a function func Hello() string that returns "hi". Propose it with apply_patch and wait for my approval.
+
+   You should see an approval card for the patch.
+2. Press `d` on the approval card.
+   You should see the diff modal. Each added line starts with a green `+`. `package`
+   and `func` are in the keyword colour, and `"hi"` is in the string colour.
+   - [ ] Each added line starts with a green `+`.
+   - [ ] `package` and `func` are in the keyword colour.
+   - [ ] `"hi"` is in the string colour.
+3. Press `Esc` to close the diff, then press `n` to reject the patch.
+   You should see the patch rejected, and no `notes.go` in the folder.
+   - [ ] The patch is rejected, and `notes.go` is not created.
+   If another approval card appears, press `n` on it too, and wait until Kirsch is
+   idle.
+
+### 5. `/diff` highlights each file in its own language (no model)
+
+**Context:** Section 4 is done, and Kirsch is idle in Composing. Wait until the
+turn from section 4 has ended and Kirsch is idle before you type `/diff`. Make
+these changes by hand in another terminal, and do not run anything in Kirsch for
+them. In `~/kirsch-ux-test`, add the line `func extra() {}` at the end of
+`hello.go`, the file that section 3 made sure Git tracks. Create `tool.py` with the
+line `def extra(): pass`, and run `git add -N tool.py` so that `/diff` lists it.
+Then, in Kirsch, go on from section 4. This section ends in Composing, with `/diff`
+closed.
+
+1. Type `/diff` and press `Enter`.
+   You should see the `hello.go` section. Its `+` marker is green, and `func` is in
+   the keyword colour. Its `diff --git` header is not coloured by language.
+   - [ ] The `+` on `func extra() {}` is green.
+   - [ ] `func` is in the keyword colour.
+   - [ ] The `diff --git` header line has no keyword colour.
+2. Look at the `tool.py` section.
+   You should see `def` in the keyword colour on `+def extra(): pass`, with a green
+   `+`. The `hello.go` section keeps its Go colours.
+   - [ ] `def` is in the keyword colour.
+   - [ ] The `+` on the `tool.py` line is green.
+3. Press `Esc` to close `/diff`.
+   - [ ] `Esc` closes `/diff`.
+
+### 6. `NO_COLOR=1` shows everything plain, with the same layout (no model)
+
+**Context:** Section 5 is done, and Kirsch is in Composing. Type `/quit` and press
+`Enter`. Start Kirsch again from `~/kirsch-ux-test` with
+`NO_COLOR=1 ~/path/to/kirsch/bin/kirsch`. It resumes the last session. This section
+ends in Composing, with `/diff` closed.
+
+1. Type `/diff` and press `Enter`.
+   You should see one file section for each changed file, as in section 5. The
+   `hello.go` section has the line `+func extra() {}`, and the `tool.py` section has
+   the line
+   `+def extra(): pass`. Each `+` is plain text, with no colour, and so are `func`
+   and `def`.
+   - [ ] No line in `/diff` has any colour.
+   - [ ] The `hello.go` section has the line `+func extra() {}`.
+   - [ ] The `tool.py` section has the line `+def extra(): pass`.
+2. Press `Esc` to close `/diff`.
+   - [ ] `Esc` closes `/diff`.
+3. Press `Shift+↑`, then `↑` until the reply from section 1 is selected. You should
+   see its `#`, its backticks and its `~~`, and no `**`. Bold text is plain. Press
+   `Tab` to return to the composer.
+   - [ ] The reply from section 1 shows `#`, backticks and `~~`, and no `**`.
+
+### 7. A `postgresql` fence is plain, and a `sql` fence is highlighted (model)
+
+**Context:** Section 6 is done, and Kirsch is in Composing. Type `/quit` and press
+`Enter`. Start Kirsch again with `~/path/to/kirsch/bin/kirsch` from
+`~/kirsch-ux-test`, without `NO_COLOR`, so that colour is back. It resumes the
+session, so the section 1 reply stays for section 8. This section ends in
+Composing, with the composer empty.
+
+1. Type this prompt, press `Enter`, and wait until Kirsch is idle:
+
+   > Reply with only two code fences. The first is tagged postgresql and the second is tagged sql. Each holds the line SELECT 1;
+
+   You should see two code blocks. In the `postgresql` block, `SELECT` is plain
+   text. In the `sql` block, `SELECT` is in the keyword colour.
+   - [ ] `SELECT` in the `postgresql` block is plain.
+   - [ ] `SELECT` in the `sql` block is in the keyword colour.
+
+### 8. `/copy` still copies the source markdown (no model)
+
+**Context:** Section 7 is done, and Kirsch is in Composing with the composer empty.
+The reply from section 1 is still in the transcript, and so is the reply from
+section 7, which is the last reply. Open a plain text app, such as TextEdit, before
+each paste, and clear it before each paste. This section ends in Composing, with
+the composer empty.
+
+1. Press `Shift+↑` to enter Browsing. Press `↑` until the reply from section 1 is
+   selected, then press `c`. Paste into the text app.
+   You should see the source markdown: `# Heading check`, `**bold words**`,
+   `` `inline code` ``, `~~struck words~~`, `- first item`, and the fence lines. You
+   should not see `•`.
+   - [ ] The paste keeps `# Heading check` with its `#`.
+   - [ ] The paste keeps `**bold words**` with its asterisks.
+   - [ ] The paste keeps the fence lines, and has no `•`.
+2. Press `Tab` to return to the composer. Type `/copy` and press `Enter`. Paste into
+   the text app. `/copy` takes the last reply, which is the reply from section 7,
+   not the reply from section 1. You should see that reply's source: its two fence
+   lines, `postgresql` and `sql`, with `SELECT 1;` in each block.
+   - [ ] The `/copy` paste holds the section 7 reply's source, with its fence lines.
+   - [ ] The `/copy` paste does not hold the section 1 reply's text.
+
+---
+
 ## Known gaps after v0.1.2
 
 These are not checked by the steps above. They are listed here so the operator
@@ -549,3 +792,40 @@ amendment 101.
 - When any notice is showing under the composer, the help overlay at 80 by 28 is
   one row short, and `G` shows its last rows.
 - A very large copy can garble the screen once, until the next redraw.
+
+## Known gaps after v0.1.4
+
+These are not checked by the v0.1.4 sections above. They are listed here so the
+operator knows they are open. The full list is in `plan/spec/kirsch-plan.md`,
+amendment 102.
+
+- A numbered item takes the number after the item before it, not the number written
+  in its source, when the text before its first content does not end in digits,
+  then `.` or `)`, then spaces. That text is read from the source line on which the
+  first content starts. The first item takes the list's start number. For example,
+  the first content is a heading, a block quote, a fenced code block, a nested list,
+  or nothing at all, or the content starts on the line after an empty marker. A
+  thematic break as the first content falls under the same rule.
+- Some names that are not keyword constants draw as keywords. In some lexers, for
+  example capitalised names in Ruby and all-caps names in Rust, Perl and Crystal,
+  the lexer tags such names as constants.
+- With colour off, bold and italic text shows as plain text.
+- A line wider than 512 columns is drawn without syntax colours, so a long minified
+  line has none.
+- One slow moment, such as a GC pause or heavy load, during a single line can turn
+  highlighting off for that language for the rest of the session. Nothing resets
+  it.
+- A line abandoned at the 50 ms deadline keeps one background goroutine busy until
+  chroma's own per-rule timeouts end it, at most once per language.
+- The excluded lexers are Raku, the PostgreSQL and Materialize SQL dialects and
+  Svelte, the keys of `hlUnsafeLexers` in `internal/tui/highlight.go`. They are
+  always drawn without syntax colours. Every name, alias and file pattern that chroma
+  maps to them is excluded too, for example the fences `postgresql`, `raku` and
+  `svelte`, and the files `.raku` and `.svelte`.
+- The binary is about 5.7 MB larger, from about 15.1 MB to about 20.8 MB. Warm
+  `kirsch --version` takes a median of about 5.5 ms before the change and about
+  10.5 ms after it. These are rough figures. Source: measured during
+  mission-20261120-03; raw values in
+  `.claude/memory/missions/mission-20261120-03/DEBRIEF.md`. The times are `time`
+  readings on the build machine, with the first (cold) run of each set dropped. The
+  warm runs span 0.004–0.010 s before the change and 0.009–0.014 s after it.

@@ -366,6 +366,66 @@ func TestProjectFileDebugLogDoesNotEnable(t *testing.T) {
 	}
 }
 
+// TestUIRenderMarkdownDefaultsTrue pins the built-in default, both from
+// Defaults and through Load with no file, so a zero-value bool cannot slip in.
+func TestUIRenderMarkdownDefaultsTrue(t *testing.T) {
+	if !Defaults().UI.RenderMarkdown {
+		t.Error("Defaults().UI.RenderMarkdown = false, want true")
+	}
+	cfg, _, err := Load(Options{})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.UI.RenderMarkdown {
+		t.Error("Load with no files: UI.RenderMarkdown = false, want true")
+	}
+}
+
+// TestUIRenderMarkdownGlobalOnly checks both halves of "global only": the
+// global file turns the setting off, and a project file that sets it neither
+// changes it nor goes unreported. The global half is the positive control for
+// the project half: the key is real and decodes, so the project result is the
+// allowlist at work and not a key that never parsed.
+func TestUIRenderMarkdownGlobalOnly(t *testing.T) {
+	dir := t.TempDir()
+	g := write(t, dir, "g.toml", "[ui]\nrender_markdown = false\n")
+	cfg, warns, err := Load(Options{GlobalPath: g})
+	if err != nil {
+		t.Fatalf("Load global: %v", err)
+	}
+	if cfg.UI.RenderMarkdown {
+		t.Error("global ui.render_markdown = false was not applied")
+	}
+	if len(warns) != 0 {
+		t.Errorf("global ui.render_markdown warned: %v", warns)
+	}
+
+	p := write(t, dir, "p.toml", "[ui]\nrender_markdown = false\n")
+	cfg, warns, err = Load(Options{ProjectPath: p})
+	if err != nil {
+		t.Fatalf("Load project: %v", err)
+	}
+	if !cfg.UI.RenderMarkdown {
+		t.Error("a project file turned ui.render_markdown off")
+	}
+	if len(warns) != 1 || warns[0].Key != "ui.render_markdown" || warns[0].Kind != WarnProjectIgnored {
+		t.Fatalf("want one WarnProjectIgnored for ui.render_markdown, got %v", warns)
+	}
+	if !strings.Contains(warns[0].String(), "ui.render_markdown") {
+		t.Errorf("warning text does not name the key: %q", warns[0].String())
+	}
+
+	// A project file cannot turn it back on over a global false either.
+	p2 := write(t, dir, "p2.toml", "[ui]\nrender_markdown = true\n")
+	cfg, _, err = Load(Options{GlobalPath: g, ProjectPath: p2})
+	if err != nil {
+		t.Fatalf("Load both: %v", err)
+	}
+	if cfg.UI.RenderMarkdown {
+		t.Error("a project file overrode the global ui.render_markdown = false")
+	}
+}
+
 // TestProjectFilesWrongTypeWarns tests that a wrong-typed project_files warns rather than fails.
 func TestProjectFilesWrongTypeWarns(t *testing.T) {
 	dir := t.TempDir()

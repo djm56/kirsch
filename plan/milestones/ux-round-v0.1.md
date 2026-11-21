@@ -23,8 +23,8 @@ Fix the daily usability problems found after v0.1.1, before Milestone 6 starts. 
 | v0.1.2 | ux-d2 | Keyboard scrolling and help screen | 9, 10, 13 | `PgUp`/`PgDn` scroll from Composing; `j`/`k` scroll one line in Browsing; the help overlay, in the 17-row layout of amendment 100, lists `Ctrl+G`, `PgUp`/`PgDn` (composing) and `j`/`k`, `g`/`G` (browsing); screen 06 and the goldens match. |
 | v0.1.3 | ux-d3 | Copy the last reply | 5 | `/copy` in all its forms (`/copy`, `/copy code`, `/copy code N`) puts source text on the clipboard through the local clipboard tool and OSC 52, with the routes and notices of ui-spec §6 and plan amendment 101; tests pin the code-block grammar and the notices. |
 | v0.1.3 | ux-d4 | Select a reply and copy it with `c` | 12, 5 | Assistant replies can be selected in Browsing, and `↑`/`↓` stop on them; `c` copies the selected reply; the key-hint row and the help-overlay redraw show both (ui-spec §3.9, §4.2, §5.2; plan amendment 101). |
-| v0.1.4 | ux-d5 | Markdown rendering | 1 | Assistant replies render bold, headings, lists and code fences; no background is painted; `NO_COLOR` and `TERM=dumb` fall back to plain text; a config key turns it off. |
-| v0.1.4 | ux-d6 | Code highlighting | 4 | Code in the content view, in diff lines and in reply code fences is coloured by language; `+`/`-` stay the line markers. |
+| v0.1.4 | ux-d5 | Markdown rendering | 1 | Assistant replies render bold, headings, lists and code fences; no background is painted; `NO_COLOR` and `TERM=dumb` fall back to unstyled text with the structure kept (Bishop's reading, made under the operator's standing go-ahead and open to being overturned; plan amendment 102); a config key turns it off. |
+| v0.1.4 | ux-d6 | Code highlighting | 4 | Code in the content view (read_file cards), in diff lines and in reply code fences is coloured by language; `+`/`-` stay the line markers. |
 | v0.1.5 | ux-d7 | Scrollbar | 2 | A one-column position indicator on the transcript's right edge, with a non-Unicode fallback; no mouse. |
 | v0.1.5 | ux-d8 | Long lines in the modal | 11 | Long lines in the content and diff modal can be read in full (wrap or sideways scroll, per UX-D7). |
 
@@ -46,9 +46,9 @@ The operator's hands-on checks for each release are in [`plan/testing/manual/ux-
 | UX-D3 | Page scroll from Composing | Answered 2026-11-19: `PgUp`/`PgDn` in Composing scroll the transcript a page, without changing mode or moving the card selection. | v0.1.2 (answered) |
 | UX-D4 | How many missions per release | Answered 2026-11-19: one mission per release. | — (answered) |
 | UX-D5 | Copy keys, and how a code block is picked | Answered 2026-11-20 by Bishop's recommendation (operator's standing go-ahead; the operator may overturn it): `↑`/`↓` stop on assistant replies as well as cards, `c` in Browsing copies the selected reply's source text, and `/copy`, `/copy code` and `/copy code N` copy the last reply, its last fenced code block, or block N. Details in plan amendment 101. | v0.1.3 (answered) |
-| UX-D6 | Markdown while a reply streams | Open: plain text until the reply completes, or format each finished block as it closes. | v0.1.4 |
+| UX-D6 | Markdown while a reply streams | Answered 2026-11-20 by Bishop's recommendation (operator's standing go-ahead; the operator may overturn it): plain while streaming, rendered once the reply completes. Details in plan amendment 102. | v0.1.4 (answered) |
 | UX-D7 | Long lines in the modal | Open: wrap them, or add sideways scroll with `h`/`l`. | v0.1.5 |
-| UX-D8 | Config key name and default for markdown rendering | Open. Suggested: `ui.render_markdown = true`. | v0.1.4 |
+| UX-D8 | Config key name and default for markdown rendering | Answered 2026-11-20 by Bishop's recommendation (operator's standing go-ahead; the operator may overturn it): `ui.render_markdown`, boolean, default `true`, global only. Details in plan amendment 102. | v0.1.4 (answered) |
 
 ## Spec amendments
 
@@ -56,7 +56,7 @@ Each release amends the UI spec before its code step.
 
 - **v0.1.2** by plan amendment 100: the keys, the help overlay, the cut-off notice, and the §7 stop-reason fields on `assistant.message`.
 - **v0.1.3** by plan amendment 101: selecting replies (ui-spec §3.9), copy keys (§5.2), `/copy` (§6), and a second help-overlay redraw within the same height rule as v0.1.2.
-- **v0.1.4** must reverse "no syntax highlighting in v0.1" (ui-spec §3.2 and §9).
+- **v0.1.4** by plan amendment 102: the UI spec sections marked "amendment 102".
 - **v0.1.5** adds the scrollbar glyphs to §10.2, and amends §4.1 (modal) for UX-D7.
 
 ## Relation to Milestone 6

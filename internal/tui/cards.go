@@ -18,6 +18,12 @@ type renderCtx struct {
 	Expanded bool
 	Selected bool
 	Sty      *Styles
+	// ID, RenderMD and MD are what an assistant reply needs to draw as markdown:
+	// the item's ID (the cache key), whether ui.render_markdown is on, and the
+	// cache. A nil MD draws every reply plain.
+	ID       ItemID
+	RenderMD bool
+	MD       *mdCache
 	G        Glyphs
 	Frame    int
 	ShowDur  bool
@@ -118,7 +124,39 @@ func renderUser(t *TextBlock, ctx renderCtx) []string {
 	return out
 }
 
+// renderAssistant draws a reply. A finished reply is drawn as markdown when
+// ui.render_markdown is on (ctx.RenderMD); a streaming reply, a reply with
+// markdown off and a reply the markdown layout failed on are drawn as wrapped
+// raw text. A cancelled marker follows either form on its own row, outside the
+// markdown. ui-spec §3.2.
 func renderAssistant(t *TextBlock, ctx renderCtx) []string {
+	var out []string
+	if rows, ok := markdownRows(t, ctx); ok {
+		out = drawMarkdown(rows, ctx.Sty)
+	} else {
+		out = renderAssistantPlain(t, ctx)
+	}
+	if t.Cancelled {
+		out = append(out, ctx.Sty.Dim(ctx.G.Cancelled+" cancelled"))
+	}
+	if len(out) == 0 {
+		out = []string{""}
+	}
+	return out
+}
+
+// markdownRows returns the cached markdown layout of a reply when it is to be
+// drawn as markdown, and false when it is to be drawn plain.
+func markdownRows(t *TextBlock, ctx renderCtx) ([]mdRow, bool) {
+	if !ctx.RenderMD || t.Streaming || ctx.MD == nil {
+		return nil, false
+	}
+	return ctx.MD.rows(ctx.ID, t.Lines, ctx.W, ctx.G)
+}
+
+// renderAssistantPlain is the raw-text form of a reply: each line wrapped to
+// the width, with the stream caret after the last row of a streaming reply.
+func renderAssistantPlain(t *TextBlock, ctx renderCtx) []string {
 	var out []string
 	for i, ln := range t.Lines {
 		wrapped := wrap(ctx.G.Fold(ln), ctx.W)
@@ -130,12 +168,6 @@ func renderAssistant(t *TextBlock, ctx renderCtx) []string {
 			}
 			out = append(out, s)
 		}
-	}
-	if t.Cancelled {
-		out = append(out, ctx.Sty.Dim(ctx.G.Cancelled+" cancelled"))
-	}
-	if len(out) == 0 {
-		out = []string{""}
 	}
 	return out
 }

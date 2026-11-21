@@ -16,8 +16,7 @@ at the end.
 When that test fails, exactly one of two things is true — the renderer is wrong, or this
 document is. Fix whichever it is, and if it is this document, in the same commit.
 
-Screens 00–12 cover all fourteen §13 golden states — the §13 table maps each state to
-its screen.
+Every §13 golden state has a screen here — the §13 table maps each state to its screen.
 
 Reading notes:
 
@@ -42,7 +41,7 @@ Reading notes:
   and its rule, then the session line. Only the first of the two carries a rule.
 - Full-width `─` runs are the header, status-bar and composer separators.
 - `▌` is the streaming/text cursor. `●` after the branch is the dirty-worktree marker.
-- Tabs in captured tool output are expanded to 4 spaces before rendering (§3.3).
+- Tabs in captured tool output are expanded to the next multiple of 4 columns before rendering (§3.3, §7.1) (corrected, amendment 102).
 - Kirsch never paints the terminal background. Only `codeBg` and `selectionBg` set a
   background, and only within their own panels.
 
@@ -68,7 +67,7 @@ not mention falls through to these defaults:
 
 Three rules hold on every screen:
 
-1. **Tool names are the only bold text.** Nothing else sets SGR 1.
+1. **Bold is used for tool names and, in a rendered reply (screen 13), for headings and bold text.** Nothing else sets SGR 1.
 2. **Backgrounds are opt-in.** Only `codeBg` (235) and `selectionBg` (236) set one, and
    only inside their own panel. Every other cell leaves the host background untouched.
 3. **Colour is decoration, never information.** Each state is identifiable from its glyph
@@ -354,8 +353,12 @@ modal.added.count   "+12"                                    success   120  #87f
 modal.removed.count "−4"                                     error     203  #ff5f5f
 diff.hunk           lines starting "@@"                      hunk      123  #87ffff
 diff.context        lines starting " " (space)               muted     248  #a8a8a8
-diff.removed        lines starting "-"                       error     203  #ff5f5f
-diff.added          lines starting "+"                       success   120  #87ff87
+diff.removed        the "-" of a line starting "-"           error     203  #ff5f5f
+diff.added          the "+" of a line starting "+"           success   120  #87ff87
+diff.code           the rest of a "+" or "-" line            by token, as screen 13's code.block
+                    ("return", "if", "nil"                   synKeyword 141  #af87ff
+                     "0"                                     synNumber  216  #ffaf87
+                     the rest)                               text       253  #dadada
 modal.footer        "j/k scroll · g/G … · Esc …"             muted     248  #a8a8a8
 BACKGROUND CELLS    every cell not owned by the modal        dim       245  #8a8a8a
                     (approval card + transcript behind it lose their own colours
@@ -375,6 +378,10 @@ status+composer     unchanged, still live                    muted     248  #a8a
 - Esc returns to the **pending approval**, not the composer. §4.1.
 - Modal border uses `borderFocus` (111); unfocused panels use `border` (238).
 - Colour comes from parsed diff structure. All ANSI in tool output is stripped first (§5.1).
+- (v0.1.4, amendment 102) The `+` and `-` lines are highlighted by language, taken from the
+  modal's title (`calc/divide.go`, so Go), one line at a time. The marker character keeps its
+  `success` or `error` colour. `@@` lines stay `hunk` and context lines stay `muted` and are
+  not highlighted. The grid above is the text of the screen and does not change.
 
 ---
 
@@ -753,6 +760,83 @@ hint                "↑↓ history · ⇧↑/Tab cards · /help"        muted  
 
 ---
 
+## 13 · Rendered reply
+
+```text 80×30
+ Kirsch ───────────────────────────────────────────────────────────────────────
+ my-project ─ main ●
+
+ ── you ───────────────────────────────────────────────────────────────────────
+ Why does Divide panic?
+
+ ## Why it panics
+
+ The zero check runs after the division, so Go raises integer divide by zero
+ first. Call `Divide(a, b)` with `b == 0` and you will see it.
+
+ • Move the check above the division
+ • Return an error instead of panicking
+
+ │ A guard clause belongs before the work it guards.
+
+ See the Go spec (https://go.dev/ref/spec) for the rules.
+
+   func Divide(a, b int) (int, error) {
+       if b == 0 {
+           return 0, ErrZero
+       }
+       return a / b, nil
+   }
+
+ ──────────────────────────────────────────────────────────────────────────────
+ claude-sonnet-5-5 · idle · 15.2k tok
+ ──────────────────────────────────────────────────────────────────────────────
+ > ▌
+ ↑↓ history · ⇧↑/Tab cards · /help
+```
+
+**Colours**
+
+```text
+header.*            as screen 01
+speaker.rule        "── you ───…"                            border    244  #808080
+speaker.label       "you"                                    muted     248  #a8a8a8
+user.text           "Why does Divide panic?"                 text      253  #dadada
+heading             "## Why it panics"              accent 117 #87d7ff + BOLD
+body.text           the paragraph and "for the rules."       text      253  #dadada
+bold                "after"                         text 253 #dadada + BOLD
+italic              "integer divide by zero"        text 253 #dadada + ITALIC
+inline.code         "`Divide(a, b)`" and "`b == 0`"          synString 180  #d7af87
+list.bullet+text    "• Move the check …" (each list item)    text      253  #dadada
+quote.prefix        "│ "                                     muted     248  #a8a8a8
+quote.text          "A guard clause belongs …"               text      253  #dadada
+link.text           "the Go spec"                            text      253  #dadada
+link.url            " (https://go.dev/ref/spec)"             muted     248  #a8a8a8
+code.block          "func", "if", "return", "nil"            synKeyword 141  #af87ff
+                    "Divide" in "func Divide"                accent    117  #87d7ff
+                    "int", "error"                           synType   152  #afd7d7
+                    "0"                                      synNumber 216  #ffaf87
+                    the rest of the indented rows            text      253  #dadada
+status.*            as screen 01
+composer.*          as screen 01 (the `▌` cursor is dim 245)
+separators          the full-width "─" rules                 border    244  #808080
+```
+
+- A finished reply is drawn as markdown (§3.2). Each element is checked against the §3.2
+  table: the heading keeps its `##`; bold and italic lose their markers; inline code keeps
+  its backticks; list items take `•`; the quote takes `│ `; the link shows its text and then
+  its URL in parentheses; the fence lines and the `go` info string are not drawn and the
+  block is indented two columns, with its own indentation kept exactly.
+- One blank row separates blocks. No background is painted and no margin is added.
+- The fenced block is highlighted by the language in its info string (`go`), one line at a
+  time, with the token colours above (§3.2). A fence whose language is missing or unknown is
+  all `text`. With colour off the block is plain, and the rows do not change.
+- With colour off the rows are these same rows, unstyled; bold and italic then show as
+  plain text. The ASCII form swaps `•` for `-` and `│ ` for `| `.
+- This grid is generated from the render, not drawn first (plan amendment 102, item 7).
+
+---
+
 ## Palette (§10.1)
 
 | Token | 256 | Hex | Used for |
@@ -769,8 +853,14 @@ hint                "↑↓ history · ⇧↑/Tab cards · /help"        muted  
 | `borderFocus` | 117 | `#87d7ff` | Focused modal border |
 | `codeBg` | 235 | `#262626` | Fenced tool-output panels (background) |
 | `selectionBg` | 236 | `#303030` | Selected card interior (background) |
+| `synKeyword` (v0.1.4, amendment 102) | 141 | `#af87ff` | Syntax highlighting: keywords and keyword constants |
+| `synString` (v0.1.4, amendment 102) | 180 | `#d7af87` | Syntax highlighting: strings; inline code in replies |
+| `synNumber` (v0.1.4, amendment 102) | 216 | `#ffaf87` | Syntax highlighting: numbers and other literals |
+| `synType` (v0.1.4, amendment 102) | 152 | `#afd7d7` | Syntax highlighting: type, class and keyword-type names |
 
 Nothing sets a default background. `codeBg` and `selectionBg` apply only inside their panels.
+
+(v0.1.4, amendment 102) Markdown rendering and syntax highlighting use these roles as set out in §3.2 and §4.1.
 
 ## Glyphs (§10.2)
 
@@ -781,13 +871,18 @@ Nothing sets a default background. `codeBg` and `selectionBg` apply only inside 
 | Tool running | `◐` | `*` |
 | Success | `✓ ok` | `[ok]` |
 | Failure | `✗` | `[err]` |
-| Selection gutter | `┃` | `|` |
+| Selection gutter (corrected, amendment 102) | `┃` | `\|` |
 | Dirty worktree | `●` | `*` |
 | Warning | `⚠` | `!` |
 | Notice bullet | `·` | `.` |
-| Spinner | `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` | `- \ | /` |
+| Spinner (corrected, amendment 102) | `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` | `- \ \| /` |
 | Cursor | `▌` | `_` |
-| Box drawing | `┌─┐│└┘├┤` | `+-|` |
+| Box drawing (pipe escaped, amendment 102; this row's glyph list and ASCII fallback differ from ui-spec §10.2, and amendment 102 does not reconcile them) | `┌─┐│└┘├┤` | `+-\|` |
+| Markdown bullet (v0.1.4, amendment 102) | `•` | `-` |
+| Markdown quote prefix (v0.1.4, amendment 102) | `│` | `\|` |
+| Markdown table column separator (v0.1.4, amendment 102) | `│` | `\|` |
+| Markdown table header rule (v0.1.4, amendment 102) | `─` | `-` |
+| Markdown horizontal rule (v0.1.4, amendment 102) | `─` | `-` |
 
 ## Layout invariants
 
@@ -875,7 +970,7 @@ Nothing sets a default background. `codeBg` and `selectionBg` apply only inside 
    and answerable. `Esc` is not named on the confirm prompt: it and
    `n` do the same thing, so the row already names a way out, and the cells `Esc` would cost
    come straight out of the question.
-4. Line counts are identical with and without colour. Only styling degrades.
+4. Line counts are identical with and without colour. Only styling degrades. (v0.1.4, amendment 102) This includes rendered replies, whose unstyled form is the same rendering code run with identity styles.
 5. Selection and scroll position are user-owned: streaming content never moves either.
 6. **The frame keeps one blank column at each side, and none top or bottom.** ui-spec §2.1.
    Numbered last only because invariants 3 and 4 are cited by number from the code; read it

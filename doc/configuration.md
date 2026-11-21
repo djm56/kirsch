@@ -177,6 +177,12 @@ does not turn that prompt off.
 `~/.local/share/kirsch`, the folder above `sessions`. An empty
 `session.storage_dir` falls back to that same folder, `~/.local/share/kirsch`.
 
+### `[ui]`
+
+| Key | Default | Valid values | Scope | What it does |
+|---|---|---|---|---|
+| `ui.render_markdown` | `true` | `true` or `false` | Global | When `true`, a finished assistant reply is drawn as formatted markdown. A reply that is still arriving is shown as plain text and is reformatted once it ends. When `false`, every reply is shown as the plain text the model sent. A project file cannot set it. |
+
 ### `[telemetry]`
 
 | Key | Default | Valid values | Scope | What it does |

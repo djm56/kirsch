@@ -229,8 +229,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	info := a.WorkspaceInfo()
 	m := tui.New(tui.Options{
-		Version: ver,
-		Caps:    tui.DetectCaps(os.Stdout),
+		Version:        ver,
+		Caps:           tui.DetectCaps(os.Stdout),
+		RenderMarkdown: cfg.UI.RenderMarkdown,
 		Session: tui.SessionInfo{
 			Project: info.Project,
 			Branch:  info.Branch,

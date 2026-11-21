@@ -10,14 +10,14 @@ This is different from `milestones/`, which says what to build *next*. The spec 
 |---|---|---|
 | [`kirsch-plan.md`](kirsch-plan.md) (about 1,250 lines) | What is Kirsch? What are the contract, the tool contracts, the policy, and the context? | When starting the project or a new milestone. Sections §1–§3 are essential; §4–§10 are reference. §11 is the amendment log tracking all decisions made since the plan was locked. |
 | [`architecture.md`](architecture.md) (about 330 lines) | Why is the code shaped this way? What are the dependency rules, the key interfaces, the concurrency model, error handling? | Before touching `internal/`. Explains why specific hard rules exist and how they enforce the invariants. |
-| [`ui-spec-v0.1.md`](ui-spec-v0.1.md) (about 850 lines) | What does the TUI look like? Layout, breakpoints, modes, key bindings, elements, palette, timing? | Before rendering anything visual. §1–§2 cover layout and breakpoints; §13 defines the fourteen golden states. **Normative** — everything visual must match this. |
+| [`ui-spec-v0.1.md`](ui-spec-v0.1.md) (about 850 lines) | What does the TUI look like? Layout, breakpoints, modes, key bindings, elements, palette, timing? | Before rendering anything visual. §1–§2 cover layout and breakpoints; §13 lists the golden states. **Normative** — everything visual must match this. |
 | [`kirsch-ui-screens.md`](kirsch-ui-screens.md) (about 900 lines) | What does every golden state look like as a literal grid? | As the render target and source of truth for golden test files. Every state in §13 of the UI spec is drawn here as an 80-column character grid with a per-region colour map. **Normative** — draw to match these grids exactly. |
 
 ## Normative Rules
 
 Where specifications conflict:
 
-- **The UI spec (`ui-spec-v0.1.md`) is law for anything visual.** It says what the rules are. Sections §13 defines the fourteen states.
+- **The UI spec (`ui-spec-v0.1.md`) is law for anything visual.** It says what the rules are. Section §13 lists the golden states.
 - **The screen reference (`kirsch-ui-screens.md`) is the render target and source of truth for golden files.** It shows what the UI spec describes — every state as a literal 80-column grid with exact colours.
 - **If a screen and the spec disagree, the spec wins and the screen is the bug.** Fix the screen, never the spec, and never split the difference in code.
 - **If an instruction set and the spec disagree, the spec wins.** Flag the conflict in an amendment rather than working around it.

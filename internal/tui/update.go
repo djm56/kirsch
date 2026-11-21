@@ -1292,6 +1292,9 @@ func (m *Model) resetForNewSession() {
 	m.status.SessionCostUSD = 0
 	m.status.SessionCostState = ""
 	m.unknownModelNoticeShown = false
+	if m.md != nil {
+		m.md.reset()
+	}
 }
 
 // openDetail opens the content or diff modal for the selected item. Only tool,
@@ -1320,6 +1323,7 @@ func (m Model) openDetail(lay Layout) Model {
 		m.openModal(ModalState{
 			Kind: ModalContent, Title: it.Tool.Name + " " + it.Tool.Target,
 			Source: it.ID, Lines: it.Tool.Out,
+			Path: it.Tool.Target, ReadFile: it.Tool.Name == "read_file",
 		})
 	case KindApproval:
 		switch it.Approval.Kind {
@@ -1492,6 +1496,10 @@ func (m Model) cancelTurn() Model {
 			it.Text.Cancelled = true
 		}
 	}
+	// A reply that was streaming is now a finished one, which draws differently
+	// (rendered markdown, the cancelled marker), so the flattened transcript is
+	// rebuilt here rather than at the next message.
+	m.relayout(m.layout())
 	return m
 }
 
@@ -1739,11 +1747,12 @@ func (m *Model) applyDiffResult(r DiffResult) {
 			lines = append(lines, marker)
 		}
 		m.openModal(ModalState{
-			Kind:    ModalDiff,
-			Title:   "working tree",
-			Lines:   lines,
-			Added:   r.Added,
-			Removed: r.Removed,
+			Kind:     ModalDiff,
+			Title:    "working tree",
+			Lines:    lines,
+			Added:    r.Added,
+			Removed:  r.Removed,
+			WorkTree: true,
 		})
 	}
 }

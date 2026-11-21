@@ -29,6 +29,7 @@ type Config struct {
 	Policy    PolicyConfig    `toml:"policy"`
 	Context   ContextConfig   `toml:"context"`
 	Session   SessionConfig   `toml:"session"`
+	UI        UIConfig        `toml:"ui"`
 	Telemetry TelemetryConfig `toml:"telemetry"`
 }
 
@@ -74,6 +75,14 @@ type SessionConfig struct {
 	AutoResume bool   `toml:"auto_resume"`
 }
 
+// UIConfig governs how the TUI draws. It is global only: mergeProjectFile
+// never reads it, because a reading preference is personal and a repository is
+// untrusted input.
+type UIConfig struct {
+	// RenderMarkdown draws a finished assistant reply as markdown. Default true.
+	RenderMarkdown bool `toml:"render_markdown"`
+}
+
 // TelemetryConfig governs the debug log.
 type TelemetryConfig struct {
 	DebugLog bool `toml:"debug_log"`
@@ -113,6 +122,7 @@ func Defaults() Config {
 			StorageDir: "~/.local/share/kirsch/sessions",
 			AutoResume: true,
 		},
+		UI:        UIConfig{RenderMarkdown: true},
 		Telemetry: TelemetryConfig{DebugLog: false},
 	}
 }
@@ -385,6 +395,7 @@ func mergeProjectFile(cfg *Config, path string) ([]Warning, error) {
 		"policy":    true,
 		"context":   true,
 		"session":   true,
+		"ui":        true,
 		"telemetry": true,
 	}
 

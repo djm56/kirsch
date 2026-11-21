@@ -296,6 +296,56 @@ it stops but not after a resume.
 
 ---
 
+## How replies look
+
+A finished reply is drawn as markdown. Headings keep their `#`, inline code keeps
+its backticks, and strikethrough keeps its `~~`. Bold and italic show without
+their `**` and `*` markers, and in colour they are bold and italic. Lists,
+tables, block quotes and links keep their structure, and a link shows its URL in
+parentheses after its text. A code fence is indented, with its opening and closing
+lines left out.
+
+Code is highlighted by language in these places: the code fences in a reply, the
+file view that `read_file` opens, and the diff views. The language comes from the
+first word of a fence, from the file name or extension, and from the path of each
+file in `/diff`. Highlighting adds colour only. The `+` and `-` markers on a diff
+line keep their green and red. Each line is lexed on its own, with nothing carried
+over from the line before. So an inline `<script>` on one line is highlighted as
+JavaScript. A script that spans lines is not, because each of its lines is lexed
+as HTML.
+
+Some things stay plain, and each has a reason:
+
+- A reply that is still arriving. It is drawn as it comes in, and rendered once it
+  ends.
+- A line wider than 512 columns. The cost of lexing grows with the line's length,
+  so Kirsch caps it there and draws the line without syntax colours.
+- A line that takes more than 50 ms to lex. Some lexer rules can run for a long
+  time on a bad line. Kirsch stops waiting after 50 ms, draws that line without
+  syntax colours, and stops using that language for the rest of the session.
+- The excluded lexers, the keys of `hlUnsafeLexers` in `internal/tui/highlight.go`:
+  Raku, the PostgreSQL and Materialize SQL dialects, and Svelte. Raku's lexer writes to a rule table that every lexing of Raku shares,
+  and the PostgreSQL, Materialize and Svelte lexers can run Raku inside their own
+  lexing, so Kirsch never lexes any of them. Every name, alias and file pattern
+  that chroma maps to them is drawn without syntax colours. For example, the
+  fences `postgresql` and `raku` are plain, and so are the files `.svelte` and
+  `.raku`. A `sql` fence is highlighted.
+- Any language Kirsch does not recognise.
+
+On a diff line drawn without syntax colours, the `+` or `-` marker keeps its
+colour.
+
+With colour off, nothing is coloured. That covers `NO_COLOR`, `TERM=dumb`, and
+output that is not a terminal. The layout stays the same.
+
+To turn markdown off, set `render_markdown` to `false` in the `[ui]` table of the
+global config (see [configuration.md](configuration.md)). Every reply then shows
+as plain text, as it did in v0.1.3. `c` and `/copy` copy the source text whether
+or not markdown is on. Modals and diffs still highlight when `render_markdown` is
+off.
+
+---
+
 ## Slash commands
 
 Type `/` at the start of a single line. A command must be the whole line:

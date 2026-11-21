@@ -259,6 +259,20 @@ func scenarios() []scenario {
 			m.frame = 1 // \ — index 1 of the ASCII cycle, matching screen 03's ⠙
 		}},
 
+		// A finished reply drawn as markdown (ui-spec §3.2): a heading, bold and
+		// italic, inline code, a list, a quote, a link and a fenced block. The
+		// reply is built from Lines the way a resumed one is, with markdown on.
+		{Screen: "13", Unicode: true, Build: func(m *Model) {
+			m.renderMD = true
+			m.tr.Append(Item{Kind: KindUser, Text: &TextBlock{
+				Lines: []string{"Why does Divide panic?"},
+			}})
+			m.tr.Append(Item{Kind: KindAssistant, Text: &TextBlock{
+				Lines: SanitizeLines(screen13Reply),
+			}})
+			m.status.Tokens = 15200
+		}},
+
 		{Screen: "12", Unicode: true, Build: func(m *Model) {
 			m.status = Status{Model: "unknown-model", Family: "unknown"}
 			m.onboarding = &OnboardingState{
@@ -271,6 +285,30 @@ func scenarios() []scenario {
 		}},
 	}
 }
+
+// screen13Reply is the markdown behind screen 13. It has no table on purpose: a
+// table's `│` between columns would put box characters in more than the two
+// right-edge columns scripts/lint-screens.py allows a grid.
+const screen13Reply = "## Why it panics\n" +
+	"\n" +
+	"The zero check runs **after** the division, so Go raises *integer divide by zero* first. " +
+	"Call `Divide(a, b)` with `b == 0` and you will see it.\n" +
+	"\n" +
+	"- Move the check above the division\n" +
+	"- Return an error instead of panicking\n" +
+	"\n" +
+	"> A guard clause belongs before the work it guards.\n" +
+	"\n" +
+	"See [the Go spec](https://go.dev/ref/spec) for the rules.\n" +
+	"\n" +
+	"```go\n" +
+	"func Divide(a, b int) (int, error) {\n" +
+	"    if b == 0 {\n" +
+	"        return 0, ErrZero\n" +
+	"    }\n" +
+	"    return a / b, nil\n" +
+	"}\n" +
+	"```\n"
 
 func buildScenario(t *testing.T, sc scenario, g grid) string {
 	t.Helper()
