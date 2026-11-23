@@ -835,14 +835,16 @@ func TestResumedToolCardHeadReachesTheScreenClean(t *testing.T) {
 }
 
 // TestLiveRunCommandStreamsAndTimesItsCard: entry point App.Submit, through the agent
-// loop and the real anthropic.Decode, so the call reaches toolExecutor.Invoke (not
-// RunTool, which TestRunCommandStreamsOutputToCard drives). The model's run_command
-// prints a line; the approval is answered through App.Resolve. Invoke must send at
-// least one CommandOutputChunkMsg for the card's ID before the card's
+// loop and the real anthropic.Decode, so the call reaches toolExecutor.Invoke (the
+// same entry point TestRunCommandStreamsOutputToCard drives directly). The model's
+// run_command prints a line; the approval is answered through App.Resolve. Invoke
+// must send at least one CommandOutputChunkMsg for the card's ID before the card's
 // ToolCompletedMsg, that completion must carry Elapsed > 0, and the rendered card's
-// head must draw a duration. Elapsed is measured around the whole registry call,
-// the wait for the approval included, so it is positive without the command taking
-// any particular time.
+// head must draw a duration. Elapsed is the registry call's time less the time the
+// approval adapter spent waiting for the answer, so it is the command's own run (the
+// shell starts and prints): above zero, and possibly under a millisecond, which the
+// card draws as "<1ms" (formatDuration). The head pattern accepts that form, whole
+// milliseconds and seconds, so a fast run does not fail the test.
 //
 // Control (DIR-026): the same messages with only the completion's Elapsed set to
 // zero, fed to a model through the same render path, draw no duration on the
@@ -903,7 +905,7 @@ func TestLiveRunCommandStreamsAndTimesItsCard(t *testing.T) {
 		t.Fatalf("no run_command card head in the frame:\n%s", frame)
 		return ""
 	}
-	dur := regexp.MustCompile(`· \d+(ms|\.\ds)`)
+	dur := regexp.MustCompile(`· (<1ms|\d+ms|\d+\.\ds)`)
 	if head := headOf(msgs); !dur.MatchString(head) {
 		t.Errorf("the card head draws no duration: %q", head)
 	}
@@ -918,6 +920,65 @@ func TestLiveRunCommandStreamsAndTimesItsCard(t *testing.T) {
 	}
 	if head := headOf(bare); dur.MatchString(head) {
 		t.Errorf("control: with Elapsed zero the card head still draws a duration: %q", head)
+	}
+}
+
+// TestLiveApprovalWaitIsNotInTheToolCardsElapsed: entry point App.Submit, through the
+// agent loop and the real anthropic.Decode, so the call reaches toolExecutor.Invoke. The
+// model's apply_patch asks for approval, and the test answers through App.Resolve only
+// after approvalDelay, from a goroutine started by the delivery of the request. The
+// patch is applied in-process, so the tool's own run is a small fraction of the delay.
+// The ToolCompletedMsg's Elapsed must be positive and below the delay, and the wall time
+// from the ApprovalRequestedMsg to the ToolCompletedMsg must be at least the delay.
+//
+// Controls (DIR-026): the wall-time assertion shows the wait really happened, so an
+// Elapsed under the delay cannot come from an approval that was answered at once; the
+// Elapsed > 0 assertion shows the tool's run was timed at all, so a clamp to zero
+// cannot pass for a subtraction.
+func TestLiveApprovalWaitIsNotInTheToolCardsElapsed(t *testing.T) {
+	// approvalDelay is well above the in-process patch's own run, and well under
+	// the turn's ten-second wait in liveEnv.turn. Runs under -race on one machine
+	// measured the completion's Elapsed at 1.2ms to 1.6ms, a figure that depends
+	// on the machine and is not asserted.
+	const approvalDelay = 800 * time.Millisecond
+	in := loadCaptureInputs(t).PatchApproval
+	repo := newGitRepo(t, map[string]string{"hello.go": "package main\n"})
+	input, err := json.Marshal(map[string]string{"diff": in.Input.Diff, "description": in.Input.Description})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var asked, completed time.Time
+	e := newLiveEnv(t, repo, func(a *App, msg any) {
+		switch v := msg.(type) {
+		case tui.ApprovalRequestedMsg:
+			mu.Lock()
+			asked = time.Now()
+			mu.Unlock()
+			go func() {
+				time.Sleep(approvalDelay)
+				a.Resolve(v.ID, ApprovalOutcomeOnce)
+			}()
+		case tui.ToolCompletedMsg:
+			mu.Lock()
+			completed = time.Now()
+			mu.Unlock()
+		}
+	}, sseToolUse(liveCallID, "apply_patch", string(input)), sseReply("done"))
+	msgs := e.turn("patch")
+
+	done := findMsg[tui.ToolCompletedMsg](msgs)
+	if done == nil || !done.OK {
+		t.Fatalf("want an OK ToolCompletedMsg, got %v (%+v)", msgTypeNames(msgs), done)
+	}
+	mu.Lock()
+	wall := completed.Sub(asked)
+	mu.Unlock()
+	if wall < approvalDelay {
+		t.Fatalf("control: the request-to-completion wall time is %v, want at least the %v delay", wall, approvalDelay)
+	}
+	if done.Elapsed <= 0 || done.Elapsed >= approvalDelay {
+		t.Errorf("the completion has Elapsed %v, want above zero and below the %v approval wait", done.Elapsed, approvalDelay)
 	}
 }
 

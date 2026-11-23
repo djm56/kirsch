@@ -261,7 +261,9 @@ const (
 // approvalAdapter adapts App's approval methods to the tool.Approver interface.
 // The tool layer expects methods named Request and Resolve with specific signatures,
 // while App provides RequestToolApproval and ResolveToolApproval. The adapter bridges
-// these by forwarding to the app's methods unchanged.
+// these by forwarding to the app's methods with the request and the decision
+// unchanged; Request also times the call when its context asks for that (see
+// approvalWait).
 //
 // Compile-time assertion: if this ever stops satisfying tool.Approver, the build fails.
 var _ tool.Approver = (*approvalAdapter)(nil)
@@ -270,8 +272,31 @@ type approvalAdapter struct {
 	app *App
 }
 
-// Request implements tool.Approver.
+// approvalWaitKey is the context key under which toolExecutor.Invoke hands the
+// approval adapter the approvalWait that collects the time the user spends
+// answering this call's approval requests.
+type approvalWaitKey struct{}
+
+// approvalWait accumulates the time spent inside approvalAdapter.Request for one
+// tool call. It is atomic so that a tool which asks for approval from a goroutine
+// other than the one running Invoke stays safe; each tool that calls Request
+// today does so on the goroutine running Invoke (internal/tool/apply_patch.go,
+// internal/tool/run_command.go).
+type approvalWait struct {
+	ns atomic.Int64
+}
+
+// Request implements tool.Approver. When ctx carries an approvalWait, the time
+// the request takes to be answered is added to it; a ctx without one (a caller
+// that reaches the registry without going through toolExecutor.Invoke) is
+// forwarded untimed.
 func (aa *approvalAdapter) Request(ctx context.Context, req tool.ApprovalRequest) policy.Decision {
+	w, ok := ctx.Value(approvalWaitKey{}).(*approvalWait)
+	if !ok {
+		return aa.app.RequestToolApproval(ctx, req)
+	}
+	asked := time.Now()
+	defer func() { w.ns.Add(int64(time.Since(asked))) }()
 	return aa.app.RequestToolApproval(ctx, req)
 }
 
@@ -317,19 +342,24 @@ func (te *toolExecutor) Invoke(ctx context.Context, c agent.ToolCall) agent.Tool
 		te.app.send(te.app.turnGen(ctx), tui.ToolStartedMsg{ID: id, Name: c.Name, Target: target})
 	}
 
-	// Tag the context with the card's ID, as RunTool does, so that an approval
-	// the tool asks for carries it and the tui links the approval to the card
+	// Tag the context with the card's ID so that an approval the tool asks for
+	// carries it and the tui links the approval to the card
 	// (ui-spec §3.4 and §3.8: an approved approval folds into its tool card).
 	ctx = tool.WithToolID(ctx, id)
-	// Wire a progress sink as RunTool does, so a streaming tool (run_command)
-	// sends its output chunks to this card through the same turn-generation
-	// path as the other messages here. A tool that streams nothing never calls it.
+	// Wire a progress sink so a streaming tool (run_command) sends its output
+	// chunks to this card through the same turn-generation path as the other
+	// messages here. A tool that streams nothing never calls it.
 	ctx = tool.WithProgressSink(ctx, func(chunk string) {
 		te.app.send(te.app.turnGen(ctx), tui.CommandOutputChunkMsg{ID: id, Chunk: chunk})
 	})
+	// The card's duration is the tool's own run. The approval adapter adds the
+	// time the user takes to answer to wait, and it is taken off the registry
+	// call's total below. The result is never negative.
+	wait := &approvalWait{}
+	ctx = context.WithValue(ctx, approvalWaitKey{}, wait)
 	start := time.Now()
 	res := te.app.reg.Invoke(ctx, c.Name, c.Input)
-	elapsed := time.Since(start)
+	elapsed := max(time.Since(start)-time.Duration(wait.ns.Load()), 0)
 
 	// Track touched files when apply_patch succeeds.
 	if res.OK && c.Name == "apply_patch" {
@@ -1960,7 +1990,7 @@ func (a *App) currentGen() uint64 {
 	return a.sessionGen.Load()
 }
 
-// turnGen returns the generation carried by ctx (set by RunTurn and RunTool),
+// turnGen returns the generation carried by ctx (set by RunTurn),
 // or the current generation when ctx carries none (a direct caller of Request
 // or of the tool executor, as the tests are).
 func (a *App) turnGen(ctx context.Context) uint64 {
@@ -2108,8 +2138,8 @@ func (a *App) deliverItem(it outboxItem) {
 // tool that finishes just as the user quits blocks forever handing its result
 // to a program that has stopped reading.
 //
-// send is called by RunTool's goroutine, by the tool executor's Invoke and by
-// Request, never from the event loop.
+// send is called by the tool executor's Invoke and by Request, never from the
+// event loop.
 func (a *App) send(gen uint64, msg tea.Msg) {
 	if a.sendFn == nil && a.program == nil {
 		return
@@ -2726,72 +2756,6 @@ func turnErrorDetail(err error) string {
 	}
 }
 
-// RunTool invokes a tool and reports the result to the TUI. It returns
-// immediately.
-//
-// Everything after the bookkeeping happens on the goroutine — including the
-// ToolStartedMsg — and that is not tidiness, it is the difference between
-// working and deadlocking. RunTool is called synchronously from the TUI's
-// Update, and program.Send blocks until the Bubble Tea event loop reads the
-// message. Sending from this function means Update waits for a loop that
-// cannot run until Update returns: the TUI blocks on itself, no tool ever
-// starts, and the interface simply stops responding with no error anywhere.
-//
-// This is exactly the deadlock architecture.md §5 names when it says the TUI
-// loop must never block, on anything, ever. It is easy to reintroduce, because
-// the offending line looks like ordinary sequencing.
-func (a *App) RunTool(name string, input map[string]any) {
-	ctx := a.BeginTurn()
-	gen := a.currentGen()
-	ctx = context.WithValue(ctx, turnGenKey{}, gen)
-	id := a.nextID.Add(1)
-	target := describeInput(input)
-
-	a.inFlight.Add(1)
-	go func() {
-		defer a.inFlight.Done()
-
-		a.send(gen, tui.ToolStartedMsg{ID: id, Name: name, Target: target})
-		a.log.Debug("tool started", "tool", name, "id", id, "target", target)
-
-		raw, err := json.Marshal(input)
-		if err != nil {
-			a.send(gen, tui.ToolCompletedMsg{
-				ID: id, Name: name, Target: target,
-				OK: false, ErrorKind: string(tool.KindToolInputInvalid),
-				ErrorMsg: "could not encode tool input: " + err.Error(),
-			})
-			return
-		}
-
-		start := time.Now()
-		ctx = tool.WithToolID(ctx, id)
-		ctx = tool.WithProgressSink(ctx, func(chunk string) {
-			a.send(gen, tui.CommandOutputChunkMsg{ID: id, Chunk: chunk})
-		})
-		res := a.reg.Invoke(ctx, name, raw)
-		elapsed := time.Since(start)
-
-		msg := tui.ToolCompletedMsg{
-			ID: id, Name: name, Target: target,
-			OK:        res.OK,
-			Summary:   res.DisplaySummary,
-			Content:   res.Content,
-			Truncated: res.Truncated,
-			Elapsed:   elapsed,
-		}
-		if res.Error != nil {
-			msg.ErrorKind = string(res.Error.Kind)
-			msg.ErrorMsg = res.Error.Message
-		}
-		a.log.Debug("tool completed",
-			"tool", name, "id", id, "ok", res.OK,
-			"duration_ms", res.DurationMS, "kind", msg.ErrorKind,
-			telemetry.Content("summary", res.DisplaySummary))
-		a.send(gen, msg)
-	}()
-}
-
 // canApproveForSession determines whether a session-scope grant is possible
 // by consulting policy and the sessionGrantsDisabled flag. Both the operation
 // type AND the specific argv must be acceptable, and session grants must not
@@ -3225,8 +3189,8 @@ func (a *App) ManualCompact(getenv func(string) string) tui.ManualCompactMsg {
 // characters are drawn as ·, and newlines become spaces. A model-driven call's
 // input is written by the model, so every field returned is sanitised, and a
 // field that sanitises to nothing is passed over. It is the one function that
-// turns a call's input into a target: RunTool calls it, and toolExecutor.Invoke,
-// adaptTurnEvent and transcriptToItems reach it through describeToolCallInput.
+// turns a call's input into a target: toolExecutor.Invoke, adaptTurnEvent and
+// transcriptToItems reach it through describeToolCallInput.
 // The tui sanitises a target again where it stores one, so a sender that
 // bypasses this function still cannot put raw text on the screen.
 func describeInput(input map[string]any) string {

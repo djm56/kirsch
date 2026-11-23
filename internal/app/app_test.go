@@ -99,12 +99,29 @@ func testApp(t *testing.T, fixture string, c *collector) *App {
 	return a
 }
 
-func TestRunToolReportsStartAndCompletion(t *testing.T) {
+// invokeTool runs a tool through toolExecutor.Invoke on ctx, the entry point the
+// agent loop uses, and returns what the loop would be handed. The input map is
+// encoded to JSON as a model's tool call carries it. ctx holds no tool-call map,
+// so Invoke allocates the card's ID and sends the ToolStartedMsg itself, then the
+// ToolCompletedMsg when the tool returns. It blocks until the tool returns, so a
+// test that must act while the tool runs calls it from a goroutine.
+func invokeTool(ctx context.Context, a *App, name string, input map[string]any) agent.ToolResult {
+	raw, err := json.Marshal(input)
+	if err != nil {
+		panic("invokeTool: " + err.Error())
+	}
+	return (&toolExecutor{app: a}).Invoke(ctx, agent.ToolCall{ID: "call-" + name, Name: name, Input: raw})
+}
+
+// TestInvokeReportsStartAndCompletion: entry point toolExecutor.Invoke, through
+// invokeTool. A read_file call sends a ToolStartedMsg naming the tool and its
+// target, then a ToolCompletedMsg with the same ID, OK and the file's content.
+func TestInvokeReportsStartAndCompletion(t *testing.T) {
 	c := newCollector(2)
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 
-	a.RunTool("read_file", map[string]any{"path": "main.go"})
+	invokeTool(context.Background(), a, "read_file", map[string]any{"path": "main.go"})
 	msgs := c.wait(t, 5*time.Second)
 
 	started, ok := msgs[0].(tui.ToolStartedMsg)
@@ -130,15 +147,15 @@ func TestRunToolReportsStartAndCompletion(t *testing.T) {
 	}
 }
 
-// TestViolationReachesTheTUIAsAToolError: a denied path is information the
-// model can act on, so it arrives as a failed tool result rather than as an
-// ErrorMsg. architecture.md §8.
+// TestViolationReachesTheTUIAsAToolError: entry point toolExecutor.Invoke, through
+// invokeTool. A denied path is information the model can act on, so it arrives as
+// a failed tool result rather than as an ErrorMsg. architecture.md §8.
 func TestViolationReachesTheTUIAsAToolError(t *testing.T) {
 	c := newCollector(2)
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 
-	a.RunTool("read_file", map[string]any{"path": ".env"})
+	invokeTool(context.Background(), a, "read_file", map[string]any{"path": ".env"})
 	msgs := c.wait(t, 5*time.Second)
 
 	done := msgs[1].(tui.ToolCompletedMsg)
@@ -265,8 +282,10 @@ func TestSubmitSendsBudgetMsgForSmallRequest(t *testing.T) {
 }
 
 // TestCancelReturnsWithinOneSecond is ui-spec §11's cancellation target,
-// asserted rather than eyeballed. Wired now with no model call to cancel,
-// because cancellation retrofitted later is cancellation that does not work.
+// asserted rather than eyeballed. Entry point toolExecutor.Invoke, through
+// invokeTool, on a turn context from BeginTurn. There is no model call to cancel
+// here; the cancel seam is exercised early because cancellation retrofitted
+// later is cancellation that does not work.
 func TestCancelReturnsWithinOneSecond(t *testing.T) {
 	c := newCollector(2)
 	a := testApp(t, "repo-small", c)
@@ -275,7 +294,7 @@ func TestCancelReturnsWithinOneSecond(t *testing.T) {
 	slow := &slowTool{started: make(chan struct{})}
 	a.reg.Register(slow)
 
-	a.RunTool("slow", map[string]any{})
+	go invokeTool(a.BeginTurn(), a, "slow", map[string]any{})
 	select {
 	case <-slow.started:
 	case <-time.After(2 * time.Second):
@@ -300,18 +319,19 @@ func TestCancelReturnsWithinOneSecond(t *testing.T) {
 }
 
 // TestBeginTurnCancelsThePrevious — a new turn must not leave the old one
-// running behind it.
+// running behind it. Entry point: toolExecutor.Invoke (through invokeTool) on the
+// first turn's context, then a second BeginTurn.
 func TestBeginTurnCancelsThePrevious(t *testing.T) {
-	c := newCollector(4)
+	c := newCollector(2)
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 
 	first := &slowTool{started: make(chan struct{})}
 	a.reg.Register(first)
-	a.RunTool("slow", map[string]any{})
+	go invokeTool(a.BeginTurn(), a, "slow", map[string]any{})
 	<-first.started
 
-	a.RunTool("read_file", map[string]any{"path": "main.go"})
+	a.BeginTurn()
 	msgs := c.wait(t, 3*time.Second)
 
 	var cancelled bool
@@ -333,7 +353,7 @@ func TestNoGoroutineLeak(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		c := newCollector(2)
 		a := testApp(t, "repo-small", c)
-		a.RunTool("list_files", map[string]any{"path": "."})
+		invokeTool(context.Background(), a, "list_files", map[string]any{"path": "."})
 		c.wait(t, 5*time.Second)
 		a.Close()
 	}
@@ -372,12 +392,14 @@ func TestWorkspaceInfo(t *testing.T) {
 	}
 }
 
+// TestUnknownToolIsReportedNotFatal: entry point toolExecutor.Invoke, through
+// invokeTool.
 func TestUnknownToolIsReportedNotFatal(t *testing.T) {
 	c := newCollector(2)
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 
-	a.RunTool("no_such_tool", map[string]any{})
+	invokeTool(context.Background(), a, "no_such_tool", map[string]any{})
 	msgs := c.wait(t, 5*time.Second)
 	done := msgs[1].(tui.ToolCompletedMsg)
 	if done.OK {
@@ -1969,9 +1991,9 @@ func TestDescribeInputSanitizesArgvEscapeSequences(t *testing.T) {
 // asserts on what the operator would see.
 //
 // Order of events, as the test performs them:
-//  1. The test calls App.RunTool("run_command", {"argv": []string{"cat", "go.mod"}})
-//     directly. The argv map is constructed here.
-//  2. App.RunTool runs run_command, which asks for approval because cat is not
+//  1. The test calls toolExecutor.Invoke (through invokeTool) with run_command and
+//     {"argv": []string{"cat", "go.mod"}}, which is encoded to JSON.
+//  2. Invoke runs run_command, which asks for approval because cat is not
 //     allow-listed. App sends ApprovalRequestedMsg through sendFn.
 //  3. The test pumps App's messages into Update until the approval card is
 //     pending, sends the key "y", then keeps pumping until a result card
@@ -1981,8 +2003,9 @@ func TestDescribeInputSanitizesArgvEscapeSequences(t *testing.T) {
 //     command "cat go.mod". No message field is inspected.
 //
 // Polling runs against a deadline rather than a fixed sleep.
-// Calibration: reverting describeInput to its []any-only check, or renaming the
-// "argv" key in the RunTool input map, makes this fail.
+// Calibration: renaming the "argv" key in the input map makes run_command refuse
+// the call before it asks for approval, so the approval card never appears and
+// this fails.
 func TestRunCommandCardShowsCommand(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "repo-small"))
 	if err != nil {
@@ -2048,9 +2071,9 @@ func TestRunCommandCardShowsCommand(t *testing.T) {
 	apply(tea.WindowSizeMsg{Width: 100, Height: 30})
 
 	// The /run slash command was deleted in Milestone 3. Drive the same tool
-	// directly through App.RunTool so the test still exercises the
+	// directly through toolExecutor.Invoke so the test still exercises the
 	// run_command card rendering path.
-	go a.RunTool("run_command", map[string]any{
+	go invokeTool(a.BeginTurn(), a, "run_command", map[string]any{
 		"argv": []string{"cat", "go.mod"},
 	})
 
@@ -2733,17 +2756,23 @@ func waitForMsgAfter[T any](t *testing.T, c *collector, afterIdx int, d time.Dur
 	return 0, zero
 }
 
-// TestRunCommandApprovalIDsAreDistinct verifies that two tool invocations that
-// both request approval receive distinct approval IDs. This is the app-level
-// regression for box :324: the tool's ApprovalRequest.ID must map to the
-// app-side tool invocation ID, not a hard-coded placeholder.
+// TestRunCommandApprovalIDsAreDistinct (entry point toolExecutor.Invoke,
+// through invokeTool) verifies that two tool invocations that both request
+// approval receive approval IDs that are non-zero and distinct. Neither this
+// test nor TestRunCommandStreamsOutputToCard detects run_command sending a zero
+// ApprovalRequest.ID, because App.Request replaces a zero ID with a fresh one.
+// It covers part of the app-level regression for box :324: it does not check
+// that an approval ID equals its tool card's ID.
+// TestRunCommandStreamsOutputToCard asserts that mapping.
 func TestRunCommandApprovalIDsAreDistinct(t *testing.T) {
 	c := newCollector(0)
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 
+	ctx := a.BeginTurn()
+
 	// First command: "go version" is not allowlisted, so it asks for approval.
-	go a.RunTool("run_command", map[string]any{
+	go invokeTool(ctx, a, "run_command", map[string]any{
 		"argv": []string{"go", "version"},
 	})
 	idx1, req1 := waitForMsgAfter[tui.ApprovalRequestedMsg](t, c, 0, 5*time.Second)
@@ -2751,7 +2780,7 @@ func TestRunCommandApprovalIDsAreDistinct(t *testing.T) {
 	idx1, _ = waitForMsgAfter[tui.ToolCompletedMsg](t, c, idx1, 5*time.Second)
 
 	// Second command: different argv, but also not allowlisted.
-	go a.RunTool("run_command", map[string]any{
+	go invokeTool(ctx, a, "run_command", map[string]any{
 		"argv": []string{"go", "env", "GOPATH"},
 	})
 	_, req2 := waitForMsgAfter[tui.ApprovalRequestedMsg](t, c, idx1, 5*time.Second)
@@ -2768,15 +2797,18 @@ func TestRunCommandApprovalIDsAreDistinct(t *testing.T) {
 
 // TestRunCommandStreamsOutputToCard verifies that RunCommand output is forwarded
 // to the TUI as CommandOutputChunkMsg with the correct tool card ID. This is the
-// app-level regression for box :320 / amendment 73. Entry point: App.RunTool,
-// which has no caller outside tests; the production path is toolExecutor.Invoke,
-// which TestLiveRunCommandStreamsAndTimesItsCard in live_tool_test.go drives.
+// app-level regression for box :320 / amendment 73. Entry point:
+// toolExecutor.Invoke, through invokeTool; TestLiveRunCommandStreamsAndTimesItsCard
+// in live_tool_test.go drives it through App.Submit and the agent loop. The chunk
+// carries the card's ID (the ToolStartedMsg's), and the approval request carries
+// the same ID in both its ID (set by run_command) and its ToolID (set by
+// App.Request), which is how the tui links the approval to the card.
 func TestRunCommandStreamsOutputToCard(t *testing.T) {
 	c := newCollector(0)
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
 
-	go a.RunTool("run_command", map[string]any{
+	go invokeTool(a.BeginTurn(), a, "run_command", map[string]any{
 		"argv": []string{"go", "version"},
 	})
 	req := waitForMsg[tui.ApprovalRequestedMsg](t, c, 5*time.Second)
@@ -2802,12 +2834,25 @@ func TestRunCommandStreamsOutputToCard(t *testing.T) {
 		t.Fatal("timed out waiting for CommandOutputChunkMsg")
 	}
 
-	if chunk.ID != req.ID {
-		t.Errorf("chunk ID %d does not match approval/tool ID %d", chunk.ID, req.ID)
+	// The ToolStartedMsg Invoke sends is this test's first message, at index 0.
+	// waitForMsg passes afterIdx 0 and so would skip it; afterIdx -1 includes it.
+	_, started := waitForMsgAfter[tui.ToolStartedMsg](t, c, -1, 5*time.Second)
+	if chunk.ID != started.ID {
+		t.Errorf("chunk ID %d does not match the tool card's ID %d", chunk.ID, started.ID)
+	}
+	if req.ID != started.ID {
+		t.Errorf("approval request ID %d does not match the tool card's ID %d", req.ID, started.ID)
+	}
+	if req.ToolID != started.ID {
+		t.Errorf("approval request ToolID %d does not match the tool card's ID %d", req.ToolID, started.ID)
 	}
 	if !strings.Contains(chunk.Chunk, "go version") {
 		t.Errorf("chunk does not contain command output: %q", chunk.Chunk)
 	}
+
+	// invokeTool runs on an untracked goroutine, so wait for the completion
+	// before the deferred Close cancels the root context under a running command.
+	waitForMsgAfter[tui.ToolCompletedMsg](t, c, -1, 5*time.Second)
 }
 
 // TestStatusInfoDataFlowNoticeOpencodeOnly verifies the ADR 0008 notice flag is

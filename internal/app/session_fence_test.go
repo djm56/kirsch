@@ -437,8 +437,7 @@ func TestCurrentGenDoesNotWaitForAHeldGenMuWriteLock(t *testing.T) {
 // so a delivered stale SessionUsageMsg shows 1000 and the fresh one 1001.
 //
 // The Request and Invoke cases carry the generation in the context, as RunTurn
-// and RunTool put it there; RunTurn itself is not called (see the file
-// comment).
+// puts it there; RunTurn itself is not called (see the file comment).
 func TestEverySenderDropsAStaleGenerationAndDeliversACurrentOne(t *testing.T) {
 	e := newCompactionEnv(t, 8192)
 	oldStore, _, err := e.a.ensureStore()
@@ -635,7 +634,6 @@ var fencedCallers = map[string][]string{
 	"App.flushStore":            {"gen"},
 	"App.recordCompactionUsage": {"gen"},
 	"App.ManualCompact":         {"gen"},
-	"App.RunTool":               {"gen"},
 	"App.Request":               {"turnGen()"},
 	"toolExecutor.Invoke":       {"turnGen()"},
 	"App.deliverItem":           {"gen"},
@@ -820,8 +818,8 @@ func parsePackageApp(t *testing.T) (*token.FileSet, []*ast.File) {
 // allowed only from a function in knownUnfenced, and a call to a fencedSenders
 // name only from a function in fencedCallers, passing a generation form that
 // function's entry allows. Calls inside function literals (RunTurn's goroutine
-// and emit, RunTool's goroutine and progress sink) count as calls of the
-// enclosing declaration.
+// and emit, Invoke's progress sink) count as calls of the enclosing
+// declaration.
 //
 // Limits. Calls are matched by name (calleeName): a sender reached under
 // another name, through a method value or a func variable, is not seen, and
@@ -837,7 +835,7 @@ func parsePackageApp(t *testing.T) (*token.FileSet, []*ast.File) {
 // entry. The "control" subtest runs the same check on a small source text in
 // which each kind of breach appears once: an unlisted function calling
 // sendAsyncSequence, an unlisted function calling enqueue, an unlisted function
-// calling send, and a RunTool passing currentGen() to send where its entry
+// calling send, and a RunTurn passing currentGen() to send where its entry
 // allows only gen. Each must be reported.
 // In the same text an allowlisted AcquireLock calls SendStatusWarning and must
 // not be, which shows the check admits as well as fires.
@@ -859,7 +857,7 @@ func TestTurnPathsUseOnlyFencedSenders(t *testing.T) {
 func (a *App) AcquireLock() error { a.SendStatusWarning("w"); return nil }
 func (a *App) newHelper() { a.sendAsyncSequence(nil) }
 func (a *App) unlisted(gen uint64) { a.send(gen, nil) }
-func (a *App) RunTool() { a.send(a.currentGen(), nil) }
+func (a *App) RunTurn() { a.send(a.currentGen(), nil) }
 func (a *App) sneaky() { a.enqueue(nil) }
 `
 		fset := token.NewFileSet()
@@ -872,7 +870,7 @@ func (a *App) sneaky() { a.enqueue(nil) }
 			"App.newHelper: control.go:4: calls unfenced sendAsyncSequence and is not in knownUnfenced",
 			"App.unlisted: control.go:5: calls send and is not in fencedCallers",
 			"App.sneaky: control.go:7: calls unfenced enqueue and is not in knownUnfenced",
-			`App.RunTool: control.go:6: send is given generation "currentGen()", want one of [gen]`,
+			`App.RunTurn: control.go:6: send is given generation "currentGen()", want one of [gen]`,
 		} {
 			if !strings.Contains(got, want) {
 				t.Errorf("control: problems lack %q; got:\n%s", want, got)

@@ -106,7 +106,10 @@ type capInputsFile struct {
 	// ToolElapsedMs is the Elapsed, in milliseconds, of every tool completion the
 	// captures send (capStampElapsed).
 	ToolElapsedMs int64
-	ReadFile      struct {
+	// ApprovalElapsedMs is how far the capture clock moves on each read
+	// (capClock), which is the duration a resolved approval line shows.
+	ApprovalElapsedMs int64
+	ReadFile          struct {
 		Text, Summary, Content, OneLineText, OneLineSummary string
 	}
 	ModalReadFile struct{ Path, Text string }
@@ -214,10 +217,25 @@ func capOptions(t testing.TB, colour, unicode bool) Options {
 	t.Helper()
 	o := capIn(t).Options
 	return Options{
+		Now:     capClock(time.Duration(capIn(t).ApprovalElapsedMs) * time.Millisecond),
 		Version: o.Version,
 		Caps:    Caps{Colour: colour, Unicode: unicode},
 		Session: SessionInfo{Project: o.Project, Branch: o.Branch, Dirty: o.Dirty},
 		Status:  Status{Model: o.Model, Family: o.Family},
+	}
+}
+
+// capClock returns a clock for Options.Now that moves forward by step on every
+// read, from a fixed start, so no capture reads the wall clock. The model reads
+// the clock when an approval is requested and again when it is resolved, with no
+// read between them in any capture, so the resolved approval line shows exactly
+// step. No capture presses Ctrl+C (captureKeyNames has no such key), the one other
+// reader of the clock; two such reads would be step apart.
+func capClock(step time.Duration) func() time.Time {
+	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	return func() time.Time {
+		now = now.Add(step)
+		return now
 	}
 }
 

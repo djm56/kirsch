@@ -835,6 +835,8 @@ The plan below the line was reviewed on 2026-09-11, before Milestone 0 started. 
       did not, which located the deadlock precisely. The debug log built in
       Task 3 paid for itself inside the same milestone.
 
+    *(2026-11-23: `App.RunTool` has since been removed. Tool calls now go through `toolExecutor.Invoke`.)*
+
 47. **`App.Close` could hang the process on quit.** A tool finishing after the
     program stopped blocked in `program.Send` — the loop is no longer draining
     — so `inFlight.Wait()` never returned. Close now cancels first, waits a

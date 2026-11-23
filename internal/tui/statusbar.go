@@ -256,11 +256,15 @@ func (m Model) formatCost() string {
 	}
 }
 
-// formatDuration renders a tool card's elapsed time.
+// formatDuration renders a tool card's elapsed time. A duration above zero and
+// under one millisecond reads "<1ms" rather than "0ms"; callers draw nothing for a
+// zero duration, so zero is not a case here.
 func formatDuration(d time.Duration) string {
 	switch {
 	case d >= time.Second:
 		return fmt.Sprintf("%.1fs", d.Seconds())
+	case d > 0 && d < time.Millisecond:
+		return "<1ms"
 	default:
 		return fmt.Sprintf("%dms", d.Milliseconds())
 	}
