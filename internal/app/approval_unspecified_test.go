@@ -1,4 +1,4 @@
-package tui_test
+package app
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/djm56/kirsch/internal/app"
 	"github.com/djm56/kirsch/internal/config"
 	"github.com/djm56/kirsch/internal/policy"
 	"github.com/djm56/kirsch/internal/telemetry"
@@ -18,10 +17,12 @@ import (
 )
 
 // Tests for the approval card of a request whose Operation is
-// policy.OperationUnspecified (plan C36). They live in package tui_test, not
-// tui, because the entry point is app.App.Request: that call is what turns a
-// request into the tui.ApprovalRequestedMsg the model receives, and package app
-// imports package tui, so an in-package test could not call it.
+// policy.OperationUnspecified (plan C36). They live in package app because the
+// entry point is App.Request: that call is what turns a request into the
+// tui.ApprovalRequestedMsg the model receives, and package app is where that
+// wiring to package tui lives. The test needs a workspace, and internal/arch
+// forbids internal/tui to import internal/workspace in its test files as well as
+// its own, so it cannot sit in internal/tui.
 
 // unspecifiedRequestName is the text the request carries in Description. It is
 // the only operation name an unspecified request has: Operation is the zero
@@ -31,7 +32,7 @@ const unspecifiedRequestName = "reticulate splines"
 // unspecifiedApprovalView drives an unspecified-operation request through the
 // real path and returns the message the TUI received and the rendered screen.
 //
-// Entry point: app.App.Request (internal/app/app.go, the call that builds
+// Entry point: App.Request (internal/app/app.go, the call that builds
 // ApprovalRequestedMsg), with the message captured through SetSendFn. The
 // captured message is then fed to tui.Model.Update and the screen is read from
 // Model.View. Nothing is hand-built, so the test sees what a real request
@@ -46,7 +47,7 @@ func unspecifiedApprovalView(t *testing.T) (tui.ApprovalRequestedMsg, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := app.New(ws, config.Defaults(), telemetry.Disabled())
+	a := New(ws, config.Defaults(), telemetry.Disabled())
 	defer a.Close()
 
 	sent := make(chan any, 4)
@@ -57,7 +58,7 @@ func unspecifiedApprovalView(t *testing.T) (tui.ApprovalRequestedMsg, string) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		_, _ = a.Request(ctx, app.ApprovalRequest{
+		_, _ = a.Request(ctx, ApprovalRequest{
 			Description: unspecifiedRequestName,
 			Operation:   policy.OperationUnspecified,
 		})

@@ -1505,8 +1505,11 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 // outbox goroutine delivers it with program.Send (app.go), so the confirmation
 // always arrives after the slot is empty. And
 // it cannot correlate by treating msg.ID as a transcript item ID: msg.ID is
-// drawn from the app's own approval counter (approveID.Add(1) in app.go), a
-// space the transcript's item IDs do not share — Transcript.Append counts
+// the tool card's ID from the app's own card counter (nextID in app.go) for
+// run_command and apply_patch, which send ToolIDFrom(ctx) as the approval ID;
+// only a zero ID gets a fresh value from the app's approval counter
+// (approveID). Neither counter is the transcript's: the item IDs are a space
+// those counters do not share — Transcript.Append counts
 // every item, approvals included. The two coincide only when the approval
 // card happens to be the transcript's first item, which is why converting
 // that field straight to an ItemID looked correct in a transcript that

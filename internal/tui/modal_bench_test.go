@@ -6,8 +6,18 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+)
 
-	"github.com/djm56/kirsch/internal/tool"
+// The three caps the benchmark sizes its cases by. They are the values of
+// tool.DefaultMaxLines, tool.MaxFileBytes and tool.MaxDiffBytes, kept as local
+// constants because internal/tui must not import internal/tool, in its test files
+// either (internal/arch). TestBenchCapsMatchTool in internal/app reads this
+// file's source for these three names, each a single constant expression, and
+// fails if one differs from its internal/tool counterpart.
+const (
+	modalBenchFileLines = 500
+	modalBenchFileBytes = 2 << 20
+	modalBenchDiffBytes = 200 << 10
 )
 
 // The shape of a read_file modal's lines in the benchmark: source lines of
@@ -55,7 +65,7 @@ func modalBenchContentBytes(size int) (lines []string, used int) {
 
 // modalBenchDiff is /diff output in the shape git prints it: file sections of a
 // header block and then hunks, about 80 bytes a code line, grown until it holds
-// about size bytes. size is /diff's cap (tool.MaxDiffBytes) for the largest case.
+// about size bytes. size is /diff's cap (modalBenchDiffBytes) for the largest case.
 func modalBenchDiff(size int) []string {
 	var lines []string
 	total := 0
@@ -104,11 +114,11 @@ func modalBenchModel(b *testing.B, w int, md ModalState) Model {
 // is a whole View frame, warm.
 //
 // The cases are the largest the producers allow. read_file: its default is 500
-// lines (tool.DefaultMaxLines), the first case, and an explicit range is capped by
-// bytes and not by lines (tool.MaxFileBytes), the second, which modalBenchContentBytes
+// lines (modalBenchFileLines), the first case, and an explicit range is capped by
+// bytes and not by lines (modalBenchFileBytes), the second, which modalBenchContentBytes
 // fills with the same lines up to that cap; the case fails if the lines it made
 // pass the cap or stop short of it by more than modalBenchLong bytes. /diff:
-// tool.MaxDiffBytes, 200 KB. The widths are 80 and 200 columns.
+// modalBenchDiffBytes, 200 KB. The widths are 80 and 200 columns.
 //
 // Measurements and decision (review 7 W1 of mission-20261121-01, which found no
 // cache and no measurement). With no cache, on an Apple M4, modalSizing took about
@@ -129,18 +139,18 @@ func BenchmarkModalSizing(b *testing.B) {
 		md   func() ModalState
 	}{
 		{"read_file-500-lines", func() ModalState {
-			return ModalState{Kind: ModalContent, Title: "read_file a.go", ReadFile: true, Path: "a.go", Lines: modalBenchContent(500)}
+			return ModalState{Kind: ModalContent, Title: "read_file a.go", ReadFile: true, Path: "a.go", Lines: modalBenchContent(modalBenchFileLines)}
 		}},
 		{"read_file-2MB", func() ModalState {
-			lines, used := modalBenchContentBytes(tool.MaxFileBytes)
-			if used > tool.MaxFileBytes || tool.MaxFileBytes-used > modalBenchLong {
-				b.Fatalf("read_file-2MB: %d lines take %d bytes, want at most the %d-byte cap and no more than %d short of it", len(lines), used, tool.MaxFileBytes, modalBenchLong)
+			lines, used := modalBenchContentBytes(modalBenchFileBytes)
+			if used > modalBenchFileBytes || modalBenchFileBytes-used > modalBenchLong {
+				b.Fatalf("read_file-2MB: %d lines take %d bytes, want at most the %d-byte cap and no more than %d short of it", len(lines), used, modalBenchFileBytes, modalBenchLong)
 			}
-			b.Logf("read_file-2MB: %d lines, %d bytes of the %d-byte cap", len(lines), used, tool.MaxFileBytes)
+			b.Logf("read_file-2MB: %d lines, %d bytes of the %d-byte cap", len(lines), used, modalBenchFileBytes)
 			return ModalState{Kind: ModalContent, Title: "read_file a.go", ReadFile: true, Path: "a.go", Lines: lines}
 		}},
 		{"diff-200KB", func() ModalState {
-			return ModalState{Kind: ModalDiff, Title: "working tree", WorkTree: true, Lines: modalBenchDiff(200 << 10)}
+			return ModalState{Kind: ModalDiff, Title: "working tree", WorkTree: true, Lines: modalBenchDiff(modalBenchDiffBytes)}
 		}},
 	}
 	for _, c := range cases {

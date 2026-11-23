@@ -2758,12 +2758,12 @@ func waitForMsgAfter[T any](t *testing.T, c *collector, afterIdx int, d time.Dur
 
 // TestRunCommandApprovalIDsAreDistinct (entry point toolExecutor.Invoke,
 // through invokeTool) verifies that two tool invocations that both request
-// approval receive approval IDs that are non-zero and distinct. Neither this
-// test nor TestRunCommandStreamsOutputToCard detects run_command sending a zero
-// ApprovalRequest.ID, because App.Request replaces a zero ID with a fresh one.
-// It covers part of the app-level regression for box :324: it does not check
-// that an approval ID equals its tool card's ID.
-// TestRunCommandStreamsOutputToCard asserts that mapping.
+// approval receive approval IDs that are non-zero and distinct. It does not
+// detect run_command sending a zero ApprovalRequest.ID, because App.Request
+// replaces a zero ID with a fresh one that is also non-zero and distinct;
+// TestRunCommandStreamsOutputToCard detects that case. It covers part of the
+// app-level regression for box :324: it does not check that an approval ID
+// equals its tool card's ID, which TestRunCommandStreamsOutputToCard asserts.
 func TestRunCommandApprovalIDsAreDistinct(t *testing.T) {
 	c := newCollector(0)
 	a := testApp(t, "repo-small", c)
@@ -2802,11 +2802,19 @@ func TestRunCommandApprovalIDsAreDistinct(t *testing.T) {
 // in live_tool_test.go drives it through App.Submit and the agent loop. The chunk
 // carries the card's ID (the ToolStartedMsg's), and the approval request carries
 // the same ID in both its ID (set by run_command) and its ToolID (set by
-// App.Request), which is how the tui links the approval to the card.
+// App.Request), which is how the tui links the approval to the card. The test
+// first draws one value from the approval counter and discards it, so that a
+// replacement ID from App.Request (which draws from that counter) does not
+// equal the card ID, which comes from the separate card counter; an approval
+// request sent with a zero ID therefore fails the comparison below of the
+// approval request ID against the card ID.
 func TestRunCommandStreamsOutputToCard(t *testing.T) {
 	c := newCollector(0)
 	a := testApp(t, "repo-small", c)
 	defer a.Close()
+
+	// Reserve one approval ID so the two counters are out of step.
+	a.approveID.Add(1)
 
 	go invokeTool(a.BeginTurn(), a, "run_command", map[string]any{
 		"argv": []string{"go", "version"},

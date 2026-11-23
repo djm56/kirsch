@@ -2,6 +2,11 @@ package app
 
 import (
 	"fmt"
+	"go/ast"
+	"go/constant"
+	"go/parser"
+	"go/token"
+	"go/types"
 	"strings"
 	"testing"
 
@@ -66,6 +71,63 @@ func TestRenameTitleGivesTheNewPathToTheHighlighter(t *testing.T) {
 		title, _, _, _ := computeDiffDisplay(changes)
 		if got := tui.DiffTitlePath(title); got != c.wantPath {
 			t.Errorf("title %q: highlighter path %q, want %q", title, got, c.wantPath)
+		}
+	}
+}
+
+// TestBenchCapsMatchTool: the three caps internal/tui's modal benchmark sizes its
+// cases by are the values the tool producers cap by. internal/tui must not import
+// internal/tool, in its test files either (internal/arch), so the benchmark keeps
+// its own constants in internal/tui/modal_bench_test.go. An unexported constant of
+// a _test.go file in package tui cannot be reached from this package, so the test
+// does not call anything: it parses that source file, finds each constant by name
+// and evaluates its one constant expression. Entry point: go/parser on the file,
+// go/types.Eval on each expression. Positive control: every name is found, so a
+// renamed constant fails the lookup and does not vanish from the comparison; the
+// comparison is against tool.DefaultMaxLines, tool.MaxFileBytes and tool.MaxDiffBytes.
+func TestBenchCapsMatchTool(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "../tui/modal_bench_test.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse internal/tui/modal_bench_test.go: %v", err)
+	}
+	local := map[string]string{} // constant name -> its expression's source text
+	for _, d := range f.Decls {
+		gd, ok := d.(*ast.GenDecl)
+		if !ok || gd.Tok != token.CONST {
+			continue
+		}
+		for _, s := range gd.Specs {
+			vs := s.(*ast.ValueSpec)
+			if len(vs.Names) != len(vs.Values) {
+				continue // an implicit repeat of the previous expression; not used for these
+			}
+			for i, n := range vs.Names {
+				local[n.Name] = types.ExprString(vs.Values[i])
+			}
+		}
+	}
+	for _, c := range []struct {
+		name string
+		want int64
+	}{
+		{"modalBenchFileLines", int64(tool.DefaultMaxLines)},
+		{"modalBenchFileBytes", int64(tool.MaxFileBytes)},
+		{"modalBenchDiffBytes", int64(tool.MaxDiffBytes)},
+	} {
+		expr, found := local[c.name]
+		if !found {
+			t.Errorf("internal/tui/modal_bench_test.go declares no constant %s", c.name)
+			continue
+		}
+		tv, err := types.Eval(token.NewFileSet(), nil, token.NoPos, expr)
+		if err != nil || tv.Value == nil {
+			t.Errorf("%s = %q is not a constant expression: %v", c.name, expr, err)
+			continue
+		}
+		got, exact := constant.Int64Val(tv.Value)
+		if !exact || got != c.want {
+			t.Errorf("%s = %s = %v, but the tool package's cap is %d", c.name, expr, tv.Value, c.want)
 		}
 	}
 }
