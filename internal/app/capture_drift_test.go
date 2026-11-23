@@ -541,10 +541,14 @@ func TestCaptureDiffChainMatchesCommitted(t *testing.T) {
 	}
 }
 
-// twoFileRepo makes a repo whose first commit holds each pinned file that has an old
-// text, and whose working tree then holds every file's new text. A file with no old
-// text is created after the commit, and registered with git add -N when the pin says
-// so, which is how the walkthrough makes /diff list it.
+// twoFileRepo makes a temporary repo and returns its path. It runs git init, writes
+// the old text of each pinned file whose Old is non-empty (creating parent
+// directories), and commits with git add . and git commit. It then writes the New
+// text of every pinned file over or beside that, and runs git add -N on the files
+// whose pin sets IntentToAdd, which is how the walkthrough makes /diff list a new
+// file. A file with an empty Old is therefore not in the commit. It does not isolate
+// git's configuration; its one caller, TestCaptureTwoFileDiffMatchesGit, calls
+// isolateGit first.
 func twoFileRepo(t *testing.T, in captureInputsFile) string {
 	t.Helper()
 	repo := t.TempDir()

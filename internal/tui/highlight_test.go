@@ -2243,6 +2243,12 @@ func TestHighlightVersionRestatementsNameTheVersion(t *testing.T) {
 	if got := results[0].found; !reflect.DeepEqual(got, []string{hlReviewedChroma}) {
 		t.Errorf("control: only.txt matched %v, want [%s]", got, hlReviewedChroma)
 	}
+	// wrapped.txt holds one version, written across a Go comment's line break. It
+	// must be found, so the "//" in hlChromaVersionPattern is pinned by a match and
+	// not only by a reported mismatch.
+	if got, want := results[2].found, []string{"v2.26.0"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("control: wrapped.txt matched %v, want %v", got, want)
+	}
 	if got, want := hlVersionProblemFiles(results), []string{"half.txt", "wrapped.txt", "none.txt", "absent.txt"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("control: files with a version problem = %v, want %v (only.txt passes; the half-updated, wrapped, versionless and absent files are reported)", got, want)
 	}

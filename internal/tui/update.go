@@ -1228,15 +1228,21 @@ func (m Model) keyConfirm(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 // a modal reads as a broken modal, not as a deliberate omission.
 //
 // The offset counts display rows, and its range comes from modalExtent, which
-// reads the same modalSizing the render draws from. Every scrolling key clamps the
-// stored offset to [0, max(0, totalRows-bodyH)], takes its step, and clamps again.
+// reads the same modalSizing the render draws from. PgUp and PgDn step by the body
+// height modalExtent reports, the rows the box draws, with a floor of one row so
+// the key still moves where the ladder draws no body. The step is not taken from
+// lay.TranscriptH: that differs from the body height by the box's chrome, which is
+// three or four rows depending on the rung modalFrameFor picks. Every scrolling
+// key clamps the stored offset to [0, max(0, totalRows-bodyH)], takes its step,
+// and clamps again.
 // The first clamp matters after a resize, which leaves the stored offset alone and
 // so can leave it past a range that has shrunk: a step taken from there would move
 // nothing on screen and the press would be lost. The help overlay shares this
 // handler, so it gets the same clamps; its lines never wrap, so its rows are its
 // lines.
 func (m Model) keyModal(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
-	page := maxInt(1, lay.TranscriptH-4)
+	_, bodyH := m.modalExtent(lay)
+	page := maxInt(1, bodyH)
 	// scroll moves the offset: clamp, step, clamp. to receives the clamped offset
 	// and the last offset of the range, which is the top of the last page.
 	scroll := func(to func(off, last int) int) {
@@ -1505,15 +1511,16 @@ func (m Model) resolveApproval(o ApprovalOutcome, lay Layout) Model {
 // outbox goroutine delivers it with program.Send (app.go), so the confirmation
 // always arrives after the slot is empty. And
 // it cannot correlate by treating msg.ID as a transcript item ID: msg.ID is
-// the tool card's ID from the app's own card counter (nextID in app.go) for
-// run_command and apply_patch, which send ToolIDFrom(ctx) as the approval ID;
-// only a zero ID gets a fresh value from the app's approval counter
-// (approveID). Neither counter is the transcript's: the item IDs are a space
-// those counters do not share — Transcript.Append counts
-// every item, approvals included. The two coincide only when the approval
-// card happens to be the transcript's first item, which is why converting
-// that field straight to an ItemID looked correct in a transcript that
-// starts empty and has nothing before it.
+// the tool card's ID from the app's block ID counter (nextID in app.go, which
+// also numbers text and thinking blocks) for run_command and apply_patch, which
+// send ToolIDFrom(ctx) as the approval ID; only a zero ID gets a fresh value from
+// the app's approval counter (approveID). Neither counter is the transcript's:
+// the item IDs are a space those counters do not share — Transcript.Append counts
+// every item, approvals included. In a hand-built message, or for a request sent
+// with a zero ID, which Request replaces with a value from approveID, the
+// approval ID can equal the approval card's item ID when the card is the
+// transcript's first item, which is why converting that field straight to an
+// ItemID looked correct in a transcript that starts empty.
 func (m Model) updateApprovalOutcome(msg ApprovalResolvedMsg) Model {
 	cardID, known := m.approvalCards[msg.ID]
 	if !known {

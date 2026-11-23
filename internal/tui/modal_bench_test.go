@@ -39,6 +39,48 @@ func modalBenchLine(i int) string {
 	return hlBenchLine(fmt.Sprintf("line %d: x := compute(a, \"s\", 42) + y // c ", i), w)
 }
 
+// modalBenchRunes builds a line of exactly n runes by repeating unit and cutting
+// the result at a rune boundary. hlBenchLine cuts by bytes, which would split a
+// multi-byte rune.
+func modalBenchRunes(unit string, n int) string {
+	r := []rune(strings.Repeat(unit, n/len([]rune(unit))+1))
+	return string(r[:n])
+}
+
+// modalBenchWideLine is line i of a content modal made mostly of wide runes (two
+// display columns each), with an index and a space in each complete repeat of the
+// unit that are narrow (modalBenchRunes cuts the last repeat short; for i from 0 to
+// 499, where a line has a cut repeat it keeps its index and lacks its space), in
+// the same short and long shape as modalBenchLine: the widths are in runes, not
+// columns.
+func modalBenchWideLine(i int) string {
+	n := modalBenchShort
+	if i%modalBenchLongEvery == 0 {
+		n = modalBenchLong
+	}
+	return modalBenchRunes(fmt.Sprintf("行%d：漢字を表示する文字列 ", i), n)
+}
+
+// modalBenchCombiningLine is line i of a content modal made of text in which some
+// letters carry a combining acute accent (U+0301), which adds runes and no display
+// columns, in the same short and long shape as modalBenchLine.
+func modalBenchCombiningLine(i int) string {
+	n := modalBenchShort
+	if i%modalBenchLongEvery == 0 {
+		n = modalBenchLong
+	}
+	return modalBenchRunes(fmt.Sprintf("líne %d: écríre ún témoin ", i), n)
+}
+
+// modalBenchLinesOf is the first n lines line makes.
+func modalBenchLinesOf(n int, line func(int) string) []string {
+	lines := make([]string, n)
+	for i := range lines {
+		lines[i] = line(i)
+	}
+	return lines
+}
+
 // modalBenchContent is the first n lines modalBenchLine makes.
 func modalBenchContent(n int) []string {
 	lines := make([]string, n)
@@ -118,19 +160,24 @@ func modalBenchModel(b *testing.B, w int, md ModalState) Model {
 // bytes and not by lines (modalBenchFileBytes), the second, which modalBenchContentBytes
 // fills with the same lines up to that cap; the case fails if the lines it made
 // pass the cap or stop short of it by more than modalBenchLong bytes. /diff:
-// modalBenchDiffBytes, 200 KB. The widths are 80 and 200 columns.
+// modalBenchDiffBytes, 200 KB. Two more read_file cases hold 500 lines of non-ASCII
+// text, one mostly of wide runes (two display columns each, with a narrow index and
+// space) and one in which some letters carry a combining accent (runes that add no
+// columns), in the same short and long line shape. The widths are 40, 80 and 200 columns.
 //
 // Measurements and decision (review 7 W1 of mission-20261121-01, which found no
 // cache and no measurement). With no cache, on an Apple M4, modalSizing took about
 // 9 ms (500 lines, 80 columns), about 136 ms (2 MB, 80 columns) and about 12 ms
 // (/diff, 80 columns), and every View frame and every scroll key paid it. With the
 // counts cached on the ModalState, a warm call took about 0.2 µs and allocated
-// nothing at each case and width. The decision was to cache the counts, so that a
-// scroll key or a frame at an unchanged width no longer wraps every line. No
-// threshold was set in advance; the decision rests on those figures. The no-cache
-// figures were measured once, on the code as it was then and with the 2 MB case
-// sized by a hand-kept average line length; "cold" is the cache-miss path today and
-// prints its own. Run it with:
+// nothing, in the benchmark as it stood then: the read_file 500-line, read_file
+// 2 MB and /diff cases, at 80 and 200 columns. Those figures do not cover the
+// wide-rune and combining-mark cases or the 40-column width. The decision was to
+// cache the counts, so that a scroll key or a frame at an unchanged width no longer
+// wraps every line. No threshold was set in advance; the decision rests on those
+// figures. The no-cache figures were measured once, on the code as it was then and
+// with the 2 MB case sized by a hand-kept average line length; "cold" is the
+// cache-miss path today and prints its own. Run it with:
 //
 //	go test -run '^$' -bench BenchmarkModalSizing -benchmem ./internal/tui
 func BenchmarkModalSizing(b *testing.B) {
@@ -140,6 +187,12 @@ func BenchmarkModalSizing(b *testing.B) {
 	}{
 		{"read_file-500-lines", func() ModalState {
 			return ModalState{Kind: ModalContent, Title: "read_file a.go", ReadFile: true, Path: "a.go", Lines: modalBenchContent(modalBenchFileLines)}
+		}},
+		{"read_file-500-lines-wide-runes", func() ModalState {
+			return ModalState{Kind: ModalContent, Title: "read_file a.txt", ReadFile: true, Path: "a.txt", Lines: modalBenchLinesOf(modalBenchFileLines, modalBenchWideLine)}
+		}},
+		{"read_file-500-lines-combining-marks", func() ModalState {
+			return ModalState{Kind: ModalContent, Title: "read_file a.txt", ReadFile: true, Path: "a.txt", Lines: modalBenchLinesOf(modalBenchFileLines, modalBenchCombiningLine)}
 		}},
 		{"read_file-2MB", func() ModalState {
 			lines, used := modalBenchContentBytes(modalBenchFileBytes)
@@ -154,7 +207,7 @@ func BenchmarkModalSizing(b *testing.B) {
 		}},
 	}
 	for _, c := range cases {
-		for _, w := range []int{80, 200} {
+		for _, w := range []int{40, 80, 200} {
 			m := modalBenchModel(b, w, c.md())
 			lay := m.layout()
 			name := fmt.Sprintf("%s/%dcols", c.name, w)

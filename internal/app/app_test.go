@@ -2805,7 +2805,7 @@ func TestRunCommandApprovalIDsAreDistinct(t *testing.T) {
 // App.Request), which is how the tui links the approval to the card. The test
 // first draws one value from the approval counter and discards it, so that a
 // replacement ID from App.Request (which draws from that counter) does not
-// equal the card ID, which comes from the separate card counter; an approval
+// equal the card ID, which comes from nextID, a counter of its own; an approval
 // request sent with a zero ID therefore fails the comparison below of the
 // approval request ID against the card ID.
 func TestRunCommandStreamsOutputToCard(t *testing.T) {

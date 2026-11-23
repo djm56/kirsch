@@ -685,44 +685,96 @@ func pagedModals(t *testing.T) map[string]Model {
 // from one row short of last lands on last and not past it, and a PgDn at last
 // holds. Going back up, a PgUp from last moves bodyH, and a PgUp from one row down
 // lands on 0. A page of the wrong size fails the first press of the walk.
+//
+// Each modal is walked at two rungs of modalFrameFor, and the test checks the
+// frame of each so a case cannot run at the other one. At 100x20 the frame has the
+// footer rule and a body of several rows. At the window height where the frame
+// drops the rule and keeps the body (found by scanning heights, and failing if none
+// gives that rung), the body is one row, so the walk is one row a press; the case
+// asserts that bodyH is 1 there. At that rung a one-row step is all the case can
+// show. Deleting keyModal's floor would not fail it, since the floor only matters
+// where bodyH is 0 and this test bars those rungs.
 func TestModalPageKeysMoveByBodyHeight(t *testing.T) {
-	for name, m := range pagedModals(t) {
-		t.Run(name, func(t *testing.T) {
-			total, bodyH := m.modalExtent(m.layout())
-			last := total - bodyH
-			if bodyH < 3 || last < 3*bodyH {
-				t.Fatalf("total %d, bodyH %d: too little to page through", total, bodyH)
+	// noRuleHeight is the first window height, going down from 20, at which the
+	// frame for m has no rule and has a body.
+	noRuleHeight := func(t *testing.T, m Model) int {
+		t.Helper()
+		for h := 20; h >= 4; h-- {
+			fr := modalFrameFor(drive(m, tea.WindowSizeMsg{Width: 100, Height: h}).layout())
+			if !fr.showRule && fr.showBody && !fr.notice {
+				return h
 			}
-			pgDn, pgUp := keyType(tea.KeyPgDown), keyType(tea.KeyPgUp)
-
-			off := 0
-			for off+bodyH <= last {
-				m = drive(m, pgDn)
-				if m.modal.Off != off+bodyH {
-					t.Fatalf("PgDn from %d: Off = %d, want %d (bodyH %d, last %d)", off, m.modal.Off, off+bodyH, bodyH, last)
+		}
+		t.Fatal("no window height gives a frame without the rule and with a body")
+		return 0
+	}
+	rungs := []struct {
+		name     string
+		rule     bool
+		minBody  int
+		resizeTo func(t *testing.T, m Model) int
+	}{
+		{"rule", true, 3, func(*testing.T, Model) int { return 20 }},
+		{"no-rule", false, 1, noRuleHeight},
+	}
+	for name := range pagedModals(t) {
+		for _, rung := range rungs {
+			t.Run(name+"/"+rung.name, func(t *testing.T) {
+				// Model.modal is a pointer, so a copy of a Model shares its ModalState and
+				// its offset. Each subtest builds its own modals, so that a failure at one
+				// rung leaves no offset behind for the other.
+				open := pagedModals(t)[name]
+				m := drive(open, tea.WindowSizeMsg{Width: 100, Height: rung.resizeTo(t, open)})
+				if fr := modalFrameFor(m.layout()); fr.showRule != rung.rule || !fr.showBody || fr.notice {
+					t.Fatalf("frame at this height: showRule %v showBody %v notice %v, want showRule %v with a body", fr.showRule, fr.showBody, fr.notice, rung.rule)
 				}
-				off += bodyH
-			}
+				if _, bodyH := m.modalExtent(m.layout()); !rung.rule && bodyH != 1 {
+					t.Fatalf("bodyH at the no-rule rung = %d, want 1", bodyH)
+				}
+				pageKeysWalk(t, m, rung.minBody)
+			})
+		}
+	}
+}
 
-			// One row short of the last offset, a whole page would pass it: the press
-			// lands on last. At last a further press holds.
-			m = drive(m, key('G'), key('k'), pgDn)
-			if m.modal.Off != last {
-				t.Errorf("PgDn from %d: Off = %d, want it clamped to %d", last-1, m.modal.Off, last)
-			}
-			if m = drive(m, pgDn); m.modal.Off != last {
-				t.Errorf("PgDn at the end: Off = %d, want it held at %d", m.modal.Off, last)
-			}
+// pageKeysWalk is the body of TestModalPageKeysMoveByBodyHeight for one modal at
+// one layout: m's modal must have a body of at least minBody rows and at least
+// three bodies' worth of rows to scroll through.
+func pageKeysWalk(t *testing.T, m Model, minBody int) {
+	t.Helper()
+	total, bodyH := m.modalExtent(m.layout())
+	last := total - bodyH
+	if bodyH < minBody || last < 3*bodyH {
+		t.Fatalf("total %d, bodyH %d: too little to page through", total, bodyH)
+	}
+	pgDn, pgUp := keyType(tea.KeyPgDown), keyType(tea.KeyPgUp)
 
-			m = drive(m, pgUp)
-			if m.modal.Off != last-bodyH {
-				t.Errorf("PgUp from the end: Off = %d, want %d", m.modal.Off, last-bodyH)
-			}
-			m = drive(m, keyType(tea.KeyHome), key('j'), pgUp)
-			if m.modal.Off != 0 {
-				t.Errorf("PgUp from one row down: Off = %d, want it clamped to 0 (bodyH %d)", m.modal.Off, bodyH)
-			}
-		})
+	off := 0
+	for off+bodyH <= last {
+		m = drive(m, pgDn)
+		if m.modal.Off != off+bodyH {
+			t.Fatalf("PgDn from %d: Off = %d, want %d (bodyH %d, last %d)", off, m.modal.Off, off+bodyH, bodyH, last)
+		}
+		off += bodyH
+	}
+
+	// One row short of the last offset, a whole page would pass it: the press
+	// lands on last. At last a further press holds.
+	m = drive(m, key('G'), key('k'), pgDn)
+	if m.modal.Off != last {
+		t.Errorf("PgDn from %d: Off = %d, want it clamped to %d", last-1, m.modal.Off, last)
+	}
+	if m = drive(m, pgDn); m.modal.Off != last {
+		t.Errorf("PgDn at the end: Off = %d, want it held at %d", m.modal.Off, last)
+	}
+
+	m = drive(m, pgUp)
+	if m.modal.Off != last-bodyH {
+		t.Errorf("PgUp from the end: Off = %d, want %d", m.modal.Off, last-bodyH)
+	}
+	m = drive(m, keyType(tea.KeyHome), key('j'), pgUp)
+	if m.modal.Off != 0 {
+		t.Errorf("PgUp from one row down: Off = %d, want it clamped to 0 (bodyH %d)", m.modal.Off, bodyH)
 	}
 }
 

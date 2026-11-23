@@ -226,7 +226,9 @@ func capOptions(t testing.TB, colour, unicode bool) Options {
 }
 
 // capClock returns a clock for Options.Now that moves forward by step on every
-// read, from a fixed start, so no capture reads the wall clock. The model reads
+// read, from a fixed start, so the model's clock (Options.Now) is not the wall
+// clock in a capture. The highlighter's lexer deadline (hlLexLine in highlight.go,
+// a time.NewTimer) does not use it and is time-dependent. The model reads
 // the clock when an approval is requested and again when it is resolved, with no
 // read between them in any capture, so the resolved approval line shows exactly
 // step. No capture presses Ctrl+C (captureKeyNames has no such key), the one other
@@ -1555,6 +1557,25 @@ func TestCaptureStampsToolCompletionsWithTheCannedElapsed(t *testing.T) {
 	}
 	if h := head(in); strings.Contains(h, formatDuration(want)) {
 		t.Errorf("control: the unstamped card head %q draws the canned duration", h)
+	}
+}
+
+// TestCaptureApprovalElapsedIsAboveZero: entry point capIn, which reads
+// approvalElapsedMs from testdata/capture-inputs.json, and capClock, called
+// directly on that value. The value must be above zero, because the capture clock
+// moves forward by it and a resolved approval line shows no duration when the
+// clock does not move. Control, through the same call the capture models are built
+// with: two reads of the clock are exactly that value apart.
+func TestCaptureApprovalElapsedIsAboveZero(t *testing.T) {
+	ms := capIn(t).ApprovalElapsedMs
+	if ms <= 0 {
+		t.Fatalf("approvalElapsedMs is %d: the capture clock would not move, and a resolved approval would show no duration", ms)
+	}
+	step := time.Duration(ms) * time.Millisecond
+	clock := capClock(step)
+	first := clock()
+	if got := clock().Sub(first); got != step {
+		t.Errorf("control: two reads of capClock are %v apart, want %v", got, step)
 	}
 }
 

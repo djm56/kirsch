@@ -192,7 +192,8 @@ func fill(r string, w int) string {
 // store SanitizeLines output, including streamed text via
 // Transcript.AppendText); ErrorCard.Message and notice text carrying
 // model-controlled text are stored through SanitizeSingleLine. The NoticeCards
-// built directly without it are the one in loadFixture (fake.go), whose text is
+// built directly without it in non-test code (some test files build them directly
+// too) are the one in loadFixture (fake.go), whose text is
 // a string literal, and the cut-off notice in transcriptToItems
 // (internal/app), whose text comes from cutOffNoticeText: a fixed message,
 // with the output token limit appended when it is positive.

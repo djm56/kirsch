@@ -253,9 +253,9 @@ func TestApprovedSessionAndRejectedRenderDifferently(t *testing.T) {
 // test for the bug both prior fix rounds left standing: updateApprovalOutcome
 // correlated ApprovalResolvedMsg.ID against a transcript item ID
 // (ItemID(msg.ID)), rather than against the app-side approval ID it actually
-// is. The two only ever agreed by coincidence, because every other test in
-// this file starts from an empty transcript, so the approval card lands as
-// item 1 and its approval ID (also allocated from 1) matches by accident.
+// is. The two only ever agreed by coincidence: in the other tests here that
+// send a request hand-built with ID: 1 to an empty transcript, the approval
+// card lands as item 1 and its approval ID (also 1) matches by accident.
 //
 // This test breaks that coincidence on purpose: a notice is appended before
 // the approval request, so the approval card is the transcript's *second*
@@ -273,9 +273,10 @@ func TestApprovalResolvedMsgCorrelatesByApprovalIDNotItemID(t *testing.T) {
 	m := New(Options{})
 
 	// Item 1: a notice, appended before any approval exists. This is what
-	// makes the notice's item ID (1) collide with the approval's app-side ID
-	// (also 1, since approveID starts counting from 1 independently) while
-	// the approval's own item ID (2) does not.
+	// makes the notice's item ID (1) collide with the approval ID this test
+	// sends (also 1: the ApprovalRequestedMsg below is hand-built with ID: 1,
+	// and no app counter is involved) while the approval's own item ID (2) does
+	// not.
 	m.notice("a notice appended before the approval, so item IDs and approval IDs diverge")
 
 	requestMsg := ApprovalRequestedMsg{

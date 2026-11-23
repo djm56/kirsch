@@ -56,6 +56,26 @@ func TestSanitizeReplacesBidiControls(t *testing.T) {
 	}
 }
 
+// TestSanitizeShowsReplacementRuneAndInvalidBytesAsBullets: entry point Sanitize,
+// called directly. A literal U+FFFD rune and an invalid UTF-8 byte ("\xff", which
+// strings.Map hands to the mapping function as U+FFFD) are each shown as a bullet,
+// with the text beside them kept. Control, through the same call: a non-control
+// rune (é, U+00E9) beside the same text is left unchanged, so the bullets are the
+// two inputs being replaced and not the whole line.
+func TestSanitizeShowsReplacementRuneAndInvalidBytesAsBullets(t *testing.T) {
+	for name, in := range map[string]string{
+		"literal U+FFFD":     "a" + string(rune(0xfffd)) + "b",
+		"invalid byte \\xff": "a\xffb",
+	} {
+		if got, want := Sanitize(in), "a·b"; got != want {
+			t.Errorf("%s: Sanitize(%q) = %q, want %q", name, in, got, want)
+		}
+	}
+	if got, want := Sanitize("aéb"), "aéb"; got != want {
+		t.Errorf("control: Sanitize changed a non-control rune, got %q, want %q", got, want)
+	}
+}
+
 // TestSanitizeSingleLineCarriageReturnKeepsText: entry point SanitizeSingleLine,
 // called directly. A \r becomes a space and the text before it is kept, and a CRLF
 // pair becomes one space. A CR followed by a CRLF is two spaces (the CRLF pair is
