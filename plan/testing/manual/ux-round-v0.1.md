@@ -488,7 +488,7 @@ reading `c copies replies only`, as step 5 leaves it.
    - [ ] Its footer reads `Esc or ? closes`.
 2. Read the left column of the help box. With the composer empty and no notice
    showing, the whole box shows on the first view at 80 by 28, with the footer
-   `kirsch v0.1.3-dev · Esc or ? closes`. Under `browsing`, you should see `↑/↓`
+   `kirsch v<version> · Esc or ? closes`, where `<version>` is the version of the build under test (`Options.Version` in `internal/tui/model.go`, printed by `modalFooters` in `internal/tui/modal.go`). The capture is canned to `0.1.5-dev`, so its footer reads `kirsch v0.1.5-dev` (`captures/v0.1.3/s11-help-open.txt`, line 32). Under `browsing`, you should see `↑/↓`
    with `select card/reply`, and `c` with `copy reply`. There is no `?` row. If a
    notice is showing under the composer, the box is one row short, and `G`, which
    moves to the bottom of the help box, shows the last rows.
@@ -625,8 +625,8 @@ commit only. A commit made with your own identity works too. Section 5 changes
 
    > Use read_file on hello.go, then say done.
 
-2. Press `Shift+↑` to enter Browsing. Press `↑` until the `read_file` card is
-   selected, then press `d`.
+2. Press `Shift+↑` to enter Browsing. The `read_file` card is still selected, so
+   press `d`.
    You should see the content modal, with the file's lines numbered. The modal's
    own line numbers are at the left, and they stay dim. The tool's number for each
    line follows them. `package` and `func` are in the keyword colour, and `"hi"`
@@ -634,6 +634,7 @@ commit only. A commit made with your own identity works too. Section 5 changes
    - [ ] `package` and `func` are in the keyword colour.
    - [ ] `"hi"` is in the string colour.
    - [ ] The modal's own line numbers are dim.
+   > **Note, 2026-11-23 (dated, unticked).** Step 2 changed. The earlier text pressed `↑` until the `read_file` card was selected. `captures/v0.1.4/s03-readfile-modal-go.txt` line 5 lists the steps as `(the reply streams, the turn completes) | Shift+↑ | d`, with no arrow press, and the frame is the `read_file hello.go` content modal, whose own line numbers are dim in `s03-readfile-modal-go.annot.txt`.
 3. Press `Esc`.
    You should see the modal close and Browsing stay on.
    - [ ] `Esc` closes the modal.
@@ -712,7 +713,7 @@ ends in Composing, with `/diff` closed.
    `Tab` to return to the composer.
    - [ ] The reply from section 1 shows `#`, backticks and `~~`, and no `**`.
 
-### 7. A `postgresql` fence is plain, and a `sql` fence is highlighted (model)
+### 7. A `postgresql` fence is highlighted as SQL, and a `sql` fence is highlighted (model)
 
 **Context:** Section 6 is done, and Kirsch is in Composing. Type `/quit` and press
 `Enter`. Start Kirsch again with `~/path/to/kirsch/bin/kirsch` from
@@ -724,10 +725,12 @@ Composing, with the composer empty.
 
    > Reply with only two code fences. The first is tagged postgresql and the second is tagged sql. Each holds the line SELECT 1;
 
-   You should see two code blocks. In the `postgresql` block, `SELECT` is plain
-   text. In the `sql` block, `SELECT` is in the keyword colour.
-   - [ ] `SELECT` in the `postgresql` block is plain.
+   You should see two code blocks. In the `postgresql` block, `SELECT` is in the
+   keyword colour, as it is in the `sql` block. The dated note below gives the
+   earlier expectation.
+   - [ ] `SELECT` in the `postgresql` block is in the keyword colour.
    - [ ] `SELECT` in the `sql` block is in the keyword colour.
+   > **Note, 2026-11-23 (dated, unticked).** The expectation for the `postgresql` block changed. Commit `a8d702b` (Part B1) highlights `postgresql` and `postgres` fences as SQL, through `hlInfoAlias` in `internal/tui/highlight.go`. The earlier expectation was that the `postgresql` block is plain text. Evidence: `captures/v0.1.4/s07-fence-languages.annot.txt` rows 07 and 09 show `SELECT` as `fg=SynKeyword(38;5;141)` in both blocks, and `TestHighlightPostgresInfoStringsMapToSQL` in `internal/tui/highlight_test.go` pins the fence. Those rows are the capture's record of a `postgresql` fence, so no further capture is needed.
 
 ### 8. `/copy` still copies the source markdown (no model)
 
@@ -765,7 +768,7 @@ in, which rows are blank, and where a marker or a number sits. They never descri
 The index of the captures is `plan/testing/manual/captures/README.md`.
 
 `modal-diff-wrapped` is cited for wrap structure only. Its hunk header is canned: it is not
-the header git prints for the change in section 8, and its counts do not match the lines under it.
+the header git prints for the change in section 8. Its counts (`-7,7 +7,7`, capture line 16) match the lines under it.
 
 **Context:** This section is run as part of the combined end-of-round test. Use the build
 and the test folder from the v0.1.2 section, `~/kirsch-ux-test`, and run `npm run build`
@@ -857,24 +860,30 @@ overflows. This section ends in Browsing, scrolled up and not pinned, with a `�
 indicator on the last transcript row.
 
 1. Press `Tab` to return to the composer. Type `read README.md, then count from 1 to 300, one number per line`
-   and press `Enter`. As soon as the first tool card shows, press `Shift+↑`, then `g`, then
-   `PgDn`. Wait until the reply has finished.
+   and press `Enter`. After the tool card finishes and before the reply's first text, press
+   `Shift+↑`, then `g`, then `PgDn`. Wait until the reply has finished.
    `Shift+↑` returns to Browsing. `g` moves the view to the top, and `PgDn` moves it down
    one page. The view is then not pinned, so the blocks that arrive below it are counted in
    `↓ N new`. `N` counts those blocks, not lines.
    You should see the thumb on a row above the bottom of the bar, with track below it. On the
    last transcript row, the `↓ N new` indicator ends flush against the bar's column.
    If no tool card appears, write `no tool call` beside this step and send the prompt again.
-   If no indicator appears, write `reply finished first` beside this step and try again with
-   a longer prompt.
+   If no indicator appears, the keys came in an order that gives no count. The replay in
+   `captures/v0.1.5/chain-replay.txt` records these orderings in its section 4 blocks, at the lines cited:
+   - keys pressed before the reply's first text (the main path, line 99):
+     `scroll: offset 16, pinned false, new 1`;
+   - the reply already streaming before the keys (line 126): `scroll: offset 16, pinned false, new 0`;
+   - the reply already finished before the keys (line 152): `scroll: offset 16, pinned false, new 0`.
+   Write `reply started first` or `reply finished first` beside this step, as applies, and try
+   again with a longer prompt.
    The capture's own steps are `Shift+↑`, `g`, `PgDn`, the same as here. Its thumb sits where
    its canned transcript length puts it, so this section checks the thumb as a rule, not
    against the capture's rows.
    Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-mid-new.txt` for the indicator's
    place: line 27 holds `↓ 3 new` on the last transcript row, with the bar at its right.
    `# steps:`, line 5, reads
-   `(canned transcript loads) | (canned second turn loads) | (a read_file card finishes) | Shift+↑ | g | PgDn | (three notices arrive)`.
-   The capture's number and its notices are canned.
+   `(canned transcript loads) | (canned second turn loads) | (a read_file card finishes) | Shift+↑ | g | PgDn | (notices arrive)`.
+   The capture's number and its notices are canned. Label corrected 2026-11-23: the earlier label read `(three notices arrive)`. The capture's `# steps:` line 5 (`captures/v0.1.5/scrollbar-mid-new.txt`) and the `capMsgs("(notices arrive)", ...)` step in `internal/tui/capture_test.go`, both read `(notices arrive)`.
    - [ ] The thumb is not on the bottom row of the bar, and track shows below it.
    - [ ] The `↓ N new` indicator ends on the last transcript row, flush against the bar.
 
@@ -993,9 +1002,10 @@ empty and no modal open.
    code continues from there. A `@@` line wraps flush, with no blank column. A short `@@` line
    does not wrap, and that is not a failure: it wraps only when it is wider than the text.
    Backed by `plan/testing/manual/captures/v0.1.5/modal-diff-wrapped.txt` for wrap structure only.
-   The `+` line is lines 21 to 24, the `-` line lines 25 to 28, and the wrapped `@@` line lines 16 to
-   19. `modal-diff-wrapped.annot.txt` shows the marker at column 11 on the first row, and the
-   continuation rows starting at column 12 with column 11 blank. `# steps:`, line 5, reads
+   The `-` line is lines 21 to 24, the `+` line lines 25 to 28, and the wrapped `@@` line lines 16 to
+   17. On the `-` and `+` lines, `modal-diff-wrapped.annot.txt` shows the marker at column 11 on the first
+   row, and the continuation rows starting at column 12 with column 11 blank. The `@@` line wraps flush,
+   as stated above, so this does not apply to it. `# steps:`, line 5, reads
    `/diff | Enter | (the git diff result arrives)`. The capture is 80 columns by 32 rows. The
    capture's diff holds `calc/divide.go` and nothing else, so it has no `hello.go` part to scroll past.
    - [ ] A code line wider than the text shows its `+` or `-` on the first row only.
@@ -1112,9 +1122,11 @@ amendment 102.
   chroma's own per-rule timeouts end it, at most once per language.
 - The excluded lexers are Raku, the PostgreSQL and Materialize SQL dialects and
   Svelte, the keys of `hlUnsafeLexers` in `internal/tui/highlight.go`. They are
-  always drawn without syntax colours. Every name, alias and file pattern that chroma
-  maps to them is excluded too, for example the fences `postgresql`, `raku` and
-  `svelte`, and the files `.raku` and `.svelte`.
+  drawn without syntax colours. Every name, alias or file pattern that chroma maps
+  to them is excluded too, for example the fences `raku` and `svelte`, and the files
+  `.raku` and `.svelte`. The exception is the fence words that `hlInfoAlias` maps to
+  `sql`, at present `postgresql` and `postgres`: they are looked up as `sql` and
+  highlighted as SQL.
 - The binary is about 5.7 MB larger, from about 15.1 MB to about 20.8 MB. Warm
   `kirsch --version` takes a median of about 5.5 ms before the change and about
   10.5 ms after it. These are rough figures. Source: measured during

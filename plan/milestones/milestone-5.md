@@ -133,6 +133,8 @@ Each row is a seed for one mission. The *Wave* column gives the wave from *Paral
 | m5-d22 (operator) | Demo, release smoke run, tag | m5-d21 deliverables that ran, O12, O15, O16 | repository, GitHub settings | 8 | Demo linked; smoke test PASS on the release build; tag `v0.1.0` |
 | backlog | Recorded, not scheduled for v0.1 | — | — | — | See *Backlog* |
 
+> **Note, 2026-11-23 (dated, unticked), for the `approval_unspecified_test.go` cite in the m5-d19a row above.** The file moved from `internal/tui/` to `internal/app/approval_unspecified_test.go` in commit `34ac9b2`, with the same test names. The cite is kept as written.
+
 ### Grouping notes for the operator
 
 Research grouping is followed except where it does not sit cleanly. The notes below give the reason for each split.
@@ -1561,6 +1563,8 @@ The file `plan/testing/manual/milestone-5.md` does not exist yet. It is created 
 **Dependencies:** O13 (the scheduling of the safety group). Nothing else.
 
 **File ownership:** `internal/tool/run_command_test.go`; `internal/tui/approval_unspecified_test.go` (new). No non-test file changes.
+
+> **Note, 2026-11-23 (dated, unticked).** `internal/tui/approval_unspecified_test.go` is now `internal/app/approval_unspecified_test.go` (commit `34ac9b2`, a rename with the same test names). The line above is kept as written.
 
 **Parallel execution:** Wave 1 (see *Parallel waves*). Disjoint files. m5-d19b follows (same test file).
 

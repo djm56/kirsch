@@ -902,7 +902,7 @@ A `read_file` content modal, with a numbered line too wide for the modal (grid 1
 is a patch-approval diff, opened from an approval card, with a wrapped hunk header and a
 wrapped added line. It is not a `/diff` modal. A continuation row of a code line starts
 with blank columns in the number or marker place (§4.1, amendment 103). No scrollbar is
-drawn, because a modal is open (`overlayOpen`, `internal/tui/model.go:372`), and the bar
+drawn, because a modal is open (`overlayOpen` in `internal/tui/model.go`), and the bar
 is left out under an overlay (ui-spec §2.4, "No overlay"). The right margin therefore
 stays blank.
 

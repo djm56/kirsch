@@ -916,6 +916,8 @@ The step 7 control run left one throwaway folder, `/var/folders/nb/46t8bdcd3050l
 | `TestApprovalUnspecifiedCardShowsRequestName` | `Description` dropped from the sent request | `approval_unspecified_test.go:94: message Description = "", want "reticulate splines"` |
 | `TestApprovalUnspecifiedCardBlankFieldsKnownDefect` | the unspecified branch fills `Subject` and `Detail` | `approval_unspecified_test.go:140: Subject = "unspecified operation"; pinned empty (known defect) - if filled, update this test` |
 
+> **Note, 2026-11-23 (dated, unticked), for the `approval_unspecified_test.go` cites at lines 905, 916 and 917.** The file moved from `internal/tui/` to `internal/app/approval_unspecified_test.go` in commit `34ac9b2`, a rename, and the test names are unchanged. The `:94` and `:140` line numbers hold in the new file. The cites above are kept as written.
+
 Under the lower-case mutant, `TestRunCommandAllStripPatterns` still passed. The lower-case test is the one that catches it. Cite each test by its function name; the line numbers inside the pasted failure lines above are from `internal/tool/run_command_test.go` as it stood when the mutants ran, before a formatting fix shifted the file by two lines.
 
 **Open product defect (C36, not fixed here).** An approval request for an unspecified operation is sent with an empty subject and detail (`internal/app/app.go`, near line 2140). The card then shows blank rows and a `[d] view diff` action with no diff behind it. After the request is resolved, the collapsed line shows an empty subject (`internal/tui/cards.go:263`, read from the code, not run). It is not established whether a user can reach this path: `internal/policy/policy.go:27` says the zero value "must refuse", and `internal/app/app.go:2141` says it "should not occur in practice". Fixing it changes `internal/app/app.go`, so it is outside m5-d19a.
@@ -2225,6 +2227,8 @@ The section structs sit within `config.go:57–80`: `PolicyConfig` starts at `:5
   ?? internal/tui/approval_unspecified_test.go
   ?? internal/tui/styles_test.go
   ```
+
+  > **Note, 2026-11-23 (dated, unticked), for the `?? internal/tui/approval_unspecified_test.go` entry in the `git status` output above.** This `git status` output was taken before the move. `internal/tui/approval_unspecified_test.go` is now `internal/app/approval_unspecified_test.go` (commit `34ac9b2`). The output is kept as written.
 
   Only `internal/config/key_coverage_test.go` is this milestone's work in that list. The step 1 diff has one file header, for that test file. The other entries predate mission-20261027-07's steps. `doc/configuration.md` is untracked from m5-d13a (mission-20261027-06).
 
@@ -4558,6 +4562,8 @@ The commands to run are in the block below. The table is not for pasting.
 | 28. A MissingSessionID 400 returns before the body is logged | `grep -n -A4 "case 400:" internal/provider/anthropic/client.go` |
 | 29. A response body over 256 bytes is cut to 256 bytes and marked | `grep -n "len(body) > MaxContentBytes\|MaxContentBytes = 256\|…(truncated)" internal/telemetry/telemetry.go` |
 | 30. Advice to keep the log off (text only; not a code claim) | `grep -n -A1 "Keep the$" SECURITY.md` |
+
+> **Note, 2026-11-23 (dated, unticked), for row 17.** `App.RunTool` was removed in commit `a4458f2`, so the row 17 grep, `grep -rn --include="*.go" --exclude="*_test.go" "\.RunTool(" internal cmd`, now finds nothing whatever the logging is. A run on 2026-11-23 printed no output and ended `exit=1`. Row 17 therefore passes by absence and says nothing about whether the executor logs. Row 18 carries the executor check: its `awk` window over `func (te *toolExecutor) Invoke` in `internal/app/app.go` is the one that searches for `log.`, and its control line finds `reg.Invoke`. The row 17 command and the ticks in this section are unchanged.
 
 ```bash
 set -o pipefail

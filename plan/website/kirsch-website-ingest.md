@@ -909,9 +909,10 @@ card says so in the same shape: `‹truncated — 200KB cap›`.
 
 Tool output is sanitised before it is rendered. Escape sequences are stripped
 rather than passed through, because an unstripped sequence hands arbitrary
-terminal control to whatever the tool printed. Carriage-return runs render as
-their final segment, tabs become four spaces, and other control characters
-become a dim `·`.
+terminal control to whatever the tool printed. Carriage-return runs in multi-line
+text render as their final segment. Tabs expand to the next multiple of four
+columns, control characters become `·`, and the Unicode bidi controls (U+061C,
+U+200E, U+200F, U+202A–U+202E and U+2066–U+2069) become `·` too.
 
 ---
 

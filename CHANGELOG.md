@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Long lines wrap in a modal.** A line wider than the modal's text width continues on the rows below it, cut at a cell boundary, with no sideways scroll. The line number of a `read_file` line and the diff marker show on the first row only. The help overlay keeps its cut. Spec: ui-spec §4.1; plan amendment 103.
 - **Modal scrolling moves by screen row.** The modal's scroll keys move it by screen row, so a wrapped line scrolls row by row, and the bottom key lands on the last full page. Spec: ui-spec §4.1; plan amendment 103.
 - **Known gaps in the scrollbar and the modal wrap are open in v0.1.5.** They are listed under *Known gaps (v0.1.5)* in `plan/spec/kirsch-plan.md`, amendment 103. Spec: ui-spec §4.1; plan amendment 103.
-- **Replies render as markdown, and code is highlighted.** A finished assistant reply shows its markdown: headings keep their `#`, bold and italic drop their `**` and `*`, inline code keeps its backticks, and strikethrough keeps its `~~`. Code fences, the `read_file` content modal and the diff modal are highlighted by language. A reply that is still arriving stays plain until it ends. `c` and `/copy` copy the source text, not the rendered text. The new `[ui] render_markdown` key (default `true`, global config only) turns rendering off, and replies then show as they did in v0.1.3. Spec: ui-spec §3.2, §4.1 and §13; plan amendment 102.
+- **Replies render as markdown, and code is highlighted.** A finished assistant reply shows its markdown: headings keep their `#`, bold and italic drop their `**` and `*`, inline code keeps its backticks, and strikethrough keeps its `~~`. Code fences, the `read_file` content modal and the diff modal are highlighted by language, and `postgresql` and `postgres` fences are highlighted as SQL. A reply that is still arriving stays plain until it ends. `c` and `/copy` copy the source text, not the rendered text. The new `[ui] render_markdown` key (default `true`, global config only) turns rendering off, and replies then show as they did in v0.1.3. Spec: ui-spec §3.2, §4.1 and §13; plan amendment 102.
 - **Known gaps in rendering and highlighting are open in v0.1.4.** They are listed under *Known gaps after v0.1.4* in `plan/testing/manual/ux-round-v0.1.md`. Spec: ui-spec §3.2 and §4.1; plan amendment 102.
 - **Replies can be selected in Browsing.** `↑` and `↓` stop on assistant replies as well as on cards, and skip your own messages. A selected reply shows the same `┃` gutter as a selected card, and `Enter` and `d` do nothing on it. On a selected reply the key-hint row reads `↑↓ select · c copy · Tab/Esc prompt`. Spec: ui-spec §3.9 and §5.2; plan amendment 101.
 - **`c` copies the selected reply.** In Browsing, `c` copies the reply's text as the model sent it, cleaned for safe pasting. On a selected card it shows `c copies replies only` and copies nothing. Spec: ui-spec §5.2 and §6; plan amendment 101.
@@ -25,6 +25,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The binary is larger, and warm `kirsch --version` goes from a median of about 5.5 ms to about 10.5 ms.** Goldmark and chroma add about 5.7 MB, from about 15.1 MB to about 20.8 MB. These are rough figures. Source: measured during mission-20261120-03; raw values in `.claude/memory/missions/mission-20261120-03/DEBRIEF.md`. The times are `time` readings on the build machine, with the first (cold) run of each set dropped. The warm runs span 0.004–0.010 s before the change and 0.009–0.014 s after it.
 - **Development builds report `0.1.3-dev`.** A build with no release stamp now reports `0.1.3-dev`, the version after v0.1.2. A build from a release tag is unchanged.
+
+### Fixed
+
+- **A tool card shows its target once the model has named it.** A provider's start event carries the tool's name but not its input, so a card used to have no target until the tool finished. The card now takes its target when the complete call arrives.
+- **A tool card started by the model shows its duration.** The duration is the tool's own run, not the time spent waiting for approval, and it appears on the wider layouts that show durations.
+- **A duration above zero but under a millisecond shows `<1ms`.** This applies to tool cards and approval lines. It used to show `0ms` on a resolved approval line.
+- **The patch approval detail closes its parenthesis and comma.** Each file name in the list ends with a comma except the last, which ends with the closing parenthesis, and a single file gets the parenthesis on its only line.
+- **A model-driven approval links to its tool card.** Once approved, it folds into that card, as an approval asked for by a card from the transcript does. Spec: ui-spec §3.4 and §3.8.
+- **A model-driven `run_command` streams its output into its card.** The output appears as the command prints it. It used to appear all at once when the command finished.
+
+### Security
+
+- **Tool card head text is cleaned.** A tool card's head text is shown as one line, with escape sequences stripped and other control characters shown as `·`. Line feeds and carriage returns become spaces, so text from the model or a tool cannot move the cursor or restyle the screen from the head. Spec: ui-spec §7.1.
+- **Unicode bidi format controls show as `·`.** In text shown in the transcript, including your own submitted messages, these controls are shown as a dot rather than dropped, so they cannot reverse the order of the text around them. Spec: ui-spec §7.1.
+- **A carriage return in a single-row field becomes a space.** Text before a carriage return used to be hidden. Spec: ui-spec §7.1.
+- **Error and notice text is cleaned as it is stored.** Escape sequences are removed, text shown on one line has its line breaks joined, and a very long line is cut with `⋯`. Spec: ui-spec §7.1.
+- **`/approvals` cleans each grant before it joins them.** An escape sequence can no longer run across two grants. Spec: ui-spec §6.
 
 ## [0.1.2] — 2026-11-20
 

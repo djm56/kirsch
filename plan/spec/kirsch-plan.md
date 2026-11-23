@@ -1369,7 +1369,7 @@ Every row fits the left column: the key is padded to the key column, then one sp
 - `NameConstant` also covers some names that are not constants. In some lexers, for example capitalised names in Ruby and all-caps names in Rust, Perl and Crystal, they draw as keywords (ui-spec §3.2).
 - A load trip: one slow moment, such as a GC pause or heavy load, during a single line can turn highlighting off for that language for the rest of the session. Nothing resets it.
 - Abandoned work: a line abandoned at the deadline keeps one background goroutine busy until chroma's own per-rule timeouts end it, at most once per language.
-- Excluded lexers: Raku, the PostgreSQL and Materialize SQL dialects and Svelte, the keys of `hlUnsafeLexers` in `internal/tui/highlight.go`. They are always drawn without syntax colours. Every name, alias and file pattern chroma maps to them is excluded; for example the fences `postgresql` and `raku`, and the files `.svelte` and `.raku`.
+- Excluded lexers: Raku, the PostgreSQL and Materialize SQL dialects and Svelte, the keys of `hlUnsafeLexers` in `internal/tui/highlight.go`. They are drawn without syntax colours. Every name, alias or file pattern chroma maps to them is excluded, except the fence words that `hlInfoAlias` maps to `sql`, at present `postgresql` and `postgres`; for example the fence `raku`, and the files `.svelte` and `.raku`. Those fence words are looked up as `sql` and highlighted as SQL.
 - A line wider than 512 columns is drawn without syntax colours, so a long minified line shows none.
 - Highlighting assumes a 256-colour terminal, like the rest of the palette.
 - Markdown that a model writes badly renders the way the library parses it. An unclosed fence runs to the end of the reply.

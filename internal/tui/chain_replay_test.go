@@ -32,7 +32,7 @@ import (
 // Section 4 is run in each ordering of the same inputs that chainOrder names, and the
 // replay records each. In the main path, which the chain goes on from, the keys are
 // pressed after the README.md tool card finishes and before the reply's first text,
-// as the walkthrough says: "as soon as the first tool card shows". Each retry branch
+// as the walkthrough says: "After the tool card finishes and before the reply's first text". Each retry branch
 // runs on a separate model that repeats sections 1 to 3, and its record follows
 // section 4's. In retry branch 1 the reply has started to stream when the keys are
 // pressed; in retry branch 2 the reply has finished, which is the walkthrough's
@@ -449,7 +449,7 @@ func chainReplay(t *testing.T) string {
 	fmt.Fprintf(&c.b, "# release: v0.1.5\n")
 	fmt.Fprintf(&c.b, "# no model, no network, no key: canned messages and real key messages through the real Model\n")
 	fmt.Fprintf(&c.b, "# canned: file names and texts, the replies, a one-file /diff, and the resumed transcript of section 10 (the live model's own items)\n")
-	fmt.Fprintf(&c.b, "# section 4 is run in each of these orderings of the same inputs. The main path, which the chain goes on from, presses Shift+↑, g and PgDn after the README.md tool card finishes and before the reply's first text: the walkthrough says to press them \"as soon as the first tool card shows\". In retry branch 1 the reply has started to stream (its first 100 lines have arrived) when the keys are pressed. In retry branch 2 the reply has finished, with the end of the turn, before the keys are pressed: the walkthrough's `reply finished first` case, which it says to try again with a longer prompt\n")
+	fmt.Fprintf(&c.b, "# section 4 is run in each of these orderings of the same inputs. The main path, which the chain goes on from, presses Shift+↑, g and PgDn after the README.md tool card finishes and before the reply's first text: the walkthrough says to press them \"After the tool card finishes and before the reply's first text\". In retry branch 1 the reply has started to stream (its first 100 lines have arrived) when the keys are pressed. In retry branch 2 the reply has finished, with the end of the turn, before the keys are pressed: the walkthrough's `reply finished first` case, which it says to write beside the step, if no indicator appears, before trying again with a longer prompt\n")
 	fmt.Fprintf(&c.b, "# state per section: selection, gutter, key-hint row, mode, scroll, modal, size and glyphs, read from the Model\n")
 	fmt.Fprintf(&c.b, "# the \"selection\" line is the item the gutter is on; \"none\" means no item is selected\n")
 	fmt.Fprintf(&c.b, "# the \"gutter\" line gives the selected item's rows and the transcript window's rows: the gutter is drawn only when a row of the item is in the window\n")

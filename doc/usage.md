@@ -344,10 +344,14 @@ Some things stay plain, and each has a reason:
 - The excluded lexers, the keys of `hlUnsafeLexers` in `internal/tui/highlight.go`:
   Raku, the PostgreSQL and Materialize SQL dialects, and Svelte. Raku's lexer writes to a rule table that every lexing of Raku shares,
   and the PostgreSQL, Materialize and Svelte lexers can run Raku inside their own
-  lexing, so Kirsch never lexes any of them. Every name, alias and file pattern
-  that chroma maps to them is drawn without syntax colours. For example, the
-  fences `postgresql` and `raku` are plain, and so are the files `.svelte` and
-  `.raku`. A `sql` fence is highlighted.
+  lexing, so Kirsch never lexes any of them. Every name, alias or file pattern that
+  chroma maps to them is drawn without syntax colours, except the fence words that
+  `hlInfoAlias` (in `internal/tui/highlight.go`) maps to `sql`, at present `postgresql`
+  and `postgres`. Those are looked up as `sql` and so are highlighted as SQL. For example, the
+  fence `raku` is plain, and so are the files `.svelte` and `.raku`. A `sql`
+  fence is highlighted, and so is a `postgresql` fence. The test
+  `TestHighlightPostgresInfoStringsMapToSQL` in `internal/tui/highlight_test.go`
+  pins the `postgresql` and `postgres` fences.
 - Any language Kirsch does not recognise.
 
 On a diff line drawn without syntax colours, the `+` or `-` marker keeps its
