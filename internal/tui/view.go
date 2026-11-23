@@ -190,8 +190,12 @@ func fill(r string, w int) string {
 // wrap does not strip escapes or other control characters; it relies on its
 // callers passing text that went through Sanitize (the transcript text paths
 // store SanitizeLines output, including streamed text via
-// Transcript.AppendText). ErrorCard.Message and notice text reach wrap
-// unsanitised, as they did before this mission.
+// Transcript.AppendText); ErrorCard.Message and notice text carrying
+// model-controlled text are stored through SanitizeSingleLine. The NoticeCards
+// built directly without it are the one in loadFixture (fake.go), whose text is
+// a string literal, and the cut-off notice in transcriptToItems
+// (internal/app), whose text comes from cutOffNoticeText: a fixed message,
+// with the output token limit appended when it is positive.
 //
 // Every output line is at most w cells, except when w is smaller than a
 // single rune's width (w=1 and a double-width rune): that rune is emitted

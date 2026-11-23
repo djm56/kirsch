@@ -69,14 +69,20 @@ type ToolCompletedMsg struct {
 }
 
 // ErrorMsg is an infrastructure failure — not a tool error the model could
-// handle. architecture.md §8.
+// handle. architecture.md §8. Kind and Message are sanitised as single lines when the
+// card is stored; a sender need not clean them. Each line of the source text is cut
+// at MaxRenderedLineWidth columns with a "⋯" (ui-spec §7.1), before the lines are
+// joined with spaces.
 type ErrorMsg struct {
 	Kind    string
 	Message string
 	Detail  string
 }
 
-// NoticeMsg is a one-line system notice.
+// NoticeMsg is a one-line system notice. Text is sanitised as a single line when it
+// is stored; a sender need not clean it. Each line of the source text
+// longer than MaxRenderedLineWidth columns is cut there with a "⋯" (ui-spec §7.1),
+// before the lines are joined with spaces.
 //
 // BeforeTool is optional. When it is the ID of a ToolStartedMsg whose card is in
 // the transcript, the notice is inserted directly before that card; otherwise,
@@ -187,7 +193,10 @@ type BudgetMsg struct {
 type TurnCompleteMsg struct{}
 
 // TurnErrorMsg reports a turn-level failure. Kind is a plain string such as
-// "max_turns_exceeded" or "context_overflow". ui-spec §3.6.
+// "max_turns_exceeded" or "context_overflow". ui-spec §3.6. Kind and Message are
+// sanitised as single lines when the card is stored; a sender need not clean them.
+// Each line of the source text is cut at MaxRenderedLineWidth columns with a "⋯"
+// (ui-spec §7.1), before the lines are joined with spaces.
 type TurnErrorMsg struct {
 	Kind    string
 	Message string

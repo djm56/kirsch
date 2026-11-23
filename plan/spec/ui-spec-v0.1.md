@@ -909,15 +909,35 @@ nothing.
   sequence does not merely look wrong: it hands arbitrary terminal control to
   command output. Kirsch colours diffs itself, from parsed structure, never by
   passing escapes through.
-- **Carriage returns**: a `\r`-separated run (progress bars from `npm`, `go
-  test`, `curl`) renders as its final segment only — that is what the writer
-  intended the user to see.
+- **Carriage returns**: in multi-line text, a `\r`-separated run (progress bars
+  from `npm`, `go test`, `curl`) renders as its final segment only — that is what
+  the writer intended the user to see. In a single-row field (next bullet), each
+  `\r` becomes a space and a CRLF pair becomes one space, so the text before a
+  `\r` is kept rather than hidden.
+- **Single-row fields** are drawn on one row, so their line breaks are turned
+  into spaces. A field is single-row by role: text the renderer draws on one row,
+  stored through `SanitizeSingleLine` (`internal/tui/transcript.go`). For example,
+  each line of the `/diff` working-tree modal is its own single-row value
+  (`internal/tui/update.go`). Text kept as separate rows stays multi-line. Examples
+  of multi-line text are the detail lines of an error card and the detail and diff
+  lines of an approval card (`internal/tui/update.go`).
 - **Tabs** expand to the next multiple of 4 columns, consistently everywhere, so code
   indentation lines up (corrected, amendment 102: the code has always expanded to the next 4-column stop).
-- **Other C0 control characters** are replaced with a dim `·`.
+- **Control characters** that are still present once escape sequences are stripped,
+  tabs are expanded and lines are split are replaced with `·`. The set is the one
+  `replaceControls` in `internal/tui/transcript.go` replaces. Tabs, line feeds and
+  carriage returns are handled before that point and never become `·`.
+- **Unicode bidi controls** U+061C, U+200E, U+200F, U+202A–U+202E and
+  U+2066–U+2069 are replaced with `·`, in all sanitised text,
+  single-row fields included. This differs from the clipboard payload, which
+  removes U+202A–U+202E and U+2066–U+2069 and keeps the directional marks U+200E,
+  U+200F and U+061C; see the clipboard payload paragraph under the `/copy` table
+  in §6.
 - **Very long lines**: any single rendered line is capped at 2,000 columns with
-  a `⋯` marker. A minified bundle on one line must not be able to hang the
-  wrapper.
+  a `⋯` marker. Notices and error card text are capped too. The cap applies to
+  each line of the source text before a single-row field joins its lines with
+  spaces, so a single-row value whose source has several lines can be wider than
+  the cap once joined. A minified bundle on one line must not be able to hang the wrapper.
 
 ### 7.2 Input
 

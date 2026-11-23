@@ -383,9 +383,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ErrorMsg:
 		m.appendBlock(Item{Kind: KindError, Err: &ErrorCard{
-			Kind: msg.Kind, Message: msg.Message,
-			Hint:   "Enter to expand",
-			Detail: SanitizeLines(msg.Detail),
+			// Both are stored as single lines; each line of the source text is
+			// cut at MaxRenderedLineWidth with a "⋯" (ui-spec §7.1). Message is
+			// drawn through wrap, which strips no escapes or control characters
+			// (view.go); Kind is a box title drawn by box, not through wrap
+			// (cards.go), so it gets no cleaning later.
+			Kind:    SanitizeSingleLine(msg.Kind),
+			Message: SanitizeSingleLine(msg.Message),
+			Hint:    "Enter to expand",
+			Detail:  SanitizeLines(msg.Detail),
 		}})
 		m.busy = Busy{}
 		m.relayout(m.layout())
@@ -395,7 +401,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		inserted := false
 		if msg.BeforeTool != 0 {
 			if card, ok := m.toolCards[msg.BeforeTool]; ok {
-				inserted = m.insertBlockBefore(card, Item{Kind: KindNotice, Notice: &NoticeCard{Text: msg.Text}})
+				inserted = m.insertBlockBefore(card, Item{Kind: KindNotice, Notice: &NoticeCard{Text: SanitizeSingleLine(msg.Text)}})
 			}
 		}
 		if !inserted {
@@ -525,8 +531,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TurnErrorMsg:
 		m.appendBlock(Item{Kind: KindError, Err: &ErrorCard{
-			Kind:    msg.Kind,
-			Message: msg.Message,
+			// Single lines, as in ErrorMsg above.
+			Kind:    SanitizeSingleLine(msg.Kind),
+			Message: SanitizeSingleLine(msg.Message),
 			Hint:    "Enter to expand",
 			Detail:  SanitizeLines(msg.Detail),
 		}})
@@ -630,16 +637,15 @@ func (m Model) dispatchKey(k tea.KeyMsg, lay Layout) (tea.Model, tea.Cmd) {
 	return nm, cmd
 }
 
-// sanitiseToolHead returns it with a tool card's Name, Target and Summary sanitised
-// as single lines, as the cards a live call makes are sanitised when they are stored.
-// A resumed session's cards arrive built by internal/app's transcriptToItems, which
-// fills Name and Target from the tool calls the model sent in an earlier session;
-// Summary is sanitised too, though that builder leaves it empty, so whatever builds a
-// card later gets the same treatment. The head also draws Note, and draws the
-// truncation glyph when Trunc is non-empty, but Trunc's own text is never drawn.
-// Neither is sanitised here: no code outside tests sets Note, and Trunc is set to
-// fixed text by applyToolResult and by loadFixture (fake.go). A writer that fills Note
-// from model text must sanitise it there. The card is copied, so the message's own
+// sanitiseToolHead returns it with a tool card's Name, Target, Summary and Note
+// sanitised as single lines, as the cards a live call makes are sanitised when they
+// are stored. A resumed session's cards arrive built by internal/app's
+// transcriptToItems, which fills Name and Target from the tool calls the model sent
+// in an earlier session; Summary and Note are sanitised too, though that builder
+// leaves them empty, so whatever builds a card later gets the same treatment. The
+// head also draws the truncation glyph when Trunc is non-empty, but Trunc's own text
+// is never drawn, so it is not sanitised here: Trunc is set to fixed text by
+// applyToolResult and by loadFixture (fake.go). The card is copied, so the message's own
 // item is left as it came. An item that is not a tool card is returned unchanged.
 func sanitiseToolHead(it Item) Item {
 	if it.Kind != KindTool || it.Tool == nil {
@@ -647,6 +653,7 @@ func sanitiseToolHead(it Item) Item {
 	}
 	c := *it.Tool
 	c.Name, c.Target, c.Summary = SanitizeSingleLine(c.Name), SanitizeSingleLine(c.Target), SanitizeSingleLine(c.Summary)
+	c.Note = SanitizeSingleLine(c.Note)
 	it.Tool = &c
 	return it
 }
@@ -1671,7 +1678,8 @@ func (m Model) runSlash(cmd, args string, lay Layout) (tea.Model, tea.Cmd) {
 		if len(grants) == 0 {
 			m.notice("no active session grants")
 		} else {
-			// Show the grants in a notice, sanitised for single-line display
+			// Cleaning each grant first stops an escape sequence spanning two grants
+			// (TestApprovalsNoticeKeepsGrantsAroundEscapes).
 			sanitisedGrants := make([]string, len(grants))
 			for i, g := range grants {
 				sanitisedGrants[i] = SanitizeSingleLine(g)
@@ -1836,6 +1844,10 @@ func (m *Model) applyDiffResult(r DiffResult) {
 // model table (ui-spec §7.5).
 const unknownModelNotice = "cost display unavailable, conservative budget in use"
 
+// notice appends a one-line notice, sanitised as a single line as it is stored,
+// so each line of the source text longer than MaxRenderedLineWidth is cut there
+// with a "⋯" (ui-spec §7.1). renderNotice draws it through wrap, which strips
+// no escapes or control characters (view.go), so the text is cleaned here.
 func (m *Model) notice(text string) {
-	m.appendBlock(Item{Kind: KindNotice, Notice: &NoticeCard{Text: text}})
+	m.appendBlock(Item{Kind: KindNotice, Notice: &NoticeCard{Text: SanitizeSingleLine(text)}})
 }

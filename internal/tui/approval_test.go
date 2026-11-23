@@ -1069,11 +1069,16 @@ func TestStatusBarCountMatchesPolicyGrants(t *testing.T) {
 	}
 }
 
-// TestApprovalsNoticeSanitisesGrants is the regression test for the
-// SanitizeSingleLine call in the /approvals arm of runSlash (update.go). The
-// grants are joined into one notice, so each hostile class is also run alone,
-// as the only grant, so that the CR-overwrite and truncation checks are not
-// confounded by the other grants in the string.
+// TestApprovalsNoticeSanitisesGrants pins what the /approvals notice shows for
+// hostile grant text. With every grant joined into one notice, it checks that no
+// ESC, C1 control or newline is left and that the "go test", "go build" and
+// "go vet" text is kept. Each grant in the table is then run alone, as the only
+// grant, so its check is not confounded by the others; CRs are checked only
+// there, and the over-length grant is checked to be cut to at most
+// MaxRenderedLineWidth columns ending in "⋯", not kept whole. It does not
+// guard the per-grant SanitizeSingleLine call in the /approvals arm of
+// runSlash (update.go) on its own, because m.notice sanitises the joined string
+// again; TestApprovalsNoticeKeepsGrantsAroundEscapes pins that call.
 // Entry point: Update(key) typing "/approvals" then Enter, so the real submit
 // path reaches runSlash; the result is read from the last transcript notice.
 func TestApprovalsNoticeSanitisesGrants(t *testing.T) {
@@ -1083,12 +1088,12 @@ func TestApprovalsNoticeSanitisesGrants(t *testing.T) {
 	oscSeq := "\x1b]0;evil\x07"
 
 	// Sanitize also handles classes beyond CSI/OSC/newline: bare C1 control
-	// bytes, carriage-return overwrite collapsing, tab expansion, and
+	// bytes, carriage returns, tab expansion, and
 	// over-length truncation. Each is exercised below so the regression test
 	// for the /approvals sanitisation call site covers the whole function,
 	// not just the two escape families.
 	bareC1 := "go\u0085test"                                // NEL (C1), not a CSI/OSC sequence
-	crOverwrite := "go build\rgo test"                      // bare \r: a terminal progress-bar overwrite
+	crOverwrite := "go build\rgo test"                      // bare \r: a single row must keep the text before it
 	tabbed := "go\ttest"                                    // tab must expand, not survive as \t
 	overLong := "go " + strings.Repeat("x", 2200) + " test" // exceeds MaxRenderedLineWidth (2000 cols)
 
@@ -1189,10 +1194,12 @@ func TestApprovalsNoticeSanitisesGrants(t *testing.T) {
 			},
 		},
 		{
-			name:  "CR overwrite",
+			// The notice is one row, so a \r becomes a space and the text before it
+			// stays visible (SanitizeSingleLine); it is not collapsed to the last segment.
+			name:  "CR becomes a space",
 			grant: crOverwrite,
 			checkFunc: func(text string) bool {
-				return !strings.Contains(text, "go build") && strings.Contains(text, "go test")
+				return !strings.ContainsRune(text, '\r') && strings.Contains(text, "go build go test")
 			},
 		},
 		{

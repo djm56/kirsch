@@ -578,11 +578,19 @@ func sanitizeAndSplitLines(s string) []string {
 }
 
 // SanitizeSingleLine sanitises text for a single-row field, removing any
-// embedded newlines. A newline in a single-row field becomes a space, preserving
-// the text content while preventing the line from breaking the box rendering.
+// embedded newlines and carriage returns. Each newline and each \r in a
+// single-row field becomes a space, preserving the text content while
+// preventing the line from breaking the box rendering. A \r is not collapsed to
+// the last segment of its run as Sanitize does for multi-line output: on one row
+// that rule would hide every character before the \r. A CRLF pair is one space,
+// as Sanitize reads it as one line break.
 // This is exported so that tool cards can sanitise targets without exposing
 // ANSI escape sequences to the transcript.
 func SanitizeSingleLine(s string) string {
+	// Turn \r into a space before Sanitize can collapse a \r run to its last
+	// segment. CRLF goes first so the pair makes one space, not two.
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", " ")
 	s = Sanitize(s)
 	// Remove any embedded newlines that Sanitize preserved
 	s = strings.ReplaceAll(s, "\n", " ")
@@ -624,12 +632,18 @@ func expandTabs(s string) string {
 // replaceControls swaps remaining control characters for a visible bullet.
 //
 // Covers C0 (0x00–0x1f), DEL, the C1 range (0x80–0x9f) left over after
-// clipboard.StripANSI, and the replacement rune that invalid UTF-8 decodes to —
-// none of which have a sensible width and any of which can move a terminal's
-// cursor. §7.1.
+// clipboard.StripANSI, the replacement rune that invalid UTF-8 decodes to, and the
+// Unicode bidi format controls (U+061C, U+200E, U+200F, U+202A–U+202E,
+// U+2066–U+2069). The first group have no sensible width and any can move a
+// terminal's cursor; the bidi controls have no width but reorder the text drawn
+// around them, so they are shown as a bullet rather than deleted. §7.1.
 func replaceControls(s string) string {
 	return strings.Map(func(r rune) rune {
 		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == 0xfffd {
+			return '·'
+		}
+		if r == 0x061c || r == 0x200e || r == 0x200f ||
+			(r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069) {
 			return '·'
 		}
 		return r
