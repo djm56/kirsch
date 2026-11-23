@@ -264,6 +264,22 @@ right on this run. Say so in the report, and do not treat one pass as proof.
 
 ## v0.1.3 · Copy and select replies
 
+**What the cues rest on.** A capture, cited by a "Backed by" line from
+`plan/testing/manual/captures/v0.1.3/`, is Kirsch's own render: the frame `Model.View()`
+draws, produced in-process by `internal/tui/capture_test.go` from canned messages and real
+key messages, with no terminal, no model, no network and no key.
+
+Part of a capture's text is canned, and part is Kirsch's own.
+`plan/testing/manual/captures/README.md` (What is canned) names some of the canned values
+and is not a complete list. Where a cue rests on canned text, its cite says so.
+
+Each cite says in one clause where the capture's state, size or transcript differs from
+the Context of the step it backs, and backs only what the frame shows. An annotation names
+a palette role and an SGR code, not the colour a terminal draws for it. A cue that no
+capture shows is marked where it appears, for example by a line beginning "No capture:",
+by a clause in its cite, or by a "Not captured" line that points to
+`captures/v0.1.3/NOT-CAPTURED.md`.
+
 **Context:** This section is run as part of the combined end-of-round test
 (operator direction, 2026-11-20). It is not run on its own before the v0.1.3 tag.
 Use the build and the test folder from the v0.1.2 section. Run `npm run build`,
@@ -299,20 +315,25 @@ selected. This section ends in Composing, with the `┃` on the second reply.
 1. Press `Shift+↑`. The focus moves to the transcript, and the last reply is
    selected.
    You should see the `┃` beside the second reply, on every row of that reply.
+   Backed by `plan/testing/manual/captures/v0.1.3/s01-arrows-last-reply.txt`, which shows `┃ Goodbye, and take care.`. That reply is one row, so the capture cannot show the `┃` on the other rows of a longer reply. The reply text in this capture is canned.
    - [ ] The `┃` marks the second reply, on each of its rows.
 2. Press `↑`.
    You should see the `┃` move up to the first reply. Your second message sits
    between the two replies, and it gets no `┃`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s01-arrows-first-reply.txt`, which shows `┃ Hello, it is good to meet you.` on the first reply, and `say goodbye in one sentence` with no `┃` beside it. The reply text is canned.
    - [ ] One `↑` moves the `┃` from the second reply to the first.
    - [ ] Your second message has no `┃` when the selection passes it.
 3. Press `↑` again.
    You should see the `┃` stay on the first reply. Nothing lies above it. If a
    start-up notice sits above your first message, this press selects the notice
    instead. Write `notice above` beside this step, and leave both boxes below empty.
+   No capture: the case with a start-up notice above your first message is checked by your run alone.
+   Backed by `plan/testing/manual/captures/v0.1.3/s01-arrows-top-stays.txt`, which shows `┃ Hello, it is good to meet you.`, with `say hello in one sentence` beside no `┃`. The reply text is canned.
    - [ ] The `┃` stays on the first reply.
    - [ ] Your first message gets no `┃`.
 4. Press `↓` twice. The first press moves the `┃` back to the second reply. The
    second press takes the focus back to the composer.
+   Backed by `plan/testing/manual/captures/v0.1.3/s01-arrows-composer.txt`, which shows the composer caret `> ▌`, `┃ Goodbye, and take care.` on the second reply, and the key-hint row `↑↓ history · ⇧↑/Tab cards · /help`. The reply text is canned.
    - [ ] The second `↓` returns the cursor to the composer.
    - [ ] The `┃` stays on the second reply after the focus returns to the composer.
 
@@ -323,15 +344,21 @@ as section 1 leaves it. This section ends in Browsing, with the second reply
 selected.
 
 1. Press `Shift+↑` to enter Browsing.
+   Backed by `plan/testing/manual/captures/v0.1.3/s01-arrows-last-reply.txt`, the frame after `Shift+↑` from Composing. It shows `┃ Goodbye, and take care.` and the key-hint row `↑↓ select · c copy · Tab/Esc prompt`. The capture selects the reply for the first time, where your run has the `┃` carried from section 1, so the frame backs the Browsing state and the key-hint row, not the word still. The reply text is canned.
    - [ ] The `┃` is still on the second reply.
 2. Press `Enter`.
+   No capture: that `Enter` changes nothing on screen is checked by your run alone, because a frame taken after the keys cannot show a before-and-after change.
+   Backed by `plan/testing/manual/captures/v0.1.3/s02-enter-d-noop.txt`, which is the frame after `Enter` and then `d`. It shows `┃ Goodbye, and take care.` with no box open. The capture starts from both keys together, so it does not isolate `Enter`. The reply text is canned.
    - [ ] `Enter` does not expand or collapse the reply.
    - [ ] `Enter` opens no box.
    - [ ] `Enter` does not move the view.
 3. Press `d`. You should see no box open, and the screen stays as it was.
+   No capture: that `d` leaves the screen as it was is checked by your run alone, because a frame taken after the keys cannot show a before-and-after change.
+   Backed by `plan/testing/manual/captures/v0.1.3/s02-enter-d-noop.txt`, which shows no box open after `d`.
    - [ ] `d` opens no box for the reply.
 4. Read the bottom row of the screen, the key-hint row. You should see
    `↑↓ select · c copy · Tab/Esc prompt`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s02-enter-d-noop.txt`, which shows `↑↓ select · c copy · Tab/Esc prompt` as its key-hint row.
    - [ ] The key-hint row reads `↑↓ select · c copy · Tab/Esc prompt`.
 
 ### 3. Copy a reply with `c`, then paste it into another app (no model)
@@ -346,11 +373,15 @@ selected.
    If the hint reads `sent N characters (OSC 52)` or
    `copy failed: no clipboard route`, write that beside this step and leave the
    box empty.
+   Backed by `plan/testing/manual/captures/v0.1.3/s03-copy-reply.txt`, which shows `copied 23 characters` under the composer. The number is canned: it is the length of the canned reply. The clipboard route is canned too, and it reports success and writes nowhere, so this capture never shows `sent N characters (OSC 52)` or `copy failed: no clipboard route`. Its frame is Browsing, as this step's Context has you: the `┃` is on the second reply, the composer reads `> ` with no caret, and the key-hint row reads `↑↓ select · c copy · Tab/Esc prompt`. The copy hint is the cue it backs.
+   Not captured: see `captures/v0.1.3/NOT-CAPTURED.md`, Section 3, step 1.
    - [ ] The hint under the composer reads `copied N characters`.
 2. Switch to the text window. Clear it, then paste. You should see the text of the
    second reply, with the same words and punctuation.
+   Not captured: see `captures/v0.1.3/NOT-CAPTURED.md`, Section 3.
    - [ ] The paste holds the second reply's text.
 3. Switch back to Kirsch. You should see the transcript where it was.
+   Not captured: see `captures/v0.1.3/NOT-CAPTURED.md`, Section 3.
    - [ ] The view did not move.
    - [ ] The `┃` is still on the second reply.
 
@@ -362,11 +393,15 @@ with the notice selected.
 
 1. Press `Tab` to return to the composer. Type `/status` and press `Enter`.
    You should see a notice card appear at the bottom of the transcript.
+   Backed by `plan/testing/manual/captures/v0.1.3/s04-copy-card-hint.txt`, which shows the notice's first row, `┃ · model claude-sonnet-5-5 · endpoint anthropic · base_url api.anthropic.com`. The `┃` in front of that row is the selection that step 2 makes, because the frame is taken after `↓` has selected the card, so this frame does not show the card before it is selected. The capture also starts from section 3's `Shift+↑` without section 3's `c` press. The reply text and the notice's field values are canned.
    - [ ] The status notice appears in the transcript.
 2. Press `Shift+↑` to enter Browsing, then press `↓`. The `┃` moves from the second
    reply to the notice card.
+   Backed by `plan/testing/manual/captures/v0.1.3/s04-copy-card-hint.txt`, which shows `┃ · model claude-sonnet-5-5 · endpoint anthropic · base_url api.anthropic.com` as the selected row. The frame also shows `c copies replies only` under the composer, which step 3 produces, so this frame does not show the hint before step 3. The notice's field values are canned.
    - [ ] The `┃` marks the status notice.
 3. Press `c`. You should see the hint `c copies replies only` under the composer.
+   Backed by `plan/testing/manual/captures/v0.1.3/s04-copy-card-hint.txt`, which shows `c copies replies only` under the composer.
+   Not captured: see `captures/v0.1.3/NOT-CAPTURED.md`, Section 4.
    - [ ] The hint reads `c copies replies only`.
    - [ ] Nothing is copied.
 
@@ -380,10 +415,13 @@ composer empty. The copy notice may still show; typing clears it.
 1. Press `Tab` to return to the composer. Type `/copy` and press `Enter`.
    You should see the hint under the composer read `copied N characters`. The
    transcript does not move.
+   No capture: that the transcript does not move is checked by your run alone.
+   Backed by `plan/testing/manual/captures/v0.1.3/s05-copy-command.txt`, which shows `copied 23 characters` under the composer after `/copy` and `Enter`. The number is canned, and so is the clipboard route, which reports success and writes nowhere. This frame starts from Composing and holds no section 4 status card below `Goodbye, and take care.`, where your run has that card, so the cite backs the copy hint only.
    - [ ] The hint under the composer reads `copied N characters`.
    - [ ] The transcript stays where it was.
 2. Clear the text window, switch to it, and paste. You should see the second reply's
    text, the same as in section 3.
+   Not captured: see `captures/v0.1.3/NOT-CAPTURED.md`, Section 5.
    - [ ] The paste holds the second reply's text.
 
 ### 6. `/copy code` and `/copy code 2` on a reply with two code blocks (model)
@@ -404,15 +442,19 @@ section ends in Composing, with the composer empty.
    read `copied N characters`. Clear the text window, switch to it, and paste. You
    should see the lines of the second code block only, with no fence line and no
    `go`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s06-copy-code.txt`, which shows `copied 27 characters` under the composer. The number and the code blocks are canned, and so is the clipboard route, which reports success and writes nowhere. The frame has no section 4 status card between `Goodbye, and take care.` and the Go prompt, where your run has one, so the cite backs the hint and the block lines, not the transcript above them.
+   Not captured: see `captures/v0.1.3/NOT-CAPTURED.md`, Section 6.
    - [ ] The hint under the composer reads `copied N characters`.
    - [ ] The paste holds the second block's lines.
    - [ ] The paste has no fence line.
    - [ ] The paste has no `go`.
 2. Type `/copy code 2` and press `Enter`. Clear the text window, switch to it, and
    paste. Block 2 is the last block, so you should see the same text as step 1.
+   Not captured: see `captures/v0.1.3/NOT-CAPTURED.md`, Section 6.
    - [ ] `/copy code 2` pastes the same text as `/copy code`.
 3. Type `/copy code 1` and press `Enter`. Clear the text window, switch to it, and
    paste. You should see the lines of the first code block, and not the second.
+   Not captured: see `captures/v0.1.3/NOT-CAPTURED.md`, Section 6.
    - [ ] The paste holds the first block's lines.
    - [ ] The paste does not hold the second block's lines.
 
@@ -424,9 +466,14 @@ lines from section 6, step 3. This section ends in Composing, with the composer 
 
 1. Type `/copy code 9` and press `Enter`. You should see the hint under the
    composer read `the last reply has 2 code blocks`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s07-copy-code-range.txt`, which shows
+   `the last reply has 2 code blocks` under the composer. The 2 comes from the capture's
+   canned reply, which has two code blocks. Its transcript has no section 4 status card, as
+   the section 6 frame has none, so the cite backs the hint only.
    - [ ] The hint under the composer reads `the last reply has 2 code blocks`.
 2. Clear the text window, switch to it, and paste. You should see the first block's
    lines again, because the out-of-range request copied nothing.
+   Not captured: see `captures/v0.1.3/NOT-CAPTURED.md`, Section 7.
    - [ ] The paste still holds the first block's lines.
 
 ### 8. `/copy foo` gives the usage hint (no model)
@@ -436,6 +483,7 @@ section ends in Composing, with the composer empty and the usage hint showing.
 
 1. Type `/copy foo` and press `Enter`. You should see the hint under the composer
    read `usage: /copy [code [N]]`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s08-copy-usage.txt`, which shows `usage: /copy [code [N]]` under the composer. The capture's transcript is not your transcript: it holds the hello and goodbye exchanges and ends at `Goodbye, and take care.`, with no section 4 status card and no section 6 exchange, and your run holds both. The frame shows no item after that reply, so it backs the usage hint, and that `/copy foo` added no item in this state, and nothing about your transcript. The reply text is canned.
    - [ ] The hint under the composer reads `usage: /copy [code [N]]`.
    - [ ] No new item appears in the transcript.
 
@@ -446,12 +494,15 @@ hint is showing. This section ends in Composing, with the composer empty.
 
 1. Type `/copy` and press `Enter`. You should see the hint under the composer read
    `copied N characters`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s05-copy-command.txt`, which shows `copied 23 characters` after `/copy` and `Enter`. That capture is taken from section 5's state, not this section's. Its transcript holds only the hello and goodbye exchanges, with no section 4 status card and no section 6 exchange, which your run holds. Its number and its clipboard route are canned. No capture in the folder starts from this section's state.
    - [ ] The hint under the composer reads `copied N characters`.
 2. Type the letter `x`. You should see the copy notice disappear, and the `x` appear
    in the composer.
+   Backed by `plan/testing/manual/captures/v0.1.3/s09-copy-notice-clears.txt`, which shows `> x▌` with no copy hint under the composer. The reply text is canned. Its transcript holds only the hello and goodbye exchanges, with no section 4 status card and no section 6 exchange, so the cite backs the composer and the cleared hint only.
    - [ ] One keypress removes the copy notice.
    - [ ] The `x` appears in the composer.
 3. Press `Esc` to clear the composer.
+   No capture: that the composer is empty after `Esc` is checked by your run alone.
    - [ ] The composer is empty.
 
 ### 10. `/c` and `/co` do not complete, and `/cop` does (no model)
@@ -460,17 +511,21 @@ hint is showing. This section ends in Composing, with the composer empty.
 section ends in Composing, with the composer empty.
 
 1. Type `/c` and press `Tab`. The composer still reads `/c`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s10-c-tab-x.txt`, which shows `> /cx▌` after `/c`, `Tab` and `x`. The composer keeps the focus and the `x` lands in it, so `/c` did not complete. The transcript above the composer differs from your run (this frame has no section 4 status card and no section 6 exchange), so the cite backs the composer line only.
    - [ ] `/c` does not complete.
    Type the letter `x`. The composer reads `/cx`, so the focus is still in the
    composer. Press `Esc` to clear it.
    - [ ] After `Tab`, the focus is still in the composer.
    - [ ] The `x` lands in the composer.
 2. Type `/co` and press `Tab`. The composer still reads `/co`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s10-co-tab.txt`, which shows `> /co▌` after `/co` and `Tab`. The transcript above it differs from your run, as in step 1.
    - [ ] `/co` does not complete.
    Press `Esc` to clear the composer.
 3. Type `/cop` and press `Tab`. You should see the composer read `/copy`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s10-cop-tab.txt`, which shows `> /copy▌` after `/cop` and `Tab`. The transcript above it differs from your run, as in step 1.
    - [ ] `/cop` completes to `/copy`.
    Press `Esc` to clear the composer.
+   No capture: that the composer is empty after `Esc` is checked by your run alone.
    - [ ] The composer is empty.
 
 ### 11. The help overlay shows the copy rows, and `?` closes it (no model)
@@ -484,25 +539,31 @@ reading `c copies replies only`, as step 5 leaves it.
 
 1. Press `Shift+↑` to enter Browsing, then press `?`. You should see a box titled
    `help`, with its footer `Esc or ? closes` at the bottom.
+   Backed by `plan/testing/manual/captures/v0.1.3/s11-help-open.txt`, which shows a box whose top border reads `┌─ help ─`, and whose footer row reads `kirsch v0.1.5-dev · Esc or ? closes`. The version is canned: `captures/README.md` (What is canned) names `0.1.5-dev`, and `internal/tui/testdata/capture-inputs.json` holds `"version": "0.1.5-dev"`. The capture's header does not name it. The transcript behind this box holds the section 4 status card, but not the section 6 exchange that your run holds below it, so the box's text is the cue and the backdrop beyond the box differs.
    - [ ] The help box opens.
    - [ ] Its footer reads `Esc or ? closes`.
 2. Read the left column of the help box. With the composer empty and no notice
    showing, the whole box shows on the first view at 80 by 28, with the footer
-   `kirsch v<version> · Esc or ? closes`, where `<version>` is the version of the build under test (`Options.Version` in `internal/tui/model.go`, printed by `modalFooters` in `internal/tui/modal.go`). The capture is canned to `0.1.5-dev`, so its footer reads `kirsch v0.1.5-dev` (`captures/v0.1.3/s11-help-open.txt`, line 32). Under `browsing`, you should see `↑/↓`
+   `kirsch v<version> · Esc or ? closes`, where `<version>` is the version of the build under test (`Options.Version` in `internal/tui/model.go`, printed by `modalFooters` in `internal/tui/modal.go`). The capture is canned to `0.1.5-dev`, so its footer reads `kirsch v0.1.5-dev` (`captures/v0.1.3/s11-help-open.txt`, whose footer row reads `kirsch v0.1.5-dev · Esc or ? closes`). Under `browsing`, you should see `↑/↓`
    with `select card/reply`, and `c` with `copy reply`. There is no `?` row. If a
    notice is showing under the composer, the box is one row short, and `G`, which
    moves to the bottom of the help box, shows the last rows.
+   No capture: the footer's version and the case with a notice showing are checked by your run alone; the capture shows no notice.
+   Backed by `plan/testing/manual/captures/v0.1.3/s11-help-open.txt`, which shows the whole box from its top border to its bottom border, with no `↓ N more` marker. Its browsing block shows `select card/reply` and `copy reply`, and has no `?` row. Its backdrop differs from your run as in step 1.
    - [ ] The first view shows the whole box, from its top border to its bottom border.
    - [ ] The first view has no `↓ N more` marker.
    - [ ] The browsing block shows `↑/↓` with `select card/reply`.
    - [ ] The browsing block shows `c` with `copy reply`.
    - [ ] The browsing block has no `?` row.
 3. Read the right column. Its last row in the commands list should read `/exit  /copy`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s11-help-open.txt`, which shows `/exit  /copy` as the last row of its commands column. Its backdrop differs from your run as in step 1.
    - [ ] The last commands row reads `/exit  /copy`.
 4. Press `?`. The help box closes, and you stay in Browsing.
+   Backed by `plan/testing/manual/captures/v0.1.3/s11-help-closed-hint.txt`, which is the frame after the second `?` and then `c`. It shows no `help` box, and its key-hint row is the Browsing row, `↑↓ select · Enter preview · d detail · Tab/Esc prompt`, so Browsing is still on. Its backdrop differs from your run as in step 1.
    - [ ] `?` closes the help box.
 5. Press `c`. The card is still selected. You should see the hint under the composer
    read `c copies replies only`.
+   Backed by `plan/testing/manual/captures/v0.1.3/s11-help-closed-hint.txt`, which shows `c copies replies only` under the composer. Its status-card rows begin with `┃`, so the card is still the selected item.
    - [ ] The hint under the composer reads `c copies replies only`.
    If nothing appears, write `no hint after help` beside this box. Do not tick it.
 
@@ -513,13 +574,24 @@ step 2. Do not tick it.
 
 ## v0.1.4 · Markdown replies and code highlighting
 
-**Draft, not ready to run.** On 2026-11-21 the operator waived DIR-021 for this
-section until the end-of-round capture mission attaches a screen capture from
-Kirsch for each section. The steps were written from the code and the unit tests.
-No screen has been captured yet, so the capture comes first.
+**What the cues rest on.** A capture, cited by a "Backed by" line from
+`plan/testing/manual/captures/v0.1.4/`, is Kirsch's own render: the frame `Model.View()`
+draws, produced in-process by `internal/tui/capture_test.go` from canned messages and real
+key messages, with no terminal, no model, no network and no key. The capture files are
+written by tests, and those tests do not start Kirsch in a terminal, so no capture is the
+running program's screen. The paragraph that begins "The unit tests" says the same.
 
-**Removal condition:** remove this notice when that capture is attached for every
-section.
+Part of a capture's text is canned, and part is Kirsch's own.
+`plan/testing/manual/captures/README.md` (What is canned) names some of the canned values
+and is not a complete list. Where a cue rests on canned text, its cite says so.
+
+Each cite says in one clause where the capture's state, size or transcript differs from
+the Context of the step it backs, and backs only what the frame shows. An annotation
+(`.annot.txt`) names a palette role and an SGR code, not the colour a terminal draws for
+it. Under `NO_COLOR` a frame carries no escape sequence, which
+`TestCaptureNoColourStatesCarryNoEscapes` checks. A cue that no capture shows is marked where
+it appears, for example by a line beginning "No capture:", by a clause in its cite, or by a
+"Not captured" line that points to `captures/v0.1.4/NOT-CAPTURED.md`.
 
 The unit tests in `internal/tui` cover the logic behind the cues. No test starts
 the interface in a terminal or reads a terminal's screen, so none captures the
@@ -564,8 +636,11 @@ ends in Composing, with the composer empty and the reply on screen.
    words` is bold, with no `**`. `inline code` keeps its backticks. `struck words`
    is struck through, and its `~~` stays. The two items show `•` in place of `-`.
    The bullets assume a UTF-8 terminal; in an ASCII locale they show `-`.
+   No capture: the ASCII-locale form, with `-` for each bullet, is checked by your run alone.
    The code is indented two columns, its fence lines are not shown, and `func` and
    `return` are in the keyword colour.
+   Backed by `plan/testing/manual/captures/v0.1.4/s01-markdown-reply.txt`, which shows `# Heading check`, the bullets as `• first item` and `• second item`, and the code as `  func f() int { return 1 }` with no fence lines. The paragraph line shows `inline code` with its backticks. The reply text is canned.
+   Backed by `plan/testing/manual/captures/v0.1.4/s01-markdown-reply.annot.txt`, which lists `bold words` as `fg=Text(38;5;253)` with bold, `inline code` as `fg=SynString(38;5;180)`, `struck words` as `fg=Text(38;5;253)` with strike, and `func` and `return` as `fg=SynKeyword(38;5;141)`. The text frame shows `bold words` with no `**`, and `~~struck words~~` with its tildes.
    - [ ] The heading reads `# Heading check`.
    - [ ] `bold words` is bold, and no `**` shows.
    - [ ] `inline code` keeps its backticks.
@@ -592,6 +667,8 @@ section 1.
    check` keeps its `#`, `**bold words**` keeps its asterisks, and `~~struck
    words~~` keeps its tildes. The two fence lines of the code block show. No
    keyword or heading colour shows, and no text is struck through or bold.
+   Backed by `plan/testing/manual/captures/v0.1.4/s02-markdown-off.txt`, which shows `# Heading check`, `**bold words**`, `~~struck words~~`, and the two fence lines, the first tagged go. The reply text is canned. The frame is a resumed session scrolled so that the prompt's first line is at the top, and the resume notice that its header names is above that, outside the frame. Its `┃` marks in column 80 are the scrollbar thumb (`Glyphs.BarThumb` in `internal/tui/styles.go`, set to `┃` in the unicode branch of `NewGlyphs`), not a selection, and the frame is in Composing with no item selected, so the cite backs the text only.
+   Backed by `plan/testing/manual/captures/v0.1.4/s02-markdown-off.annot.txt`, which lists no run in the transcript. Its only runs are the header and the `>` caret, so no keyword, heading or bold colour is drawn.
    - [ ] The `#` and the `**` markers show.
    - [ ] The `~~` markers show, and no text is struck through.
    - [ ] The two fence lines of the code block show.
@@ -631,12 +708,15 @@ commit only. A commit made with your own identity works too. Section 5 changes
    own line numbers are at the left, and they stay dim. The tool's number for each
    line follows them. `package` and `func` are in the keyword colour, and `"hi"`
    is in the string colour.
+   Backed by `plan/testing/manual/captures/v0.1.4/s03-readfile-modal-go.txt`, which shows the modal's title `┌─ read_file hello.go`, with `package main`, `func main() {` and `println("hi")` in its lines. The text of hello.go is canned, from `internal/tui/testdata/capture-inputs.json`. This capture is a fresh session: its transcript starts at the `read_file` prompt, with no section 1 exchange above it, where your run has one. The transcript outside the modal differs from your run, and the modal's own text and colours do not.
+   Backed by `plan/testing/manual/captures/v0.1.4/s03-readfile-modal-go.annot.txt`, which lists `package` and `func` as `fg=SynKeyword(38;5;141)`, `"hi"` as `fg=SynString(38;5;180)`, the modal's own number `   1 ` as `fg=Dim(38;5;245)`, and the tool's number after it, `1   `, as `fg=Muted(38;5;248)`.
    - [ ] `package` and `func` are in the keyword colour.
    - [ ] `"hi"` is in the string colour.
    - [ ] The modal's own line numbers are dim.
-   > **Note, 2026-11-23 (dated, unticked).** Step 2 changed. The earlier text pressed `↑` until the `read_file` card was selected. `captures/v0.1.4/s03-readfile-modal-go.txt` line 5 lists the steps as `(the reply streams, the turn completes) | Shift+↑ | d`, with no arrow press, and the frame is the `read_file hello.go` content modal, whose own line numbers are dim in `s03-readfile-modal-go.annot.txt`.
+   > **Note, 2026-11-23 (dated, unticked).** Step 2 changed. The earlier text pressed `↑` until the `read_file` card was selected. `captures/v0.1.4/s03-readfile-modal-go.txt`, whose `# steps:` header ends `(the reply streams, the turn completes) | Shift+↑ | d`, lists the steps with no arrow press, and the frame is the `read_file hello.go` content modal, whose own line numbers are dim in `s03-readfile-modal-go.annot.txt`.
 3. Press `Esc`.
    You should see the modal close and Browsing stay on.
+   No capture: that `Esc` closes the modal, and Browsing stays on, is checked by your run alone.
    - [ ] `Esc` closes the modal.
 
 This section ends in Browsing, with the `read_file` card selected and no modal open.
@@ -652,15 +732,21 @@ the turn ended and no approval card showing.
 
    > Add a new file notes.go with package main and a function func Hello() string that returns "hi". Propose it with apply_patch and wait for my approval.
 
-   You should see an approval card for the patch.
+   You should see an approval card for the patch, with `[y] approve`, `[n] reject` and
+   `[d] view diff` in it.
+   Backed by `plan/testing/manual/captures/v0.1.4/s04-approval-card.txt`, which shows `┌─ approval required` and the choices `[y] approve`, `[n] reject` and `[d] view diff`. The patch's description and its proposed file are canned. This capture is a fresh session, so the transcript above the prompt differs from your run, which has the earlier sections above it; the card's own text is unaffected.
 2. Press `d` on the approval card.
    You should see the diff modal. Each added line starts with a green `+`. `package`
    and `func` are in the keyword colour, and `"hi"` is in the string colour.
+   Backed by `plan/testing/manual/captures/v0.1.4/s04-approval-diff.txt`, which shows `+package main`, `+func Hello() string { return "hi" }`, and the hunk header `@@ -0,0 +1,3 @@`. The patch's text is canned. This frame is 80 by 32, a size this part does not declare, so the cite holds at that size. Its transcript is a fresh session's, as in step 1.
+   Backed by `plan/testing/manual/captures/v0.1.4/s04-approval-diff.annot.txt`, which lists the `+` of each added line as `fg=Success(38;5;120)`, `package` and `func` as `fg=SynKeyword(38;5;141)`, and `"hi"` as `fg=SynString(38;5;180)`.
    - [ ] Each added line starts with a green `+`.
    - [ ] `package` and `func` are in the keyword colour.
    - [ ] `"hi"` is in the string colour.
 3. Press `Esc` to close the diff, then press `n` to reject the patch.
    You should see the patch rejected, and no `notes.go` in the folder.
+   Backed by `plan/testing/manual/captures/v0.1.4/s04-approval-rejected.txt`, which shows `┃ ▾ apply_patch · 12ms · ✗ patch rejected`, and `▸ apply_patch 1 file changed · 40ms · ✗ rejected`. The durations are canned: `12ms` is `toolElapsedMs` and `40ms` is `approvalElapsedMs` in `internal/tui/testdata/capture-inputs.json`. The `12ms` card's time is the tool's own run: `toolExecutor.Invoke` in `internal/app/app.go` takes off the time the user spends answering, which `approvalWait` collects (pinned by `TestLiveApprovalWaitIsNotInTheToolCardsElapsed` in `internal/app/live_tool_test.go`). The `40ms` on the approval line is how long the approval stayed open: `Approval.Elapsed` is set from `RequestedAt` in `internal/tui/update.go`. This capture presses `n` straight from the card with no diff opened, where the step says `Esc` and then `n`, and it is a fresh session. The frame backs the rejected card only.
+   Not captured: see `captures/v0.1.4/NOT-CAPTURED.md`, Section 4.
    - [ ] The patch is rejected, and `notes.go` is not created.
    If another approval card appears, press `n` on it too, and wait until Kirsch is
    idle.
@@ -679,15 +765,20 @@ closed.
 1. Type `/diff` and press `Enter`.
    You should see the `hello.go` section. Its `+` marker is green, and `func` is in
    the keyword colour. Its `diff --git` header is not coloured by language.
+   Backed by `plan/testing/manual/captures/v0.1.4/s05-diff-two-files.txt`, which shows `+func extra() {}` under `diff --git a/hello.go b/hello.go`. The added lines are the ones this step prescribes. The `index` blob hashes and the `@@` hunk headers are git's output and may differ from your run. This frame is 80 by 32, and it is a fresh session's `/diff`: the welcome logo and the suggestions show behind the modal, where your run has the earlier transcript. The modal's text and colours are not affected.
+   Backed by `plan/testing/manual/captures/v0.1.4/s05-diff-two-files.annot.txt`, which lists the `+` on that line as `fg=Success(38;5;120)` and `func` as `fg=SynKeyword(38;5;141)`. For the header line, the same file lists no run over `diff --git a/hello.go b/hello.go`. The runs on that row are cols 1-9, the logo with the box's left border, and col 70, the box's right border.
    - [ ] The `+` on `func extra() {}` is green.
    - [ ] `func` is in the keyword colour.
    - [ ] The `diff --git` header line has no keyword colour.
 2. Look at the `tool.py` section.
    You should see `def` in the keyword colour on `+def extra(): pass`, with a green
    `+`. The `hello.go` section keeps its Go colours.
+   Backed by `plan/testing/manual/captures/v0.1.4/s05-diff-two-files.txt`, which shows `+def extra(): pass` under `diff --git a/tool.py b/tool.py`. Same frame and backdrop as step 1.
+   Backed by `plan/testing/manual/captures/v0.1.4/s05-diff-two-files.annot.txt`, which lists `def` as `fg=SynKeyword(38;5;141)` and the `+` on that line as `fg=Success(38;5;120)`.
    - [ ] `def` is in the keyword colour.
    - [ ] The `+` on the `tool.py` line is green.
 3. Press `Esc` to close `/diff`.
+   No capture: that `Esc` closes `/diff` is checked by your run alone.
    - [ ] `Esc` closes `/diff`.
 
 ### 6. `NO_COLOR=1` shows everything plain, with the same layout (no model)
@@ -703,14 +794,19 @@ ends in Composing, with `/diff` closed.
    the line
    `+def extra(): pass`. Each `+` is plain text, with no colour, and so are `func`
    and `def`.
+   Backed by `plan/testing/manual/captures/v0.1.4/s06-no-color-diff.txt`, taken under `NO_COLOR="1"` (its `# env` line also sets `LC_ALL="en_US.UTF-8"` and `TERM="xterm-256color"`, which the step's `NO_COLOR=1` command does not), which shows `+func extra() {}` and `+def extra(): pass`. The `index` blob hashes and the `@@` hunk headers are git's output and may differ from your run. This frame is 80 by 32 and a fresh session's `/diff`, as in section 5 step 1, so its transcript differs from your run.
+   Backed by `plan/testing/manual/captures/v0.1.4/s06-no-color-diff.annot.txt`, which says: "no run of the frame has an attribute other than a Text, Muted, Dim or Border foreground". The annotation alone does not say the frame carries no colour. The check that does is the no-escape test named in the paragraph at the head of this part (`TestCaptureNoColourStatesCarryNoEscapes`).
    - [ ] No line in `/diff` has any colour.
    - [ ] The `hello.go` section has the line `+func extra() {}`.
    - [ ] The `tool.py` section has the line `+def extra(): pass`.
 2. Press `Esc` to close `/diff`.
+   No capture: that `Esc` closes `/diff` is checked by your run alone.
    - [ ] `Esc` closes `/diff`.
 3. Press `Shift+↑`, then `↑` until the reply from section 1 is selected. You should
    see its `#`, its backticks and its `~~`, and no `**`. Bold text is plain. Press
    `Tab` to return to the composer.
+   Backed by `plan/testing/manual/captures/v0.1.4/s06-no-color-reply.txt`, which shows `# Heading check`, and the paragraph ``A paragraph with bold words, `inline code` and ~~struck words~~.`` with no `**`. The frame backs the reply's rendering only. Its capture is a resumed session whose transcript holds a resume notice, outside the frame, and the section 1 exchange, so one `Shift+↑` lands on the reply because it is the last item there. Its `# env` line also sets `LC_ALL` and `TERM`, as the cite above notes. The frame shows the reply selected, after one `Shift+↑`. Your transcript has later items after the reply, so your run reaches that selection by `↑` presses. The reply text is canned.
+   Backed by `plan/testing/manual/captures/v0.1.4/s06-no-color-reply.annot.txt`, which says: "no run of the frame has an attribute other than a Text, Muted, Dim or Border foreground". The no-escape test in the paragraph at the head of this part is what shows the frame carries no bold.
    - [ ] The reply from section 1 shows `#`, backticks and `~~`, and no `**`.
 
 ### 7. A `postgresql` fence is highlighted as SQL, and a `sql` fence is highlighted (model)
@@ -728,9 +824,13 @@ Composing, with the composer empty.
    You should see two code blocks. In the `postgresql` block, `SELECT` is in the
    keyword colour, as it is in the `sql` block. The dated note below gives the
    earlier expectation.
+   Backed by `plan/testing/manual/captures/v0.1.4/s07-fence-languages.txt`, which shows two indented code blocks, each holding `SELECT 1;`, with no fence line and no language tag. The frame does not say which block carries which tag. That comes from the canned reply in `internal/tui/capture_test.go` (`capFenceReply`), whose first block is tagged `postgresql`. The reply text is canned. This is a fresh session, so the transcript above the prompt differs from your run, which has the earlier sections above it.
+   Backed by `plan/testing/manual/captures/v0.1.4/s07-fence-languages.annot.txt`, which lists `SELECT` as `fg=SynKeyword(38;5;141)` in each block.
    - [ ] `SELECT` in the `postgresql` block is in the keyword colour.
    - [ ] `SELECT` in the `sql` block is in the keyword colour.
    > **Note, 2026-11-23 (dated, unticked).** The expectation for the `postgresql` block changed. Commit `a8d702b` (Part B1) highlights `postgresql` and `postgres` fences as SQL, through `hlInfoAlias` in `internal/tui/highlight.go`. The earlier expectation was that the `postgresql` block is plain text. Evidence: `captures/v0.1.4/s07-fence-languages.annot.txt` rows 07 and 09 show `SELECT` as `fg=SynKeyword(38;5;141)` in both blocks, and `TestHighlightPostgresInfoStringsMapToSQL` in `internal/tui/highlight_test.go` pins the fence. Those rows are the capture's record of a `postgresql` fence, so no further capture is needed.
+   >
+   > **Note, 2026-11-23 (dated, unticked).** This note is a correction beside the one above, which stays as written. The frame of `captures/v0.1.4/s07-fence-languages.txt` shows the two code blocks as indented code, with no fence line and no language tag. The rows named above show the `SELECT` colour, not the tag. Which block is `postgresql` comes from the canned reply in `internal/tui/capture_test.go` (`capFenceReply`), not from the frame.
 
 ### 8. `/copy` still copies the source markdown (no model)
 
@@ -745,6 +845,7 @@ the composer empty.
    You should see the source markdown: `# Heading check`, `**bold words**`,
    `` `inline code` ``, `~~struck words~~`, `- first item`, and the fence lines. You
    should not see `•`.
+   Not captured: see `captures/v0.1.4/NOT-CAPTURED.md`, Section 8.
    - [ ] The paste keeps `# Heading check` with its `#`.
    - [ ] The paste keeps `**bold words**` with its asterisks.
    - [ ] The paste keeps the fence lines, and has no `•`.
@@ -752,6 +853,7 @@ the composer empty.
    the text app. `/copy` takes the last reply, which is the reply from section 7,
    not the reply from section 1. You should see that reply's source: its two fence
    lines, `postgresql` and `sql`, with `SELECT 1;` in each block.
+   Not captured: see `captures/v0.1.4/NOT-CAPTURED.md`, Section 8.
    - [ ] The `/copy` paste holds the section 7 reply's source, with its fence lines.
    - [ ] The `/copy` paste does not hold the section 1 reply's text.
 
@@ -761,10 +863,10 @@ the composer empty.
 
 **What the cues rest on.** Each *You should see* cue is backed by a screen capture in
 `plan/testing/manual/captures/v0.1.5/`. The captures come from Kirsch's own render, with
-canned inputs and no model. The file names, the hunk text, the version, the notices and
-the footer in the captures are canned, so your screen will show different words. The cues
-therefore describe structure only: where the bar and the thumb are, which column they are
-in, which rows are blank, and where a marker or a number sits. They never describe text.
+canned inputs and no model. Part of each capture's text is canned, and part is Kirsch's own.
+`plan/testing/manual/captures/README.md` (What is canned) names some of the canned values
+and is not a complete list. A cue describes structure. Where a cue quotes a file name, the
+capture may show a different one, as the title in section 6 does.
 The index of the captures is `plan/testing/manual/captures/README.md`.
 
 `modal-diff-wrapped` is cited for wrap structure only. Its hunk header is canned: it is not
@@ -798,11 +900,12 @@ has one yet, run section 2 first.
 
 ### 1. A short transcript has no bar (model)
 
-**Context:** Before you start Kirsch, set the window to 80 columns by 24 rows, by dragging a corner of the
-window or using your terminal's window-size setting. Run `tput cols` and `tput lines` in that
-window, and check that they print `80` and `24`. Then start Kirsch with
-`~/path/to/kirsch/bin/kirsch --new` in `~/kirsch-ux-test`. Kirsch is idle in Composing, with
-the composer empty.
+**Context:** If Kirsch from v0.1.4 section 8 is still running, type `/quit` and press
+`Enter`. Before you start Kirsch, set the window to 80 columns by 24 rows, by dragging a
+corner of the window or using your terminal's window-size setting. Run `tput cols` and
+`tput lines` in that window, and check that they print `80` and `24`. Then start Kirsch
+with `~/path/to/kirsch/bin/kirsch --new` in `~/kirsch-ux-test`. Kirsch is idle in
+Composing, with the composer empty.
 This section ends in Composing, with the composer empty and a transcript that fits the
 screen.
 
@@ -1048,8 +1151,10 @@ pinned to the bottom, with the composer empty and the glyph set ASCII.
 1. Wait until the transcript shows.
    You should see a bar in the right-hand column, its track drawn `|` and its thumb `#`, with
    the thumb at the bottom of the bar. The status line and the hint use `.` in place of the
-   Unicode separators, and the composer caret is `_`. The frame is not pure ASCII. The footer that
-   `renderTool` draws for a tool card keeps its own Unicode glyphs, for example `‹` and `›`.
+   Unicode separators, and the composer caret is `_`. The hint line reads
+   `Up/Down history . Shift+Up/Tab cards . /help`. The frame is not pure ASCII. The footer
+   that `renderTool` draws for a tool card keeps its own Unicode glyphs, for example `‹` and
+   `›`.
    Backed by `plan/testing/manual/captures/v0.1.5/scrollbar-ascii.txt`. The bar is lines 11 to 27,
    with `|` on lines 11 to 22 and `#` on lines 23 to 27. The composer caret is on line 31, and the
    hint, `Up/Down history . Shift+Up/Tab cards . /help`, is on line 32. `# glyphs:`, line 4, reads
