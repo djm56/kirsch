@@ -54,7 +54,7 @@ Browsing, with the help box closed.
 1. Press `Shift+↑`. The focus moves to the cards. Press `?`.
    You should see a box titled `help`, with two columns. The left column starts
    with the heading `composing`, then `browsing`.
-   - [ ] The help box opens at 80×28.
+   - [✅] The help box opens at 80×28.
 2. Read the left column.
    You should see these rows, each with its key and its action text:
    - `Ctrl+G` with `bottom, re-pin`
@@ -62,13 +62,13 @@ Browsing, with the help box closed.
    - `PgUp/PgDn j/k` with `scroll` (under `browsing`)
    - `g/G End` with `top / bottom, re-pin`
    - `Shift+Enter` with `newline (or Ctrl+J)`
-   - [ ] All the rows are present, with the text shown above.
+   - [✅] All the rows are present, with the text shown above.
 3. Check the edges of the box.
-   - [ ] No row runs past the right-hand border of the box, and the footer line
+   - [✅] No row runs past the right-hand border of the box, and the footer line
      at the bottom of the box is visible.
 4. Press `Esc`. The help box closes, and the screen shows the transcript again.
    `Esc` closes only the box: you stay in Browsing.
-   - [ ] `Esc` closes the help box.
+   - [✅] `Esc` closes the help box.
 
 If the footer is cut off at 28 rows, write that beside step 3. Do not tick it.
 
@@ -85,21 +85,21 @@ section ends in Composing.
    Press `PgUp`.
    You should see the transcript move up by about one screen. The text
    `half a sentence` is still in the composer, and the cursor is still there.
-   - [ ] The transcript scrolls up one page on `PgUp`.
-   - [ ] `half a sentence` is still in the composer, unchanged.
+   - [✅] The transcript scrolls up one page on `PgUp`.
+   - [✅] `half a sentence` is still in the composer, unchanged.
 2. Press `PgDn`.
    You should see the transcript move back down by a page, to the bottom.
-   - [ ] The transcript scrolls back down on `PgDn`, and `half a sentence` is
+   - [✅] The transcript scrolls back down on `PgDn`, and `half a sentence` is
      still in the composer.
 3. Press `PgUp` again, so the view is scrolled up. Then press `Ctrl+G`.
    The view must be scrolled up before you press `Ctrl+G`, or this step cannot
    fail. You should see the view jump to the bottom, and `half a sentence` still
    in the composer.
-   - [ ] `Ctrl+G` brings the view to the bottom from a scrolled-up view, and the
+   - [✅] `Ctrl+G` brings the view to the bottom from a scrolled-up view, and the
      composer is unchanged.
    If the view stays where it is, write that beside step 3. Do not tick it.
 4. Clear the composer: press `Ctrl+C` once, or select and delete the text.
-   - [ ] The composer is empty.
+   - [✅] The composer is empty.
 
 ### 3. Page keys while a reply is streaming (model)
 
@@ -111,9 +111,9 @@ transcript is tall enough to scroll. This section ends in Composing.
    numbers are still streaming, press `PgUp`.
    You should see the view move up while the reply keeps streaming. The
    composer is dimmed and shows `(input disabled, Esc cancels)`.
-   - [ ] `PgUp` scrolls the transcript while the reply is still streaming.
+   - [✅] `PgUp` scrolls the transcript while the reply is still streaming.
 2. Press `Esc`, or wait for the reply to finish.
-   - [ ] The turn ends (cancelled by `Esc`, or finished), and nothing is left
+   - [✅] The turn ends (cancelled by `Esc`, or finished), and nothing is left
      half-typed in the composer.
 
 ### 4. Line keys in Browsing (no model)
@@ -126,16 +126,16 @@ This section ends in Browsing.
 1. Press `Shift+↑` to enter Browsing. The view may move when you do; that is
    expected. Then press `G` so the view is at the bottom. Then press `k` five
    times. You should see the transcript move up five lines, one per press.
-   - [ ] Five `k` presses move the view up five lines.
+   - [✅] Five `k` presses move the view up five lines.
 2. Press `j` five times.
-   - [ ] Five `j` presses move the view back down five lines.
+   - [✅] Five `j` presses move the view back down five lines.
 3. Hold `k` until the top of the transcript shows, or press `g` to go there. Then
    press `k` once more.
-   - [ ] The view stops at the top and does not move further.
+   - [✅] The view stops at the top and does not move further.
 4. Press `G`.
-   - [ ] `G` moves the view to the bottom.
+   - [✅] `G` moves the view to the bottom.
 5. Press `j` once more.
-   - [ ] The view stays at the bottom and nothing moves.
+   - [✅] The view stays at the bottom and nothing moves.
 
 Card selection is not checked by hand in this section. That `j` and `k` do not
 change the selected card is checked by the automated test
@@ -164,11 +164,11 @@ at that point. This section ends in Browsing.
    `no tool call` beside this step, and send the prompt again.
    If no indicator appears, write `reply finished first` beside this step and
    try again with a longer prompt.
-   - [ ] The `↓ N new` indicator appears while scrolled up, with `N` a small
+   - [✅] The `↓ N new` indicator appears while scrolled up, with `N` a small
      count of blocks.
 2. After the reply has finished, reach the bottom: press `PgDn` until the view
    stops moving. Do not press keys while the reply is still streaming.
-   - [ ] The `↓ N new` indicator goes away at the bottom.
+   - [✅] The `↓ N new` indicator goes away at the bottom.
 
 ### 6. Approval card: `j`, `k`, `PgUp`, `PgDn` (model)
 
@@ -186,15 +186,15 @@ showing.
 
 1. Press `j`.
    You should see the bottom of the composer say `approval pending — Tab to return to the card`.
-   - [ ] `j` releases the card, with the message shown above.
+   - [✅] `j` releases the card, with the message shown above.
 2. Press `Tab`.
    You should see the card armed again.
-   - [ ] `Tab` re-arms the card.
+   - [✅] `Tab` re-arms the card.
 3. Press `PgDn`, then `PgUp`.
    You should see the card still armed, and the transcript does not move.
-   - [ ] `PgUp` and `PgDn` neither release the card nor scroll the transcript.
+   - [✅] `PgUp` and `PgDn` neither release the card nor scroll the transcript.
 4. Press `n` to reject the change.
-   - [ ] `n` rejects the change.
+   - [✅] `n` rejects the change.
    If another approval card appears, the model has asked for the change again.
    That is not a failure. Press `n` on each further card until the turn ends, and
    wait until Kirsch is idle in the composer before section 7.
@@ -218,8 +218,8 @@ request.
    reply's text:
    `· reply cut off — output limit reached (N tokens)`
    `N` is a plain number, with no commas or spaces.
-   - [ ] The line appears under the reply, after its text.
-   - [ ] `N` is a plain number, and it matches the output limit for your model
+   - [✅] The line appears under the reply, after its text.
+   - [✅] `N` is a plain number, and it matches the output limit for your model
      (from the table, or 16384 for a model not in the table).
 2. If the line is missing, check the reply's end. Did it finish with the last
    number, `3000`?
@@ -230,7 +230,7 @@ request.
    ~/path/to/kirsch/bin/kirsch resume
    ```
    You should see the same reply again, with the same line under it.
-   - [ ] The cut-off line is shown again after resume.
+   - [✅] The cut-off line is shown again after resume.
 
 **Not checked by hand:** a reply made only of thinking blocks that is cut off
 shows the line live but not after resume. Its test is
@@ -251,7 +251,7 @@ section. This section ends in Composing.
    `Enter`. Watch the screen as the reply comes in.
    You should see the text the model wrote before a tool call above that tool's
    card, and the text after the call below it. No line appears out of place.
-   - [ ] Reply text, tool cards and the final text appear in the order the model
+   - [✅] Reply text, tool cards and the final text appear in the order the model
      wrote them.
 
 This check cannot reliably tell a correct build from a broken one by eye. The

@@ -67,33 +67,33 @@ The `┃` mark is the accent bar on the left of a selected item. In an ASCII loc
 
 1. Press `Shift+↑`. The focus moves to the transcript, and the last reply is selected.
    You should see the `┃` beside the second reply, on every row of that reply.
-   - [ ] The `┃` marks the second reply, on each of its rows.
+   - [✅] The `┃` marks the second reply, on each of its rows.
 2. Press `↑`.
    You should see the `┃` move up to the first reply. Your second message sits between the two replies, and it gets no `┃`.
-   - [ ] One `↑` moves the `┃` from the second reply to the first.
-   - [ ] Your second message has no `┃` when the selection passes it.
+   - [✅] One `↑` moves the `┃` from the second reply to the first.
+   - [✅] Your second message has no `┃` when the selection passes it.
 3. Press `↑` again.
    You should see the `┃` stay on the first reply. Nothing lies above it. If a start-up notice sits above your first message, this press selects the notice instead. Write `notice above` beside this step, and leave the boxes below empty.
-   - [ ] The `┃` stays on the first reply.
-   - [ ] Your first message gets no `┃`.
+   - [✅] The `┃` stays on the first reply.
+   - [✅] Your first message gets no `┃`.
 4. Press `↓` twice. The first press moves the `┃` back to the second reply. The second press takes the focus back to the composer.
-   - [ ] The second `↓` returns the cursor to the composer.
-   - [ ] The `┃` stays on the second reply after the focus returns to the composer.
+   - [✅] The second `↓` returns the cursor to the composer.
+   - [✅] The `┃` stays on the second reply after the focus returns to the composer.
 
 ### v0.1.3 · master section 2: `Enter` and `d` do nothing on a reply (no model)
 
 **Before you start:** Composing, with the composer empty and the `┃` on the second reply, as section 1 leaves it. This section ends in Browsing, with the second reply selected.
 
 1. Press `Shift+↑` to enter Browsing.
-   - [ ] The `┃` is still on the second reply.
+   - [✅] The `┃` is still on the second reply.
 2. Press `Enter`. You should see none of these happen:
-   - [ ] `Enter` does not expand or collapse the reply.
-   - [ ] `Enter` opens no box.
-   - [ ] `Enter` does not move the view.
+   - [✅] `Enter` does not expand or collapse the reply.
+   - [✅] `Enter` opens no box.
+   - [✅] `Enter` does not move the view.
 3. Press `d`. You should see no box open, and the screen stays as it was.
-   - [ ] `d` opens no box for the reply.
+   - [✅] `d` opens no box for the reply.
 4. Read the bottom row of the screen, the key-hint row. You should see `↑↓ select · c copy · Tab/Esc prompt`.
-   - [ ] The key-hint row reads `↑↓ select · c copy · Tab/Esc prompt`.
+   - [✅] The key-hint row reads `↑↓ select · c copy · Tab/Esc prompt`.
 
 ### v0.1.3 · master section 3: Copy a reply with `c`, then paste it into another app (no model)
 
@@ -101,34 +101,34 @@ The `┃` mark is the accent bar on the left of a selected item. In an ASCII loc
 
 1. Press `c`. You should see the hint under the composer read `copied N characters`, with `N` a plain number. Write `N` beside this step.
    If the hint reads `sent N characters (OSC 52)` or `copy failed: no clipboard route`, write that beside this step and leave the box empty.
-   - [ ] The hint under the composer reads `copied N characters`.
+   - [✅] The hint under the composer reads `copied N characters`.
 2. Switch to the text window. Clear it, then paste. You should see the text of the second reply, with the same words and punctuation.
-   - [ ] The paste holds the second reply's text.
+   - [✅] The paste holds the second reply's text.
 3. Switch back to Kirsch. You should see the transcript where it was.
-   - [ ] The view did not move.
-   - [ ] The `┃` is still on the second reply.
+   - [✅] The view did not move.
+   - [✅] The `┃` is still on the second reply.
 
 ### v0.1.3 · master section 4: `c` on a card gives the hint, and copies nothing (no model)
 
 **Before you start:** Browsing, with the second reply selected, as section 3 leaves it. This section makes a notice card and selects it. This section ends in Browsing, with the notice selected.
 
 1. Press `Tab` to return to the composer. Type `/status` and press `Enter`. You should see a notice card appear at the bottom of the transcript.
-   - [ ] The status notice appears in the transcript.
+   - [✅] The status notice appears in the transcript.
 2. Press `Shift+↑` to enter Browsing, then press `↓`. The `┃` moves from the second reply to the notice card.
-   - [ ] The `┃` marks the status notice.
+   - [✅] The `┃` marks the status notice.
 3. Press `c`. You should see the hint `c copies replies only` under the composer.
-   - [ ] The hint reads `c copies replies only`.
-   - [ ] Nothing is copied.
+   - [✅] The hint reads `c copies replies only`.
+   - [✅] Nothing is copied.
 
 ### v0.1.3 · master section 5: `/copy` copies the last reply (no model)
 
 **Before you start:** Browsing, with the status notice selected, as section 4 leaves it. The last reply in the transcript is the second reply. The status notice is not a reply, so `/copy` does not use it. This section ends in Composing, with the composer empty. The copy notice may still show; typing clears it.
 
 1. Press `Tab` to return to the composer. Type `/copy` and press `Enter`. You should see the hint under the composer read `copied N characters`. The transcript does not move.
-   - [ ] The hint under the composer reads `copied N characters`.
-   - [ ] The transcript stays where it was.
+   - [✅] The hint under the composer reads `copied N characters`.
+   - [✅] The transcript stays where it was.
 2. Clear the text window, switch to it, and paste. You should see the second reply's text, the same as in section 3.
-   - [ ] The paste holds the second reply's text.
+   - [✅] The paste holds the second reply's text.
 
 ### v0.1.3 · master section 6: `/copy code` and `/copy code 2` on a reply with two code blocks (model)
 
@@ -139,81 +139,81 @@ The `┃` mark is the accent bar on the left of a selected item. In an ASCII loc
 Count the lines that open a fence, which look like ```` ```go ````, in the reply. Models vary, so the count may differ. The steps below assume two, which is the number the prompt asks for. If the count is not two, write the count beside step 1, and do not tick the boxes that depend on it. Wait until the reply has finished and Kirsch is idle in the composer, with no turn running, before step 1. This section ends in Composing, with the composer empty.
 
 1. Type `/copy code` and press `Enter`. You should see the hint under the composer read `copied N characters`. Clear the text window, switch to it, and paste. You should see the lines of the second code block only, with no fence line and no `go`.
-   - [ ] The hint under the composer reads `copied N characters`.
-   - [ ] The paste holds the second block's lines.
-   - [ ] The paste has no fence line.
-   - [ ] The paste has no `go`.
+   - [✅] The hint under the composer reads `copied N characters`.
+   - [✅] The paste holds the second block's lines.
+   - [✅] The paste has no fence line.
+   - [✅] The paste has no `go`.
 2. Type `/copy code 2` and press `Enter`. Clear the text window, switch to it, and paste. Block 2 is the last block, so you should see the same text as step 1.
-   - [ ] `/copy code 2` pastes the same text as `/copy code`.
+   - [✅] `/copy code 2` pastes the same text as `/copy code`.
 3. Type `/copy code 1` and press `Enter`. Clear the text window, switch to it, and paste. You should see the lines of the first code block, and not the second.
-   - [ ] The paste holds the first block's lines.
-   - [ ] The paste does not hold the second block's lines.
+   - [✅] The paste holds the first block's lines.
+   - [✅] The paste does not hold the second block's lines.
 
 ### v0.1.3 · master section 7: `/copy code 9` gives the range notice (no model)
 
 **Before you start:** Composing, with the composer empty, as section 6 leaves it. Kirsch is idle, and the reply has finished. The reply with two code blocks is still the last reply. The clipboard holds the first block's lines from section 6, step 3. This section ends in Composing, with the composer empty.
 
 1. Type `/copy code 9` and press `Enter`. You should see the hint under the composer read `the last reply has 2 code blocks`.
-   - [ ] The hint under the composer reads `the last reply has 2 code blocks`.
+   - [✅] The hint under the composer reads `the last reply has 2 code blocks`.
 2. Clear the text window, switch to it, and paste. You should see the first block's lines again, because the out-of-range request copied nothing.
-   - [ ] The paste still holds the first block's lines.
+   - [✅] The paste still holds the first block's lines.
 
 ### v0.1.3 · master section 8: `/copy foo` gives the usage hint (no model)
 
 **Before you start:** Composing, with the composer empty, as section 7 leaves it. This section ends in Composing, with the composer empty and the usage hint showing.
 
 1. Type `/copy foo` and press `Enter`. You should see the hint under the composer read `usage: /copy [code [N]]`.
-   - [ ] The hint under the composer reads `usage: /copy [code [N]]`.
-   - [ ] No new item appears in the transcript.
+   - [✅] The hint under the composer reads `usage: /copy [code [N]]`.
+   - [✅] No new item appears in the transcript.
 
 ### v0.1.3 · master section 9: The copy notice clears when you type (no model)
 
 **Before you start:** Composing, with the composer empty, as section 8 leaves it. The usage hint is showing. This section ends in Composing, with the composer empty.
 
 1. Type `/copy` and press `Enter`. You should see the hint under the composer read `copied N characters`.
-   - [ ] The hint under the composer reads `copied N characters`.
+   - [✅] The hint under the composer reads `copied N characters`.
 2. Type the letter `x`. You should see the copy notice disappear, and the `x` appear in the composer.
-   - [ ] One keypress removes the copy notice.
-   - [ ] The `x` appears in the composer.
+   - [✅] One keypress removes the copy notice.
+   - [✅] The `x` appears in the composer.
 3. Press `Esc` to clear the composer.
-   - [ ] The composer is empty.
+   - [✅] The composer is empty.
 
 ### v0.1.3 · master section 10: `/c` and `/co` do not complete, and `/cop` does (no model)
 
 **Before you start:** Composing, with the composer empty, as section 9 leaves it. This section ends in Composing, with the composer empty.
 
 1. Type `/c` and press `Tab`. The composer still reads `/c`.
-   - [ ] `/c` does not complete.
+   - [✅] `/c` does not complete.
    Type the letter `x`. The composer reads `/cx`, so the focus is still in the composer. Press `Esc` to clear it.
-   - [ ] After `Tab`, the focus is still in the composer.
-   - [ ] The `x` lands in the composer.
+   - [✅] After `Tab`, the focus is still in the composer.
+   - [✅] The `x` lands in the composer.
 2. Type `/co` and press `Tab`. The composer still reads `/co`.
-   - [ ] `/co` does not complete.
+   - [✅] `/co` does not complete.
    Press `Esc` to clear the composer.
 3. Type `/cop` and press `Tab`. You should see the composer read `/copy`.
-   - [ ] `/cop` completes to `/copy`.
+   - [✅] `/cop` completes to `/copy`.
    Press `Esc` to clear the composer.
-   - [ ] The composer is empty.
+   - [✅] The composer is empty.
 
 ### v0.1.3 · master section 11: The help overlay shows the copy rows, and `?` closes it (no model)
 
 **Before you start:** Composing, with the composer empty and no notice showing, as section 10 leaves it. Section 10 ends with `Esc`, which clears the composer and the hint under it. The status notice card from section 4 is still the selected item. Kirsch is idle. The window is 80 columns by 28 rows. This section ends in Browsing, with the help box closed and the hint under the composer reading `c copies replies only`, as step 5 leaves it.
 
 1. Press `Shift+↑` to enter Browsing, then press `?`. You should see a box titled `help`, with its footer `Esc or ? closes` at the bottom.
-   - [ ] The help box opens.
-   - [ ] Its footer reads `Esc or ? closes`.
+   - [✅] The help box opens.
+   - [✅] Its footer reads `Esc or ? closes`.
 2. Read the left column of the help box. With the composer empty and no notice showing, the whole box shows on the first view at 80 by 28, with the footer `kirsch v<version> · Esc or ? closes`, where `<version>` is the version of the build you are testing. Until the v0.1.5 tag is made, a build from this tree prints `kirsch v0.1.3-dev`. Under `browsing`, you should see `↑/↓` with `select card/reply`, and `c` with `copy reply`. There is no `?` row. If a notice is showing under the composer, the box is one row short, and `G`, which moves to the bottom of the help box, shows the last rows.
-   - [ ] The first view shows the whole box, from its top border to its bottom border.
-   - [ ] The first view has no `↓ N more` marker.
-   - [ ] The browsing block shows `↑/↓` with `select card/reply`.
-   - [ ] The browsing block shows `c` with `copy reply`.
-   - [ ] The browsing block has no `?` row.
+   - [✅] The first view shows the whole box, from its top border to its bottom border.
+   - [✅] The first view has no `↓ N more` marker.
+   - [✅] The browsing block shows `↑/↓` with `select card/reply`.
+   - [✅] The browsing block shows `c` with `copy reply`.
+   - [✅] The browsing block has no `?` row.
 3. Read the right column. Its last row in the commands list should read `/exit  /copy`.
-   - [ ] The last commands row reads `/exit  /copy`.
+   - [✅] The last commands row reads `/exit  /copy`.
 4. Press `?`. The help box closes, and you stay in Browsing.
-   - [ ] `?` closes the help box.
+   - [✅] `?` closes the help box.
 5. Press `c`. The card is still selected. You should see the hint under the composer read `c copies replies only`.
-   - [ ] The hint under the composer reads `c copies replies only`.
+   - [✅] The hint under the composer reads `c copies replies only`.
    If nothing appears, write `no hint after help` beside this box. Do not tick it.
 
 If a notice is showing and a row is still cut off after `G`, write that beside step 2. Do not tick it.
@@ -237,12 +237,12 @@ Use the markdown on the screen as the test. If a model's wording differs from th
    > Reply with only this markdown: a heading `# Heading check`; a blank line; a paragraph with **bold words**, `inline code` and ~~struck words~~; a blank line; two bullets, `- first item` and `- second item`; a blank line; a go code fence containing `func f() int { return 1 }`. Do not wrap the whole reply in a code fence.
 
    You should see the reply drawn as markdown. The heading keeps its `#`. `bold words` is bold, with no `**`. `inline code` keeps its backticks. `struck words` is struck through, and its `~~` stays. The two items show `•` in place of `-`. The bullets assume a UTF-8 terminal; in an ASCII locale they show `-`. The code is indented two columns, its fence lines are not shown, and `func` and `return` are in the keyword colour.
-   - [ ] The heading reads `# Heading check`.
-   - [ ] `bold words` is bold, and no `**` shows.
-   - [ ] `inline code` keeps its backticks.
-   - [ ] `struck words` is struck through, and its `~~` shows.
-   - [ ] The two items show `•` (or `-` in an ASCII locale).
-   - [ ] The code has no fence lines, and `func` and `return` are in the keyword colour.
+   - [✅] The heading reads `# Heading check`.
+   - [✅] `bold words` is bold, and no `**` shows.
+   - [✅] `inline code` keeps its backticks.
+   - [✅] `struck words` is struck through, and its `~~` shows.
+   - [✅] The two items show `•` (or `-` in an ASCII locale).
+   - [✅] The code has no fence lines, and `func` and `return` are in the keyword colour.
 
 ### v0.1.4 · master section 2: `render_markdown = false` shows the reply as plain text (no model)
 
@@ -257,10 +257,10 @@ Start Kirsch again from `~/kirsch-ux-test` with `~/path/to/kirsch/bin/kirsch`, w
 
 1. Look at the reply from section 1.
    You should see the reply as plain text, as the model wrote it. `# Heading check` keeps its `#`, `**bold words**` keeps its asterisks, and `~~struck words~~` keeps its tildes. The two fence lines of the code block show. No keyword or heading colour shows, and no text is struck through or bold.
-   - [ ] The `#` and the `**` markers show.
-   - [ ] The `~~` markers show, and no text is struck through.
-   - [ ] The two fence lines of the code block show.
-   - [ ] No keyword or heading colour shows, and no text is bold.
+   - [✅] The `#` and the `**` markers show.
+   - [✅] The `~~` markers show, and no text is struck through.
+   - [✅] The two fence lines of the code block show.
+   - [✅] No keyword or heading colour shows, and no text is bold.
 
 This section ends with Kirsch in Composing. Type `/quit` and press `Enter`. Then remove those lines from the config file, so that later sections run with the default. Section 3 starts Kirsch again.
 
@@ -284,12 +284,12 @@ Then check that Git tracks `hello.go`: run `git ls-files hello.go` in `~/kirsch-
 
 2. Press `Shift+↑` to enter Browsing. The `read_file` card is still selected, so press `d`.
    You should see the content modal, with the file's lines numbered. The modal's own line numbers are at the left, and they stay dim. The tool's number for each line follows them. `package` and `func` are in the keyword colour, and `"hi"` is in the string colour.
-   - [ ] `package` and `func` are in the keyword colour.
-   - [ ] `"hi"` is in the string colour.
-   - [ ] The modal's own line numbers are dim.
+   - [✅] `package` and `func` are in the keyword colour.
+   - [✅] `"hi"` is in the string colour.
+   - [✅] The modal's own line numbers are dim.
 3. Press `Esc`.
    You should see the modal close and Browsing stay on.
-   - [ ] `Esc` closes the modal.
+   - [✅] `Esc` closes the modal.
 
 This section ends in Browsing, with the `read_file` card selected and no modal open.
 
@@ -304,12 +304,12 @@ This section ends in Browsing, with the `read_file` card selected and no modal o
    You should see an approval card for the patch, with `[y] approve`, `[n] reject` and `[d] view diff` in it.
 2. Press `d` on the approval card.
    You should see the diff modal. Each added line starts with a green `+`. `package` and `func` are in the keyword colour, and `"hi"` is in the string colour.
-   - [ ] Each added line starts with a green `+`.
-   - [ ] `package` and `func` are in the keyword colour.
-   - [ ] `"hi"` is in the string colour.
+   - [✅] Each added line starts with a green `+`.
+   - [✅] `package` and `func` are in the keyword colour.
+   - [✅] `"hi"` is in the string colour.
 3. Press `Esc` to close the diff, then press `n` to reject the patch.
    You should see the patch rejected, and no `notes.go` in the folder.
-   - [ ] The patch is rejected, and `notes.go` is not created.
+   - [✅] The patch is rejected, and `notes.go` is not created.
    If another approval card appears, press `n` on it too, and wait until Kirsch is idle.
 
 ### v0.1.4 · master section 5: `/diff` highlights each file in its own language (no model)
@@ -318,15 +318,15 @@ This section ends in Browsing, with the `read_file` card selected and no modal o
 
 1. Type `/diff` and press `Enter`.
    You should see the `hello.go` section. Its `+` marker is green, and `func` is in the keyword colour. Its `diff --git` header is not coloured by language. The `index` hashes and the `@@` lines are git's output and may differ on your machine.
-   - [ ] The `+` on `func extra() {}` is green.
-   - [ ] `func` is in the keyword colour.
-   - [ ] The `diff --git` header line has no keyword colour.
+   - [✅] The `+` on `func extra() {}` is green.
+   - [✅] `func` is in the keyword colour.
+   - [✅] The `diff --git` header line has no keyword colour.
 2. Look at the `tool.py` section.
    You should see `def` in the keyword colour on `+def extra(): pass`, with a green `+`. The `hello.go` section keeps its Go colours.
-   - [ ] `def` is in the keyword colour.
-   - [ ] The `+` on the `tool.py` line is green.
+   - [✅] `def` is in the keyword colour.
+   - [✅] The `+` on the `tool.py` line is green.
 3. Press `Esc` to close `/diff`.
-   - [ ] `Esc` closes `/diff`.
+   - [✅] `Esc` closes `/diff`.
 
 ### v0.1.4 · master section 6: `NO_COLOR=1` shows everything plain, with the same layout (no model)
 
@@ -334,13 +334,13 @@ This section ends in Browsing, with the `read_file` card selected and no modal o
 
 1. Type `/diff` and press `Enter`.
    You should see one file section for each changed file, as in section 5. The `hello.go` section has the line `+func extra() {}`, and the `tool.py` section has the line `+def extra(): pass`. Each `+` is plain text, with no colour, and so are `func` and `def`. The `index` hashes and the `@@` lines are git's output and may differ on your machine.
-   - [ ] No line in `/diff` has any colour.
-   - [ ] The `hello.go` section has the line `+func extra() {}`.
-   - [ ] The `tool.py` section has the line `+def extra(): pass`.
+   - [✅] No line in `/diff` has any colour.
+   - [✅] The `hello.go` section has the line `+func extra() {}`.
+   - [✅] The `tool.py` section has the line `+def extra(): pass`.
 2. Press `Esc` to close `/diff`.
-   - [ ] `Esc` closes `/diff`.
+   - [✅] `Esc` closes `/diff`.
 3. Press `Shift+↑`, then `↑` until the reply from section 1 is selected. You should see its `#`, its backticks and its `~~`, and no `**`. Bold text is plain. Press `Tab` to return to the composer.
-   - [ ] The reply from section 1 shows `#`, backticks and `~~`, and no `**`.
+   - [✅] The reply from section 1 shows `#`, backticks and `~~`, and no `**`.
 
 ### v0.1.4 · master section 7: A `postgresql` fence is highlighted as SQL, and a `sql` fence is highlighted (model)
 
@@ -351,8 +351,8 @@ This section ends in Browsing, with the `read_file` card selected and no modal o
    > Reply with only two code fences. The first is tagged postgresql and the second is tagged sql. Each holds the line SELECT 1;
 
    You should see two code blocks. In each one, `SELECT` is in the keyword colour. The screen does not show the language tags. The prompt asks for the `postgresql` fence first, so the first block should be the `postgresql` one and the second the `sql` one.
-   - [ ] `SELECT` in the `postgresql` block is in the keyword colour.
-   - [ ] `SELECT` in the `sql` block is in the keyword colour.
+   - [✅] `SELECT` in the `postgresql` block is in the keyword colour.
+   - [✅] `SELECT` in the `sql` block is in the keyword colour.
 
 ### v0.1.4 · master section 8: `/copy` still copies the source markdown (no model)
 
@@ -360,12 +360,12 @@ This section ends in Browsing, with the `read_file` card selected and no modal o
 
 1. Press `Shift+↑` to enter Browsing. Press `↑` until the reply from section 1 is selected, then press `c`. Paste into the text app.
    You should see the source markdown: `# Heading check`, `**bold words**`, `` `inline code` ``, `~~struck words~~`, `- first item`, and the fence lines. You should not see `•`.
-   - [ ] The paste keeps `# Heading check` with its `#`.
-   - [ ] The paste keeps `**bold words**` with its asterisks.
-   - [ ] The paste keeps the fence lines, and has no `•`.
+   - [✅] The paste keeps `# Heading check` with its `#`.
+   - [✅] The paste keeps `**bold words**` with its asterisks.
+   - [✅] The paste keeps the fence lines, and has no `•`.
 2. Press `Tab` to return to the composer. Type `/copy` and press `Enter`. Paste into the text app. `/copy` takes the last reply, which is the reply from section 7, not the reply from section 1. You should see that reply's source: its two fence lines, `postgresql` and `sql`, with `SELECT 1;` in each block.
-   - [ ] The `/copy` paste holds the section 7 reply's source, with its fence lines.
-   - [ ] The `/copy` paste does not hold the section 1 reply's text.
+   - [✅] The `/copy` paste holds the section 7 reply's source, with its fence lines.
+   - [✅] The `/copy` paste does not hold the section 1 reply's text.
 
 ---
 
@@ -394,8 +394,8 @@ Sections marked (no model) need a long transcript on screen. Section 2 makes one
    > count from 1 to 300, one number per line
 
    You should see a bar in the right-hand column, running from the first transcript row down to the last one, above the rule that separates the transcript from the status line. A thumb, drawn `┃`, sits at the bottom of the bar, on the last transcript row. The track above it is drawn `│`. The length of the thumb depends on how long the transcript is, so match where it sits, not how long it is.
-   - [ ] The bar runs from the first transcript row to the last one.
-   - [ ] The thumb sits at the bottom of the bar.
+   - [✅] The bar runs from the first transcript row to the last one.
+   - [✅] The thumb sits at the bottom of the bar.
 
 ### v0.1.5 · master section 3: The bar at the top (no model)
 
@@ -403,8 +403,8 @@ Sections marked (no model) need a long transcript on screen. Section 2 makes one
 
 1. Press `Shift+↑` to enter Browsing. Then press `g`, which moves the view to the top whichever item is selected.
    You should see the thumb at the top of the bar, starting on the first transcript row, with the track below it down to the last transcript row.
-   - [ ] The thumb is at the top of the bar.
-   - [ ] The track runs below the thumb to the last transcript row.
+   - [✅] The thumb is at the top of the bar.
+   - [✅] The track runs below the thumb to the last transcript row.
 
 ### v0.1.5 · master section 4: The bar in the middle, with `↓ N new` (model)
 
@@ -415,8 +415,8 @@ Sections marked (no model) need a long transcript on screen. Section 2 makes one
    You should see the thumb on a row above the bottom of the bar, with track below it. On the last transcript row, the `↓ N new` indicator ends flush against the bar's column.
    If no tool card appears, write `no tool call` beside this step and send the prompt again.
    If no indicator appears, the keys came in an order that gives no count. Write `reply started first` or `reply finished first` beside this step, as applies, and try again with a longer prompt.
-   - [ ] The thumb is not on the bottom row of the bar, and track shows below it.
-   - [ ] The `↓ N new` indicator ends on the last transcript row, flush against the bar.
+   - [✅] The thumb is not on the bottom row of the bar, and track shows below it.
+   - [✅] The `↓ N new` indicator ends on the last transcript row, flush against the bar.
 
 ### v0.1.5 · master section 5: No bar under an open modal (model)
 
@@ -425,10 +425,10 @@ Sections marked (no model) need a long transcript on screen. Section 2 makes one
 1. Press `↑` or `↓` until a `read_file` card for `README.md` shows the `┃` gutter and the hint row begins `↑↓ select`. For example, the card from section 1 or the card from section 4 will do. The cues below hold whichever `README.md` card is opened, so do not try to tell them apart. If the gutter goes off screen, press the other arrow. If the hint row changes to `↑↓ history · ⇧↑/Tab cards · /help`, which is the composer's hint and not the Browsing one, you have stepped past the last item: press `Shift+↑` to return to the cards and carry on. Then press `d`.
    If a `d` reaches the composer by mistake, press `Esc` to clear it (no turn is running here, and `Esc` clears the composer in Composing when none is). You are still in the composer: press `Shift+↑`, bring the gutter back to the card with the arrows, and press `d` again.
    You should see a box over the transcript, with a title in the form `read_file <file>`. No bar is drawn in the right-hand column on any row. Fragments of the transcript behind the box show at the box's right edge.
-   - [ ] No bar is drawn while the modal is open.
+   - [✅] No bar is drawn while the modal is open.
 2. Press `Esc`.
    You should see the screen return to Browsing, with the bar back in the right-hand column.
-   - [ ] The bar comes back when the modal closes.
+   - [✅] The bar comes back when the modal closes.
 
 ### v0.1.5 · master section 6: A wrapped line in a `read_file` modal (model)
 
@@ -437,9 +437,9 @@ Sections marked (no model) need a long transcript on screen. Section 2 makes one
 1. Press `Tab`. Type `read long.txt and reply with one word`, press `Enter`, and wait until Kirsch is idle. Press `Shift+↑`, which enters Browsing from the composer. Then press `↑` or `↓` until the `read_file` card for `long.txt` shows the `┃` gutter and the hint row begins `↑↓ select`. If the gutter goes off screen, press the other arrow. If the hint row changes to `↑↓ history · ⇧↑/Tab cards · /help`, which is the composer's hint and not the Browsing one, you have stepped past the last item: press `Shift+↑` to return to the cards and carry on. Then press `d`.
    If a `d` reaches the composer by mistake, press `Esc` to clear it (no turn is running here, and `Esc` clears the composer in Composing when none is). You are still in the composer: press `Shift+↑`, bring the gutter back to the `long.txt` card with the arrows, and press `d` again.
    You should see a box whose title is `read_file long.txt`. Its first line is 150 characters wide, so it runs over several rows inside the box. The line number shows on the first row only. The rows below it leave the number columns blank, and their text starts in the column where the tool's own number sits on the first row. The modal's own number and the tool's number both show on that first row. That is how it is drawn now. The rule and the footer are drawn inside the box, as before: the footer sits on the row above the box's bottom edge.
-   - [ ] The wrapped line runs over several rows, and the line number shows on the first row only.
-   - [ ] The modal's number and the tool's number both show on the first row.
-   - [ ] The footer `j/k scroll · g/G top/bottom · Esc close` is drawn inside the box, above its bottom edge.
+   - [✅] The wrapped line runs over several rows, and the line number shows on the first row only.
+   - [✅] The modal's number and the tool's number both show on the first row.
+   - [✅] The footer `j/k scroll · g/G top/bottom · Esc close` is drawn inside the box, above its bottom edge.
 
    Pieces of the transcript behind the box show at its left and right edges.
 
@@ -449,8 +449,8 @@ Sections marked (no model) need a long transcript on screen. Section 2 makes one
 
 1. Press `G`.
    You should see the body filled down to the last line of `long.txt`, with no blank row under it. The rule above the footer shows `↑ N above`, where `N` counts the display rows above the top of the body. It is a count of rows, not a line number.
-   - [ ] The last body row is the last row of the file's last line, which may be a wrapped row. No blank row sits under it.
-   - [ ] The rule shows `↑` with a count of rows above.
+   - [✅] The last body row is the last row of the file's last line, which may be a wrapped row. No blank row sits under it.
+   - [✅] The rule shows `↑` with a count of rows above.
 2. Press `Esc` to close the modal.
    You should see Browsing again. The hint line reads `↑↓ select · Enter preview · d detail · Tab/Esc prompt` while the `┃` gutter is on a card, and `↑↓ select · c copy · Tab/Esc prompt` while it is on a reply.
 
@@ -469,9 +469,9 @@ The last line of `long.txt` is now 150 `z` characters, where the setup made it 1
    You should see a box titled `working tree`, with a stat on its top rule.
 2. Press `j` or `PgDn` until the `long.txt` hunk is in view. The diff for `hello.go` can sit above it, so scroll past that part first.
    You should see a code line wider than the text wrap. Its `+` or `-` marker shows on the first row only. The row below it starts with a blank column where the marker is, and the code continues from there. A `@@` line wraps flush, with no blank column. A short `@@` line does not wrap, and that is not a failure: it wraps only when it is wider than the text.
-   - [ ] A code line wider than the text shows its `+` or `-` on the first row only.
-   - [ ] The row below a wrapped code line starts with a blank column where the marker is.
-   - [ ] A wrapped `@@` line starts flush with the left edge of the text.
+   - [✅] A code line wider than the text shows its `+` or `-` on the first row only.
+   - [✅] The row below a wrapped code line starts with a blank column where the marker is.
+   - [✅] A wrapped `@@` line starts flush with the left edge of the text.
 3. Press `Esc`.
    You should see the modal close, and Kirsch return to the composer, because `/diff` was typed there. The hint line under the composer shows the composer keys.
 
@@ -481,8 +481,8 @@ The last line of `long.txt` is now 150 `z` characters, where the setup made it 1
 
 1. Press `Shift+↑`, then `?`.
    You should see a box titled `help`, with two columns. Each binding is one row of the screen. A row longer than the box's text width ends in `⋯` at the right edge. It does not wrap onto the next row. The footer rule shows a `↓ N more` marker, where `N` counts the help rows below the ones showing.
-   - [ ] Each help row is one row of the screen, and a long one ends in `⋯`.
-   - [ ] The footer rule shows a `↓ N more` marker.
+   - [✅] Each help row is one row of the screen, and a long one ends in `⋯`.
+   - [✅] The footer rule shows a `↓ N more` marker.
 2. Press `Esc` to close the help box.
 
 ### v0.1.5 · master section 10: The bar with ASCII glyphs (no model)
@@ -491,8 +491,8 @@ The last line of `long.txt` is now 150 `z` characters, where the setup made it 1
 
 1. Wait until the transcript shows.
    You should see a bar in the right-hand column, its track drawn `|` and its thumb `#`, with the thumb at the bottom of the bar. The status line and the hint use `.` in place of the Unicode separators, and the composer caret is `_`. The hint line reads `Up/Down history . Shift+Up/Tab cards . /help`. The frame is not pure ASCII. The footer of a tool card keeps its own Unicode glyphs, for example `‹` and `›`.
-   - [ ] The track is `|` and the thumb is `#`, in the right-hand column.
-   - [ ] The status and hint lines use `.` for the separators, and the composer caret is `_`.
+   - [✅] The track is `|` and the thumb is `#`, in the right-hand column.
+   - [✅] The status and hint lines use `.` for the separators, and the composer caret is `_`.
 
 ---
 
