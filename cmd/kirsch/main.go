@@ -36,7 +36,7 @@ import (
 // are in CONTRIBUTING.md, "After a release tag". Until that bump lands, an
 // unstamped build still reports the just-released version's -dev (for example
 // 0.1.2-dev after v0.1.2 is tagged).
-const devVersion = "0.1.3-dev"
+const devVersion = "0.2.0-dev"
 
 // version is overridden at release time via -ldflags, for example
 // -X main.version=0.1.0. The injected value is bare: the TUI adds its own "v".

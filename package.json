@@ -1,6 +1,6 @@
 {
   "name": "kirsch",
-  "version": "0.1.3-dev",
+  "version": "0.2.0-dev",
   "private": true,
   "description": "Task runner for Kirsch. The project is Go; npm is here only as a familiar front door to the commands that matter.",
   "scripts": {
